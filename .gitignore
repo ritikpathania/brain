@@ -36,3 +36,8 @@ target/
 *.njsproj
 *.sln
 *.sw?
+
+# Compiled binaries
+cli/bin/brain
+cli/bin/brain_tui
+
