@@ -41,3 +41,8 @@ target/
 cli/bin/brain
 cli/bin/brain_tui
 
+# AI / Dev Agent Directories
+.code-review-graph/
+.junie/
+
+
