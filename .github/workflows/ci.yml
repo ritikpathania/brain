@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint-and-format:
+    name: Lint & Format Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cargo Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            daemon/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check Rust Formatting
+        run: |
+          cd daemon
+          cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: |
+          cd daemon
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Dependencies
+        run: |
+          cd daemon
+          uv sync
+
+      - name: Check Python Format (Ruff)
+        run: |
+          cd daemon
+          uv run ruff format --check .
+
+      - name: Check Python Lint (Ruff)
+        run: |
+          cd daemon
+          uv run ruff check .
+
+  type-check:
+    name: Type Checking
+    runs-on: ubuntu-latest
+    needs: lint-and-format
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Dependencies
+        run: |
+          cd daemon
+          uv sync
+
+      - name: Run Type Checking
+        run: |
+          cd daemon
+          uv run ty check
+          uv run pyrefly check
+
+  test-and-bench:
+    name: Tests & Benchmark Compiles (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: lint-and-format
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Dependencies
+        run: |
+          cd daemon
+          uv sync
+
+      - name: Build PyO3 Bridge (Maturin)
+        run: |
+          cd daemon
+          uv run maturin develop
+
+      - name: Run Rust Test Suite
+        run: |
+          cd daemon
+          uv run cargo test
+
+      - name: Run Python Test Suite
+        run: |
+          cd daemon
+          uv run pytest
+
+      - name: Verify Benchmark Compilation
+        run: |
+          cd daemon
+          uv run cargo bench --no-run

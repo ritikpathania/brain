@@ -1,0 +1,43 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "brain"
+version = "0.1.0"
+description = "Standalone Relational Memory Engine Daemon Bridge"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "maturin>=1.5,<2.0",
+    "ruff>=0.1",
+    "ty",
+    "pyrefly",
+    "pytest",
+    "hypothesis",
+]
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "."
+module-name = "brain.daemon_bridge"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "RUF"]
+ignore = []
+
+[tool.ty.src]
+include = ["brain/**/*.py", "tests/**/*.py"]
+exclude = []
+
+[tool.pyrefly]

@@ -1,0 +1,38 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large precompiled binaries or tarballs
+brain-darwin-arm64.tar.gz
+*.tar.gz
+*.zip
+*.tar
+
+# Bun/Node
+node_modules/
+dist/
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.mypy_cache/
+
+# Rust/Cargo
+target/
+**/*.rs.bk
+
+# Local settings/IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

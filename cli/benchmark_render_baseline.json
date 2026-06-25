@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-06-25T20:54:45.672Z",
+  "gitCommit": "unknown",
+  "bunVersion": "1.3.14",
+  "platform": "darwin-arm64",
+  "config": {
+    "logEntries": 1000,
+    "markdownChunks": 500,
+    "resizeIterations": 200,
+    "themeSwitches": 100
+  },
+  "scenarios": {
+    "logs": {
+      "totalWallMs": 774.5,
+      "totalRenderMs": 81.99,
+      "averageCommitMs": 0.08,
+      "maxCommitMs": 3.13,
+      "frames": 1001
+    },
+    "markdown": {
+      "totalWallMs": 3045.72,
+      "totalRenderMs": 15.78,
+      "averageCommitMs": 0.03,
+      "maxCommitMs": 0.3,
+      "frames": 501
+    },
+    "resize": {
+      "totalWallMs": 96.55,
+      "totalRenderMs": 10.27,
+      "averageCommitMs": 0.05,
+      "maxCommitMs": 0.72,
+      "frames": 201
+    },
+    "theme": {
+      "totalWallMs": 28.85,
+      "totalRenderMs": 4.37,
+      "averageCommitMs": 0.04,
+      "maxCommitMs": 0.4,
+      "frames": 101
+    }
+  }
+}
