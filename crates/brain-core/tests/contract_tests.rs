@@ -57,7 +57,10 @@ fn test_trait_object_compilation() {
 
     let tool: std::sync::Arc<dyn Tool> = std::sync::Arc::new(MockTool { metadata });
     assert_eq!(tool.metadata().name, "mock_tool");
-    assert_eq!(tool.metadata().required_permissions[0], Permission::FilesystemRead);
+    assert_eq!(
+        tool.metadata().required_permissions[0],
+        Permission::FilesystemRead
+    );
 }
 
 #[test]

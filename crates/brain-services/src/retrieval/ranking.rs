@@ -15,9 +15,9 @@ fn tokenize(text: &str) -> Vec<String> {
     static STOP_WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
     let stop_words = STOP_WORDS.get_or_init(|| {
         [
-            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in", "on",
-            "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it", "its",
-            "you", "your", "my", "up", "down", "out", "off",
+            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in",
+            "on", "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it",
+            "its", "you", "your", "my", "up", "down", "out", "off",
         ]
         .iter()
         .copied()

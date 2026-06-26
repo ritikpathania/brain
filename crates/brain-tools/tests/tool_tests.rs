@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
-    ExecutionContext, ExecutionPolicy, ExecutionResult, Permission,
-    Tool, ToolMetadata, ToolRegistry,
+    ExecutionContext, ExecutionPolicy, ExecutionResult, Permission, Tool, ToolMetadata,
+    ToolRegistry,
 };
 use brain_domain::SessionId;
 use brain_tools::{
@@ -49,7 +49,9 @@ impl Tool for MockTool {
         if self.delay_ms > 0 {
             std::thread::sleep(std::time::Duration::from_millis(self.delay_ms));
         }
-        Ok(ExecutionResult::new(serde_json::Value::String("success".to_string())))
+        Ok(ExecutionResult::new(serde_json::Value::String(
+            "success".to_string(),
+        )))
     }
 }
 
@@ -58,7 +60,7 @@ async fn test_tool_registry() {
     let registry = ToolRegistryImpl::new();
     let tool_b = Arc::new(MockTool::new("tool_b", vec![], 1000, 0));
     let tool_a = Arc::new(MockTool::new("tool_a", vec![], 1000, 0));
-    
+
     registry.register_tool(tool_b).unwrap();
     registry.register_tool(tool_a).unwrap();
 
@@ -83,7 +85,10 @@ async fn test_tool_registry_duplicate_error() {
     registry.register_tool(tool1).unwrap();
     let res = registry.register_tool(tool2);
     assert!(res.is_err());
-    assert!(matches!(res.err().unwrap(), BrainError::InvalidTransition { .. }));
+    assert!(matches!(
+        res.err().unwrap(),
+        BrainError::InvalidTransition { .. }
+    ));
 }
 
 #[tokio::test]
@@ -91,7 +96,7 @@ async fn test_tool_permission_denied() {
     let runner = Arc::new(BlockingToolRunner);
     let executor = ToolExecutor::new(runner);
     let permission_manager = PermissionManager::new();
-    
+
     let context = ExecutionContext {
         session_id: SessionId::new(),
         working_dir: std::env::temp_dir(),
@@ -111,7 +116,10 @@ async fn test_tool_permission_denied() {
         .await;
 
     assert!(res.is_err());
-    assert!(matches!(res.err().unwrap(), BrainError::Authorization { .. }));
+    assert!(matches!(
+        res.err().unwrap(),
+        BrainError::Authorization { .. }
+    ));
 }
 
 #[tokio::test]
@@ -151,7 +159,7 @@ async fn test_tool_timeout() {
     let runner = Arc::new(BlockingToolRunner);
     let executor = ToolExecutor::new(runner);
     let permission_manager = PermissionManager::new();
-    
+
     let context = ExecutionContext {
         session_id: SessionId::new(),
         working_dir: std::env::temp_dir(),
@@ -176,7 +184,7 @@ async fn test_tool_cancellation() {
     let executor = ToolExecutor::new(runner);
     let permission_manager = PermissionManager::new();
     let cancellation_token = Arc::new(CancellationTokenImpl::new());
-    
+
     let context = ExecutionContext {
         session_id: SessionId::new(),
         working_dir: std::env::temp_dir(),

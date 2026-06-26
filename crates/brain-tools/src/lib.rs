@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
 
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
@@ -205,7 +205,8 @@ impl ToolExecutor {
             }
         };
 
-        let timeout_duration = std::time::Duration::from_millis(tool.metadata().execution_policy.timeout_ms);
+        let timeout_duration =
+            std::time::Duration::from_millis(tool.metadata().execution_policy.timeout_ms);
 
         tokio::select! {
             res = handle => {
