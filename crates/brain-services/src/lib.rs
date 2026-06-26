@@ -4,7 +4,8 @@
 
 /// Data Transfer Object (DTO) mapping functions.
 pub mod mapper;
-mod retrieval;
+/// Core memory retrieval services, DTO mapper, and orchestration pipeline.
+pub mod retrieval;
 mod session;
 mod stub;
 

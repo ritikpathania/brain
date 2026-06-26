@@ -1,3 +1,6 @@
+/// Memory retrieval orchestrator pipeline, accumulator, and builder.
+pub mod pipeline;
+
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
