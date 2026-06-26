@@ -30,6 +30,17 @@ jobs:
             daemon/target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install & Build CLI Assets
+        run: |
+          cd cli
+          bun install --ignore-scripts
+          bun run build
+
       - name: Check Rust Formatting
         run: |
           cd daemon
@@ -105,6 +116,17 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install & Build CLI Assets
+        run: |
+          cd cli
+          bun install --ignore-scripts
+          bun run build
 
       - name: Set up Python
         uses: actions/setup-python@v5
