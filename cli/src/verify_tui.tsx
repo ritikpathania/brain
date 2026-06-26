@@ -187,7 +187,7 @@ export const VerificationApp: React.FC = () => {
   });
 
   return (
-    <Panel borderStyle="double" borderColor="claude" padding={1} width="100%">
+    <Panel borderStyle="double" borderColor="claude" padding={1} width="100%" backgroundColor="clawd_background">
       <LogoV2 />
 
       <Divider title="Manual Verification Harness" color="subtle" />

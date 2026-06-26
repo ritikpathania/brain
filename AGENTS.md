@@ -75,3 +75,22 @@ When modifying or adding components to the TUI client:
 3. **Run Performance Profiling**:
    - Execute the deterministic React Profiler benchmark (`bun run benchmark:render`) to verify render commit performance.
    - Run the trend comparison tool (`bun run benchmark:compare --last 5`) to compare current results against preceding runs or a baseline without failing CI by default.
+
+## UDS Streaming Protocol & Typewriter Renderer
+
+When working with queries or communication between the Rust Daemon and the React/Ink TUI Client:
+
+1. **Monotonic Tagged Stream Events**:
+   - Communication over UDS uses `StreamEvent` tagged enum variants (`stream_start`, `stream_progress`, `stream_chunk`, `stream_end`, `stream_cancelled`).
+   - Every event has a `streamId` and an extensible `metadata` JSON object.
+   - Sequence numbers must increment monotonically within a stream (starting at `1`). They do not reset when moving between event categories.
+
+2. **Two-Stage Client Queue Pipeline**:
+   - The `useStreamingRenderer` hook buffers incoming network chunks into `chunkQueueRef`.
+   - A rendering timer splits chunks into individual word/whitespace tokens and pushes them to `tokenQueueRef`, draining them sequentially to create a smooth typewriter effect.
+   - Separate state flags are maintained: `networkFinished` (transport socket done) vs. `isStreaming` (typewriter rendering queue fully drained).
+
+3. **Validation & Resiliency**:
+   - **Sequence Validator**: The client tracks the expected sequence number and logs warnings on mismatch (skipped/duplicate sequences) without crashing.
+   - **Forward Compatibility**: The client must ignore unknown future event types (e.g. `stream_metric`) and log a warning including the `streamId` if present, continuing to render the stream.
+   - **Interruption/Errors**: If a hard error or new response arrives mid-stream, the client commits the previous partial text to logs first rather than overwriting it, then handles the new message.

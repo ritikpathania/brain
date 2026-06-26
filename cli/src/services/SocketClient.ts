@@ -2,10 +2,92 @@ import net from 'net';
 import path from 'path';
 
 // Define structures matching daemon IPC contract
-export interface ServerResponse {
+export interface LegacyResponse {
   status: string;
   message: string;
 }
+
+export interface VersionedResponse {
+  version: string;
+  type: 'Response';
+  id: number;
+  status: string;
+  body: string;
+}
+
+export interface VersionedError {
+  version: string;
+  type: 'Error';
+  id: number;
+  status: string;
+  body: string;
+}
+
+export interface VersionedEvent {
+  version: string;
+  type: 'Event';
+  event_name: string;
+  payload: any;
+}
+
+export interface VersionedNotification {
+  version: string;
+  type: 'Notification';
+  notification_type: string;
+  message: string;
+}
+
+export interface StreamStartEvent {
+  type: 'stream_start';
+  streamId: string;
+  metadata?: any;
+}
+
+export interface StreamProgressEvent {
+  type: 'stream_progress';
+  streamId: string;
+  sequence: number;
+  progress: number;
+  message: string;
+  metadata?: any;
+}
+
+export interface StreamChunkEvent {
+  type: 'stream_chunk';
+  streamId: string;
+  sequence: number;
+  content: string;
+  metadata?: any;
+}
+
+export interface StreamEndEvent {
+  type: 'stream_end';
+  streamId: string;
+  sequence: number;
+  metadata?: any;
+}
+
+export interface StreamCancelledEvent {
+  type: 'stream_cancelled';
+  streamId: string;
+  sequence: number;
+  metadata?: any;
+}
+
+export type StreamEvent =
+  | StreamStartEvent
+  | StreamProgressEvent
+  | StreamChunkEvent
+  | StreamEndEvent
+  | StreamCancelledEvent;
+
+export type ServerResponse =
+  | VersionedResponse
+  | VersionedError
+  | VersionedEvent
+  | VersionedNotification
+  | StreamEvent
+  | LegacyResponse;
 
 export type MessageHandler = (msg: ServerResponse) => void;
 export type LogHandler = (log: string) => void;

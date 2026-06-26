@@ -205,7 +205,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({ onClose, context
       setFilterText((prev) => prev.slice(0, -1));
       return true;
     }
-    if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t') {
+    if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t' && !key.tab) {
       setFilterText((prev) => prev + input);
       return true;
     }

@@ -32,19 +32,48 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
   const { logs, setLogs, addLog } = useLogStore();
   const { metrics, isConnected } = useMetrics(3000);
   const { executeCommand } = useSlashCommands();
-  const { displayedText, isStreaming, startStream } = useStreamingRenderer(15);
+  const {
+    displayedText,
+    isStreaming,
+    progress,
+    startStream,
+    queueChunk,
+    handleProgress,
+    endStream,
+    cancelStream,
+  } = useStreamingRenderer(15, (warning) => addLog(warning));
   const { themeType, setTheme } = useTheme();
   const { stdout } = useStdout();
 
   const [isLoading, setIsLoading] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'file-browser' | 'config-wizard'>('file-browser');
+  const [shouldFocusTab, setShouldFocusTab] = useState(false);
+
+  useEffect(() => {
+    if (shouldFocusTab) {
+      const timer = setTimeout(() => {
+        FocusManager.focusWidget(activeTab);
+        setShouldFocusTab(false);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, shouldFocusTab]);
 
   const [sessionStats, setSessionStats] = useState({
     inputTokens: 1420,
     outputTokens: 495,
     cost: 0.0031,
   });
+
+  const isStreamingRef = React.useRef(isStreaming);
+  const displayedTextRef = React.useRef(displayedText);
+
+  React.useEffect(() => {
+    isStreamingRef.current = isStreaming;
+    displayedTextRef.current = displayedText;
+  }, [isStreaming, displayedText]);
 
   // Check if terminal is wide enough for side-panel dashboard
   const isWide = (stdout?.columns ?? 80) >= 120;
@@ -63,7 +92,11 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
 
     // Track active widget ID to highlight borders
     const changeUnsubscribe = (FocusManager as any).onChange((active: any) => {
-      setActiveWidgetId(active ? active.id : null);
+      const activeId = active ? active.id : null;
+      setActiveWidgetId(activeId);
+      if (activeId === 'file-browser' || activeId === 'config-wizard') {
+        setActiveTab(activeId);
+      }
     });
 
     // Ensure prompt-input starts focused
@@ -84,18 +117,72 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     });
 
     const unsubscribeMsg = client.onMessage((msg: ServerResponse) => {
-      setIsLoading(false);
-      EventBus.publish({ type: 'QueryFinished', success: msg.status === 'ok' });
+      const handleNonStreaming = (status: string, body: string) => {
+        setIsLoading(false);
+        EventBus.publish({ type: 'QueryFinished', success: status === 'ok' || status === 'success' });
+        setSessionStats((prev) => ({
+          inputTokens: prev.inputTokens + Math.floor(Math.random() * 200) + 100,
+          outputTokens: prev.outputTokens + Math.floor(Math.random() * 100) + 50,
+          cost: prev.cost + 0.0004,
+        }));
+        
+        // If there was a previous stream rendering, commit it to logs first
+        if (isStreamingRef.current && displayedTextRef.current) {
+          addLog(displayedTextRef.current);
+        }
 
-      setSessionStats((prev) => ({
-        inputTokens: prev.inputTokens + Math.floor(Math.random() * 200) + 100,
-        outputTokens: prev.outputTokens + Math.floor(Math.random() * 100) + 50,
-        cost: prev.cost + 0.0004,
-      }));
+        startStream('legacy-stream');
+        queueChunk(`[Daemon Response] Status: ${status.toUpperCase()}\n${body}`, 1);
+        endStream(2);
+      };
 
-      // Trigger token typewriter streaming
-      const rawText = `[Daemon Response] Status: ${msg.status.toUpperCase()}\n${msg.message}`;
-      startStream(rawText);
+      if (msg && typeof msg === 'object' && 'type' in msg) {
+        const eventType = msg.type;
+        switch (eventType) {
+          case 'stream_start': {
+            startStream(msg.streamId);
+            break;
+          }
+          case 'stream_progress': {
+            handleProgress(msg.progress, msg.message, msg.sequence);
+            break;
+          }
+          case 'stream_chunk': {
+            queueChunk(msg.content, msg.sequence);
+            break;
+          }
+          case 'stream_end': {
+            setIsLoading(false);
+            EventBus.publish({ type: 'QueryFinished', success: true });
+            endStream(msg.sequence);
+            break;
+          }
+          case 'stream_cancelled': {
+            setIsLoading(false);
+            EventBus.publish({ type: 'QueryFinished', success: false });
+            cancelStream(msg.sequence);
+            break;
+          }
+          case 'Response': {
+            handleNonStreaming(msg.status, msg.body);
+            break;
+          }
+          case 'Error': {
+            handleNonStreaming(msg.status, msg.body);
+            break;
+          }
+          default: {
+            const streamId = (msg as any).streamId;
+            const warningMsg = streamId 
+              ? `[Protocol Warning] Ignored unknown stream event "${eventType}" for stream "${streamId}"`
+              : `[Protocol Warning] Ignored unknown stream event "${eventType}"`;
+            addLog(warningMsg);
+            break;
+          }
+        }
+      } else if (msg && typeof msg === 'object') {
+        handleNonStreaming(msg.status, msg.message);
+      }
     });
 
     return () => {
@@ -119,6 +206,13 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     // Add prompt text to scrollback immediately
     addLog(`> ${trimmed}`);
     EventBus.publish({ type: 'HistoryAdded', command: trimmed });
+
+    // Handle exit/quit commands
+    if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
+      addLog('[System] Exiting client REPL...');
+      setTimeout(() => process.exit(0), 400);
+      return;
+    }
 
     // 1. Run local slash commands first
     const isSlash = await executeCommand(trimmed, {
@@ -148,17 +242,30 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     client.send(action, payload);
   };
 
-  // Intercept Ctrl+P to toggle launcher palette
+  // Intercept key inputs to toggle launcher palette and handle Tab key cycling
   useInput((input, key) => {
     if (key.ctrl && input === 'p') {
       setPaletteOpen((prev) => !prev);
+      return;
+    }
+
+    if (input === '\t' || key.tab) {
+      if (activeWidgetId === 'prompt-input') {
+        if (activeTab !== 'file-browser') {
+          setActiveTab('file-browser');
+          setShouldFocusTab(true);
+        }
+      } else if (activeWidgetId === 'file-browser') {
+        setActiveTab('config-wizard');
+        setShouldFocusTab(true);
+      }
     }
   });
 
   const displayLogs = logs.slice(-10); // Keep last 10 logs to fit layout
 
   return (
-    <ThemedBox flexDirection="column" padding={1} width="100%">
+    <ThemedBox flexDirection="column" padding={1} width="100%" height="100%" backgroundColor="clawd_background">
       {/* Wordmark Logo */}
       <LogoV2 />
 
@@ -250,11 +357,28 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
           )}
 
           {/* Interactive widgets panel */}
-          <ThemedBox marginTop={1}>
-            <FileBrowser isFocused={activeWidgetId === 'file-browser'} />
-          </ThemedBox>
-          <ThemedBox marginTop={1}>
-            <MultiStepForm />
+          <ThemedBox flexDirection="column" marginTop={1}>
+            {/* Tab Headers */}
+            <ThemedBox flexDirection="row" gap={2} marginBottom={1} paddingX={1}>
+              <ThemedText
+                color={activeTab === 'file-browser' ? 'claude' : 'inactive'}
+                bold
+                underline={activeTab === 'file-browser'}
+              >
+                {activeWidgetId === 'file-browser' ? '● File Browser' : '  File Browser'}
+              </ThemedText>
+              <ThemedText color="inactive">|</ThemedText>
+              <ThemedText
+                color={activeTab === 'config-wizard' ? 'claude' : 'inactive'}
+                bold
+                underline={activeTab === 'config-wizard'}
+              >
+                {activeWidgetId === 'config-wizard' ? '● Config Wizard' : '  Config Wizard'}
+              </ThemedText>
+            </ThemedBox>
+
+            <FileBrowser isFocused={activeWidgetId === 'file-browser'} visible={activeTab === 'file-browser'} />
+            <MultiStepForm visible={activeTab === 'config-wizard'} />
           </ThemedBox>
         </ThemedBox>
       </ThemedBox>
@@ -273,6 +397,8 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
           <ThemedText color="claude" bold>Daemon Status: </ThemedText>
           {isLoading ? (
             <ThemedText color="chromeYellow" bold>● Processing...</ThemedText>
+          ) : isStreaming && progress ? (
+            <ThemedText color="chromeYellow" bold>{`● ${progress.message} (${Math.round(progress.progress * 100)}%)`}</ThemedText>
           ) : (
             <ThemedText color={isConnected ? 'success' : 'error'} bold>
               {isConnected ? '● Connected' : '✗ Unreachable'}

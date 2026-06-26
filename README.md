@@ -29,6 +29,7 @@ A stateful, terminal-based AI assistant interface that acts as a dedicated Relat
 
 ### Core Capabilities
 - **Low-Latency Hybrid Retrieval**: Designed for sub-millisecond STM retrieval and low-latency hybrid retrieval, combining BM25, vector search, reciprocal rank fusion (RRF), and graph-based expansion.
+- **Real-Time Streaming Protocol over UDS**: Multi-stage pipeline streaming response chunks and progress updates incrementally using a structured tagged event protocol (`StreamEvent`). Features include monotonic sequence tracking, forward compatibility, and client-side typewriter queue buffering.
 - **Native SQLite Vector Storage**: Native SQLite-backed vector storage without an external vector database, using raw binary BLOB storage and standard float arithmetic.
 - **Production-Grade Observability**: Lock-free runtime metrics instrumentation, structured JSON/Text logging, and background syncing of analytical telemetry to DuckDB.
 

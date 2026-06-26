@@ -68,12 +68,60 @@ pub struct LegacyResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
+pub enum StreamEvent {
+    #[serde(rename = "stream_start")]
+    Start {
+        #[serde(rename = "streamId")]
+        stream_id: String,
+        #[serde(default)]
+        metadata: serde_json::Value,
+    },
+    #[serde(rename = "stream_progress")]
+    Progress {
+        #[serde(rename = "streamId")]
+        stream_id: String,
+        sequence: u64,
+        progress: f64,
+        message: String,
+        #[serde(default)]
+        metadata: serde_json::Value,
+    },
+    #[serde(rename = "stream_chunk")]
+    Chunk {
+        #[serde(rename = "streamId")]
+        stream_id: String,
+        sequence: u64,
+        content: String,
+        #[serde(default)]
+        metadata: serde_json::Value,
+    },
+    #[serde(rename = "stream_end")]
+    End {
+        #[serde(rename = "streamId")]
+        stream_id: String,
+        sequence: u64,
+        #[serde(default)]
+        metadata: serde_json::Value,
+    },
+    #[serde(rename = "stream_cancelled")]
+    Cancelled {
+        #[serde(rename = "streamId")]
+        stream_id: String,
+        sequence: u64,
+        #[serde(default)]
+        metadata: serde_json::Value,
+    },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ServerResponse {
     Response(VersionedResponse),
     Error(VersionedError),
     Event(VersionedEvent),
     Notification(VersionedNotification),
+    Stream(StreamEvent),
     Legacy(LegacyResponse),
 }
 
@@ -180,5 +228,29 @@ mod tests {
         assert!(json_str.contains(r#""type":"Notification""#));
         assert!(json_str.contains(r#""notification_type":"sync_complete""#));
         assert!(json_str.contains(r#""message":"duckdb sync completed""#));
+    }
+
+    #[test]
+    fn test_stream_event_serialization() {
+        let start = ServerResponse::Stream(StreamEvent::Start {
+            stream_id: "test-stream".to_string(),
+            metadata: serde_json::json!({ "model": "test-model" }),
+        });
+        let json_start = serde_json::to_string(&start).unwrap();
+        assert!(json_start.contains(r#""type":"stream_start""#));
+        assert!(json_start.contains(r#""streamId":"test-stream""#));
+        assert!(json_start.contains(r#""metadata":{"model":"test-model"}"#));
+
+        let chunk = ServerResponse::Stream(StreamEvent::Chunk {
+            stream_id: "test-stream".to_string(),
+            sequence: 42,
+            content: "hello world".to_string(),
+            metadata: serde_json::json!({}),
+        });
+        let json_chunk = serde_json::to_string(&chunk).unwrap();
+        assert!(json_chunk.contains(r#""type":"stream_chunk""#));
+        assert!(json_chunk.contains(r#""streamId":"test-stream""#));
+        assert!(json_chunk.contains(r#""sequence":42"#));
+        assert!(json_chunk.contains(r#""content":"hello world""#));
     }
 }

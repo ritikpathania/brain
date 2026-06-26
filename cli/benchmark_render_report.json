@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "timestamp": "2026-06-25T21:04:21.258Z",
-  "gitCommit": "unknown",
+  "timestamp": "2026-06-25T22:20:50.967Z",
+  "gitCommit": "484fee89548056ea88e491d1cf46b5a35708d550",
   "bunVersion": "1.3.14",
   "platform": "darwin-arm64",
   "config": {
@@ -12,31 +12,31 @@
   },
   "scenarios": {
     "logs": {
-      "totalWallMs": 951.97,
-      "totalRenderMs": 103.97,
-      "averageCommitMs": 0.1,
-      "maxCommitMs": 2.02,
+      "totalWallMs": 790.15,
+      "totalRenderMs": 86.88,
+      "averageCommitMs": 0.09,
+      "maxCommitMs": 4.25,
       "frames": 1001
     },
     "markdown": {
-      "totalWallMs": 3184.93,
-      "totalRenderMs": 16.61,
+      "totalWallMs": 3083.7,
+      "totalRenderMs": 15.91,
       "averageCommitMs": 0.03,
-      "maxCommitMs": 0.28,
+      "maxCommitMs": 0.8,
       "frames": 501
     },
     "resize": {
-      "totalWallMs": 101.46,
-      "totalRenderMs": 10.96,
-      "averageCommitMs": 0.05,
-      "maxCommitMs": 0.81,
+      "totalWallMs": 103.85,
+      "totalRenderMs": 11.21,
+      "averageCommitMs": 0.06,
+      "maxCommitMs": 0.76,
       "frames": 201
     },
     "theme": {
-      "totalWallMs": 33.77,
-      "totalRenderMs": 5.12,
+      "totalWallMs": 32.22,
+      "totalRenderMs": 4.96,
       "averageCommitMs": 0.05,
-      "maxCommitMs": 0.42,
+      "maxCommitMs": 0.41,
       "frames": 101
     }
   }

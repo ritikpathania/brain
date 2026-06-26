@@ -487,14 +487,20 @@ sequenceDiagram
     Note over User, Duck: Query Flow
     User->>CLI: Query text (e.g. "db config")
     CLI->>UDS: JSON-IPC: Query Request
+    UDS->>CLI: StreamEvent: stream_start
     UDS->>STM: Search active/recent epoch buffers (Fuzzy)
+    UDS->>CLI: StreamEvent: stream_progress (Retrieval starting...)
     UDS->>LTM: Search SQLite (Lexical BM25 & Semantic Vectors)
     LTM-->>UDS: Candidate nodes
     UDS->>UDS: Reciprocal Rank Fusion (RRF) Merge
+    UDS->>CLI: StreamEvent: stream_progress (Running hybrid retrieval...)
     UDS->>LTM: 1-hop neighborhood expansion (0.5 weight dampening)
     UDS->>UDS: Ranking strategy final sort
-    UDS-->>CLI: Structured response
-    CLI-->>User: Render results and relationships
+    UDS->>CLI: StreamEvent: stream_chunk (Matches Header)
+    UDS->>CLI: StreamEvent: stream_chunk (Match detail chunks...)
+    Note over CLI: Two-stage Queue Timer renders chunks word-by-word
+    UDS->>CLI: StreamEvent: stream_end
+    CLI-->>User: Complete rendering of results and relationships
 ```
 
 ### IPC Versioning and Schema
@@ -513,13 +519,23 @@ To support backward compatibility with older command-line tools, the daemon uses
 }
 ```
 
-#### Legacy Format (Auto-routed)
+#### Legacy Format (Auto-routed Requests)
 ```json
 {
   "action": "query",
   "payload": "sqlite database"
 }
 ```
+
+#### Streaming Responses (`StreamEvent`)
+For queries, responses are emitted as sequential JSON objects tagged with `"type"`:
+- **`stream_start`**: Signals the start of query retrieval. Contains `streamId` and `metadata`.
+- **`stream_progress`**: Emitted during long-running processing phases. Contains `progress` (0.0 to 1.0) and `message`.
+- **`stream_chunk`**: Emitted incrementally for matches and relations. Contains response `content`.
+- **`stream_end`**: Marks successful completion.
+- **`stream_cancelled`**: Signals premature stream cancellation.
+
+All events increment sequence numbers (`sequence`) monotonically starting at `1` to allow client-side order validation. Unknown future event types are ignored gracefully by the client for forward-compatibility.
 
 ---
 

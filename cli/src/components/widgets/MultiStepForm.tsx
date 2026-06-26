@@ -41,7 +41,11 @@ interface FormStep {
   keyName: string;
 }
 
-export const MultiStepForm: React.FC = () => {
+interface MultiStepFormProps {
+  visible?: boolean;
+}
+
+export const MultiStepForm: React.FC<MultiStepFormProps> = ({ visible = true }) => {
   const steps: FormStep[] = [
     {
       title: '1. Select LLM Provider',
@@ -129,7 +133,7 @@ export const MultiStepForm: React.FC = () => {
         setInputText((prev) => prev.slice(0, -1));
         return true;
       }
-      if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t') {
+      if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t' && !key.tab) {
         setInputText((prev) => prev + input);
         return true;
       }
@@ -167,16 +171,20 @@ export const MultiStepForm: React.FC = () => {
     }, 1000);
   };
 
+  const handlerRef = React.useRef(handleWidgetInput);
+  handlerRef.current = handleWidgetInput;
+
   useEffect(() => {
+    if (!visible) return;
     const widget = new MultiStepFormWidget(
       (val) => setFocusedState(val),
-      (input, key) => handleWidgetInput(input, key)
+      (input, key) => handlerRef.current(input, key)
     );
     FocusManager.register(widget);
     return () => {
       FocusManager.unregister(widget.id);
     };
-  }, [currentStepIdx, selectedOptIdx, inputText, formData, entriesForRenderHack()]);
+  }, [visible]);
 
   // Hack helper to make hook re-register on options update
   function entriesForRenderHack() {
@@ -192,6 +200,8 @@ export const MultiStepForm: React.FC = () => {
   const currentValForStep = currentStep.type === 'select' 
     ? (currentStep.options ? currentStep.options[selectedOptIdx] : '')
     : inputText;
+
+  if (!visible) return <ThemedBox />;
 
   return (
     <WidgetContainer isFocused={focused}>

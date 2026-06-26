@@ -43,9 +43,10 @@ export class FileBrowserWidget implements InteractiveWidget {
 
 interface FileBrowserProps {
   isFocused?: boolean;
+  visible?: boolean;
 }
 
-export const FileBrowser: React.FC<FileBrowserProps> = ({ isFocused = false }) => {
+export const FileBrowser: React.FC<FileBrowserProps> = ({ isFocused = false, visible = true }) => {
   const homeDir = process.env.HOME || '/tmp';
   const rootDir = path.join(homeDir, '.brain');
 
@@ -143,16 +144,20 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ isFocused = false }) =
     return false;
   };
 
+  const handlerRef = React.useRef(handleWidgetInput);
+  handlerRef.current = handleWidgetInput;
+
   useEffect(() => {
+    if (!visible) return;
     const widget = new FileBrowserWidget(
       (val) => setFocusedState(val),
-      (input, key) => handleWidgetInput(input, key)
+      (input, key) => handlerRef.current(input, key)
     );
     FocusManager.register(widget);
     return () => {
       FocusManager.unregister(widget.id);
     };
-  }, [entries, selectedIndex, currentDir]);
+  }, [visible]);
 
   const shortcuts = [
     { key: '↑/↓', description: 'Navigate entries' },
@@ -162,6 +167,8 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ isFocused = false }) =
 
   const relPath = path.relative(rootDir, currentDir);
   const footerStatus = `Dir: .brain/${relPath}`;
+
+  if (!visible) return <ThemedBox />;
 
   return (
     <WidgetContainer isFocused={focused}>

@@ -62,7 +62,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     if (key.upArrow || key.downArrow) {
       return handleArrowKeys(key);
     }
-    if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t') {
+    if (input && !key.ctrl && !key.meta && !key.escape && input !== '\r' && input !== '\n' && input !== '\t' && !key.tab) {
       setValue((prev) => prev + input);
       return true;
     }
@@ -82,7 +82,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
 
   useInput((input, key) => {
     // Toggle active widget focus when pressing Tab
-    if (input === '\t') {
+    if (input === '\t' || key.tab) {
       FocusManager.focusNext();
       return;
     }
