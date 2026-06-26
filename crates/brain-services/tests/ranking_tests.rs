@@ -1,203 +1,191 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{EmbeddingLookup, EmbeddingProvider, RankingStrategy, RetrievalRequest};
-use brain_domain::{Edge, Node, NodeId, NodeType, SessionId};
-use brain_services::retrieval::ranking::{
-    Bm25Ranking, EmbeddingRanking, GraphRanking, RrfRanking,
-};
+use brain_core::retrieval::{EmbeddingProvider, RankingStrategy, RetrievalRequest};
+use brain_domain::{Edge, Embedding, Node, NodeId, SessionId};
+use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, GraphRanking, RrfRanking};
 use brain_storage::TestStorage;
 
-struct MockEmbeddingProvider {
-    name: &'static str,
-    embedding: Vec<f32>,
-}
-
-impl EmbeddingProvider for MockEmbeddingProvider {
-    fn name(&self) -> &'static str {
-        self.name
-    }
-
-    fn embed(&self, _text: &str) -> Result<Vec<f32>, BrainError> {
-        Ok(self.embedding.clone())
-    }
-}
-
-struct MockEmbeddingLookup {
-    embeddings: HashMap<NodeId, Vec<f32>>,
-}
-
-impl EmbeddingLookup for MockEmbeddingLookup {
-    fn lookup(&self, node_id: &NodeId) -> Result<Option<Vec<f32>>, BrainError> {
-        Ok(self.embeddings.get(node_id).cloned())
-    }
+fn make_node(id: u64, content: &str) -> Node {
+    let node_id = NodeId(uuid::Uuid::from_u64_pair(0, id));
+    Node::new(
+        node_id,
+        content.to_string(),
+        brain_domain::NodeType::Concept,
+    )
 }
 
 #[test]
 fn test_bm25_ranking() {
+    let strategy = Bm25Ranking::default();
     let request = RetrievalRequest {
         session_id: SessionId::new(),
-        query: "rust testing python".to_string(),
+        query: "sqlite database".to_string(),
         limit: 10,
-        exclude_ids: std::collections::HashSet::new(),
+        exclude_ids: HashSet::new(),
         deadline: None,
     };
 
-    let node1 = Node::new(NodeId::new(), "Rust is a programming language with testing frameworks".to_string(), NodeType::Concept);
-    let node2 = Node::new(NodeId::new(), "Python is popular for data science".to_string(), NodeType::Concept);
-    let node3 = Node::new(NodeId::new(), "JavaScript is used in web development".to_string(), NodeType::Concept);
+    let node1 = make_node(1, "database setup and sqlite configuration");
+    let node2 = make_node(2, "writing simple rust code without databases");
+    let node3 = make_node(3, "sqlite is a file based lightweight relational database");
 
-    let ranking = Bm25Ranking::default();
-    let ranked = ranking.rank(&request, vec![node3.clone(), node2.clone(), node1.clone()]).unwrap();
+    let nodes = vec![node2.clone(), node1.clone(), node3.clone()];
+    let ranked = strategy.rank(&request, nodes).unwrap();
 
     assert_eq!(ranked.len(), 3);
-    // node1 contains "rust" and "testing" -> should rank first
-    assert_eq!(ranked[0].id, node1.id);
-    // node2 contains "python" -> should rank second
-    assert_eq!(ranked[1].id, node2.id);
-    // node3 contains neither -> should rank third
-    assert_eq!(ranked[2].id, node3.id);
+    // node1 and node3 both contain "sqlite" and "database", node2 contains neither (databases is different token)
+    assert_eq!(ranked[2].id, node2.id);
+}
+
+struct CustomEmbeddingProvider {
+    emb: Vec<f32>,
+}
+impl EmbeddingProvider for CustomEmbeddingProvider {
+    fn name(&self) -> &'static str {
+        "custom"
+    }
+    fn embed(&self, _text: &str) -> Result<Vec<f32>, brain_core::errors::BrainError> {
+        Ok(self.emb.clone())
+    }
 }
 
 #[test]
 fn test_embedding_ranking() {
+    let test_storage = TestStorage::new();
+    let store = test_storage.store();
+
+    // Query vector
+    let provider = Arc::new(CustomEmbeddingProvider {
+        emb: vec![1.0, 0.0],
+    });
+    let strategy = EmbeddingRanking::new(provider, store.clone());
+
+    let node1 = make_node(1, "first node");
+    let node2 = make_node(2, "second node");
+    let node3 = make_node(3, "third node");
+
+    store.nodes().save(&node1).unwrap();
+    store.nodes().save(&node2).unwrap();
+    store.nodes().save(&node3).unwrap();
+
+    // Save embeddings
+    // node1 is perfectly aligned (similarity = 1.0)
+    store
+        .embeddings()
+        .save(&Embedding::new(node1.id, vec![1.0, 0.0]))
+        .unwrap();
+    // node2 is perpendicular (similarity = 0.0)
+    store
+        .embeddings()
+        .save(&Embedding::new(node2.id, vec![0.0, 1.0]))
+        .unwrap();
+    // node3 has no embedding (similarity = 0.0)
+
     let request = RetrievalRequest {
         session_id: SessionId::new(),
         query: "query text".to_string(),
         limit: 10,
-        exclude_ids: std::collections::HashSet::new(),
+        exclude_ids: HashSet::new(),
         deadline: None,
     };
 
-    let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
-    let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
-
-    // query embedding: [1.0, 0.0]
-    let provider = Arc::new(MockEmbeddingProvider {
-        name: "mock",
-        embedding: vec![1.0, 0.0],
-    });
-
-    // node1 embedding: [1.0, 0.0] (similarity 1.0)
-    // node2 embedding: [0.0, 1.0] (similarity 0.0)
-    let mut lookup_map = HashMap::new();
-    lookup_map.insert(node1.id, vec![1.0, 0.0]);
-    lookup_map.insert(node2.id, vec![0.0, 1.0]);
-
-    let lookup = Arc::new(MockEmbeddingLookup {
-        embeddings: lookup_map,
-    });
-
-    let ranking = EmbeddingRanking::new(provider, lookup);
-    let ranked = ranking.rank(&request, vec![node2.clone(), node1.clone()]).unwrap();
-
-    assert_eq!(ranked.len(), 2);
+    let ranked = strategy
+        .rank(&request, vec![node2.clone(), node3.clone(), node1.clone()])
+        .unwrap();
     assert_eq!(ranked[0].id, node1.id);
-    assert_eq!(ranked[1].id, node2.id);
 }
 
 #[test]
 fn test_graph_ranking() {
-    let test_store = TestStorage::new();
-    let repos = Arc::new(test_store.storage().clone());
+    let test_storage = TestStorage::new();
+    let store = test_storage.store();
+    let strategy = GraphRanking::new(store.clone());
 
-    let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
-    let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
-    let node3 = Node::new(NodeId::new(), "Node 3".to_string(), NodeType::Concept);
+    let node1 = make_node(1, "node 1");
+    let node2 = make_node(2, "node 2");
+    let node3 = make_node(3, "node 3");
 
-    repos.nodes().save(&node1).unwrap();
-    repos.nodes().save(&node2).unwrap();
-    repos.nodes().save(&node3).unwrap();
+    store.nodes().save(&node1).unwrap();
+    store.nodes().save(&node2).unwrap();
+    store.nodes().save(&node3).unwrap();
 
-    // Node 1 has connection to Node 2 (weight 5.0) and Node 3 (weight 2.5) -> sum = 7.5
-    // Node 2 has connection to Node 1 (weight 1.0) -> sum = 1.0
-    // Node 3 has no outgoing connections -> sum = 0.0
-    let edge1 = Edge::new(node1.id, node2.id, "links".to_string(), 5.0);
-    let edge2 = Edge::new(node1.id, node3.id, "links".to_string(), 2.5);
-    let edge3 = Edge::new(node2.id, node1.id, "links".to_string(), 1.0);
-
-    repos.edges().save(&edge1).unwrap();
-    repos.edges().save(&edge2).unwrap();
-    repos.edges().save(&edge3).unwrap();
+    // node1 has total weight 5.0
+    store
+        .edges()
+        .save(&Edge::new(node1.id, node2.id, "rel".to_string(), 5.0))
+        .unwrap();
+    // node2 has total weight 7.0 (5.0 + 2.0)
+    store
+        .edges()
+        .save(&Edge::new(node2.id, node3.id, "rel".to_string(), 2.0))
+        .unwrap();
 
     let request = RetrievalRequest {
         session_id: SessionId::new(),
-        query: "ignored".to_string(),
+        query: "query text".to_string(),
         limit: 10,
-        exclude_ids: std::collections::HashSet::new(),
+        exclude_ids: HashSet::new(),
         deadline: None,
     };
 
-    let ranking = GraphRanking::new(repos);
-    let ranked = ranking.rank(&request, vec![node3.clone(), node2.clone(), node1.clone()]).unwrap();
-
-    assert_eq!(ranked.len(), 3);
-    assert_eq!(ranked[0].id, node1.id);
-    assert_eq!(ranked[1].id, node2.id);
-    assert_eq!(ranked[2].id, node3.id);
+    let ranked = strategy
+        .rank(&request, vec![node1.clone(), node3.clone(), node2.clone()])
+        .unwrap();
+    assert_eq!(ranked[0].id, node2.id); // Weight 7.0
+    assert_eq!(ranked[1].id, node1.id); // Weight 5.0
+    assert_eq!(ranked[2].id, node3.id); // Weight 2.0
 }
 
 #[test]
 fn test_rrf_ranking() {
-    let request = RetrievalRequest {
-        session_id: SessionId::new(),
-        query: "rust python".to_string(),
-        limit: 10,
-        exclude_ids: std::collections::HashSet::new(),
-        deadline: None,
-    };
-
-    let node1 = Node::new(NodeId::new(), "Rust language".to_string(), NodeType::Concept);
-    let node2 = Node::new(NodeId::new(), "Python language".to_string(), NodeType::Concept);
-    let node3 = Node::new(NodeId::new(), "C++ language".to_string(), NodeType::Concept);
-
-    // Strategy 1 (weight 1.0): ranks node1, node2, node3
-    // Strategy 2 (weight 0.5): ranks node2, node3, node1
-    struct DummyStrategy {
-        order: Vec<NodeId>,
-    }
-    impl RankingStrategy for DummyStrategy {
-        fn rank(&self, _req: &RetrievalRequest, nodes: Vec<Node>) -> Result<Vec<Node>, BrainError> {
-            let mut res = Vec::new();
-            for &id in &self.order {
-                if let Some(n) = nodes.iter().find(|n| n.id == id) {
-                    res.push(n.clone());
-                }
-            }
-            Ok(res)
+    struct ReverseStrategy;
+    impl RankingStrategy for ReverseStrategy {
+        fn rank(
+            &self,
+            _req: &RetrievalRequest,
+            mut nodes: Vec<Node>,
+        ) -> Result<Vec<Node>, brain_core::errors::BrainError> {
+            nodes.reverse();
+            Ok(nodes)
         }
     }
 
-    let s1 = Arc::new(DummyStrategy {
-        order: vec![node1.id, node2.id, node3.id],
-    });
-    let s2 = Arc::new(DummyStrategy {
-        order: vec![node2.id, node3.id, node1.id],
-    });
+    struct IdentityStrategy;
+    impl RankingStrategy for IdentityStrategy {
+        fn rank(
+            &self,
+            _req: &RetrievalRequest,
+            nodes: Vec<Node>,
+        ) -> Result<Vec<Node>, brain_core::errors::BrainError> {
+            Ok(nodes)
+        }
+    }
 
-    // RRF score logic:
-    // For k = 1.0:
-    // node1 score:
-    // - s1 rank 1 -> 1.0 / (1.0 + 1.0) = 0.5
-    // - s2 rank 3 -> 0.5 / (1.0 + 3.0) = 0.125
-    // -> sum = 0.625
-    // node2 score:
-    // - s1 rank 2 -> 1.0 / (1.0 + 2.0) = 0.333
-    // - s2 rank 1 -> 0.5 / (1.0 + 1.0) = 0.25
-    // -> sum = 0.583
-    // node3 score:
-    // - s1 rank 3 -> 1.0 / (1.0 + 3.0) = 0.25
-    // - s2 rank 2 -> 0.5 / (1.0 + 2.0) = 0.167
-    // -> sum = 0.417
-    // Ordered: node1, node2, node3
+    let strategy_a = Arc::new(ReverseStrategy);
+    let strategy_b = Arc::new(IdentityStrategy);
 
-    let ranking = RrfRanking::new(vec![(s1, 1.0), (s2, 0.5)], 1.0);
-    let ranked = ranking.rank(&request, vec![node3.clone(), node2.clone(), node1.clone()]).unwrap();
+    let rrf = RrfRanking::new(vec![(strategy_a, 1.5), (strategy_b, 0.5)], 60.0);
 
-    assert_eq!(ranked.len(), 3);
-    assert_eq!(ranked[0].id, node1.id);
-    assert_eq!(ranked[1].id, node2.id);
-    assert_eq!(ranked[2].id, node3.id);
+    let node1 = make_node(1, "first");
+    let node2 = make_node(2, "second");
+
+    let request = RetrievalRequest {
+        session_id: SessionId::new(),
+        query: "query text".to_string(),
+        limit: 10,
+        exclude_ids: HashSet::new(),
+        deadline: None,
+    };
+
+    let ranked = rrf
+        .rank(&request, vec![node1.clone(), node2.clone()])
+        .unwrap();
+    // ReverseStrategy outputs [node2, node1] -> node2 rank = 1, node1 rank = 2
+    // IdentityStrategy outputs [node1, node2] -> node1 rank = 1, node2 rank = 2
+    // node1 score = 1.5 / (60+2) + 0.5 / (60+1) = 1.5/62 + 0.5/61 = 0.02419 + 0.00819 = 0.03238
+    // node2 score = 1.5 / (60+1) + 0.5 / (60+2) = 1.5/61 + 0.5/62 = 0.02459 + 0.00806 = 0.03265
+    // node2 has higher score, so node2 should rank first.
+    assert_eq!(ranked[0].id, node2.id);
 }

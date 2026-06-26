@@ -12,3 +12,4 @@ brain-session = { path = "../brain-session" }
 
 [dev-dependencies]
 brain-storage = { path = "../brain-storage", features = ["test-utils"] }
+uuid = { workspace = true }
