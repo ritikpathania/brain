@@ -57,10 +57,11 @@ pub fn run_migrations(conn: &mut Connection) -> Result<(), BrainError> {
                 source: Some(Box::new(e)),
             })?;
 
-            tx.execute_batch(migration).map_err(|e| BrainError::Storage {
-                message: format!("Migration version {} failed: {}", version, e),
-                source: Some(Box::new(e)),
-            })?;
+            tx.execute_batch(migration)
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Migration version {} failed: {}", version, e),
+                    source: Some(Box::new(e)),
+                })?;
 
             tx.pragma_update(None, "user_version", version)
                 .map_err(|e| BrainError::Storage {

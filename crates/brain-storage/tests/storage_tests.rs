@@ -3,7 +3,10 @@ use brain_storage::{init_pool, run_migrations};
 #[test]
 fn test_init_pool_in_memory() {
     let pool = init_pool(":memory:", 2, true);
-    assert!(pool.is_ok(), "Failed to initialize in-memory connection pool");
+    assert!(
+        pool.is_ok(),
+        "Failed to initialize in-memory connection pool"
+    );
     let pool = pool.unwrap();
 
     let conn = pool.get();
@@ -40,10 +43,18 @@ fn test_run_migrations_and_idempotency() {
 
     // Second run should be idempotent and do nothing without error
     let result2 = run_migrations(&mut conn);
-    assert!(result2.is_ok(), "Second migration run failed (idempotency issue): {:?}", result2);
+    assert!(
+        result2.is_ok(),
+        "Second migration run failed (idempotency issue): {:?}",
+        result2
+    );
 
     let version2: u32 = conn
         .query_row("PRAGMA user_version;", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(version2, 1, "Expected user_version to remain 1, got {}", version2);
+    assert_eq!(
+        version2, 1,
+        "Expected user_version to remain 1, got {}",
+        version2
+    );
 }
