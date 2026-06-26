@@ -100,29 +100,28 @@ impl PythonAgentHandle {
     /// Invokes a cached method with the given arguments, resolving traceback on exception.
     pub fn call_cached_method(
         &self,
+        py: Python<'_>,
         method_name: &str,
         args: impl IntoPy<Py<PyTuple>>,
     ) -> Result<PyObject, BrainError> {
-        Python::with_gil(|py| {
-            let method = self
-                .methods
-                .get(method_name)
-                .ok_or_else(|| BrainError::Validation {
-                    message: format!(
-                        "[Plugin: {}] Cached method '{}' not found",
-                        self.plugin_id, method_name
-                    ),
-                })?;
+        let method = self
+            .methods
+            .get(method_name)
+            .ok_or_else(|| BrainError::Validation {
+                message: format!(
+                    "[Plugin: {}] Cached method '{}' not found",
+                    self.plugin_id, method_name
+                ),
+            })?;
 
-            let bound_method = method.bind(py);
-            let args_tuple: Py<PyTuple> = args.into_py(py);
-            let bound_args = args_tuple.bind(py);
+        let bound_method = method.bind(py);
+        let args_tuple: Py<PyTuple> = args.into_py(py);
+        let bound_args = args_tuple.bind(py);
 
-            bound_method
-                .call1(bound_args)
-                .map(|res| res.unbind())
-                .map_err(|err| self.to_brain_error(py, method_name, err))
-        })
+        bound_method
+            .call1(bound_args)
+            .map(|res| res.unbind())
+            .map_err(|err| self.to_brain_error(py, method_name, err))
     }
 
     fn to_brain_error(&self, py: Python<'_>, method_name: &str, err: PyErr) -> BrainError {
@@ -171,7 +170,9 @@ impl ChatAgent for PythonChatAgent {
             let py_sid = Py::new(py, crate::api::PySessionId { inner: session_id })
                 .map_err(|e| py_err_to_brain_error(py, e))?;
 
-            let res = self.handle.call_cached_method("chat", (py_sid, prompt))?;
+            let res = self
+                .handle
+                .call_cached_method(py, "chat", (py_sid, prompt))?;
             let bound_res = res.bind(py);
 
             let reply = bound_res
@@ -219,7 +220,12 @@ impl PlannerAgent for PythonPlannerAgent {
         task_description: &str,
         history: &Conversation,
     ) -> Result<Vec<ToolCall>, BrainError> {
-        Python::with_gil(|py| {
+        enum RawToolCall {
+            Direct(ToolCall),
+            Json(serde_json::Value),
+        }
+
+        let raw_items = Python::with_gil(|py| {
             let py_conv = Py::new(
                 py,
                 crate::api::PyConversation {
@@ -228,22 +234,38 @@ impl PlannerAgent for PythonPlannerAgent {
             )
             .map_err(|e| py_err_to_brain_error(py, e))?;
 
-            let res = self
-                .handle
-                .call_cached_method("plan_steps", (task_description, py_conv))?;
+            let res =
+                self.handle
+                    .call_cached_method(py, "plan_steps", (task_description, py_conv))?;
             let bound_res = res.bind(py);
 
             let bound_list = bound_res
                 .downcast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
 
-            let mut tool_calls = Vec::new();
+            let mut raw_items = Vec::new();
             for item in bound_list.iter() {
                 if let Ok(py_tc) = item.downcast::<crate::api::PyToolCall>() {
-                    tool_calls.push(py_tc.borrow().inner.clone());
+                    let borrow_tc = py_tc.try_borrow().map_err(|e| BrainError::Python {
+                        message: format!("Failed to borrow PyToolCall: {}", e),
+                        traceback: None,
+                    })?;
+                    raw_items.push(RawToolCall::Direct(borrow_tc.inner.clone()));
                 } else {
                     let json_val = crate::api::py_to_json(py, &item)
                         .map_err(|e| py_err_to_brain_error(py, e))?;
+                    raw_items.push(RawToolCall::Json(json_val));
+                }
+            }
+
+            Ok::<_, BrainError>(raw_items)
+        })?;
+
+        let mut tool_calls = Vec::new();
+        for raw in raw_items {
+            match raw {
+                RawToolCall::Direct(tc) => tool_calls.push(tc),
+                RawToolCall::Json(json_val) => {
                     let tc: ToolCall =
                         serde_json::from_value(json_val).map_err(|e| BrainError::Validation {
                             message: format!("Invalid ToolCall returned from planner: {}", e),
@@ -251,9 +273,9 @@ impl PlannerAgent for PythonPlannerAgent {
                     tool_calls.push(tc);
                 }
             }
+        }
 
-            Ok(tool_calls)
-        })
+        Ok(tool_calls)
     }
 }
 
@@ -308,7 +330,7 @@ impl EmbeddingAgent for PythonEmbeddingAgent {
 
     fn embed_text(&self, text: &str) -> Result<Vec<f32>, BrainError> {
         Python::with_gil(|py| {
-            let res = self.handle.call_cached_method("embed_text", (text,))?;
+            let res = self.handle.call_cached_method(py, "embed_text", (text,))?;
             let bound_res = res.bind(py);
 
             let embedding = bound_res
@@ -356,8 +378,10 @@ impl ExtractionAgent for PythonExtractionAgent {
     }
 
     fn extract_graph(&self, text: &str) -> Result<(Vec<NodeDTO>, Vec<EdgeDTO>), BrainError> {
-        Python::with_gil(|py| {
-            let res = self.handle.call_cached_method("extract_graph", (text,))?;
+        let (raw_nodes, raw_edges) = Python::with_gil(|py| {
+            let res = self
+                .handle
+                .call_cached_method(py, "extract_graph", (text,))?;
             let bound_res = res.bind(py);
 
             let (py_nodes, py_edges) =
@@ -420,37 +444,49 @@ impl ExtractionAgent for PythonExtractionAgent {
                 };
 
             // Extract nodes
-            let mut nodes = Vec::new();
+            let mut raw_nodes = Vec::new();
             let bound_nodes = py_nodes
                 .downcast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
             for item in bound_nodes.iter() {
                 let json_val =
                     crate::api::py_to_json(py, &item).map_err(|e| py_err_to_brain_error(py, e))?;
-                let node: NodeDTO =
-                    serde_json::from_value(json_val).map_err(|e| BrainError::Validation {
-                        message: format!("Invalid NodeDTO: {}", e),
-                    })?;
-                nodes.push(node);
+                raw_nodes.push(json_val);
             }
 
             // Extract edges
-            let mut edges = Vec::new();
+            let mut raw_edges = Vec::new();
             let bound_edges = py_edges
                 .downcast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
             for item in bound_edges.iter() {
                 let json_val =
                     crate::api::py_to_json(py, &item).map_err(|e| py_err_to_brain_error(py, e))?;
-                let edge: EdgeDTO =
-                    serde_json::from_value(json_val).map_err(|e| BrainError::Validation {
-                        message: format!("Invalid EdgeDTO: {}", e),
-                    })?;
-                edges.push(edge);
+                raw_edges.push(json_val);
             }
 
-            Ok((nodes, edges))
-        })
+            Ok::<_, BrainError>((raw_nodes, raw_edges))
+        })?;
+
+        let mut nodes = Vec::new();
+        for json_val in raw_nodes {
+            let node: NodeDTO =
+                serde_json::from_value(json_val).map_err(|e| BrainError::Validation {
+                    message: format!("Invalid NodeDTO: {}", e),
+                })?;
+            nodes.push(node);
+        }
+
+        let mut edges = Vec::new();
+        for json_val in raw_edges {
+            let edge: EdgeDTO =
+                serde_json::from_value(json_val).map_err(|e| BrainError::Validation {
+                    message: format!("Invalid EdgeDTO: {}", e),
+                })?;
+            edges.push(edge);
+        }
+
+        Ok((nodes, edges))
     }
 }
 
