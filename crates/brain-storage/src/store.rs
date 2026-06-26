@@ -13,6 +13,7 @@ thread_local! {
 }
 
 /// SQLite database storage backend implementing all domain repositories.
+#[derive(Clone)]
 pub struct SqliteStorage {
     pool: r2d2::Pool<crate::connection::SqliteConnectionManager>,
 }
@@ -152,6 +153,24 @@ impl<'a, 'b> StorageTransaction for SqliteTransactionRef<'a, 'b> {
 }
 
 impl<'a> RepositorySet for ActiveConnection<'a> {
+    fn nodes(&self) -> &dyn NodeRepository {
+        self
+    }
+    fn edges(&self) -> &dyn EdgeRepository {
+        self
+    }
+    fn embeddings(&self) -> &dyn EmbeddingRepository {
+        self
+    }
+    fn sessions(&self) -> &dyn SessionRepository {
+        self
+    }
+    fn configs(&self) -> &dyn ConfigRepository {
+        self
+    }
+}
+
+impl RepositorySet for SqliteStorage {
     fn nodes(&self) -> &dyn NodeRepository {
         self
     }
