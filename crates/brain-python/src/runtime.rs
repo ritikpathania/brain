@@ -27,7 +27,7 @@ fn get_traceback_str(py: Python<'_>, err: &PyErr) -> Option<String> {
 }
 
 /// Helper function to convert a standard `PyErr` into a `BrainError::Python`.
-fn py_err_to_brain_error(py: Python<'_>, err: PyErr) -> BrainError {
+pub(crate) fn py_err_to_brain_error(py: Python<'_>, err: PyErr) -> BrainError {
     let traceback = get_traceback_str(py, &err);
     BrainError::Python {
         message: err.to_string(),

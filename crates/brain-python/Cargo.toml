@@ -9,3 +9,6 @@ brain-core = { path = "../brain-core" }
 brain-domain = { path = "../brain-domain" }
 serde.workspace = true
 serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+ulid.workspace = true
