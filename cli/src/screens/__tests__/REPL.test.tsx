@@ -350,3 +350,35 @@ test('REPL handles Tab key to switch between focus states and sidebar tabs', asy
   expect(frame).not.toContain('● File Browser');
   expect(frame).not.toContain('● Config Wizard');
 });
+
+test('REPL commits partial text to logs when interrupted by a new stream_start event', async () => {
+  const client = new MockSocketClient();
+  const { lastFrame } = render(<REPL client={client as any} />);
+  await sleep(50);
+
+  // Start first stream
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-8' });
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-8',
+    sequence: 1,
+    content: 'InterruptedPartialContent',
+  });
+  // Wait for typewriter to render part of it
+  await sleep(150);
+
+  // Start second stream before first finishes, triggering interruption
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-9' });
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-9',
+    sequence: 1,
+    content: 'NewContentAfterInterruption',
+  });
+  await sleep(350);
+
+  const frame = lastFrame();
+  // The first stream's partial content should have been committed to permanent log/terminal
+  expect(frame).toContain('InterruptedPartialContent');
+  expect(frame).toContain('NewContentAfterInterruption');
+});

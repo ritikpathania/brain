@@ -140,6 +140,9 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
         const eventType = msg.type;
         switch (eventType) {
           case 'stream_start': {
+            if (isStreamingRef.current && displayedTextRef.current) {
+              addLog(displayedTextRef.current);
+            }
             startStream(msg.streamId);
             break;
           }
@@ -258,6 +261,8 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
       } else if (activeWidgetId === 'file-browser') {
         setActiveTab('config-wizard');
         setShouldFocusTab(true);
+      } else if (activeWidgetId === 'config-wizard') {
+        FocusManager.focusWidget('prompt-input');
       }
     }
   });
