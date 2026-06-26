@@ -21,6 +21,9 @@ node_modules/
 dist/
 *.log
 .tsbuildinfo
+cli/benchmarks/render_report_*.json
+cli/benchmarks/benchmark_*.json
+
 
 # Python
 .venv/
@@ -28,6 +31,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+*.dylib
 .pytest_cache/
 .ruff_cache/
 .hypothesis/
@@ -52,11 +57,18 @@ target/
 *.sw?
 
 # Compiled binaries
+brain
 cli/bin/brain
 cli/bin/brain_tui
+
 
 # AI / Dev Agent Directories
 .code-review-graph/
 .junie/
+
+# Test Outputs & Run Captures
+cli/tests/captures/
+cli/tests/rigorous_test_results.json
+
 
 
