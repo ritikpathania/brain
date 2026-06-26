@@ -115,4 +115,3 @@ impl<T: EmbeddingLookup + ?Sized> EmbeddingLookup for std::sync::Arc<T> {
         (**self).lookup(node_id)
     }
 }
-

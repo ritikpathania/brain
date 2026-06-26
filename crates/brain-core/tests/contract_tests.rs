@@ -100,4 +100,3 @@ fn test_embedding_provider_noop() {
     assert_eq!(emb.len(), 384);
     assert!(emb.iter().all(|&v| v == 0.0));
 }
-

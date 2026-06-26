@@ -95,6 +95,10 @@ fn test_embedding_ranking() {
         .rank(&request, vec![node2.clone(), node3.clone(), node1.clone()])
         .unwrap();
     assert_eq!(ranked[0].id, node1.id);
+    assert_eq!(ranked[1].id, node2.id);
+    assert_eq!(ranked[2].id, node3.id);
+
+    test_storage.assert_clean();
 }
 
 #[test]
@@ -136,6 +140,8 @@ fn test_graph_ranking() {
     assert_eq!(ranked[0].id, node2.id); // Weight 7.0
     assert_eq!(ranked[1].id, node1.id); // Weight 5.0
     assert_eq!(ranked[2].id, node3.id); // Weight 2.0
+
+    test_storage.assert_clean();
 }
 
 #[test]

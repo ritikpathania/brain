@@ -3,20 +3,26 @@ use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{EmbeddingLookup, EmbeddingProvider, RankingStrategy, RetrievalRequest};
+use brain_core::retrieval::{
+    EmbeddingLookup, EmbeddingProvider, RankingStrategy, RetrievalRequest,
+};
 use brain_domain::Node;
 
 // Temporary implementation.
 // Future tokenizer/stemmer belongs in a dedicated text analysis module.
 fn tokenize(text: &str) -> Vec<String> {
-    let stop_words: HashSet<&str> = [
-        "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in", "on",
-        "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it", "its",
-        "you", "your", "my", "up", "down", "out", "off",
-    ]
-    .iter()
-    .cloned()
-    .collect();
+    use std::sync::OnceLock;
+    static STOP_WORDS: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    let stop_words = STOP_WORDS.get_or_init(|| {
+        [
+            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in", "on",
+            "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it", "its",
+            "you", "your", "my", "up", "down", "out", "off",
+        ]
+        .iter()
+        .copied()
+        .collect()
+    });
 
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
@@ -103,8 +109,8 @@ impl RankingStrategy for Bm25Ranking {
         let avgdl = if n > 0.0 { total_length / n } else { 1.0 };
         let avgdl = if avgdl > 0.0 { avgdl } else { 1.0 };
 
-        // 2. Compute document frequency for each query term
-        let mut df = HashMap::new();
+        // 2. Compute document frequency and IDF for each query term
+        let mut idf_map = HashMap::new();
         for token in &query_tokens {
             let mut count = 0.0;
             for tf_map in &doc_tokens {
@@ -112,7 +118,8 @@ impl RankingStrategy for Bm25Ranking {
                     count += 1.0;
                 }
             }
-            df.insert(token.clone(), count);
+            let idf = ((n - count + 0.5) / (count + 0.5) + 1.0).ln();
+            idf_map.insert(token.clone(), idf);
         }
 
         // 3. Score each document
@@ -123,13 +130,14 @@ impl RankingStrategy for Bm25Ranking {
             let tf_map = &doc_tokens[idx];
 
             for token in &query_tokens {
-                let df_val = *df.get(token).unwrap_or(&0.0);
-                let idf = ((n - df_val + 0.5) / (df_val + 0.5) + 1.0).ln();
                 let tf_val = *tf_map.get(token).unwrap_or(&0.0);
+                if tf_val == 0.0 {
+                    continue;
+                }
+                let idf = *idf_map.get(token).unwrap_or(&0.0);
 
                 let numerator = tf_val * (self.k1 + 1.0);
-                let denominator = tf_val
-                    + self.k1 * (1.0 - self.b + self.b * (doc_len / avgdl));
+                let denominator = tf_val + self.k1 * (1.0 - self.b + self.b * (doc_len / avgdl));
 
                 score += idf * (numerator / denominator);
             }
@@ -313,11 +321,8 @@ impl RankingStrategy for RrfRanking {
         let mut rrf_scores = HashMap::new();
 
         for (strategy, weight) in &self.strategies {
-            let ranked_candidates = RankedCandidates::from_strategy(
-                strategy.as_ref(),
-                request,
-                nodes.clone(),
-            )?;
+            let ranked_candidates =
+                RankedCandidates::from_strategy(strategy.as_ref(), request, nodes.clone())?;
             for item in ranked_candidates.items {
                 let rank = item.rank as f64;
                 let score = weight / (self.k + rank);
@@ -329,7 +334,8 @@ impl RankingStrategy for RrfRanking {
         result.sort_by(|a, b| {
             let score_a = rrf_scores.get(&a.id).cloned().unwrap_or(0.0);
             let score_b = rrf_scores.get(&b.id).cloned().unwrap_or(0.0);
-            score_b.partial_cmp(&score_a)
+            score_b
+                .partial_cmp(&score_a)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.id.0.cmp(&b.id.0))
         });
