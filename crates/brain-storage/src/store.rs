@@ -4,9 +4,7 @@ use brain_core::errors::BrainError;
 use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, SessionRepository,
 };
-use brain_domain::{
-    Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId,
-};
+use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId};
 use std::collections::HashMap;
 
 /// SQLite database storage backend implementing all domain repositories.
@@ -33,14 +31,16 @@ impl NodeRepository for SqliteStorage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
-        let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize node type: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize properties: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let node_type_str =
+            serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize node type: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let properties_str =
+            serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize properties: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         conn.execute(
             "INSERT OR REPLACE INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)",
@@ -78,14 +78,16 @@ impl NodeRepository for SqliteStorage {
             })?;
 
             for node in nodes {
-                let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize node type: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize properties: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let node_type_str =
+                    serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize node type: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                let properties_str =
+                    serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize properties: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
                 stmt.execute((
                     node.id.to_string(),
                     &node.label,
@@ -130,14 +132,16 @@ impl NodeRepository for SqliteStorage {
 
         match res {
             Ok((label, node_type_str, properties_str, updated_at)) => {
-                let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize node type: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize properties: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let node_type: NodeType =
+                    serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to deserialize node type: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                let properties: HashMap<String, serde_json::Value> =
+                    serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to deserialize properties: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
                 let mut node = Node::new(*id, label, node_type).with_properties(properties);
                 node.updated_at = updated_at;
                 Ok(Some(node))
@@ -175,38 +179,44 @@ impl NodeRepository for SqliteStorage {
                 source: Some(Box::new(e)),
             })?;
 
-        let node_iter = stmt.query_map([], |row| {
-            let id_str: String = row.get(0)?;
-            let label: String = row.get(1)?;
-            let node_type_str: String = row.get(2)?;
-            let properties_str: String = row.get(3)?;
-            let updated_at: u64 = row.get(4)?;
-            Ok((id_str, label, node_type_str, properties_str, updated_at))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Query execution failed: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let node_iter = stmt
+            .query_map([], |row| {
+                let id_str: String = row.get(0)?;
+                let label: String = row.get(1)?;
+                let node_type_str: String = row.get(2)?;
+                let properties_str: String = row.get(3)?;
+                let updated_at: u64 = row.get(4)?;
+                Ok((id_str, label, node_type_str, properties_str, updated_at))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Query execution failed: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut nodes = Vec::new();
         for item in node_iter {
-            let (id_str, label, node_type_str, properties_str, updated_at) = item.map_err(|e| BrainError::Storage {
-                message: format!("Failed to parse query row: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let id = uuid::Uuid::parse_str(&id_str)
-                .map(NodeId)
-                .map_err(|e| BrainError::Storage {
-                    message: format!("Invalid UUID in storage: {}", e),
+            let (id_str, label, node_type_str, properties_str, updated_at) =
+                item.map_err(|e| BrainError::Storage {
+                    message: format!("Failed to parse query row: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-            let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
-                message: format!("Failed to deserialize node type: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
-                message: format!("Failed to deserialize properties: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let id =
+                uuid::Uuid::parse_str(&id_str)
+                    .map(NodeId)
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Invalid UUID in storage: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+            let node_type: NodeType =
+                serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize node type: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            let properties: HashMap<String, serde_json::Value> =
+                serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize properties: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
             let mut node = Node::new(id, label, node_type).with_properties(properties);
             node.updated_at = updated_at;
             nodes.push(node);
@@ -292,11 +302,14 @@ impl EdgeRepository for SqliteStorage {
                 source: Some(Box::new(e)),
             })?;
 
-        let res = stmt.query_row((id.source.to_string(), id.target.to_string(), &id.relation), |row| {
-            let weight: f64 = row.get(0)?;
-            let updated_at: u64 = row.get(1)?;
-            Ok((weight, updated_at))
-        });
+        let res = stmt.query_row(
+            (id.source.to_string(), id.target.to_string(), &id.relation),
+            |row| {
+                let weight: f64 = row.get(0)?;
+                let updated_at: u64 = row.get(1)?;
+                Ok((weight, updated_at))
+            },
+        );
 
         match res {
             Ok((weight, updated_at)) => {
@@ -341,32 +354,41 @@ impl EdgeRepository for SqliteStorage {
                 source: Some(Box::new(e)),
             })?;
 
-        let edge_iter = stmt.query_map([node_id.to_string(), node_id.to_string()], |row| {
-            let src_str: String = row.get(0)?;
-            let tgt_str: String = row.get(1)?;
-            let relation: String = row.get(2)?;
-            let weight: f64 = row.get(3)?;
-            let updated_at: u64 = row.get(4)?;
-            Ok((src_str, tgt_str, relation, weight, updated_at))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query connections: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let edge_iter = stmt
+            .query_map([node_id.to_string(), node_id.to_string()], |row| {
+                let src_str: String = row.get(0)?;
+                let tgt_str: String = row.get(1)?;
+                let relation: String = row.get(2)?;
+                let weight: f64 = row.get(3)?;
+                let updated_at: u64 = row.get(4)?;
+                Ok((src_str, tgt_str, relation, weight, updated_at))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query connections: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut edges = Vec::new();
         for item in edge_iter {
-            let (src_str, tgt_str, relation, weight, updated_at) = item.map_err(|e| BrainError::Storage {
-                message: format!("Failed parsing connection row: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let source = uuid::Uuid::parse_str(&src_str).map(NodeId).map_err(|e| BrainError::Storage {
-                message: format!("Invalid UUID in storage: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let target = uuid::Uuid::parse_str(&tgt_str).map(NodeId).map_err(|e| BrainError::Storage {
-                message: format!("Invalid UUID in storage: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let (src_str, tgt_str, relation, weight, updated_at) =
+                item.map_err(|e| BrainError::Storage {
+                    message: format!("Failed parsing connection row: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            let source =
+                uuid::Uuid::parse_str(&src_str)
+                    .map(NodeId)
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Invalid UUID in storage: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+            let target =
+                uuid::Uuid::parse_str(&tgt_str)
+                    .map(NodeId)
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Invalid UUID in storage: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
             let mut edge = Edge::new(source, target, relation, weight);
             edge.updated_at = updated_at;
             edges.push(edge);
@@ -387,32 +409,41 @@ impl EdgeRepository for SqliteStorage {
                 source: Some(Box::new(e)),
             })?;
 
-        let edge_iter = stmt.query_map([], |row| {
-            let src_str: String = row.get(0)?;
-            let tgt_str: String = row.get(1)?;
-            let relation: String = row.get(2)?;
-            let weight: f64 = row.get(3)?;
-            let updated_at: u64 = row.get(4)?;
-            Ok((src_str, tgt_str, relation, weight, updated_at))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query edges list: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let edge_iter = stmt
+            .query_map([], |row| {
+                let src_str: String = row.get(0)?;
+                let tgt_str: String = row.get(1)?;
+                let relation: String = row.get(2)?;
+                let weight: f64 = row.get(3)?;
+                let updated_at: u64 = row.get(4)?;
+                Ok((src_str, tgt_str, relation, weight, updated_at))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query edges list: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut edges = Vec::new();
         for item in edge_iter {
-            let (src_str, tgt_str, relation, weight, updated_at) = item.map_err(|e| BrainError::Storage {
-                message: format!("Failed parsing edge row: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let source = uuid::Uuid::parse_str(&src_str).map(NodeId).map_err(|e| BrainError::Storage {
-                message: format!("Invalid UUID in storage: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let target = uuid::Uuid::parse_str(&tgt_str).map(NodeId).map_err(|e| BrainError::Storage {
-                message: format!("Invalid UUID in storage: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let (src_str, tgt_str, relation, weight, updated_at) =
+                item.map_err(|e| BrainError::Storage {
+                    message: format!("Failed parsing edge row: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            let source =
+                uuid::Uuid::parse_str(&src_str)
+                    .map(NodeId)
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Invalid UUID in storage: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+            let target =
+                uuid::Uuid::parse_str(&tgt_str)
+                    .map(NodeId)
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Invalid UUID in storage: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
             let mut edge = Edge::new(source, target, relation, weight);
             edge.updated_at = updated_at;
             edges.push(edge);
@@ -489,11 +520,14 @@ impl EmbeddingRepository for SqliteStorage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
-        conn.execute("DELETE FROM embeddings WHERE node_id = ?", [node_id.to_string()])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to delete embedding: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+        conn.execute(
+            "DELETE FROM embeddings WHERE node_id = ?",
+            [node_id.to_string()],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to delete embedding: {}", e),
+            source: Some(Box::new(e)),
+        })?;
         Ok(())
     }
 
@@ -509,15 +543,17 @@ impl EmbeddingRepository for SqliteStorage {
                 source: Some(Box::new(e)),
             })?;
 
-        let iter = stmt.query_map([], |row| {
-            let node_id_str: String = row.get(0)?;
-            let bytes: Vec<u8> = row.get(1)?;
-            let dimension: i64 = row.get(2)?;
-            Ok((node_id_str, bytes, dimension))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Query execution failed: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let iter = stmt
+            .query_map([], |row| {
+                let node_id_str: String = row.get(0)?;
+                let bytes: Vec<u8> = row.get(1)?;
+                let dimension: i64 = row.get(2)?;
+                Ok((node_id_str, bytes, dimension))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Query execution failed: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut embeddings = Vec::new();
         for item in iter {
@@ -589,10 +625,11 @@ impl SessionRepository for SqliteStorage {
 
         match res {
             Ok(history_str) => {
-                let conversation: Conversation = serde_json::from_str(&history_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize conversation: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let conversation: Conversation =
+                    serde_json::from_str(&history_str).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to deserialize conversation: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
                 Ok(Some(conversation))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
