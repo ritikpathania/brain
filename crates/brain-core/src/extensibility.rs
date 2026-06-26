@@ -42,6 +42,73 @@ pub trait PluginRegistryLookup: Send + Sync {
     fn get_plugin_state(&self, id: &PluginId) -> Option<PluginState>;
 }
 
+/// Represents system capability permissions requested by tools.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Permission {
+    /// Read access to the filesystem.
+    FilesystemRead,
+    /// Write access to the filesystem.
+    FilesystemWrite,
+    /// Permission to execute shell commands.
+    Shell,
+    /// Permission to run Git operations.
+    Git,
+    /// Permission to access the network.
+    Network,
+    /// Access to the system clipboard.
+    Clipboard,
+    /// Permission to read/write storage.
+    Storage,
+    /// Permission to call LLM services.
+    Llm,
+}
+
+/// Policy settings defining the execution runtime behavior of a tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionPolicy {
+    /// Task execution timeout limit in milliseconds.
+    pub timeout_ms: u64,
+}
+
+/// Abstraction for checking execution cancellation request.
+pub trait CancellationToken: Send + Sync {
+    /// Returns true if cancellation has been requested.
+    fn is_cancelled(&self) -> bool;
+}
+
+/// Execution context for tool invocation, providing access to session state,
+/// working directory, cancellation tokens, and other runtime environment details.
+#[derive(Clone)]
+pub struct ExecutionContext {
+    /// The session identifier.
+    pub session_id: brain_domain::SessionId,
+    /// The working directory for the tool.
+    pub working_dir: std::path::PathBuf,
+    /// Token used to signal cancellation request.
+    pub cancellation: std::sync::Arc<dyn CancellationToken>,
+    /// Maximum execution deadline.
+    pub deadline: Option<std::time::Instant>,
+}
+
+/// Immutable wrapper for tool execution results.
+#[derive(Debug, Clone)]
+pub struct ExecutionResult {
+    value: serde_json::Value,
+}
+
+impl ExecutionResult {
+    /// Creates a new ExecutionResult.
+    pub fn new(value: serde_json::Value) -> Self {
+        Self { value }
+    }
+
+    /// Returns the execution payload value.
+    pub fn value(&self) -> &serde_json::Value {
+        &self.value
+    }
+}
+
 /// Structured capability metadata for a system tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolMetadata {
@@ -55,10 +122,10 @@ pub struct ToolMetadata {
     pub version: String,
     /// Author description.
     pub author: String,
-    /// List of capability permissions requested (e.g. "fs:read", "net:connect").
-    pub required_permissions: Vec<String>,
-    /// Task execution timeout limit in milliseconds.
-    pub timeout_ms: u64,
+    /// List of capability permissions requested.
+    pub required_permissions: Vec<Permission>,
+    /// Execution behavior policy.
+    pub execution_policy: ExecutionPolicy,
     /// Indicates whether the tool supports chunked stream stdout.
     pub supports_streaming: bool,
     /// Indicates whether calling this tool multiple times yields identical state results.
@@ -74,16 +141,28 @@ pub trait Tool: Send + Sync {
     /// Executes the tool using key-value parameters.
     fn execute(
         &self,
+        context: &ExecutionContext,
         arguments: &HashMap<String, serde_json::Value>,
-    ) -> Result<serde_json::Value, BrainError>;
+    ) -> Result<ExecutionResult, BrainError>;
 }
 
 /// Thread-safe registry containing active system tools available to planning agents.
 pub trait ToolRegistry: Send + Sync {
     /// Registers a new tool capability in the coordinator.
-    fn register_tool(&self, tool: Box<dyn Tool>) -> Result<(), BrainError>;
+    fn register_tool(&self, tool: std::sync::Arc<dyn Tool>) -> Result<(), BrainError>;
     /// Retrieves a registered tool by its name.
-    fn get_tool(&self, name: &str) -> Option<Box<dyn Tool>>;
+    fn get_tool(&self, name: &str) -> Option<std::sync::Arc<dyn Tool>>;
     /// Lists all registered tools.
-    fn list_tools(&self) -> Vec<Box<dyn Tool>>;
+    fn list_tools(&self) -> Vec<std::sync::Arc<dyn Tool>>;
+}
+
+/// Trait defining execution of a tool within a specific runner strategy (blocking, async, etc.).
+pub trait ToolRunner: Send + Sync {
+    /// Runs the tool with the given context and arguments.
+    fn run(
+        &self,
+        tool: std::sync::Arc<dyn Tool>,
+        context: &ExecutionContext,
+        arguments: &HashMap<String, serde_json::Value>,
+    ) -> Result<ExecutionResult, BrainError>;
 }

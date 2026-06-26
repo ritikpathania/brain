@@ -33,9 +33,10 @@ impl Tool for MockTool {
 
     fn execute(
         &self,
+        _context: &ExecutionContext,
         _arguments: &std::collections::HashMap<String, serde_json::Value>,
-    ) -> Result<serde_json::Value, BrainError> {
-        Ok(serde_json::Value::Null)
+    ) -> Result<ExecutionResult, BrainError> {
+        Ok(ExecutionResult::new(serde_json::Value::Null))
     }
 }
 
@@ -47,16 +48,16 @@ fn test_trait_object_compilation() {
         usage: "mock_tool <arg>".to_string(),
         version: "0.1.0".to_string(),
         author: "Agent".to_string(),
-        required_permissions: vec!["fs:read".to_string()],
-        timeout_ms: 500,
+        required_permissions: vec![Permission::FilesystemRead],
+        execution_policy: ExecutionPolicy { timeout_ms: 500 },
         supports_streaming: false,
         is_idempotent: true,
         causes_side_effects: false,
     };
 
-    let tool: Box<dyn Tool> = Box::new(MockTool { metadata });
+    let tool: std::sync::Arc<dyn Tool> = std::sync::Arc::new(MockTool { metadata });
     assert_eq!(tool.metadata().name, "mock_tool");
-    assert_eq!(tool.metadata().required_permissions[0], "fs:read");
+    assert_eq!(tool.metadata().required_permissions[0], Permission::FilesystemRead);
 }
 
 #[test]

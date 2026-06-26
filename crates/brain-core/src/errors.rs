@@ -98,6 +98,13 @@ pub enum BrainError {
         message: String,
     },
 
+    /// Operation was cancelled.
+    #[error("Cancelled Error: {message}")]
+    Cancelled {
+        /// Error message.
+        message: String,
+    },
+
     /// Recoverable or unrecoverable internal system error.
     #[error("Internal System Error: {message}")]
     Internal {
