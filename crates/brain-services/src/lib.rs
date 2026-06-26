@@ -10,5 +10,6 @@ mod session;
 mod stub;
 
 pub use retrieval::RetrievalServiceImpl;
+pub use retrieval::{pipeline, source};
 pub use session::SessionServiceImpl;
 pub use stub::{StubRetrievalService, StubSessionService};

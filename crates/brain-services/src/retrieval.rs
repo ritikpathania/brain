@@ -6,6 +6,7 @@ pub mod source;
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
+use brain_core::retrieval::{CacheHydrationPolicy, RetrievalRequest};
 use brain_core::services::RetrievalService;
 use brain_domain::{MemoryDTO, SessionId};
 use brain_session::SessionCacheManager;
@@ -14,53 +15,23 @@ use std::sync::Arc;
 /// Concrete implementation of RetrievalService routing query searches across cache and storage.
 pub struct RetrievalServiceImpl {
     repos: Arc<dyn RepositorySet>,
-    cache_manager: Arc<SessionCacheManager>,
+    pipeline: pipeline::RetrievalPipeline,
 }
 
 impl RetrievalServiceImpl {
     /// Creates a new RetrievalServiceImpl.
     pub fn new(repos: Arc<dyn RepositorySet>, cache_manager: Arc<SessionCacheManager>) -> Self {
+        let pipeline = pipeline::MemoryPipelineBuilder::new()
+            .register_source(Arc::new(source::StmMemorySource::new(cache_manager.clone())))
+            .register_source(Arc::new(source::LtmMemorySource::new(repos.clone())))
+            .with_policy(CacheHydrationPolicy::OnHit)
+            .with_cache_manager(cache_manager)
+            .build();
+
         Self {
             repos,
-            cache_manager,
+            pipeline,
         }
-    }
-
-    fn retrieve_ltm(
-        &self,
-        session_id: &SessionId,
-        query: &str,
-        limit: usize,
-        exclude_ids: &[String],
-    ) -> Result<Vec<MemoryDTO>, BrainError> {
-        let mut results = Vec::new();
-        let db_nodes = self.repos.nodes().list_all()?;
-        let query_lower = query.to_lowercase();
-
-        for node in db_nodes {
-            let id_str = node.id.to_string();
-            // Skip if already found in STM cache
-            if exclude_ids.contains(&id_str) {
-                continue;
-            }
-
-            // Simple keyword match on label
-            if node.label.to_lowercase().contains(&query_lower) {
-                let connections = self.repos.edges().get_connections(&node.id)?;
-
-                // Ingest the DB hit into STM cache
-                let ctx = self.cache_manager.get_or_create(*session_id);
-                ctx.write().unwrap().ingest(node.clone());
-
-                let dto = to_memory_dto(&node, &connections)?;
-                results.push(dto);
-                if results.len() >= limit {
-                    break;
-                }
-            }
-        }
-
-        Ok(results)
     }
 }
 
@@ -71,34 +42,23 @@ impl RetrievalService for RetrievalServiceImpl {
         query: &str,
         limit: usize,
     ) -> Result<Vec<MemoryDTO>, BrainError> {
-        let mut results = Vec::new();
-        let mut stm_ids = Vec::new();
-
-        // 1. Query short-term memory cache
-        let stm_nodes = {
-            let ctx = self.cache_manager.get_or_create(*session_id);
-            let nodes = ctx.read().unwrap().query(query);
-            nodes
+        let request = RetrievalRequest {
+            session_id: *session_id,
+            query: query.to_string(),
+            limit,
+            exclude_ids: std::collections::HashSet::new(),
+            deadline: None,
         };
 
-        for stm in stm_nodes {
-            let connections = self.repos.edges().get_connections(&stm.node.id)?;
-            let dto = to_memory_dto(&stm.node, &connections)?;
-            stm_ids.push(stm.node.id.to_string());
+        let response = self.pipeline.execute(&request)?;
+
+        let mut results = Vec::with_capacity(response.nodes.len());
+        for node in response.nodes {
+            let connections = self.repos.edges().get_connections(&node.id)?;
+            let dto = to_memory_dto(&node, &connections)?;
             results.push(dto);
-            if results.len() >= limit {
-                break;
-            }
         }
 
-        // 2. If limit is not reached, fall back to scanning long-term database storage
-        if results.len() < limit {
-            let ltm_limit = limit - results.len();
-            let mut ltm_results = self.retrieve_ltm(session_id, query, ltm_limit, &stm_ids)?;
-            results.append(&mut ltm_results);
-        }
-
-        results.truncate(limit);
         Ok(results)
     }
 }
