@@ -38,3 +38,22 @@ pub trait PlannerAgent: Send + Sync {
         history: &Conversation,
     ) -> Result<Vec<ToolCall>, BrainError>;
 }
+
+/// Bridge trait exposing core host engine capabilities to Python agents and plugins.
+pub trait AgentRuntime: Send + Sync {
+    /// Retrieves matching memory nodes for a query within a session context.
+    fn retrieve(
+        &self,
+        session_id: &brain_domain::SessionId,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<brain_domain::Node>, BrainError>;
+
+    /// Executes a registered system tool in the tool runtime coordinator.
+    fn execute_tool(
+        &self,
+        session_id: &brain_domain::SessionId,
+        tool_name: &str,
+        arguments: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<crate::extensibility::ExecutionResult, BrainError>;
+}
