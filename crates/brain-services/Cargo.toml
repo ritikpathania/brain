@@ -1,0 +1,14 @@
+[package]
+name = "brain-services"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+brain-domain = { path = "../brain-domain" }
+brain-core = { path = "../brain-core" }
+brain-session = { path = "../brain-session" }
+
+[dev-dependencies]
+brain-storage = { path = "../brain-storage", features = ["test-utils"] }
