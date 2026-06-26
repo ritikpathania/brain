@@ -1,8 +1,12 @@
 use crate::connection::init_pool;
 use crate::migrations::run_migrations;
 use brain_core::errors::BrainError;
-use brain_core::repositories::{EdgeRepository, NodeRepository};
-use brain_domain::{Edge, EdgeId, Node, NodeId, NodeType};
+use brain_core::repositories::{
+    ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, SessionRepository,
+};
+use brain_domain::{
+    Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId,
+};
 use std::collections::HashMap;
 
 /// SQLite database storage backend implementing all domain repositories.
@@ -414,5 +418,247 @@ impl EdgeRepository for SqliteStorage {
             edges.push(edge);
         }
         Ok(edges)
+    }
+}
+
+impl EmbeddingRepository for SqliteStorage {
+    fn save(&self, embedding: &Embedding) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut bytes = Vec::with_capacity(embedding.vector.len() * 4);
+        for &val in &embedding.vector {
+            bytes.extend_from_slice(&val.to_le_bytes());
+        }
+
+        conn.execute(
+            "INSERT OR REPLACE INTO embeddings (node_id, vector, dimension) VALUES (?, ?, ?)",
+            (
+                embedding.node_id.to_string(),
+                bytes,
+                embedding.dimension as i64,
+            ),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to save embedding: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    fn find_by_node_id(&self, node_id: &NodeId) -> Result<Option<Embedding>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn
+            .prepare("SELECT vector, dimension FROM embeddings WHERE node_id = ?")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare embedding query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let res = stmt.query_row([node_id.to_string()], |row| {
+            let bytes: Vec<u8> = row.get(0)?;
+            let dimension: i64 = row.get(1)?;
+            Ok((bytes, dimension))
+        });
+
+        match res {
+            Ok((bytes, _dimension)) => {
+                let mut vector = Vec::with_capacity(bytes.len() / 4);
+                for chunk in bytes.chunks_exact(4) {
+                    let arr = chunk.try_into().unwrap_or([0u8; 4]);
+                    vector.push(f32::from_le_bytes(arr));
+                }
+                Ok(Some(Embedding::new(*node_id, vector)))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(BrainError::Storage {
+                message: format!("Failed to query embedding: {}", e),
+                source: Some(Box::new(e)),
+            }),
+        }
+    }
+
+    fn delete(&self, node_id: &NodeId) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.execute("DELETE FROM embeddings WHERE node_id = ?", [node_id.to_string()])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to delete embedding: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        Ok(())
+    }
+
+    fn list_all_embeddings(&self) -> Result<Vec<Embedding>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut stmt = conn
+            .prepare("SELECT node_id, vector, dimension FROM embeddings")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let iter = stmt.query_map([], |row| {
+            let node_id_str: String = row.get(0)?;
+            let bytes: Vec<u8> = row.get(1)?;
+            let dimension: i64 = row.get(2)?;
+            Ok((node_id_str, bytes, dimension))
+        }).map_err(|e| BrainError::Storage {
+            message: format!("Query execution failed: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut embeddings = Vec::new();
+        for item in iter {
+            let (node_id_str, bytes, _dimension) = item.map_err(|e| BrainError::Storage {
+                message: format!("Failed to parse query row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let node_id = uuid::Uuid::parse_str(&node_id_str)
+                .map(NodeId)
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Invalid UUID: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            let mut vector = Vec::with_capacity(bytes.len() / 4);
+            for chunk in bytes.chunks_exact(4) {
+                let arr = chunk.try_into().unwrap_or([0u8; 4]);
+                vector.push(f32::from_le_bytes(arr));
+            }
+            embeddings.push(Embedding::new(node_id, vector));
+        }
+
+        Ok(embeddings)
+    }
+}
+
+impl SessionRepository for SqliteStorage {
+    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let history_str = serde_json::to_string(history).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize session history: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        conn.execute(
+            "INSERT OR REPLACE INTO sessions (id, history, updated_at) VALUES (?, ?, ?)",
+            (id.to_string(), history_str, now),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to save session {}: {}", id, e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    fn load_session(&self, id: &SessionId) -> Result<Option<Conversation>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn
+            .prepare("SELECT history FROM sessions WHERE id = ?")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let res = stmt.query_row([id.to_string()], |row| {
+            let history: String = row.get(0)?;
+            Ok(history)
+        });
+
+        match res {
+            Ok(history_str) => {
+                let conversation: Conversation = serde_json::from_str(&history_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize conversation: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+                Ok(Some(conversation))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(BrainError::Storage {
+                message: format!("Failed to query session: {}", e),
+                source: Some(Box::new(e)),
+            }),
+        }
+    }
+
+    fn delete_session(&self, id: &SessionId) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.execute("DELETE FROM sessions WHERE id = ?", [id.to_string()])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to delete session: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        Ok(())
+    }
+}
+
+impl ConfigRepository for SqliteStorage {
+    fn save_key(&self, key: &str, val: &str) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.execute(
+            "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+            (key, val),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to save config key {}: {}", key, e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    fn get_key(&self, key: &str) -> Result<Option<String>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn
+            .prepare("SELECT value FROM config WHERE key = ?")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let res = stmt.query_row([key], |row| {
+            let value: String = row.get(0)?;
+            Ok(value)
+        });
+
+        match res {
+            Ok(value) => Ok(Some(value)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(BrainError::Storage {
+                message: format!("Failed to query config key: {}", e),
+                source: Some(Box::new(e)),
+            }),
+        }
     }
 }
