@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     "#,
 ];
 
+/// Runs all pending database schema migrations in a transaction.
 pub fn run_migrations(conn: &mut Connection) -> Result<(), BrainError> {
     let mut current_version: u32 = conn
         .query_row("PRAGMA user_version;", [], |row| row.get(0))
