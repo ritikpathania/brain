@@ -203,3 +203,59 @@ impl fmt::Display for DocumentId {
         write!(f, "{}", self.0)
     }
 }
+
+impl std::str::FromStr for SessionId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for RunId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for NodeId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for PluginId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for ConversationId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for MessageId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl std::str::FromStr for DocumentId {
+    type Err = ulid::DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
