@@ -100,8 +100,24 @@ function runComparison() {
         regressedCount++;
       }
 
-      console.log(`  Avg: ${cur.averageCommitMs.toFixed(2)}ms vs ${base.averageCommitMs.toFixed(2)}ms (${formatPercent(avgDiff)}) ${getIndicator(avgClass, avgDiff)}`);
-      console.log(`  Max: ${cur.maxCommitMs.toFixed(2)}ms vs ${base.maxCommitMs.toFixed(2)}ms (${formatPercent(maxDiff)}) ${getIndicator(maxClass, maxDiff)}`);
+      console.log(`  Avg: ${cur.averageCommitMs.toFixed(3)}ms vs ${base.averageCommitMs.toFixed(3)}ms (${formatPercent(avgDiff)}) ${getIndicator(avgClass, avgDiff)}`);
+      
+      if (cur.medianCommitMs !== undefined && base.medianCommitMs !== undefined) {
+        const medDiff = getPercentDiff(cur.medianCommitMs, base.medianCommitMs);
+        const medClass = classifyChange(medDiff);
+        console.log(`  Med: ${cur.medianCommitMs.toFixed(3)}ms vs ${base.medianCommitMs.toFixed(3)}ms (${formatPercent(medDiff)}) ${getIndicator(medClass, medDiff)}`);
+      }
+      if (cur.p95CommitMs !== undefined && base.p95CommitMs !== undefined) {
+        const p95Diff = getPercentDiff(cur.p95CommitMs, base.p95CommitMs);
+        const p95Class = classifyChange(p95Diff);
+        console.log(`  p95: ${cur.p95CommitMs.toFixed(3)}ms vs ${base.p95CommitMs.toFixed(3)}ms (${formatPercent(p95Diff)}) ${getIndicator(p95Class, p95Diff)}`);
+      }
+      if (cur.stdDevCommitMs !== undefined && base.stdDevCommitMs !== undefined) {
+        console.log(`  SD : ${cur.stdDevCommitMs.toFixed(3)}ms vs ${base.stdDevCommitMs.toFixed(3)}ms`);
+      }
+      
+      console.log(`  Max: ${cur.maxCommitMs.toFixed(3)}ms vs ${base.maxCommitMs.toFixed(3)}ms (${formatPercent(maxDiff)}) ${getIndicator(maxClass, maxDiff)}`);
+      console.log(`  Samples: ${cur.frames} (Current) vs ${base.frames} (Baseline)`);
     }
 
     console.log('\n===================================');
@@ -166,14 +182,14 @@ function showHistoricalTrends(limit: number) {
         const date = new Date(run.timestamp).toLocaleDateString();
 
         if (prevVals.length === 0) {
-          console.log(`  [${date} ${time}] Commit: ${commit} | Avg: ${val.toFixed(2)}ms (Baseline)`);
+          console.log(`  [${date} ${time}] Commit: ${commit} | Avg: ${val.toFixed(3)}ms (Baseline)`);
         } else {
           // Calculate running average of all previous runs in the window to smooth out variance
           const runningAvg = prevVals.reduce((sum, v) => sum + v, 0) / prevVals.length;
           const diff = getPercentDiff(val, runningAvg);
           const cls = classifyChange(diff);
           
-          console.log(`  [${date} ${time}] Commit: ${commit} | Avg: ${val.toFixed(2)}ms (${formatPercent(diff)} vs running avg ${runningAvg.toFixed(2)}ms) ${getIndicator(cls, diff)}`);
+          console.log(`  [${date} ${time}] Commit: ${commit} | Avg: ${val.toFixed(3)}ms (${formatPercent(diff)} vs running avg ${runningAvg.toFixed(3)}ms) ${getIndicator(cls, diff)}`);
           
           // If this is the latest run in the window, register overall status
           if (i === runs.length - 1) {

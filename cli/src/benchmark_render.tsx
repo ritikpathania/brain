@@ -120,19 +120,47 @@ async function runRenderBenchmarks() {
     const averageCommitMs = framesCount > 0 ? (totalRenderMs / framesCount) : 0;
     const maxCommitMs = durList.length > 0 ? Math.max(...durList) : 0;
 
+    const sorted = [...durList].sort((a, b) => a - b);
+    let medianCommitMs = 0;
+    if (sorted.length > 0) {
+      if (sorted.length % 2 !== 0) {
+        medianCommitMs = sorted[Math.floor(sorted.length / 2)];
+      } else {
+        medianCommitMs = (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+      }
+    }
+
+    const p95CommitMs = sorted.length > 0
+      ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]
+      : 0;
+
+    let stdDevCommitMs = 0;
+    if (framesCount > 1) {
+      const sqDiffs = durList.map(d => Math.pow(d - averageCommitMs, 2));
+      const sumSqDiffs = sqDiffs.reduce((sum, d) => sum + d, 0);
+      stdDevCommitMs = Math.sqrt(sumSqDiffs / framesCount);
+    }
+
     scenarioMetrics[name] = {
-      totalWallMs: parseFloat(totalWallMs.toFixed(2)),
-      totalRenderMs: parseFloat(totalRenderMs.toFixed(2)),
-      averageCommitMs: parseFloat(averageCommitMs.toFixed(2)),
-      maxCommitMs: parseFloat(maxCommitMs.toFixed(2)),
+      totalWallMs: parseFloat(totalWallMs.toFixed(3)),
+      totalRenderMs: parseFloat(totalRenderMs.toFixed(3)),
+      averageCommitMs: parseFloat(averageCommitMs.toFixed(3)),
+      medianCommitMs: parseFloat(medianCommitMs.toFixed(3)),
+      p95CommitMs: parseFloat(p95CommitMs.toFixed(3)),
+      stdDevCommitMs: parseFloat(stdDevCommitMs.toFixed(3)),
+      maxCommitMs: parseFloat(maxCommitMs.toFixed(3)),
       frames: framesCount,
+      sampleCount: framesCount,
     };
 
     console.log(`  └─ Frames: ${framesCount}`);
-    console.log(`  └─ Total Profiler Render: ${totalRenderMs.toFixed(2)} ms`);
-    console.log(`  └─ Avg Commit/Frame: ${averageCommitMs.toFixed(2)} ms`);
-    console.log(`  └─ Max Commit: ${maxCommitMs.toFixed(2)} ms`);
-    console.log(`  └─ Wall Time: ${totalWallMs.toFixed(2)} ms\n`);
+    console.log(`  └─ Total Profiler Render: ${totalRenderMs.toFixed(3)} ms`);
+    console.log(`  └─ Avg Commit/Frame: ${averageCommitMs.toFixed(3)} ms`);
+    console.log(`  └─ Median Commit: ${medianCommitMs.toFixed(3)} ms`);
+    console.log(`  └─ p95 Commit: ${p95CommitMs.toFixed(3)} ms`);
+    console.log(`  └─ StdDev Commit: ${stdDevCommitMs.toFixed(3)} ms`);
+    console.log(`  └─ Max Commit: ${maxCommitMs.toFixed(3)} ms`);
+    console.log(`  └─ Wall Time: ${totalWallMs.toFixed(3)} ms\n`);
   };
 
   // Run the workloads
@@ -142,10 +170,27 @@ async function runRenderBenchmarks() {
   executeWorkload('theme', WORKLOAD_CONFIGS.themeSwitches);
 
   // 4. Gather system/git metadata
-  let gitCommit = 'unknown';
-  try {
-    gitCommit = execSync('git rev-parse HEAD').toString().trim();
-  } catch (err) {}
+  let gitCommit = process.env.GITHUB_SHA ||
+                  process.env.GIT_COMMIT ||
+                  process.env.CI_COMMIT_SHA ||
+                  process.env.COMMIT_SHA;
+  if (!gitCommit) {
+    try {
+      gitCommit = execSync('git rev-parse HEAD 2>/dev/null').toString().trim();
+    } catch (err) {}
+  }
+
+  if (!gitCommit || gitCommit === 'unknown') {
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    if (isCI) {
+      console.error('\n[Error] Git commit metadata is mandatory in CI environments. Set GITHUB_SHA / GIT_COMMIT / CI_COMMIT_SHA or ensure a git repo is initialized.');
+      process.exit(1);
+    } else {
+      console.warn('\n[Warning] Git commit metadata not found. Benchmark trend reports require a Git commit.');
+      console.warn('  Ensure a git repository is initialized or set the GIT_COMMIT environment variable.');
+      gitCommit = 'unknown';
+    }
+  }
 
   const reportData = {
     schemaVersion: 1,
@@ -190,7 +235,7 @@ async function runRenderBenchmarks() {
 
         if (baseVal !== undefined && currentVal !== undefined) {
           const increasePercent = ((currentVal - baseVal) / baseVal) * 100;
-          console.log(`Scenario '${key}': Baseline: ${baseVal}ms | Current: ${currentVal}ms (${increasePercent >= 0 ? '+' : ''}${increasePercent.toFixed(1)}%)`);
+          console.log(`Scenario '${key}': Baseline: ${baseVal.toFixed(3)}ms | Current: ${currentVal.toFixed(3)}ms (${increasePercent >= 0 ? '+' : ''}${increasePercent.toFixed(1)}%)`);
           
           // Flag if regression exceeds 30%
           if (increasePercent > 30.0) {

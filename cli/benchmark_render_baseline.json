@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "timestamp": "2026-06-25T20:54:45.672Z",
-  "gitCommit": "unknown",
+  "timestamp": "2026-06-26T08:47:14.473Z",
+  "gitCommit": "dc078d3960a502569281d043f3568181b67328f4",
   "bunVersion": "1.3.14",
   "platform": "darwin-arm64",
   "config": {
@@ -12,32 +12,48 @@
   },
   "scenarios": {
     "logs": {
-      "totalWallMs": 774.5,
-      "totalRenderMs": 81.99,
+      "totalWallMs": 767.55,
+      "totalRenderMs": 80.538,
       "averageCommitMs": 0.08,
-      "maxCommitMs": 3.13,
-      "frames": 1001
+      "medianCommitMs": 0.067,
+      "p95CommitMs": 0.12,
+      "stdDevCommitMs": 0.076,
+      "maxCommitMs": 1.684,
+      "frames": 1001,
+      "sampleCount": 1001
     },
     "markdown": {
-      "totalWallMs": 3045.72,
-      "totalRenderMs": 15.78,
-      "averageCommitMs": 0.03,
-      "maxCommitMs": 0.3,
-      "frames": 501
+      "totalWallMs": 2964.425,
+      "totalRenderMs": 12.3,
+      "averageCommitMs": 0.025,
+      "medianCommitMs": 0.023,
+      "p95CommitMs": 0.04,
+      "stdDevCommitMs": 0.015,
+      "maxCommitMs": 0.289,
+      "frames": 501,
+      "sampleCount": 501
     },
     "resize": {
-      "totalWallMs": 96.55,
-      "totalRenderMs": 10.27,
-      "averageCommitMs": 0.05,
-      "maxCommitMs": 0.72,
-      "frames": 201
+      "totalWallMs": 98.314,
+      "totalRenderMs": 10.869,
+      "averageCommitMs": 0.054,
+      "medianCommitMs": 0.043,
+      "p95CommitMs": 0.101,
+      "stdDevCommitMs": 0.064,
+      "maxCommitMs": 0.7,
+      "frames": 201,
+      "sampleCount": 201
     },
     "theme": {
-      "totalWallMs": 28.85,
-      "totalRenderMs": 4.37,
-      "averageCommitMs": 0.04,
-      "maxCommitMs": 0.4,
-      "frames": 101
+      "totalWallMs": 30.042,
+      "totalRenderMs": 4.508,
+      "averageCommitMs": 0.045,
+      "medianCommitMs": 0.037,
+      "p95CommitMs": 0.067,
+      "stdDevCommitMs": 0.049,
+      "maxCommitMs": 0.501,
+      "frames": 101,
+      "sampleCount": 101
     }
   }
 }

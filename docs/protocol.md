@@ -143,7 +143,11 @@ Indicates the stream was interrupted (e.g. due to client cancellation request).
 
 ### C. Client Resiliency & Validation
 
-1. **Client-Side Sequence Verification**: The client tracks the expected sequence number internally. If a skipped, duplicate, or decreasing sequence is received, it logs a `[Protocol Warning] Stream sequence mismatch: expected X, got Y` warning without interrupting the output.
+1. **Client-Side Sequence Verification & Invariants**: The client enforces strict stream invariants and logs warnings to stderr without crashing the UI:
+   - **Sequence Mismatch**: If the sequence number skips expected order, logs `[Protocol Warning] Stream sequence mismatch: expected X, got Y`.
+   - **Sequence Regression**: If the sequence number decreases or is duplicated, logs `[Protocol Warning] Stream sequence regressed: expected greater than X, got Y`.
+   - **Unterminated Streams**: If a new stream starts before the previous one terminates, logs `[Protocol Warning] Stream "X" was not terminated before starting stream "Y"`.
+   - **Reconnect Resurrection / Terminated Check**: If a packet arrives for a stream that was already terminated or stale, logs `[Protocol Warning] Received packet for already terminated stream "X"`.
 2. **Forward Compatibility**: The client is forward-compatible. If the daemon sends an unknown/new event type (e.g., `stream_metric`), the client logs a warning including the `streamId` (e.g., `[Protocol Warning] Ignored unknown stream event "stream_metric" for stream "stream-101"`) and continues processing subsequent stream events.
 
 ---

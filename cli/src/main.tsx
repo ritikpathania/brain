@@ -44,5 +44,6 @@ const client = new SocketClient(socketPath);
 render(
   <ThemeProvider defaultTheme={selectedTheme}>
     <REPL client={client} />
-  </ThemeProvider>
+  </ThemeProvider>,
+  { exitOnCtrlC: false }
 );

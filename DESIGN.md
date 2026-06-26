@@ -22,11 +22,11 @@ rounded:
   full: 0px
 
 spacing:
-  none: 0
-  tight: 1
-  normal: 2
-  relaxed: 3
-  section: 4
+  none: 0ch
+  tight: 1ch
+  normal: 2ch
+  relaxed: 3ch
+  section: 4ch
 
 colors:
   # ── Brand & Accent ──────────────────────────────────────────────

@@ -116,6 +116,7 @@ export class SocketClient {
     const client = net.createConnection({ path: this.socketPath });
 
     client.on('connect', () => {
+      console.error("DEBUG CLIENT: SocketClient connect event fired!");
       this.client = client;
       this.isConnecting = false;
       this.log('Successfully connected to Relational Memory daemon!');
@@ -140,6 +141,7 @@ export class SocketClient {
     });
 
     client.on('error', (err: any) => {
+      console.error(`DEBUG CLIENT: SocketClient error event fired: ${err.message}`);
       if (err.code === 'ENOENT') {
         this.log(`Daemon socket not found at ${this.socketPath}. Is the daemon running?`);
       } else {
@@ -151,6 +153,7 @@ export class SocketClient {
     });
 
     client.on('end', () => {
+      console.error("DEBUG CLIENT: SocketClient end event fired!");
       this.log('Daemon closed the connection.');
       this.cleanup();
       // Retry connection after 2 seconds
@@ -193,6 +196,11 @@ export class SocketClient {
    */
   public onLog(handler: LogHandler): () => void {
     this.logListeners.push(handler);
+    if (this.client) {
+      handler('Successfully connected to Relational Memory daemon!');
+    } else if (this.isConnecting) {
+      handler(`Connecting to daemon socket at ${this.socketPath}...`);
+    }
     return () => {
       this.logListeners = this.logListeners.filter(h => h !== handler);
     };

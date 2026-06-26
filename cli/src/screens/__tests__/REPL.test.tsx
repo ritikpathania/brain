@@ -11,6 +11,9 @@ global.fetch = () => Promise.resolve({
   json: () => Promise.resolve(null),
 } as any);
 
+process.env.TERMINAL_COLUMNS = '100';
+process.env.TERMINAL_ROWS = '40';
+
 if (!(EventEmitter.prototype as any).ref) {
   (EventEmitter.prototype as any).ref = function() { return this; };
 }
@@ -381,4 +384,70 @@ test('REPL commits partial text to logs when interrupted by a new stream_start e
   // The first stream's partial content should have been committed to permanent log/terminal
   expect(frame).toContain('InterruptedPartialContent');
   expect(frame).toContain('NewContentAfterInterruption');
+});
+
+test('REPL logs a warning on sequence regression', async () => {
+  const client = new MockSocketClient();
+  const { lastFrame } = render(<REPL client={client as any} />);
+  await sleep(50);
+
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-10' });
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-10',
+    sequence: 1,
+    content: 'FirstChunk',
+  });
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-10',
+    sequence: 2,
+    content: 'SecondChunk',
+  });
+  // Regress sequence number
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-10',
+    sequence: 1,
+    content: 'RegressedChunk',
+  });
+  client.triggerRawMessage({ type: 'stream_end', streamId: 'stream-10', sequence: 3 });
+
+  await sleep(350);
+  const frame = lastFrame();
+  expect(frame).toContain('[Protocol Warning] Stream sequence regressed');
+});
+
+test('REPL logs a warning on already terminated stream resurrection', async () => {
+  const client = new MockSocketClient();
+  const { lastFrame } = render(<REPL client={client as any} />);
+  await sleep(50);
+
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-11' });
+  client.triggerRawMessage({ type: 'stream_end', streamId: 'stream-11', sequence: 1 });
+  // Resurrect already terminated stream
+  client.triggerRawMessage({
+    type: 'stream_chunk',
+    streamId: 'stream-11',
+    sequence: 2,
+    content: 'ResurrectedChunk',
+  });
+
+  await sleep(350);
+  const frame = lastFrame();
+  expect(frame).toContain('[Protocol Warning] Received packet for already terminated stream');
+});
+
+test('REPL logs a warning when a stream starts before the previous one terminates', async () => {
+  const client = new MockSocketClient();
+  const { lastFrame } = render(<REPL client={client as any} />);
+  await sleep(50);
+
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-12' });
+  // Start another stream without terminating the first
+  client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-13' });
+
+  await sleep(350);
+  const frame = lastFrame();
+  expect(frame).toContain('[Protocol Warning] Stream "stream-12" was not terminated before starting stream "stream-13"');
 });

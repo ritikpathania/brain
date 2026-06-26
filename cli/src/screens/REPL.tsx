@@ -41,9 +41,16 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     handleProgress,
     endStream,
     cancelStream,
+    resetStreamState,
   } = useStreamingRenderer(15, (warning) => addLog(warning));
   const { themeType, setTheme } = useTheme();
   const { stdout } = useStdout();
+
+  useEffect(() => {
+    if (!isConnected) {
+      resetStreamState();
+    }
+  }, [isConnected]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -75,8 +82,31 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     displayedTextRef.current = displayedText;
   }, [isStreaming, displayedText]);
 
+  React.useEffect(() => {
+    console.error(`DEBUG REPL: logs state updated. Length: ${logs.length}. Content: ${JSON.stringify(logs)}`);
+  }, [logs]);
+
+  const [terminalSize, setTerminalSize] = useState({
+    columns: process.env.TERMINAL_COLUMNS ? parseInt(process.env.TERMINAL_COLUMNS, 10) : (stdout?.columns ?? 80),
+    rows: process.env.TERMINAL_ROWS ? parseInt(process.env.TERMINAL_ROWS, 10) : (stdout?.rows ?? 24),
+  });
+
+  useEffect(() => {
+    if (!stdout) return;
+    const handleResize = () => {
+      setTerminalSize({
+        columns: stdout.columns,
+        rows: stdout.rows,
+      });
+    };
+    stdout.on('resize', handleResize);
+    return () => {
+      stdout.off('resize', handleResize);
+    };
+  }, [stdout]);
+
   // Check if terminal is wide enough for side-panel dashboard
-  const isWide = (stdout?.columns ?? 80) >= 120;
+  const isWide = terminalSize.columns >= 120;
 
   // Track active focus manager changes
   useEffect(() => {
@@ -113,10 +143,12 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     client.connect();
 
     const unsubscribeLog = client.onLog((message) => {
+      console.error(`DEBUG REPL: onLog received message: ${message}`);
       addLog(`[CLI Log] ${message}`);
     });
 
     const unsubscribeMsg = client.onMessage((msg: ServerResponse) => {
+      console.error(`DEBUG REPL: onMessage received: ${JSON.stringify(msg)}`);
       const handleNonStreaming = (status: string, body: string) => {
         setIsLoading(false);
         EventBus.publish({ type: 'QueryFinished', success: status === 'ok' || status === 'success' });
@@ -126,11 +158,7 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
           cost: prev.cost + 0.0004,
         }));
         
-        // If there was a previous stream rendering, commit it to logs first
-        if (isStreamingRef.current && displayedTextRef.current) {
-          addLog(displayedTextRef.current);
-        }
-
+        resetStreamState();
         startStream('legacy-stream');
         queueChunk(`[Daemon Response] Status: ${status.toUpperCase()}\n${body}`, 1);
         endStream(2);
@@ -147,23 +175,23 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
             break;
           }
           case 'stream_progress': {
-            handleProgress(msg.progress, msg.message, msg.sequence);
+            handleProgress(msg.progress, msg.message, msg.sequence, msg.streamId);
             break;
           }
           case 'stream_chunk': {
-            queueChunk(msg.content, msg.sequence);
+            queueChunk(msg.content, msg.sequence, msg.streamId);
             break;
           }
           case 'stream_end': {
             setIsLoading(false);
             EventBus.publish({ type: 'QueryFinished', success: true });
-            endStream(msg.sequence);
+            endStream(msg.sequence, msg.streamId);
             break;
           }
           case 'stream_cancelled': {
             setIsLoading(false);
             EventBus.publish({ type: 'QueryFinished', success: false });
-            cancelStream(msg.sequence);
+            cancelStream(msg.sequence, msg.streamId);
             break;
           }
           case 'Response': {
@@ -200,6 +228,78 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
       addLog(displayedText);
     }
   }, [isStreaming]);
+
+  // Memory profiling auto-run hook
+  useEffect(() => {
+    if (process.env.BRAIN_MEM_PROFILE !== 'true') return;
+
+    const fs = require('fs');
+    const path = require('path');
+    const reportPath = process.env.BRAIN_MEM_PROFILE_PATH || path.join(process.cwd(), 'memory_profile_run.json');
+
+    const forceGc = process.env.BRAIN_FORCE_GC === 'true';
+    let queryCount = 0;
+    const maxQueries = 100;
+    const records: any[] = [];
+
+    const logMemory = (stage: string) => {
+      if (forceGc) {
+        try {
+          if (typeof Bun !== 'undefined' && Bun.gc) {
+            Bun.gc(true);
+          } else if (typeof global !== 'undefined' && (global as any).gc) {
+            (global as any).gc();
+          }
+        } catch (e) {}
+      }
+      const mem = process.memoryUsage();
+      records.push({
+        queryCount,
+        stage,
+        timestamp: Date.now(),
+        rss: mem.rss / (1024 * 1024),
+        heapTotal: mem.heapTotal / (1024 * 1024),
+        heapUsed: mem.heapUsed / (1024 * 1024),
+        external: mem.external / (1024 * 1024),
+      });
+
+      fs.writeFileSync(reportPath, JSON.stringify(records, null, 2));
+    };
+
+    logMemory('startup');
+
+    const unsubscribeQueryFinished = EventBus.subscribe((event) => {
+      if (event.type === 'QueryFinished') {
+        logMemory(`after_query_${queryCount}`);
+        
+        if (queryCount < maxQueries) {
+          queryCount++;
+          setTimeout(() => {
+            handleCommandSubmit(`query relational memory check ${queryCount}`);
+          }, 100);
+        } else {
+          addLog(`[Profile] Finished 100 queries.`);
+          setTimeout(() => {
+            process.exit(0);
+          }, 1000);
+        }
+      }
+    });
+
+    const unsubscribeLog = client.onLog((message) => {
+      if (message.includes("Successfully connected")) {
+        setTimeout(() => {
+          queryCount++;
+          handleCommandSubmit(`query relational memory check ${queryCount}`);
+        }, 1000);
+      }
+    });
+
+    return () => {
+      unsubscribeQueryFinished();
+      unsubscribeLog();
+    };
+  }, [client]);
 
   // Process command submission
   const handleCommandSubmit = async (command: string) => {
@@ -247,6 +347,17 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
 
   // Intercept key inputs to toggle launcher palette and handle Tab key cycling
   useInput((input, key) => {
+    if (key.ctrl && input === 'c') {
+      if (isStreamingRef.current) {
+        cancelStream(0);
+        setIsLoading(false);
+        addLog('[System] Query cancelled by user.');
+      } else {
+        EventBus.publish({ type: 'ClearPrompt' });
+      }
+      return;
+    }
+
     if (key.ctrl && input === 'p') {
       setPaletteOpen((prev) => !prev);
       return;
@@ -267,14 +378,15 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
     }
   });
 
-  const displayLogs = logs.slice(-10); // Keep last 10 logs to fit layout
+  const logLimit = terminalSize.rows < 30 ? 4 : terminalSize.rows < 35 ? 6 : 10;
+  const displayLogs = logs.slice(-logLimit); // Keep last N logs to fit layout
 
   return (
-    <ThemedBox flexDirection="column" padding={1} width="100%" height="100%" backgroundColor="clawd_background">
+    <ThemedBox flexDirection="column" padding={terminalSize.rows < 30 ? 0 : 1} width="100%" height="100%" backgroundColor="clawd_background">
       {/* Wordmark Logo */}
-      <LogoV2 />
+      {terminalSize.rows >= 35 && <LogoV2 />}
 
-      <Divider title="Relational Memory Dashboard" color="subtle" />
+      {terminalSize.rows >= 35 && <Divider title="Relational Memory Dashboard" color="subtle" />}
 
       {/* Main workspace layout */}
       <ThemedBox flexDirection={isWide ? 'row' : 'column'} width="100%">
@@ -285,7 +397,7 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
             borderStyle="single"
             borderColor={activeWidgetId === 'prompt-input' ? 'claude' : 'promptBorder'}
             padding={1}
-            minHeight={12}
+            minHeight={terminalSize.rows < 30 ? 5 : terminalSize.rows < 35 ? 8 : 12}
             flexGrow={1}
             marginTop={1}
           >
@@ -409,9 +521,11 @@ export const REPL: React.FC<REPLProps> = ({ client }) => {
               {isConnected ? '● Connected' : '✗ Unreachable'}
             </ThemedText>
           )}
-          <ThemedText color="inactive" marginLeft={3}>
-            Press [Tab] to cycle focus | Press [Ctrl+P] to toggle Command Launcher
-          </ThemedText>
+          {terminalSize.rows >= 30 && (
+            <ThemedText color="inactive" marginLeft={3}>
+              Press [Tab] to cycle focus | Press [Ctrl+P] to toggle Command Launcher
+            </ThemedText>
+          )}
         </ThemedBox>
       </ThemedBox>
 

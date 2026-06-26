@@ -6,7 +6,7 @@ export interface ThemeContextProps {
   themeType: ThemeType;
   theme: Theme;
   setTheme: (type: ThemeType) => void;
-  color: (token: ColorToken | string) => string;
+  color: (token: ColorToken | string) => string | undefined;
   spacing: (token: SpacingToken) => number;
   icon: (token: IconToken) => string;
   border: (token: BorderToken) => 'single' | 'double' | 'round' | 'classic';
@@ -17,7 +17,7 @@ export const ThemeContext = createContext<ThemeContextProps>({
   themeType: 'dark',
   theme: themes.dark,
   setTheme: () => {},
-  color: (t) => t,
+  color: (t) => t || undefined,
   spacing: () => 0,
   icon: () => '',
   border: () => 'round',
@@ -56,7 +56,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode; defaultTheme?:
   const activeTheme = themes[themeType] || themes.dark;
 
   // Precomputed helper functions
-  const color = (token: ColorToken | string): string => {
+  const color = (token: ColorToken | string): string | undefined => {
+    const hasNoColor = process.env.NO_COLOR !== undefined && process.env.NO_COLOR !== '';
+    const hasMonochrome = process.env.MONOCHROME !== undefined && process.env.MONOCHROME !== '';
+    if (hasNoColor || hasMonochrome) {
+      return undefined;
+    }
     if (token in activeTheme.colors) {
       return activeTheme.colors[token as ColorToken];
     }

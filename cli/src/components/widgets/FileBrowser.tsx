@@ -185,30 +185,59 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ isFocused = false, vis
           </ThemedBox>
         ) : (
           <ThemedBox flexDirection="column">
-            {entries.map((entry, idx) => {
-              const isSelected = idx === selectedIndex;
-              let color = 'text';
-              if (isSelected) {
-                color = 'claude';
-              } else if (entry.isDirectory) {
-                color = 'professionalBlue';
-              }
-
-              const marker = isSelected ? '▶ ' : '  ';
-              const nameSuffix = entry.isDirectory ? '/' : '';
+            {(() => {
+              const MAX_ITEMS = 8;
+              const startIndex = entries.length > MAX_ITEMS
+                ? Math.max(0, Math.min(selectedIndex - Math.floor(MAX_ITEMS / 2), entries.length - MAX_ITEMS))
+                : 0;
+              const visibleEntries = entries.slice(startIndex, startIndex + MAX_ITEMS);
+              const hasMoreAbove = startIndex > 0;
+              const hasMoreBelow = startIndex + MAX_ITEMS < entries.length;
 
               return (
-                <ThemedBox key={entry.name} flexDirection="row">
-                  <ThemedText color={isSelected ? 'claude' : 'inactive'} bold>
-                    {marker}
-                  </ThemedText>
-                  <ThemedText color={color} bold={entry.isDirectory || isSelected}>
-                    {entry.name}
-                    {nameSuffix}
-                  </ThemedText>
+                <ThemedBox flexDirection="column">
+                  {hasMoreAbove && (
+                    <ThemedBox paddingLeft={2}>
+                      <ThemedText color="inactive" dimColor italic>
+                        ▲ {startIndex} more item(s)...
+                      </ThemedText>
+                    </ThemedBox>
+                  )}
+                  {visibleEntries.map((entry, visibleIdx) => {
+                    const idx = startIndex + visibleIdx;
+                    const isSelected = idx === selectedIndex;
+                    let color = 'text';
+                    if (isSelected) {
+                      color = 'claude';
+                    } else if (entry.isDirectory) {
+                      color = 'professionalBlue';
+                    }
+
+                    const marker = isSelected ? '▶ ' : '  ';
+                    const nameSuffix = entry.isDirectory ? '/' : '';
+
+                    return (
+                      <ThemedBox key={entry.name} flexDirection="row">
+                        <ThemedText color={isSelected ? 'claude' : 'inactive'} bold>
+                          {marker}
+                        </ThemedText>
+                        <ThemedText color={color} bold={entry.isDirectory || isSelected}>
+                          {entry.name}
+                          {nameSuffix}
+                        </ThemedText>
+                      </ThemedBox>
+                    );
+                  })}
+                  {hasMoreBelow && (
+                    <ThemedBox paddingLeft={2}>
+                      <ThemedText color="inactive" dimColor italic>
+                        ▼ {entries.length - (startIndex + MAX_ITEMS)} more item(s)...
+                      </ThemedText>
+                    </ThemedBox>
+                  )}
                 </ThemedBox>
               );
-            })}
+            })()}
           </ThemedBox>
         )}
       </WidgetBody>

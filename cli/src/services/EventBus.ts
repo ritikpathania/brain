@@ -4,7 +4,8 @@ export type AppEvent =
   | { type: 'ThemeChanged'; theme: string }
   | { type: 'HistoryAdded'; command: string }
   | { type: 'MetricsUpdated'; metrics: any }
-  | { type: 'ToastAdded'; message: string };
+  | { type: 'ToastAdded'; message: string }
+  | { type: 'ClearPrompt' };
 
 export type EventCallback = (event: AppEvent) => void;
 

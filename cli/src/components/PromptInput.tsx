@@ -4,6 +4,7 @@ import { ThemedBox, ThemedText } from './design-system';
 import { FocusManager } from '../services/FocusManager';
 import { useCommandHistory } from '../hooks/useCommandHistory';
 import { InteractiveWidget } from './widgets/base/InteractiveWidget';
+import { EventBus } from '../services/EventBus';
 
 interface PromptInputProps {
   onSubmit: (value: string) => void;
@@ -46,6 +47,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({
   const callbackRef = React.useRef<(input: string, key: any) => boolean>(() => false);
 
   callbackRef.current = (input: string, key: any): boolean => {
+    console.error(`DEBUG PROMPT: received input: ${JSON.stringify(input)}, key: ${JSON.stringify(key)}, value: "${value}"`);
     if (key.return) {
       const submitted = value.trim();
       if (submitted) {
@@ -68,6 +70,15 @@ export const PromptInput: React.FC<PromptInputProps> = ({
     }
     return false;
   };
+
+  useEffect(() => {
+    const unsubscribe = EventBus.subscribe((event) => {
+      if (event.type === 'ClearPrompt') {
+        setValue('');
+      }
+    });
+    return unsubscribe;
+  }, [setValue]);
 
   useEffect(() => {
     const widget = new PromptInputWidget(
