@@ -20,8 +20,13 @@ pub mod agents;
 /// Plugin and system tool extensibility traits.
 pub mod extensibility;
 
+/// Core retrieval abstractions and traits.
+pub mod retrieval;
+
 pub use agents::*;
 pub use errors::*;
 pub use extensibility::*;
 pub use repositories::*;
 pub use services::*;
+pub use retrieval::*;
+
