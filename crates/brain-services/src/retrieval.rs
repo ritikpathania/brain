@@ -22,16 +22,15 @@ impl RetrievalServiceImpl {
     /// Creates a new RetrievalServiceImpl.
     pub fn new(repos: Arc<dyn RepositorySet>, cache_manager: Arc<SessionCacheManager>) -> Self {
         let pipeline = pipeline::MemoryPipelineBuilder::new()
-            .register_source(Arc::new(source::StmMemorySource::new(cache_manager.clone())))
+            .register_source(Arc::new(source::StmMemorySource::new(
+                cache_manager.clone(),
+            )))
             .register_source(Arc::new(source::LtmMemorySource::new(repos.clone())))
             .with_policy(CacheHydrationPolicy::OnHit)
             .with_cache_manager(cache_manager)
             .build();
 
-        Self {
-            repos,
-            pipeline,
-        }
+        Self { repos, pipeline }
     }
 }
 

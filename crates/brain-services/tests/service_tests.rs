@@ -1,15 +1,23 @@
+use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
+use brain_core::retrieval::{
+    CacheHydrationPolicy, IdentityRanking, MemorySource, MemorySourceResult, RankingStrategy,
+    RetrievalRequest, SourceMetadata,
+};
 use brain_core::services::{RetrievalService, SessionService};
 use brain_domain::{
     Conversation, ConversationId, Edge, MemoryDTO, Message, MessageRole, Node, NodeDTO, NodeId,
-    NodeType,
+    NodeType, SessionId,
 };
+use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
+use brain_services::retrieval::source::StmMemorySource;
 use brain_services::{
     RetrievalServiceImpl, SessionServiceImpl, StubRetrievalService, StubSessionService,
 };
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 #[test]
 fn test_session_service_lifecycle() {
@@ -231,4 +239,232 @@ fn test_stubs() {
     let res_mocked = retrieval_service.retrieve(&session_id, "mock", 5).unwrap();
     assert_eq!(res_mocked.len(), 1);
     assert_eq!(res_mocked[0].node.label, "Custom Mock");
+}
+
+struct SpyMemorySource {
+    called: Arc<Mutex<bool>>,
+}
+
+impl MemorySource for SpyMemorySource {
+    fn retrieve(&self, _request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
+        *self.called.lock().unwrap() = true;
+        Ok(MemorySourceResult {
+            nodes: vec![],
+            metadata: SourceMetadata {
+                source_name: "SpyMemorySource",
+            },
+        })
+    }
+}
+
+struct StaticMemorySource {
+    node: Node,
+}
+
+impl MemorySource for StaticMemorySource {
+    fn retrieve(&self, _request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
+        Ok(MemorySourceResult {
+            nodes: vec![self.node.clone()],
+            metadata: SourceMetadata {
+                source_name: "StaticMemorySource",
+            },
+        })
+    }
+}
+
+#[test]
+fn test_pipeline_deduplication() {
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let cache_manager = Arc::new(SessionCacheManager::new());
+
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone());
+
+    let session_id = session_service.create_session().unwrap();
+
+    let node_id = NodeId::new();
+    let node = Node::new(node_id, "Deduplication Node".to_string(), NodeType::Concept);
+    session_service.ingest_node(&session_id, node).unwrap();
+
+    let stored_node = repos.nodes().find_by_id(&node_id).unwrap().unwrap();
+    assert_eq!(stored_node.label, "Deduplication Node");
+
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        let cached_nodes = ctx.read().unwrap().query("Deduplication");
+        assert_eq!(cached_nodes.len(), 1);
+    }
+
+    let results = retrieval_service
+        .retrieve(&session_id, "Deduplication", 10)
+        .unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].node.label, "Deduplication Node");
+}
+
+#[test]
+fn test_pipeline_early_exit() {
+    let cache_manager = Arc::new(SessionCacheManager::new());
+    let session_id = SessionId::new();
+
+    let node_id = NodeId::new();
+    let node = Node::new(node_id, "Early Exit Node".to_string(), NodeType::Concept);
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        ctx.write().unwrap().ingest(node);
+    }
+
+    let spy_called = Arc::new(Mutex::new(false));
+    let spy_source = Arc::new(SpyMemorySource {
+        called: spy_called.clone(),
+    });
+
+    let pipeline = MemoryPipelineBuilder::new()
+        .register_source(Arc::new(StmMemorySource::new(cache_manager.clone())))
+        .register_source(spy_source)
+        .build();
+
+    let request = RetrievalRequest {
+        session_id,
+        query: "Early".to_string(),
+        limit: 1,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+    };
+
+    let response = pipeline.execute(&request).unwrap();
+    assert_eq!(response.nodes.len(), 1);
+    assert_eq!(response.nodes[0].label, "Early Exit Node");
+
+    assert!(!*spy_called.lock().unwrap());
+}
+
+#[test]
+fn test_pipeline_empty_first_source() {
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let cache_manager = Arc::new(SessionCacheManager::new());
+
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone());
+
+    let session_id = session_service.create_session().unwrap();
+
+    let node_id = NodeId::new();
+    let node = Node::new(node_id, "Ltm Only Node".to_string(), NodeType::Concept);
+    repos.nodes().save(&node).unwrap();
+
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        assert_eq!(ctx.read().unwrap().len(), 0);
+    }
+
+    let results = retrieval_service.retrieve(&session_id, "Ltm", 10).unwrap();
+
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].node.label, "Ltm Only Node");
+}
+
+#[test]
+fn test_pipeline_identity_ranking() {
+    let request = RetrievalRequest {
+        session_id: SessionId::new(),
+        query: "test".to_string(),
+        limit: 10,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+    };
+
+    let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
+    let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
+    let input_nodes = vec![node1.clone(), node2.clone()];
+
+    let strategy = IdentityRanking;
+    let output_nodes = strategy.rank(&request, input_nodes.clone()).unwrap();
+
+    assert_eq!(output_nodes.len(), 2);
+    assert_eq!(output_nodes[0].id, node1.id);
+    assert_eq!(output_nodes[1].id, node2.id);
+}
+
+#[test]
+fn test_pipeline_hydration_policy() {
+    let cache_manager = Arc::new(SessionCacheManager::new());
+
+    let node = Node::new(NodeId::new(), "Hydrate Node".to_string(), NodeType::Concept);
+    let source = Arc::new(StaticMemorySource { node: node.clone() });
+
+    // 1. Never
+    let session_id_never = SessionId::new();
+    let pipeline_never = MemoryPipelineBuilder::new()
+        .register_source(source.clone())
+        .with_cache_manager(cache_manager.clone())
+        .with_policy(CacheHydrationPolicy::Never)
+        .build();
+
+    let request_never = RetrievalRequest {
+        session_id: session_id_never,
+        query: "Hydrate".to_string(),
+        limit: 10,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+    };
+
+    let response = pipeline_never.execute(&request_never).unwrap();
+    assert_eq!(response.nodes.len(), 1);
+    {
+        let ctx = cache_manager.get_or_create(session_id_never);
+        assert_eq!(ctx.read().unwrap().len(), 0);
+    }
+
+    // 2. OnHit
+    let session_id_on_hit = SessionId::new();
+    let pipeline_on_hit = MemoryPipelineBuilder::new()
+        .register_source(source.clone())
+        .with_cache_manager(cache_manager.clone())
+        .with_policy(CacheHydrationPolicy::OnHit)
+        .build();
+
+    let request_on_hit = RetrievalRequest {
+        session_id: session_id_on_hit,
+        query: "Hydrate".to_string(),
+        limit: 10,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+    };
+
+    let response = pipeline_on_hit.execute(&request_on_hit).unwrap();
+    assert_eq!(response.nodes.len(), 1);
+    {
+        let ctx = cache_manager.get_or_create(session_id_on_hit);
+        let guard = ctx.read().unwrap();
+        assert_eq!(guard.len(), 1);
+        assert_eq!(guard.iter().next().unwrap().node.id, node.id);
+    }
+
+    // 3. Eager
+    let session_id_eager = SessionId::new();
+    let pipeline_eager = MemoryPipelineBuilder::new()
+        .register_source(source.clone())
+        .with_cache_manager(cache_manager.clone())
+        .with_policy(CacheHydrationPolicy::Eager)
+        .build();
+
+    let request_eager = RetrievalRequest {
+        session_id: session_id_eager,
+        query: "Hydrate".to_string(),
+        limit: 10,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+    };
+
+    let response = pipeline_eager.execute(&request_eager).unwrap();
+    assert_eq!(response.nodes.len(), 1);
+    {
+        let ctx = cache_manager.get_or_create(session_id_eager);
+        let guard = ctx.read().unwrap();
+        assert_eq!(guard.len(), 1);
+        assert_eq!(guard.iter().next().unwrap().node.id, node.id);
+    }
 }
