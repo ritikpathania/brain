@@ -112,6 +112,92 @@ fn test_retrieval_service_stm_and_ltm() {
 }
 
 #[test]
+fn test_cache_precedence_over_ltm() {
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let cache_manager = Arc::new(SessionCacheManager::new());
+
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone());
+
+    let session_id = session_service.create_session().unwrap();
+
+    // Create a node with same ID but different label in cache (STM) and DB (LTM)
+    let node_id = NodeId::new();
+
+    // Save Node A (DB version) to DB
+    let node_db = Node::new(
+        node_id,
+        "Node A (DB Version)".to_string(),
+        NodeType::Concept,
+    );
+    repos.nodes().save(&node_db).unwrap();
+
+    // Ingest Node A (Cache version) to STM
+    let node_cache = Node::new(
+        node_id,
+        "Node A (Cache Version)".to_string(),
+        NodeType::Concept,
+    );
+    session_service
+        .ingest_node(&session_id, node_cache)
+        .unwrap();
+
+    // Query should return the cache version
+    let res = retrieval_service
+        .retrieve(&session_id, "Node A", 5)
+        .unwrap();
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].node.label, "Node A (Cache Version)");
+}
+
+#[test]
+fn test_retrieval_cache_miss_db_hit_populates_cache() {
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let cache_manager = Arc::new(SessionCacheManager::new());
+
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone());
+
+    let session_id = session_service.create_session().unwrap();
+
+    // 1. Save Node directly in DB (LTM) only - not in STM cache
+    let node_id = NodeId::new();
+    let node = Node::new(
+        node_id,
+        "Python Data Science".to_string(),
+        NodeType::Concept,
+    );
+    repos.nodes().save(&node).unwrap();
+
+    // Verify cache is empty initially
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        let ctx_read = ctx.read().unwrap();
+        assert_eq!(ctx_read.len(), 0);
+    }
+
+    // 2. Perform retrieval, which should hit the DB (LTM)
+    let res = retrieval_service
+        .retrieve(&session_id, "Python", 5)
+        .unwrap();
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].node.label, "Python Data Science");
+
+    // 3. Verify that the cache (STM) is now populated with the node from DB hit!
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        let ctx_read = ctx.read().unwrap();
+        assert_eq!(ctx_read.len(), 1);
+        assert_eq!(
+            ctx_read.iter().next().unwrap().node.label,
+            "Python Data Science"
+        );
+    }
+}
+
+#[test]
 fn test_stubs() {
     // 1. StubSessionService
     let session_service = StubSessionService::new();

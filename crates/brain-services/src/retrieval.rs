@@ -23,6 +23,7 @@ impl RetrievalServiceImpl {
 
     fn retrieve_ltm(
         &self,
+        session_id: &SessionId,
         query: &str,
         limit: usize,
         exclude_ids: &[String],
@@ -41,6 +42,11 @@ impl RetrievalServiceImpl {
             // Simple keyword match on label
             if node.label.to_lowercase().contains(&query_lower) {
                 let connections = self.repos.edges().get_connections(&node.id)?;
+
+                // Ingest the DB hit into STM cache
+                let ctx = self.cache_manager.get_or_create(*session_id);
+                ctx.write().unwrap().ingest(node.clone());
+
                 let dto = to_memory_dto(&node, &connections)?;
                 results.push(dto);
                 if results.len() >= limit {
@@ -83,7 +89,7 @@ impl RetrievalService for RetrievalServiceImpl {
         // 2. If limit is not reached, fall back to scanning long-term database storage
         if results.len() < limit {
             let ltm_limit = limit - results.len();
-            let mut ltm_results = self.retrieve_ltm(query, ltm_limit, &stm_ids)?;
+            let mut ltm_results = self.retrieve_ltm(session_id, query, ltm_limit, &stm_ids)?;
             results.append(&mut ltm_results);
         }
 
