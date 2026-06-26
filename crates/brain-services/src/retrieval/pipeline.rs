@@ -149,9 +149,7 @@ impl RetrievalPipeline {
         }
 
         // Rank
-        let ranked_nodes = self
-            .ranking_strategy
-            .rank(request, accumulator.nodes())?;
+        let ranked_nodes = self.ranking_strategy.rank(request, accumulator.nodes())?;
 
         // Truncate to limit
         let mut final_nodes = ranked_nodes;
@@ -160,7 +158,8 @@ impl RetrievalPipeline {
         }
 
         // Hydrate cache
-        if self.policy == CacheHydrationPolicy::OnHit || self.policy == CacheHydrationPolicy::Eager {
+        if self.policy == CacheHydrationPolicy::OnHit || self.policy == CacheHydrationPolicy::Eager
+        {
             if let Some(ref cache_manager) = self.cache_manager {
                 let ctx = cache_manager.get_or_create(request.session_id);
                 let mut guard = ctx.write().unwrap();

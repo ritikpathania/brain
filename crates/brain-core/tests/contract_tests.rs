@@ -90,4 +90,3 @@ fn test_retrieval_abstractions() {
     };
     assert_eq!(result.metadata.source_name, "test_source");
 }
-

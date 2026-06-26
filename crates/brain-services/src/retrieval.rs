@@ -1,5 +1,7 @@
 /// Memory retrieval orchestrator pipeline, accumulator, and builder.
 pub mod pipeline;
+/// Concrete memory source implementations (STM, LTM, etc).
+pub mod source;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;

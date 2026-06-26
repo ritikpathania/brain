@@ -1,7 +1,7 @@
+use crate::errors::BrainError;
+use brain_domain::{Node, NodeId, SessionId};
 use std::collections::HashSet;
 use std::time::Instant;
-use brain_domain::{Node, NodeId, SessionId};
-use crate::errors::BrainError;
 
 /// Represents a request for retrieving relevant nodes from memory.
 #[derive(Debug, Clone)]

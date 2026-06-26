@@ -4,15 +4,13 @@ use std::time::{Duration, Instant};
 
 use brain_core::errors::BrainError;
 use brain_core::retrieval::{
-    CacheHydrationPolicy, MemorySource, MemorySourceResult, RankingStrategy,
-    RetrievalRequest, SourceMetadata,
+    CacheHydrationPolicy, MemorySource, MemorySourceResult, RankingStrategy, RetrievalRequest,
+    SourceMetadata,
 };
 use brain_domain::{Node, NodeId, NodeType, SessionId};
 use brain_session::SessionCacheManager;
 
-use brain_services::retrieval::pipeline::{
-    MemoryPipelineBuilder, PipelineAccumulator,
-};
+use brain_services::retrieval::pipeline::{MemoryPipelineBuilder, PipelineAccumulator};
 
 struct MockMemorySource {
     name: &'static str,
@@ -56,7 +54,11 @@ impl MemorySource for MockMemorySource {
 struct ReverseRanking;
 
 impl RankingStrategy for ReverseRanking {
-    fn rank(&self, _request: &RetrievalRequest, mut nodes: Vec<Node>) -> Result<Vec<Node>, BrainError> {
+    fn rank(
+        &self,
+        _request: &RetrievalRequest,
+        mut nodes: Vec<Node>,
+    ) -> Result<Vec<Node>, BrainError> {
         nodes.reverse();
         Ok(nodes)
     }
@@ -94,9 +96,21 @@ fn test_pipeline_deterministic_execution_and_early_exit() {
     let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
     let node3 = Node::new(NodeId::new(), "Node 3".to_string(), NodeType::Concept);
 
-    let source1 = Arc::new(MockMemorySource::new("s1", vec![node1.clone()], calls_s1.clone()));
-    let source2 = Arc::new(MockMemorySource::new("s2", vec![node1.clone(), node2.clone()], calls_s2.clone()));
-    let source3 = Arc::new(MockMemorySource::new("s3", vec![node3.clone()], calls_s3.clone()));
+    let source1 = Arc::new(MockMemorySource::new(
+        "s1",
+        vec![node1.clone()],
+        calls_s1.clone(),
+    ));
+    let source2 = Arc::new(MockMemorySource::new(
+        "s2",
+        vec![node1.clone(), node2.clone()],
+        calls_s2.clone(),
+    ));
+    let source3 = Arc::new(MockMemorySource::new(
+        "s3",
+        vec![node3.clone()],
+        calls_s3.clone(),
+    ));
 
     // Limit is 2.
     // Source 1 gives Node 1 (accumulated: Node 1 -> count = 1). Limit not met.
@@ -132,7 +146,11 @@ fn test_pipeline_ranking_and_truncation() {
     let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
     let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
 
-    let source1 = Arc::new(MockMemorySource::new("s1", vec![node1.clone(), node2.clone()], calls_s1));
+    let source1 = Arc::new(MockMemorySource::new(
+        "s1",
+        vec![node1.clone(), node2.clone()],
+        calls_s1,
+    ));
     let pipeline = MemoryPipelineBuilder::new()
         .register_source(source1)
         .with_ranking_strategy(Arc::new(ReverseRanking))
@@ -158,9 +176,13 @@ fn test_pipeline_cache_hydration() {
     let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
     let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
 
-    let source1 = Arc::new(MockMemorySource::new("s1", vec![node1.clone(), node2.clone()], calls_s1));
+    let source1 = Arc::new(MockMemorySource::new(
+        "s1",
+        vec![node1.clone(), node2.clone()],
+        calls_s1,
+    ));
     let cache_manager = Arc::new(SessionCacheManager::new());
-    
+
     let pipeline = MemoryPipelineBuilder::new()
         .register_source(source1)
         .with_cache_manager(cache_manager.clone())
@@ -191,13 +213,12 @@ fn test_pipeline_cache_hydration() {
 fn test_pipeline_timeout() {
     let calls_s1 = Arc::new(Mutex::new(0));
     let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
-    
+
     // Source delays for 50ms
     let source1 = Arc::new(
-        MockMemorySource::new("s1", vec![node1], calls_s1)
-            .with_delay(Duration::from_millis(50))
+        MockMemorySource::new("s1", vec![node1], calls_s1).with_delay(Duration::from_millis(50)),
     );
-    
+
     let pipeline = MemoryPipelineBuilder::new()
         .register_source(source1)
         .build();
@@ -217,4 +238,106 @@ fn test_pipeline_timeout() {
         BrainError::Timeout { .. } => {}
         other => panic!("Expected Timeout error, got {:?}", other),
     }
+}
+
+#[test]
+fn test_stm_memory_source() {
+    use brain_services::retrieval::source::StmMemorySource;
+
+    let cache_manager = Arc::new(SessionCacheManager::new());
+    let session_id = SessionId::new();
+    let node = Node::new(NodeId::new(), "Cached Node".to_string(), NodeType::Concept);
+
+    // Ingest into STM
+    {
+        let ctx = cache_manager.get_or_create(session_id);
+        ctx.write().unwrap().ingest(node.clone());
+    }
+
+    let source = StmMemorySource::new(cache_manager.clone());
+
+    // 1. Basic match
+    let req = RetrievalRequest {
+        session_id,
+        query: "Cached".to_string(),
+        limit: 10,
+        exclude_ids: HashSet::new(),
+        deadline: None,
+    };
+    let res = source.retrieve(&req).unwrap();
+    assert_eq!(res.metadata.source_name, "StmMemorySource");
+    assert_eq!(res.nodes.len(), 1);
+    assert_eq!(res.nodes[0].id, node.id);
+
+    // 2. Exclude ID
+    let mut exclude_ids = HashSet::new();
+    exclude_ids.insert(node.id);
+    let req_exclude = RetrievalRequest {
+        session_id,
+        query: "Cached".to_string(),
+        limit: 10,
+        exclude_ids,
+        deadline: None,
+    };
+    let res_exclude = source.retrieve(&req_exclude).unwrap();
+    assert!(res_exclude.nodes.is_empty());
+}
+
+#[test]
+fn test_ltm_memory_source() {
+    use brain_core::repositories::RepositorySet;
+    use brain_services::retrieval::source::LtmMemorySource;
+    use brain_storage::TestStorage;
+
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let source = LtmMemorySource::new(repos.clone());
+
+    let node1 = Node::new(
+        NodeId::new(),
+        "LongTerm Node A".to_string(),
+        NodeType::Concept,
+    );
+    let node2 = Node::new(NodeId::new(), "Ltm Node B".to_string(), NodeType::Concept);
+
+    repos.nodes().save(&node1).unwrap();
+    repos.nodes().save(&node2).unwrap();
+
+    // 1. Match case insensitivity and search query
+    let req = RetrievalRequest {
+        session_id: SessionId::new(),
+        query: "longterm".to_string(),
+        limit: 10,
+        exclude_ids: HashSet::new(),
+        deadline: None,
+    };
+    let res = source.retrieve(&req).unwrap();
+    assert_eq!(res.metadata.source_name, "LtmMemorySource");
+    assert_eq!(res.nodes.len(), 1);
+    assert_eq!(res.nodes[0].id, node1.id);
+
+    // 2. Keyword match "Node" (both match)
+    let req_both = RetrievalRequest {
+        session_id: SessionId::new(),
+        query: "node".to_string(),
+        limit: 10,
+        exclude_ids: HashSet::new(),
+        deadline: None,
+    };
+    let res_both = source.retrieve(&req_both).unwrap();
+    assert_eq!(res_both.nodes.len(), 2);
+
+    // 3. Exclude IDs
+    let mut exclude = HashSet::new();
+    exclude.insert(node1.id);
+    let req_exclude = RetrievalRequest {
+        session_id: SessionId::new(),
+        query: "node".to_string(),
+        limit: 10,
+        exclude_ids: exclude,
+        deadline: None,
+    };
+    let res_exclude = source.retrieve(&req_exclude).unwrap();
+    assert_eq!(res_exclude.nodes.len(), 1);
+    assert_eq!(res_exclude.nodes[0].id, node2.id);
 }

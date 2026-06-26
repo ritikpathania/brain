@@ -27,6 +27,5 @@ pub use agents::*;
 pub use errors::*;
 pub use extensibility::*;
 pub use repositories::*;
-pub use services::*;
 pub use retrieval::*;
-
+pub use services::*;
