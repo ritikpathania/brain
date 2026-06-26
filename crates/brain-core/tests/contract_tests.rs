@@ -90,3 +90,14 @@ fn test_retrieval_abstractions() {
     };
     assert_eq!(result.metadata.source_name, "test_source");
 }
+
+#[test]
+fn test_embedding_provider_noop() {
+    use brain_core::retrieval::{EmbeddingProvider, NoopEmbeddingProvider};
+    let provider = NoopEmbeddingProvider;
+    assert_eq!(provider.name(), "noop");
+    let emb = provider.embed("hello").unwrap();
+    assert_eq!(emb.len(), 384);
+    assert!(emb.iter().all(|&v| v == 0.0));
+}
+
