@@ -59,6 +59,8 @@ pub enum PluginState {
     Active,
     /// Temporarily paused or restricted.
     Suspended,
+    /// Explicitly disabled.
+    Disabled,
     /// Cleaned up and unloaded from runtime memory.
     Unloaded,
 }

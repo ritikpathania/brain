@@ -1,49 +1,13 @@
 use crate::errors::BrainError;
-use brain_domain::{PluginId, PluginState};
+use crate::agents::{ChatAgent, PlannerAgent, EmbeddingAgent, ExtractionAgent};
+use brain_domain::{PluginId, PluginState, SessionId, Node};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::Path;
-
-/// Trait defining lifecycle hooks that plugins must implement to load into the host.
-pub trait PluginLifecycle: Send + Sync {
-    /// Returns the unique plugin identifier.
-    fn id(&self) -> &PluginId;
-    /// Returns the current runtime lifecycle state of the plugin.
-    fn current_state(&self) -> PluginState;
-    /// Returns the list of dependencies (other plugins) this plugin requires.
-    fn dependencies(&self) -> Vec<PluginId>;
-
-    /// Discovers and validates the directory layout.
-    fn discover(&mut self, path: &Path) -> Result<(), BrainError>;
-    /// Resolves external dependencies using the active registry lookup.
-    fn resolve_dependencies(
-        &mut self,
-        registry: &dyn PluginRegistryLookup,
-    ) -> Result<(), BrainError>;
-    /// Validates signatures and capabilities.
-    fn validate(&mut self) -> Result<(), BrainError>;
-    /// Loads plugin assets/scripts into memory.
-    fn load(&mut self) -> Result<(), BrainError>;
-    /// Runs initialization handlers.
-    fn initialize(&mut self) -> Result<(), BrainError>;
-    /// Transitions the plugin to the active state.
-    fn activate(&mut self) -> Result<(), BrainError>;
-    /// Suspends plugin operations.
-    fn suspend(&mut self) -> Result<(), BrainError>;
-    /// Resumes suspended plugin operations.
-    fn resume(&mut self) -> Result<(), BrainError>;
-    /// Unloads assets and stops all tasks.
-    fn unload(&mut self) -> Result<(), BrainError>;
-}
-
-/// Interface for looking up registered plugins during dependency resolution.
-pub trait PluginRegistryLookup: Send + Sync {
-    /// Returns the active state of a plugin, if registered.
-    fn get_plugin_state(&self, id: &PluginId) -> Option<PluginState>;
-}
+use std::collections::{BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Represents system capability permissions requested by tools.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Permission {
     /// Read access to the filesystem.
@@ -63,6 +27,187 @@ pub enum Permission {
     /// Permission to call LLM services.
     Llm,
 }
+
+/// Version enumeration for the Plugin API contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum ApiVersion {
+    /// Version 1 of the plugin API.
+    V1,
+}
+
+/// Metadata configuration schema loaded from the plugin manifest file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginManifest {
+    id: PluginId,
+    version: semver::Version,
+    api_version: ApiVersion,
+    entrypoint: PathBuf,
+    required_permissions: BTreeSet<Permission>,
+}
+
+impl PluginManifest {
+    /// Creates a new `PluginManifest`.
+    pub fn new(
+        id: PluginId,
+        version: semver::Version,
+        api_version: ApiVersion,
+        entrypoint: PathBuf,
+        required_permissions: BTreeSet<Permission>,
+    ) -> Self {
+        Self {
+            id,
+            version,
+            api_version,
+            entrypoint,
+            required_permissions,
+        }
+    }
+
+    /// Loads and parses a plugin manifest from the given filesystem path.
+    pub fn from_path(path: &Path) -> Result<Self, BrainError> {
+        let content = std::fs::read_to_string(path).map_err(|e| BrainError::Storage {
+            message: format!("Failed to read plugin manifest: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        toml::from_str(&content).map_err(|e| BrainError::Validation {
+            message: format!("Failed to parse plugin manifest: {}", e),
+        })
+    }
+
+    /// Returns the unique plugin identifier.
+    pub fn id(&self) -> PluginId {
+        self.id
+    }
+
+    /// Returns the plugin semantic version.
+    pub fn version(&self) -> &semver::Version {
+        &self.version
+    }
+
+    /// Returns the target API version.
+    pub fn api_version(&self) -> ApiVersion {
+        self.api_version
+    }
+
+    /// Returns the entrypoint module path on disk.
+    pub fn entrypoint(&self) -> &Path {
+        &self.entrypoint
+    }
+
+    /// Returns the set of requested capability permissions.
+    pub fn required_permissions(&self) -> &BTreeSet<Permission> {
+        &self.required_permissions
+    }
+}
+
+/// Bridge trait exposing host capabilities back to the executing plugins.
+pub trait HostContext: Send + Sync {
+    /// Performs a semantic search retrieval against the active memory engine.
+    fn retrieve(&self, session_id: &SessionId, query: &str, limit: usize) -> Result<Vec<Node>, BrainError>;
+    /// Invokes a registered system tool on behalf of a plugin.
+    fn execute_tool(
+        &self,
+        session_id: &SessionId,
+        tool_name: &str,
+        arguments: &HashMap<String, serde_json::Value>,
+    ) -> Result<ExecutionResult, BrainError>;
+}
+
+/// Ambient context passed to plugins during event dispatch or tool execution.
+pub struct PluginContext<'a> {
+    /// Reference to host capabilities bridge.
+    pub host: &'a dyn HostContext,
+    /// Optional session context.
+    pub session_id: Option<SessionId>,
+}
+
+/// System events dispatched to active plugins.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginEventKind {
+    /// Dispatched when the plugin is loaded.
+    Load,
+    /// Dispatched when the plugin is about to be unloaded.
+    Unload,
+    /// Dispatched when a user agent session starts.
+    SessionStart,
+    /// Dispatched when a user agent session ends.
+    SessionEnd,
+}
+
+/// Lifecycle or runtime session event payload sent to active plugins.
+pub struct PluginEvent<'a> {
+    /// The event category classification.
+    pub kind: PluginEventKind,
+    /// Ambient execution details.
+    pub context: &'a PluginContext<'a>,
+}
+
+/// Categorized agent capability wrappers exported by plugins.
+#[derive(Clone)]
+pub enum PluginCapability {
+    /// Conversational chat agent capability.
+    Chat(Arc<dyn ChatAgent>),
+    /// LLM planner/agent tool selection capability.
+    Planner(Arc<dyn PlannerAgent>),
+    /// Vector text embedding generation capability.
+    Embedding(Arc<dyn EmbeddingAgent>),
+    /// Knowledge graph extraction capability.
+    Extraction(Arc<dyn ExtractionAgent>),
+}
+
+/// Metadata descriptor matching a name to an exported capability.
+pub struct CapabilityDescriptor {
+    /// Descriptive name or identifier of the capability.
+    pub name: &'static str,
+    /// Extensibility capability payload wrapper.
+    pub capability: PluginCapability,
+}
+
+/// Trait exposing plugin static manifest metadata.
+pub trait PluginMetadata: Send + Sync {
+    /// Returns the validated configuration manifest.
+    fn manifest(&self) -> &PluginManifest;
+}
+
+/// Trait defining lifecycle hooks that plugins must implement to load into the host.
+pub trait PluginLifecycle: Send + Sync {
+    /// Returns the current runtime lifecycle state of the plugin.
+    fn state(&self) -> PluginState;
+    /// Loads plugin assets/scripts into memory.
+    fn load(&mut self) -> Result<(), BrainError>;
+    /// Runs initialization handlers.
+    fn initialize(&mut self) -> Result<(), BrainError>;
+    /// Transitions the plugin to the active state.
+    fn activate(&mut self) -> Result<(), BrainError>;
+    /// Suspends plugin operations.
+    fn suspend(&mut self) -> Result<(), BrainError>;
+    /// Resumes suspended plugin operations.
+    fn resume(&mut self) -> Result<(), BrainError>;
+    /// Unloads assets and stops all tasks.
+    fn unload(&mut self) -> Result<(), BrainError>;
+}
+
+/// Trait exposing all registered capabilities exported by this plugin.
+pub trait PluginCapabilities: Send + Sync {
+    /// Returns a list of capability descriptors.
+    fn capabilities(&self) -> &[CapabilityDescriptor];
+}
+
+/// Trait handling host event notifications dispatched to this plugin.
+pub trait PluginEventHandler: Send + Sync {
+    /// Dispatches an event payload containing ambient host context.
+    fn dispatch(&self, event: &PluginEvent<'_>) -> Result<(), BrainError>;
+}
+
+/// Composed plugin contract containing metadata, lifecycle, capabilities, and events.
+pub trait Plugin:
+    PluginMetadata
+    + PluginLifecycle
+    + PluginCapabilities
+    + PluginEventHandler
+    + Send
+    + Sync
+{}
 
 /// Policy settings defining the execution runtime behavior of a tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,9 +229,9 @@ pub struct ExecutionContext {
     /// The session identifier.
     pub session_id: brain_domain::SessionId,
     /// The working directory for the tool.
-    pub working_dir: std::path::PathBuf,
+    pub working_dir: PathBuf,
     /// Token used to signal cancellation request.
-    pub cancellation: std::sync::Arc<dyn CancellationToken>,
+    pub cancellation: Arc<dyn CancellationToken>,
     /// Maximum execution deadline.
     pub deadline: Option<std::time::Instant>,
 }
@@ -149,11 +294,11 @@ pub trait Tool: Send + Sync {
 /// Thread-safe registry containing active system tools available to planning agents.
 pub trait ToolRegistry: Send + Sync {
     /// Registers a new tool capability in the coordinator.
-    fn register_tool(&self, tool: std::sync::Arc<dyn Tool>) -> Result<(), BrainError>;
+    fn register_tool(&self, tool: Arc<dyn Tool>) -> Result<(), BrainError>;
     /// Retrieves a registered tool by its name.
-    fn get_tool(&self, name: &str) -> Option<std::sync::Arc<dyn Tool>>;
+    fn get_tool(&self, name: &str) -> Option<Arc<dyn Tool>>;
     /// Lists all registered tools.
-    fn list_tools(&self) -> Vec<std::sync::Arc<dyn Tool>>;
+    fn list_tools(&self) -> Vec<Arc<dyn Tool>>;
 }
 
 /// Trait defining execution of a tool within a specific runner strategy (blocking, async, etc.).
@@ -161,7 +306,7 @@ pub trait ToolRunner: Send + Sync {
     /// Runs the tool with the given context and arguments.
     fn run(
         &self,
-        tool: std::sync::Arc<dyn Tool>,
+        tool: Arc<dyn Tool>,
         context: &ExecutionContext,
         arguments: &HashMap<String, serde_json::Value>,
     ) -> Result<ExecutionResult, BrainError>;
