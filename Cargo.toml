@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/brain-domain",
+    "crates/brain-core",
+    "crates/brain-events",
+    "crates/brain-storage",
+    "crates/brain-config",
+    "crates/brain-session",
+    "crates/brain-tools",
+    "crates/brain-plugins",
+    "crates/brain-python",
+    "crates/brain-tui",
+    "crates/brain-services",
+    "crates/brain-observability",
+    "apps/brain-v2",
+]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.31.0", features = ["bundled"] }
+r2d2 = "0.8"
+thiserror = "1.0"
+uuid = { version = "1.8", features = ["v4", "serde"] }
+ulid = { version = "1.1", features = ["serde"] }
+tracing = "0.1"
+pyo3 = { version = "0.21.0", features = ["auto-initialize"] }
+reqwest = { version = "0.12", features = ["json"] }
+toml = "0.8"
