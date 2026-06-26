@@ -202,3 +202,28 @@ fn test_session_cache_manager() {
     let context_arc3 = manager.get_or_create(session_id);
     assert_eq!(context_arc3.read().unwrap().len(), 0);
 }
+
+#[test]
+fn test_session_cache_policy() {
+    use brain_session::CachePolicy;
+
+    let mut session = SessionContext::new(SessionId::new());
+    assert_eq!(session.policy(), CachePolicy::Unlimited);
+
+    session = session.with_policy(CachePolicy::MaxNodes(10));
+    assert_eq!(session.policy(), CachePolicy::MaxNodes(10));
+}
+
+#[test]
+fn test_session_cache_manager_exists() {
+    let manager = SessionCacheManager::new();
+    let session_id = SessionId::new();
+
+    assert!(!manager.exists(&session_id));
+
+    let _ctx = manager.get_or_create(session_id);
+    assert!(manager.exists(&session_id));
+
+    manager.remove(&session_id);
+    assert!(!manager.exists(&session_id));
+}

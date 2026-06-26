@@ -11,4 +11,11 @@ pub mod migrations;
 /// Private SQLite repository implementations.
 pub mod store;
 
+/// Re-export test utilities for test environments or when `test-utils` feature is active.
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
+
+#[cfg(any(test, feature = "test-utils"))]
+pub use test_utils::TestStorage;
+
 pub use store::SqliteStorage;

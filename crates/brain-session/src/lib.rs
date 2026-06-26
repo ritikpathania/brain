@@ -15,6 +15,17 @@ use std::sync::{Arc, RwLock};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EpochId(pub u64);
 
+/// Volatile cache capacity policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CachePolicy {
+    /// No limit on the number of nodes or epochs kept in volatile cache.
+    Unlimited,
+    /// Evict oldest nodes when size exceeds N.
+    MaxNodes(usize),
+    /// Evict oldest epochs when count exceeds N.
+    MaxEpochs(usize),
+}
+
 /// A short-term memory node containing the domain node and its insertion epoch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StmNode {
@@ -121,6 +132,7 @@ pub struct SessionContext {
     current_epoch: EpochId,
     interaction_sliding_window: VecDeque<StmNode>,
     index: STMIndex,
+    policy: CachePolicy,
 }
 
 impl SessionContext {
@@ -131,7 +143,19 @@ impl SessionContext {
             current_epoch: EpochId(0),
             interaction_sliding_window: VecDeque::new(),
             index: STMIndex::new(),
+            policy: CachePolicy::Unlimited,
         }
+    }
+
+    /// Builder method to specify cache policy on session context.
+    pub fn with_policy(mut self, policy: CachePolicy) -> Self {
+        self.policy = policy;
+        self
+    }
+
+    /// Returns the cache policy.
+    pub fn policy(&self) -> CachePolicy {
+        self.policy
     }
 
     /// Returns the session identifier.
@@ -251,6 +275,11 @@ impl SessionCacheManager {
     pub fn remove(&self, session_id: &SessionId) {
         let mut w_lock = self.contexts.write().unwrap();
         w_lock.remove(session_id);
+    }
+
+    /// Checks if a session context already exists.
+    pub fn exists(&self, session_id: &SessionId) -> bool {
+        self.contexts.read().unwrap().contains_key(session_id)
     }
 }
 

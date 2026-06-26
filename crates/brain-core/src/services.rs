@@ -25,5 +25,10 @@ pub trait SessionService: Send + Sync {
 /// Service providing unified retrieval capabilities over volatile caches (STM) and persistent storage (LTM).
 pub trait RetrievalService: Send + Sync {
     /// Retrieves relevant memory context for a given query in a session.
-    fn retrieve(&self, session_id: &SessionId, query: &str, limit: usize) -> Result<Vec<MemoryDTO>, BrainError>;
+    fn retrieve(
+        &self,
+        session_id: &SessionId,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<MemoryDTO>, BrainError>;
 }

@@ -11,3 +11,11 @@ serde_json.workspace = true
 uuid.workspace = true
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
+
+[features]
+test-utils = []
+
+[dev-dependencies]
+brain-storage = { path = ".", features = ["test-utils"] }
+
+
