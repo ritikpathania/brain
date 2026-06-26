@@ -2,6 +2,8 @@
 pub mod pipeline;
 /// Concrete memory source implementations (STM, LTM, etc).
 pub mod source;
+/// Contextual ranking strategies (BM25, Embeddings, Graph, and RRF).
+pub mod ranking;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;

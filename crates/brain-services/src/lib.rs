@@ -6,6 +6,7 @@
 pub mod mapper;
 /// Core memory retrieval services, DTO mapper, and orchestration pipeline.
 pub mod retrieval;
+pub use retrieval::ranking;
 mod session;
 mod stub;
 
