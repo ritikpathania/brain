@@ -21,3 +21,6 @@ pub use runtime::{
     ApplicationRuntime, HealthCheck, HealthReport, HealthStatus, RuntimeBuilder, RuntimeObserver,
     RuntimeState, StartupReport,
 };
+
+/// Agent execution pipeline and orchestration loop.
+pub mod agent;
