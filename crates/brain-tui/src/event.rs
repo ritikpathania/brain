@@ -47,17 +47,29 @@ impl EventHandler {
         // Spawn Crossterm polling task
         tokio::spawn(async move {
             loop {
+                if tx_clone.is_closed() {
+                    break;
+                }
                 match crossterm::event::poll(Duration::from_millis(10)) {
                     Ok(true) => {
                         match crossterm::event::read() {
                             Ok(crossterm::event::Event::Key(key)) => {
-                                let _ = tx_clone.send(Event::Terminal(TerminalEvent::Key(key)));
+                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Key(key)));
+                                if sent.is_err() {
+                                    break;
+                                }
                             }
                             Ok(crossterm::event::Event::Mouse(mouse)) => {
-                                let _ = tx_clone.send(Event::Terminal(TerminalEvent::Mouse(mouse)));
+                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Mouse(mouse)));
+                                if sent.is_err() {
+                                    break;
+                                }
                             }
                             Ok(crossterm::event::Event::Resize(w, h)) => {
-                                let _ = tx_clone.send(Event::Terminal(TerminalEvent::Resize(w, h)));
+                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Resize(w, h)));
+                                if sent.is_err() {
+                                    break;
+                                }
                             }
                             _ => {}
                         }
@@ -74,6 +86,9 @@ impl EventHandler {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tick_rate);
             loop {
+                if tx_clone2.is_closed() {
+                    break;
+                }
                 interval.tick().await;
                 if tx_clone2.send(Event::Tick).is_err() {
                     break;
