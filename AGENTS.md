@@ -98,6 +98,7 @@ When working with queries or communication between the Rust Daemon and the React
 ## Technical Walkthrough & Documentation Invariant
 
 When claiming work is complete, performing walkthroughs, or explaining architectural changes:
+- Update the local walkthrough artifact (in the system-generated `<appDataDir>/brain/<conversation-id>/walkthrough.md` artifacts directory) to match the work done according to the current `implementation_plan.md`.
 - Always update the unified, project-level documentation at [WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md) directly.
 - Ensure `WALKTHROUGH.md` reads as a single, cohesive technical design and onboarding manual written from scratch.
 - Merge overlapping sections, remove duplicate explanations, and maintain consistent headers and tone throughout the document. Do not simply concatenate milestone walkthroughs.
