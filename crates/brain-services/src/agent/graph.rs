@@ -84,3 +84,141 @@ pub struct WorkflowExecutionState {
     /// Map tracking execution attempt counts per stage identifier.
     pub attempts: HashMap<StageIdentifier, usize>,
 }
+
+/// Builder for constructing and validating a `WorkflowGraph`.
+pub struct WorkflowGraphBuilder {
+    start_node: Option<StageIdentifier>,
+    nodes: HashMap<StageIdentifier, WorkflowNode>,
+}
+
+impl WorkflowGraphBuilder {
+    /// Creates a new `WorkflowGraphBuilder`.
+    pub fn new() -> Self {
+        Self {
+            start_node: None,
+            nodes: HashMap::new(),
+        }
+    }
+
+    /// Sets the starting entry stage of the workflow.
+    pub fn start_node(mut self, id: StageIdentifier) -> Self {
+        self.start_node = Some(id);
+        self
+    }
+
+    /// Registers a stage node in the workflow graph.
+    pub fn node(mut self, id: StageIdentifier, node: WorkflowNode) -> Self {
+        self.nodes.insert(id, node);
+        self
+    }
+
+    /// Builds and validates the `WorkflowGraph`.
+    pub fn build(self) -> Result<WorkflowGraph, BrainError> {
+        let graph = WorkflowGraph {
+            nodes: self.nodes,
+            start_node: self.start_node.ok_or_else(|| BrainError::Validation {
+                message: "start_node not configured".to_string(),
+            })?,
+        };
+        WorkflowGraphValidator::validate(&graph)?;
+        Ok(graph)
+      }
+}
+
+impl Default for WorkflowGraphBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+struct WorkflowGraphValidator;
+
+impl WorkflowGraphValidator {
+    fn validate(graph: &WorkflowGraph) -> Result<(), BrainError> {
+        // 1. Entry point integrity
+        if !graph.nodes.contains_key(&graph.start_node) {
+            return Err(BrainError::Validation {
+                message: format!("start_node {:?} does not exist in graph", graph.start_node),
+            });
+        }
+
+        // 2. Referential integrity & Cycle checks
+        let mut visited = std::collections::HashSet::new();
+        let mut rec_stack = std::collections::HashSet::new();
+        Self::dfs(graph.start_node, graph, &mut visited, &mut rec_stack)?;
+
+        // 3. Unreachable nodes check
+        for node_id in graph.nodes.keys() {
+            if !visited.contains(node_id) {
+                return Err(BrainError::Validation {
+                    message: format!("Unreachable node: {:?}", node_id),
+                });
+            }
+        }
+
+        // 4. Policies duplicate and retry safety checks
+        for (id, node) in &graph.nodes {
+            let mut seen_policies = std::collections::HashSet::new();
+            for p in &node.policies {
+                if !seen_policies.insert(p.name()) {
+                    return Err(BrainError::Validation {
+                        message: format!("Duplicate policy {:?} on node {:?}", p.name(), id),
+                    });
+                }
+            }
+
+            // Retry validation using dynamic ExecutionStage capability
+            if node.stage.supports_retry() {
+                if !seen_policies.contains("RetryPolicy") {
+                    return Err(BrainError::Validation {
+                        message: format!("Stage {:?} is capable of retrying but lacks a RetryPolicy", id),
+                      });
+                }
+            }
+        }
+
+        // 5. Terminal completeness
+        let mut has_terminal = false;
+        for node in graph.nodes.values() {
+            if node.next_stage.is_none() {
+                has_terminal = true;
+                break;
+            }
+        }
+        if !has_terminal {
+            return Err(BrainError::Validation {
+                message: "Graph has no terminal path (no node with next_stage: None)".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
+    fn dfs(
+        curr: StageIdentifier,
+        graph: &WorkflowGraph,
+        visited: &mut std::collections::HashSet<StageIdentifier>,
+        rec_stack: &mut std::collections::HashSet<StageIdentifier>,
+    ) -> Result<(), BrainError> {
+        visited.insert(curr);
+        rec_stack.insert(curr);
+
+        if let Some(node) = graph.nodes.get(&curr) {
+            if let Some(next) = node.next_stage {
+                if !graph.nodes.contains_key(&next) {
+                    return Err(BrainError::Validation {
+                        message: format!("Dangling edge: next_stage {:?} of {:?} does not exist", next, curr),
+                    });
+                }
+                if rec_stack.contains(&next) {
+                    return Err(BrainError::Validation {
+                        message: format!("Sequential cycle detected involving {:?}", next),
+                    });
+                }
+                Self::dfs(next, graph, visited, rec_stack)?;
+            }
+        }
+        rec_stack.remove(&curr);
+        Ok(())
+    }
+}
