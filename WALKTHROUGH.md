@@ -706,6 +706,13 @@ The presentation structure decouples rendering code from the global state and ra
 - **Stateless Widgets**: Draw logic (Header, Chat list, Prompt input, Status bar) is side-effect free and receives preallocated `Rect` boundaries from the layout grid.
 - **ViewModel Assembler**: `AppRenderer` translates the mutable `UiState` into immutable ViewModels (`HeaderView`, `ChatView`, `PromptView`, `StatusView`) before passing them to the widgets, guaranteeing that formatting logic is centralized and every frame is derived from a consistent state snapshot.
 
+### Bounded History & Editor Logic
+Command prompt management keeps input buffering isolated from the client runtime execution:
+- **EditorState**: Encapsulates cursor movements, string insertion/deletion operations, and prompt history navigation.
+- **HistoryStore**: Bounded history queue containing up to 500 entries (evicting oldest items upon overflow). Retains sequential and non-sequential duplicates to match shell expectations.
+- **Draft Session Life Cycle**: Caches uncommitted typing drafts exactly once when first moving back into history (Up Arrow). Edits made to recalled history items are discarded, and the draft is restored when navigating back down to the newest item. Submission or pushes automatically reset the session cursor.
+- **Validation & Submit/Send Decoupling**: Submissions are verified to be non-empty and non-whitespace. Submitting yields `UpdateResult::PromptSubmitted(String)` which the main async event loop intercepts to query `ExecutionClient` asynchronously.
+
 ---
 
 ## 17. Appendix
