@@ -4,3 +4,6 @@
 
 /// Abstract execution client and event stream structures.
 pub mod client;
+
+/// Input event multiplexing and ticks handler.
+pub mod event;
