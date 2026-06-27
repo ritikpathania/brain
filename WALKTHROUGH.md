@@ -700,6 +700,12 @@ TerminalEvent (Key/Resize) ──► Action ──► UiState::update() ──�
 - **UpdateResult**: Enum (`NoChange`, `Changed`, `Exit`) optimizing terminal redraw cycles and signaling loop termination.
 - **EditorState**: Encapsulates editing operations (using `Vec<char>` internally) to prevent indexing panics on multi-byte UTF-8 boundaries.
 
+### Semantic Theme & Stateless Widgets
+The presentation structure decouples rendering code from the global state and raw color codes:
+- **Semantic Theme**: Exposes styling APIs (`Theme::border()`, `Theme::primary()`) mapping to semantic roles, separating branding configs from widget drawing loops.
+- **Stateless Widgets**: Draw logic (Header, Chat list, Prompt input, Status bar) is side-effect free and receives preallocated `Rect` boundaries from the layout grid.
+- **ViewModel Assembler**: `AppRenderer` translates the mutable `UiState` into immutable ViewModels (`HeaderView`, `ChatView`, `PromptView`, `StatusView`) before passing them to the widgets, guaranteeing that formatting logic is centralized and every frame is derived from a consistent state snapshot.
+
 ---
 
 ## 17. Appendix
