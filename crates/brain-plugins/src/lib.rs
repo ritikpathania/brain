@@ -266,12 +266,18 @@ impl PluginManager {
     }
 
     pub fn reload(&self, id: &PluginId) -> Result<(), BrainError> {
-        let descriptor = {
+        let (descriptor, maybe_handle) = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.installed.clone()
+            (managed.installed.clone(), managed.active_instance.clone())
+        };
+
+        // If the plugin is not loaded, we do not need to reload it.
+        let handle = match maybe_handle {
+            Some(h) => h,
+            None => return Ok(()),
         };
 
         let loader = self.loaders.get(&descriptor.loader_kind)
@@ -281,28 +287,85 @@ impl PluginManager {
 
         // 1. Transactionally spin up new instance up to Active in isolation
         let mut new_plugin = loader.load(&descriptor)?;
-        new_plugin.load()?;
-        new_plugin.initialize()?;
-        new_plugin.activate()?;
 
-        // 2. Perform the swap under the write lock, retaining the old instance reference
-        let old_instance = {
+        // Ensure that failure to load/initialize/activate cleans up the new plugin best-effort
+        let mut load_and_activate = || -> Result<(), BrainError> {
+            new_plugin.load()?;
+            if let Err(e) = new_plugin.initialize() {
+                if let Err(ue) = new_plugin.unload() {
+                    tracing::warn!(
+                        plugin_id = %id,
+                        api_version = ?descriptor.manifest.api_version(),
+                        phase = "initialize",
+                        original_error = ?e,
+                        rollback_error = ?ue,
+                        "Failed to unload new plugin instance after initialization failure during reload"
+                    );
+                }
+                return Err(e);
+            }
+            if let Err(e) = new_plugin.activate() {
+                if let Err(ue) = new_plugin.unload() {
+                    tracing::warn!(
+                        plugin_id = %id,
+                        api_version = ?descriptor.manifest.api_version(),
+                        phase = "activate",
+                        original_error = ?e,
+                        rollback_error = ?ue,
+                        "Failed to unload new plugin instance after activation failure during reload"
+                    );
+                }
+                return Err(e);
+            }
+            Ok(())
+        };
+
+        if let Err(e) = load_and_activate() {
+            return Err(e);
+        }
+
+        // 2. Perform the RCU swap under the write lock by replacing the inner Box inside the existing active handle.
+        // This ensures that concurrent dispatch threads holding cloned handles observe the new plugin instance.
+        // Check for concurrent unloads.
+        let mut old_plugin = {
             let mut reg = self.registry.write();
             let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found during swap", id),
             })?;
-            let old = managed.active_instance.clone();
-            managed.active_instance = Some(PluginHandle {
-                inner: Arc::new(RwLock::new(new_plugin)),
-            });
-            old
+            let is_unloaded = managed.active_instance.as_ref()
+                .map(|h| h.inner.read().state() == PluginState::Unloaded)
+                .unwrap_or(true);
+            if is_unloaded {
+                // Plugin was unloaded by another thread during reload. Rollback new plugin and abort.
+                if let Err(ue) = new_plugin.unload() {
+                    tracing::warn!(
+                        plugin_id = %id,
+                        api_version = ?descriptor.manifest.api_version(),
+                        phase = "rollback_unload",
+                        original_error = "Plugin was unloaded concurrently",
+                        rollback_error = ?ue,
+                        "Failed to unload new plugin instance after concurrent unload during reload"
+                    );
+                }
+                return Err(BrainError::InvalidTransition {
+                    message: "Plugin was unloaded during reload".to_string(),
+                });
+            }
+            
+            // Swap the inner instance inside the existing registry handle.
+            let mut inner = handle.inner.write();
+            std::mem::replace(&mut *inner, new_plugin)
         };
 
         // 3. Unload the old instance outside the registry lock (Best effort / rollback safe)
-        if let Some(old_inst) = old_instance {
-            if let Err(e) = old_inst.inner.write().unload() {
-                tracing::warn!("Failed to unload old instance for plugin {} during reload: {}", id, e);
-            }
+        if let Err(e) = old_plugin.unload() {
+            tracing::warn!(
+                plugin_id = %id,
+                api_version = ?descriptor.manifest.api_version(),
+                phase = "unload_old",
+                error = ?e,
+                "Failed to unload old instance during reload"
+            );
         }
 
         Ok(())
