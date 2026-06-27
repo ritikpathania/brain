@@ -713,6 +713,15 @@ Command prompt management keeps input buffering isolated from the client runtime
 - **Draft Session Life Cycle**: Caches uncommitted typing drafts exactly once when first moving back into history (Up Arrow). Edits made to recalled history items are discarded, and the draft is restored when navigating back down to the newest item. Submission or pushes automatically reset the session cursor.
 - **Validation & Submit/Send Decoupling**: Submissions are verified to be non-empty and non-whitespace. Submitting yields `UpdateResult::PromptSubmitted(String)` which the main async event loop intercepts to query `ExecutionClient` asynchronously.
 
+### Streaming & Typewriter Animation
+To achieve a smooth response reading flow matching modern LLM chat applications:
+- **Data-Bearing `GenerationState`**: A unified state machine (`Idle`, `Starting`, `Streaming { started_at: SystemTime }`, `Finished`, `Cancelled(Option<String>)`, `Error(String)`) coordinates screen updates and blocks user input submissions while generation is active.
+- **Extensible Semantic `RenderToken`**: Extensible, presentation-oriented tokens (e.g. `Text(String)`, `Code(String)`) act as the immutable contract shared between the tokenizer, queue, and widgets. They carry stable equality and Serde serialization traits.
+- **Time-Driven `TypewriterQueue`**: Buffered tokens are paced on elapsed time deltas (`drain_for_tick(now: Instant) -> DrainResult`) rather than standard ticks. This makes typewriter speed resilient to missed/jittery frames. Timing is fully injectable, permitting deterministic unit testing.
+- **Incremental Tokenizer**: Processes raw text packets, buffering partial word/construct snippets across packet borders, and only emitting complete semantic `RenderToken`s to the queue.
+- **Backend vs. Visual Animation Completion**: A stream is only treated as `Finished` when the backend stream closes AND the typewriter queue has fully drained, preventing the status bar from declaring completion while text is still typewriting on screen.
+- **Immediate Cancellation**: Pressing `Esc` immediately cancels the active generation request, drops the Tokio execution channel, flushes the typewriter queue, and transitions the state machine to `Cancelled`.
+
 ---
 
 ## 17. Appendix
