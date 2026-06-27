@@ -134,6 +134,11 @@ pub trait ExecutionStage: Send + Sync {
     /// Returns the symbolic identifier of this stage.
     fn id(&self) -> StageIdentifier;
 
+    /// Returns true if this stage supports self-correction retry loops.
+    fn supports_retry(&self) -> bool {
+        false
+    }
+
     /// Executes the stage, progressively modifying the mutable state.
     fn execute(
         &self,
@@ -375,6 +380,10 @@ impl ExecutionStage for ReflectionStage {
 
     fn id(&self) -> StageIdentifier {
         StageIdentifier::Reflection
+    }
+
+    fn supports_retry(&self) -> bool {
+        true
     }
 
     fn execute(

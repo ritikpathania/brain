@@ -570,3 +570,5 @@ pub mod commit;
 pub mod engine;
 /// Submodule implementing runtime streaming logic.
 pub mod streaming;
+/// Submodule implementing graph-based workflow execution.
+pub mod graph;
