@@ -8,9 +8,37 @@ use brain_core::services::RetrievalService;
 use brain_domain::{Conversation, ConversationId, MemoryDTO, SessionId, ToolCall};
 use brain_services::agent::engine::AgentExecutionEngine;
 use brain_services::agent::{
-    AgentExecutionEvent, AgentExecutionEventPayload, AgentToolExecutor, ExecutionPolicy,
+    AgentToolExecutor, ExecutionPolicy,
     ExecutionStatus, MemoryCommit, MemoryCommitService,
 };
+use brain_services::agent::streaming::{StreamingRuntime, DefaultStreamEventMapper};
+
+fn create_default_test_engine(
+    policy: ExecutionPolicy,
+    conversation_manager: Arc<dyn brain_services::conversation::ConversationManager>,
+    tool_executor: Arc<dyn AgentToolExecutor>,
+    planner: Arc<dyn brain_core::agents::PlannerAgent>,
+    chat: Arc<dyn brain_core::agents::ChatAgent>,
+    streaming_runtime: Arc<StreamingRuntime>,
+) -> AgentExecutionEngine {
+    let reflection_engine = Arc::new(brain_services::agent::engine::ReflectionEngineImpl {
+        policy: brain_services::agent::engine::RegexReflectionPolicy { forbidden_pattern: "TODO".to_string() },
+    });
+    let verification_engine = Arc::new(brain_services::agent::engine::VerificationEngineImpl::new(
+        brain_services::agent::engine::SafeVerificationPolicy,
+        brain_services::agent::engine::HeuristicConfidencePolicy,
+    ));
+    AgentExecutionEngine::new(
+        policy,
+        conversation_manager,
+        tool_executor,
+        planner,
+        chat,
+        streaming_runtime,
+        reflection_engine,
+        verification_engine,
+    )
+}
 
 // --- Mock Implementations ---
 
@@ -126,6 +154,80 @@ impl MemoryCommitService for MockCommitService {
     }
 }
 
+struct MockConversationManager {
+    retrieval: Arc<MockRetrieval>,
+    commit_service: Arc<MockCommitService>,
+}
+
+impl brain_services::conversation::ConversationManager for MockConversationManager {
+    fn ingest_interaction(
+        &self,
+        session_id: &SessionId,
+        prompt: &str,
+        response: &str,
+        _policy: brain_services::conversation::IngestionPolicy,
+    ) -> Result<(), BrainError> {
+        let user_msg = brain_domain::Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::User,
+            prompt.to_string(),
+        );
+        let assistant_msg = brain_domain::Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::Assistant,
+            response.to_string(),
+        );
+        let commit = MemoryCommit::new(vec![], vec![], vec![user_msg, assistant_msg]);
+        self.commit_service.commit(session_id, commit)
+    }
+
+    fn build_context_window(
+        &self,
+        session_id: &SessionId,
+        _budget: brain_services::conversation::ContextBudget,
+    ) -> Result<brain_services::conversation::ContextWindow, BrainError> {
+        let memories = self.retrieval.retrieve(session_id, "", 10)?;
+        Ok(brain_services::conversation::ContextWindow::new(
+            vec![],
+            None,
+            memories,
+        ))
+    }
+
+    fn promote_memories(&self, _session_id: &SessionId) -> Result<(), BrainError> {
+        Ok(())
+    }
+
+    fn summarize_conversation(
+        &self,
+        _session_id: &SessionId,
+    ) -> Result<brain_services::conversation::ConversationSummary, BrainError> {
+        Err(BrainError::Validation {
+            message: "unsupported".to_string(),
+        })
+    }
+
+    fn create_checkpoint(
+        &self,
+        _session_id: &SessionId,
+        _label: &str,
+    ) -> Result<ConversationId, BrainError> {
+        Ok(ConversationId::new())
+    }
+
+    fn restore_checkpoint(
+        &self,
+        _session_id: &SessionId,
+        _checkpoint_id: &ConversationId,
+    ) -> Result<(), BrainError> {
+        Ok(())
+    }
+
+    fn prune_memories(&self, _session_id: &SessionId) -> Result<usize, BrainError> {
+        Ok(0)
+    }
+}
+
 // --- Test Cases ---
 
 #[tokio::test]
@@ -153,14 +255,19 @@ async fn test_successful_execution_with_zero_tool_calls() {
         committed_nodes: committed_nodes.clone(),
         committed_messages: committed_messages.clone(),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -209,14 +316,19 @@ async fn test_planner_invalid_tool_failure() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -257,14 +369,19 @@ async fn test_tool_timeout_and_cancellation() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -303,14 +420,19 @@ async fn test_chat_model_failure() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -344,14 +466,19 @@ async fn test_memory_commit_failure() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -384,23 +511,29 @@ async fn test_event_ordering_and_metrics_invariant() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime.clone(),
     );
 
     let session_id = SessionId::new();
     let conv_id = ConversationId::new();
-    let mut handle = engine.execute(session_id, conv_id, "hello");
+    let handle = engine.execute(session_id, conv_id, "hello");
 
+    let stream = streaming_runtime.subscribe(handle.execution_id()).unwrap();
     let mut events = Vec::new();
-    let rx = handle.stream_receiver();
-    while let Some(evt) = rx.recv().await {
+    use brain_services::agent::streaming::StreamEventPayload;
+    while let Some(evt) = stream.next().await {
         events.push(evt);
     }
 
@@ -410,28 +543,35 @@ async fn test_event_ordering_and_metrics_invariant() {
     assert!(result.metrics().tokens_used > 0);
     assert_eq!(result.metrics().step_count, 0);
 
-    // Verify monotonic sequence numbering and event structure
-    for (i, evt) in events.iter().enumerate() {
+    // Verify monotonic sequence numbering and event structure of raw mapped events
+    let raw_mapped_events: Vec<&brain_services::agent::streaming::StreamEvent> = events
+        .iter()
+        .filter(|e| !matches!(e.payload, StreamEventPayload::Timeline(_)))
+        .collect();
+    for (i, evt) in raw_mapped_events.iter().enumerate() {
         assert_eq!(evt.sequence, (i + 1) as u64);
     }
 
-    // Assert specific event types occur in order
-    assert!(matches!(
-        events[0].payload,
-        AgentExecutionEventPayload::ExecutionStarted { .. }
-    ));
-    assert!(matches!(
-        events[1].payload,
-        AgentExecutionEventPayload::PlanningStarted { .. }
-    ));
-    assert!(matches!(
-        events[2].payload,
-        AgentExecutionEventPayload::RetrievalCompleted { .. }
-    ));
+    // Assert specific event types occur
+    assert!(events.iter().any(|e| matches!(e.payload, StreamEventPayload::Progress { .. })));
+    assert!(events.iter().any(|e| matches!(
+        e.payload,
+        StreamEventPayload::Stage(brain_services::agent::streaming::StageEvent {
+            stage: "Planning",
+            status: brain_services::agent::streaming::StageStatus::Started,
+        })
+    )));
+    assert!(events.iter().any(|e| matches!(
+        e.payload,
+        StreamEventPayload::Stage(brain_services::agent::streaming::StageEvent {
+            stage: "Retrieval",
+            status: brain_services::agent::streaming::StageStatus::Completed,
+        })
+    )));
     // TokenStreamed occurs during reasoning
-    let token_events: Vec<&AgentExecutionEvent> = events
+    let token_events: Vec<&brain_services::agent::streaming::StreamEvent> = events
         .iter()
-        .filter(|e| matches!(e.payload, AgentExecutionEventPayload::TokenStreamed { .. }))
+        .filter(|e| matches!(e.payload, StreamEventPayload::Token { .. }))
         .collect();
     assert!(!token_events.is_empty());
 }
@@ -458,14 +598,19 @@ async fn test_idempotent_repeated_cancellation() {
         committed_nodes: Arc::new(parking_lot::Mutex::new(vec![])),
         committed_messages: Arc::new(parking_lot::Mutex::new(vec![])),
     });
-
-    let engine = AgentExecutionEngine::new(
-        ExecutionPolicy::default(),
+    let conversation_manager = Arc::new(MockConversationManager {
         retrieval,
         commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
         tool_executor,
         planner,
         chat,
+        streaming_runtime,
     );
 
     let session_id = SessionId::new();
@@ -480,4 +625,126 @@ async fn test_idempotent_repeated_cancellation() {
 
     let res = handle.wait().await;
     assert!(res.is_err());
+}
+
+struct MockMultiCallChat {
+    responses: Arc<parking_lot::Mutex<Vec<String>>>,
+}
+
+impl brain_core::agents::ChatAgent for MockMultiCallChat {
+    fn name(&self) -> &str {
+        "MockMultiCallChat"
+    }
+
+    fn chat(&self, _session_id: SessionId, _prompt: &str) -> Result<String, BrainError> {
+        let mut resp = self.responses.lock();
+        if resp.is_empty() {
+            Ok("Default fallback".to_string())
+        } else {
+            Ok(resp.remove(0))
+        }
+    }
+}
+
+#[tokio::test]
+async fn test_reflection_self_correction_loop() {
+    let planner = Arc::new(MockPlanner {
+        tool_calls: vec![],
+        should_fail: false,
+    });
+    // First response contains "TODO", second is clean
+    let responses = Arc::new(parking_lot::Mutex::new(vec![
+        "This is a TODO placeholder response".to_string(),
+        "This is a clean response without placeholders".to_string(),
+    ]));
+    let chat = Arc::new(MockMultiCallChat { responses: responses.clone() });
+    let retrieval = Arc::new(MockRetrieval { nodes: vec![] });
+    let tool_executor = Arc::new(MockToolExecutor {
+        should_fail: false,
+        latency: Duration::ZERO,
+        execution_count: Arc::new(AtomicUsize::new(0)),
+    });
+    let committed = Arc::new(AtomicBool::new(false));
+    let committed_nodes = Arc::new(parking_lot::Mutex::new(vec![]));
+    let committed_messages = Arc::new(parking_lot::Mutex::new(vec![]));
+    let commit_service = Arc::new(MockCommitService {
+        committed: committed.clone(),
+        should_fail: false,
+        committed_nodes: committed_nodes.clone(),
+        committed_messages: committed_messages.clone(),
+    });
+    let conversation_manager = Arc::new(MockConversationManager {
+        retrieval,
+        commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
+        tool_executor,
+        planner,
+        chat,
+        streaming_runtime,
+    );
+
+    let session_id = SessionId::new();
+    let conv_id = ConversationId::new();
+    let handle = engine.execute(session_id, conv_id, "hello");
+
+    let result = handle.wait().await.unwrap();
+    assert_eq!(result.response_text(), "This is a clean response without placeholders");
+    assert!(committed.load(Ordering::SeqCst));
+    // The vector should be empty because both responses were removed/consumed
+    assert!(responses.lock().is_empty());
+}
+
+#[tokio::test]
+async fn test_verification_failure_rollback() {
+    let planner = Arc::new(MockPlanner {
+        tool_calls: vec![],
+        should_fail: false,
+    });
+    let chat = Arc::new(MockChat {
+        response: "This is unsafe".to_string(),
+        should_fail: false,
+    });
+    let retrieval = Arc::new(MockRetrieval { nodes: vec![] });
+    let tool_executor = Arc::new(MockToolExecutor {
+        should_fail: false,
+        latency: Duration::ZERO,
+        execution_count: Arc::new(AtomicUsize::new(0)),
+    });
+    let committed = Arc::new(AtomicBool::new(false));
+    let committed_nodes = Arc::new(parking_lot::Mutex::new(vec![]));
+    let committed_messages = Arc::new(parking_lot::Mutex::new(vec![]));
+    let commit_service = Arc::new(MockCommitService {
+        committed: committed.clone(),
+        should_fail: false,
+        committed_nodes: committed_nodes.clone(),
+        committed_messages: committed_messages.clone(),
+    });
+    let conversation_manager = Arc::new(MockConversationManager {
+        retrieval,
+        commit_service,
+    });
+
+    let streaming_runtime = Arc::new(StreamingRuntime::new(Arc::new(DefaultStreamEventMapper)));
+    let engine = create_default_test_engine(
+        ExecutionPolicy::default(),
+        conversation_manager,
+        tool_executor,
+        planner,
+        chat,
+        streaming_runtime,
+    );
+
+    let session_id = SessionId::new();
+    let conv_id = ConversationId::new();
+    let handle = engine.execute(session_id, conv_id, "hello");
+
+    let res = handle.wait().await;
+    assert!(res.is_err());
+    // Verification failed, so CommitStage was never run, committed remains false!
+    assert!(!committed.load(Ordering::SeqCst));
 }

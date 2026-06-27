@@ -344,3 +344,9 @@ pub trait ToolRunner: Send + Sync {
         arguments: &HashMap<String, serde_json::Value>,
     ) -> Result<ExecutionResult, BrainError>;
 }
+
+/// Common abstraction for all replaceable evaluation and decision engines.
+pub trait DecisionEngine<C, D>: Send + Sync {
+    /// Evaluates the policy rules against a given capability context.
+    fn evaluate(&self, context: &C) -> Result<D, BrainError>;
+}

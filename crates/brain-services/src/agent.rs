@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 use brain_core::errors::BrainError;
-use brain_core::services::RetrievalService;
+use brain_core::extensibility::DecisionEngine;
 use brain_domain::{ConversationId, Edge, MemoryDTO, Message, Node, SessionId};
 use brain_tools::CancellationTokenImpl;
 
@@ -30,8 +30,28 @@ impl Default for ExecutionId {
     }
 }
 
+/// Symbolic identifier for execution stages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StageIdentifier {
+    /// Step planning.
+    Planning,
+    /// Memory retrieval.
+    Retrieval,
+    /// Running tools.
+    ToolExecution,
+    /// LLM inference.
+    Reasoning,
+    /// Outputs validation.
+    Reflection,
+    /// Safety checks.
+    Verification,
+    /// Changes persist.
+    Commit,
+}
+
 /// Represents the control flow outcome of an execution stage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StageOutcome {
     /// Proceed to the next sequential stage.
     Continue,
@@ -39,6 +59,75 @@ pub enum StageOutcome {
     Finish,
     /// The stage execution has been cancelled.
     Cancelled,
+    /// Request a reasoning retry loop.
+    Retry {
+        /// Feedback string to guide the next reasoning iteration.
+        feedback: String,
+        /// Target stage identifier.
+        target: StageIdentifier,
+    },
+}
+
+/// Outcome of reflection evaluations.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub enum ReflectionOutcome {
+    /// Content accepted.
+    Accept,
+    /// Content requires correction retry.
+    Retry {
+        /// Feedback string for correction.
+        feedback: String,
+    },
+}
+
+/// Outcome of safety and fact verification.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub enum VerificationOutcome {
+    /// Content passed verification.
+    Passed,
+    /// Content failed safety/correctness verification.
+    Failed {
+        /// Verification error descriptions.
+        errors: Vec<String>,
+    },
+}
+
+/// Context parameter passed to reflection policy evaluations.
+#[derive(Debug, Clone)]
+pub struct ReflectionContext {
+    /// Original user text prompt.
+    pub prompt: String,
+    /// Latest generated text response.
+    pub response: String,
+}
+
+/// Decision returned by reflection policy evaluations.
+#[derive(Debug, Clone)]
+pub struct ReflectionDecision {
+    /// Evaluation outcome.
+    pub outcome: ReflectionOutcome,
+}
+
+/// Context parameter passed to verification policy evaluations. Fully owned.
+#[derive(Debug, Clone)]
+pub struct VerificationContext {
+    /// Original user text prompt.
+    pub prompt: String,
+    /// Latest generated text response.
+    pub response: String,
+    /// List of retrieved memories.
+    pub retrieved_memories: Vec<MemoryDTO>,
+    /// Key-value map of executed tool outputs.
+    pub tool_outputs: HashMap<String, serde_json::Value>,
+}
+
+/// Decision returned by verification policy evaluations.
+#[derive(Debug, Clone)]
+pub struct VerificationDecision {
+    /// Safety/Correctness outcome.
+    pub outcome: VerificationOutcome,
+    /// Calculated confidence score.
+    pub confidence_score: f32,
 }
 
 /// Execution constraints and iteration limits.
@@ -248,6 +337,38 @@ pub enum AgentExecutionEventPayload {
         /// Target session identifier.
         session_id: SessionId,
     },
+    /// Reflection step completed.
+    ReflectionEvaluated {
+        /// Target session identifier.
+        session_id: SessionId,
+        /// Evaluation outcome.
+        outcome: ReflectionOutcome,
+    },
+    /// Verification step completed.
+    VerificationCompleted {
+        /// Target session identifier.
+        session_id: SessionId,
+        /// Safety/Correctness outcome.
+        outcome: VerificationOutcome,
+        /// Calculated confidence score.
+        confidence_score: f32,
+    },
+    /// A stage has started execution.
+    StageStarted {
+        /// Target session identifier.
+        session_id: SessionId,
+        /// Name of the stage.
+        stage: &'static str,
+    },
+    /// A stage has completed execution.
+    StageCompleted {
+        /// Target session identifier.
+        session_id: SessionId,
+        /// Name of the stage.
+        stage: &'static str,
+        /// Execution duration in milliseconds.
+        duration_ms: u64,
+    },
 }
 
 /// Wrapped execution event enriched with metadata inside the event sink.
@@ -348,10 +469,8 @@ pub struct ExecutionContext {
     pub policy: ExecutionPolicy,
     /// Time deadline limit.
     pub deadline: Option<Instant>,
-    /// Injected retrieval service interface.
-    pub retrieval: Arc<dyn RetrievalService>,
-    /// Injected memory transaction commit service.
-    pub commit_service: Arc<dyn MemoryCommitService>,
+    /// Injected conversation manager.
+    pub conversation_manager: Arc<dyn crate::conversation::ConversationManager>,
     /// Injected tool executor coordinator.
     pub tool_executor: Arc<dyn AgentToolExecutor>,
     /// Injected step planner agent.
@@ -362,6 +481,10 @@ pub struct ExecutionContext {
     pub sink: Arc<dyn ExecutionEventSink>,
     /// Thread cancellation listener.
     pub cancellation: Arc<CancellationTokenImpl>,
+    /// Injected reflection engine.
+    pub reflection_engine: Arc<dyn DecisionEngine<ReflectionContext, ReflectionDecision>>,
+    /// Injected verification engine.
+    pub verification_engine: Arc<dyn DecisionEngine<VerificationContext, VerificationDecision>>,
 }
 
 /// Mutable state representation modified progressively by sequential execution stages.
@@ -379,6 +502,8 @@ pub struct ExecutionState {
     pub response_text: String,
     /// Pending memory updates.
     pub pending_commit: MemoryCommit,
+    /// Pending feedback for self-correction retries.
+    pub feedback_prompt: Option<String>,
 }
 
 impl ExecutionState {
@@ -388,28 +513,33 @@ impl ExecutionState {
     }
 }
 
-/// Handle exposing execution status, cancellation trigger, event receiver, and blocking wait.
+/// Handle exposing execution status, cancellation trigger, and blocking wait.
 pub struct ExecutionHandle {
+    execution_id: ExecutionId,
     status: Arc<parking_lot::RwLock<ExecutionStatus>>,
     cancellation: Arc<CancellationTokenImpl>,
-    rx: tokio::sync::mpsc::UnboundedReceiver<AgentExecutionEvent>,
     result_rx: tokio::sync::oneshot::Receiver<Result<ExecutionResult, BrainError>>,
 }
 
 impl ExecutionHandle {
     /// Creates a new `ExecutionHandle`.
     pub fn new(
+        execution_id: ExecutionId,
         status: Arc<parking_lot::RwLock<ExecutionStatus>>,
         cancellation: Arc<CancellationTokenImpl>,
-        rx: tokio::sync::mpsc::UnboundedReceiver<AgentExecutionEvent>,
         result_rx: tokio::sync::oneshot::Receiver<Result<ExecutionResult, BrainError>>,
     ) -> Self {
         Self {
+            execution_id,
             status,
             cancellation,
-            rx,
             result_rx,
         }
+    }
+
+    /// Returns the execution identifier.
+    pub fn execution_id(&self) -> ExecutionId {
+        self.execution_id
     }
 
     /// Returns the current execution status.
@@ -426,13 +556,6 @@ impl ExecutionHandle {
         }
     }
 
-    /// Returns the receiver for the execution event stream.
-    pub fn stream_receiver(
-        &mut self,
-    ) -> &mut tokio::sync::mpsc::UnboundedReceiver<AgentExecutionEvent> {
-        &mut self.rx
-    }
-
     /// Awaits the final execution result.
     pub async fn wait(self) -> Result<ExecutionResult, BrainError> {
         self.result_rx.await.map_err(|_| BrainError::Internal {
@@ -445,3 +568,5 @@ impl ExecutionHandle {
 pub mod commit;
 /// Submodule implementing runner and engine logic.
 pub mod engine;
+/// Submodule implementing runtime streaming logic.
+pub mod streaming;

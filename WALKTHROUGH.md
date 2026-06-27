@@ -17,15 +17,21 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
    - [Tool Execution Engine (`brain-tools`)](#tool-execution-engine-brain-tools)
    - [Python Runtime Extensibility (`brain-python`)](#python-runtime-extensibility-brain-python)
    - [Plugin Subsystem (`brain-plugins`)](#plugin-subsystem-brain-plugins)
+   - [Conversation & Memory Orchestration (`brain-services`)](#conversation--memory-orchestration-brain-services)
    - [Application Runtime Lifecycle (`brain-services`)](#application-runtime-lifecycle-brain-services)
    - [Agent Execution Pipeline (`brain-services`)](#agent-execution-pipeline-brain-services)
+   - [Streaming Runtime & Observer Layer (`brain-services`)](#streaming-runtime--observer-layer-brain-services)
 6. [Data Model](#6-data-model)
 7. [Lifecycle & Request Flows](#7-lifecycle--request-flows)
 8. [Background Workers](#8-background-workers)
 9. [Performance Engineering](#9-performance-engineering)
 10. [Error Handling & Resiliency](#10-error-handling--resiliency)
 11. [Development Guide](#11-development-guide)
-12. [Appendix](#12-appendix)
+12. [TUI Client Architecture & Unidirectional Flow](#12-tui-client-architecture--unidirectional-flow)
+13. [Architectural Stability Guidelines](#13-architectural-stability-guidelines)
+14. [Adaptive Memory Policy Engine](#14-adaptive-memory-policy-engine)
+15. [Agent Reflection & Verification Stage](#15-agent-reflection--verification-stage)
+16. [Appendix](#16-appendix)
 
 ---
 
@@ -218,6 +224,15 @@ Manages loading, validation, and dynamic updates of plugins.
 * **Path Isolation**: The loader imports scripts using Python's `importlib.util.spec_from_file_location` and registers them under their exact `PluginId`, preventing module name collisions.
 * **RCU Hot Reloading**: Dynamic updates are performed using a Read-Copy-Update (RCU) transaction. A new plugin instance is loaded, initialized, and validated *before* swapping the registry pointer under a write lock. If validation fails, the transaction is rolled back, leaving the old active instance running.
 
+### Conversation & Memory Orchestration (`brain-services`)
+Manages the lifecycle of session context, memory promotion, conversation summarization, and transaction checkpoints.
+* **Separation of Concerns**: Deconstructs operations into `ConversationLifecycle` (ingesting and promoting history, managing database connections) and `ContextBuilder` (selecting history segments, budgeting system and context tokens, and assembling the final prompt context window).
+* **Deterministic Context Windows**: The `ContextBuilder` constructs prompt contexts deterministically given the same budget, history, summaries, and memories. System messages are explicitly preserved during budget exhaustion.
+* **Context Budgeting**: Context assembly uses `ContextBudget` (specifying maximum token limit, reserved system tokens, and reserved completion tokens) to safely allocate limits without starvation.
+* **Pluggable Promotion & Summarization**: Defines extension-point traits `PromotionPolicy` and `SummaryPolicy` with default implementations (`CountThresholdPromotionPolicy` and `CountThresholdSummaryPolicy`) to dynamically trigger background promotions (promoting volatile STM nodes to LTM) and summarizations (generating versioned summaries of past messages).
+* **Immutable Database Checkpoints**: The `CheckpointStore` manages atomic saving and restoring of conversation snapshot checkpoints using a SQLite backing store. Snapshots are guaranteed to be immutable and decoupled from active session evolution.
+* **Pruning and Pinned Memory Preservation**: Decayed memory edges are cleaned up based on weight thresholds. To prevent loss of critical instructions, pruning logic automatically preserves low-weight edges whose source or target nodes carry `"pinned":true` metadata.
+
 ### Application Runtime Lifecycle (`brain-services`)
 Acts as the composite root of the entire application.
 * **Subsystem Composition**: Enforces that all subsystems (config, storage, sessions, pipelines, executors, plugin managers) are owned exclusively by `ApplicationRuntime` and constructed through `RuntimeBuilder`.
@@ -243,6 +258,13 @@ Orchestrates individual user requests through a decoupled, stage-based execution
   5. `Commit`: Transactionally commits final messages and graph updates using the `MemoryCommitService`.
 * **State vs. Context Separation**: Keeps execution parameters immutable inside `ExecutionContext` while modifying intermediate results (memories, token streams, planner output) progressively inside a mutable `ExecutionState`.
 * **Event Sink**: Stages emit lifecycle updates strictly via `ExecutionEventSink` which timestamps events, assigns monotonic sequence numbers, and aggregates metrics (`ExecutionMetrics`) automatically.
+
+### Streaming Runtime & Observer Layer (`brain-services`)
+Coordinates real-time, low-overhead event broadcasting to subscribers with built-in backpressure safety.
+* **Pluggable Event Mapper**: The `StreamEventMapper` trait translates internal engine events (`AgentExecutionEvent`) into strongly-typed `StreamEvent`s, isolating the external protocol from internal state representation.
+* **Subscriber Registry with Replay Cursor**: The `SubscriberHub` maintains a dynamic event history log. When any new client (TUI, CLI, API) subscribes, it is automatically catch-up replayed all past events from the start of execution before receiving dynamic broadcasts, eliminating startup race conditions.
+* **Bounded Queues & Backpressure Safety**: Supports configurable `OverflowPolicy` settings (`SelectiveDrop`, `DropOldest`, `DropNewest`). `SelectiveDrop` discards non-critical progress updates when capacity limits are hit while dynamically preserving critical token/terminal events by allowing temporary soft-limit expansion.
+* **Real-time Timeline Construction**: Timed stage transitions are collected concurrently via `TimelineBuilder` to present real-time progress timelines without impacting the execution execution thread.
 
 ---
 
@@ -455,7 +477,166 @@ const MyComponent = () => {
 
 ---
 
-## 12. Appendix
+## 12. TUI Client Architecture & Unidirectional Flow
+
+The React/Ink TUI Client (`cli/`) utilizes a strict unidirectional data flow design to decouple presentation components from the UDS streaming network layer.
+
+```
+       StreamingRuntime (SocketClient UDS Stream)
+                       │
+                       ▼
+                EventController (Monotonic Sequence Validation)
+                       │
+                       ▼
+                    UIAction (Append-Only Actions)
+                       │
+                       ▼
+                 UIReducer (Pure State Reduction)
+                       │
+                       ▼
+                ViewModelStore (Versioned State Store)
+                       │
+                       ▼
+                Selectors (Pure Projections)
+                       │
+                       ▼
+                MainLayout (Composition & LayoutState)
+       ┌───────────────┼───────────────┬────────────────┐
+       │               │               │                │
+    ChatView     TimelineView    ToolActivity    SessionBrowser (Pure Presentational Widgets)
+```
+
+### Unidirectional Data Flow
+
+1. **EventController**: Connected to the live UDS `SocketClient`. It validates event monotonicity (respecting `ADR-007`), tracks active/terminated stream lifecycles, maps raw network events to `UIAction` types, and dispatches them to the store.
+2. **UIAction**: An append-only sum type representing all TUI actions.
+3. **UIReducer**: A pure, testable state-reduction function of type `(state: UIViewModel, action: UIAction) -> UIViewModel`.
+4. **ViewModelStore**: A single-writer state store containing a versioned snapshot (`ViewModelSnapshot { revision: number, state: UIViewModel }`). Every dispatch updates state and increments `revision`. Observer notification supports batching to keep UI frames smooth under high-frequency token streams.
+5. **Selectors**: Pure projections querying slices of domain state without memoization or mutations.
+6. **MainLayout**: Coordinates panel sizing, highlights focused pane border outlines, handles SIGWINCH resize triggers, and maintains local focus and Chrome states (`LayoutState`) separately from domain data.
+7. **Presentational Widgets**: Pure rendering functions of `ViewModelSnapshot`. They do not write to or mutate the store directly.
+
+## 13. Architectural Stability Guidelines
+
+To maintain code quality and prevent infrastructure drift, modifications to different parts of the workspace are governed by their stability levels. For detailed extension contracts, reference the [Architectural Stability Guide](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md).
+
+* **Frozen Layers (ADR Required)**: Domain models, core storage databases, retrieval pipelines, plugins runtimes, and core TUI unidirectional flow files are frozen. Changes to these layers are subject to performance audits and require an ADR.
+* **Extensible Layers (Trait Implementation)**: Custom memory policies, ranking strategies, execution stages, workflow nodes, TUI widgets, and layout themes are fully extensible by implementing their respective interfaces.
+* **Experimental Layers (Active Iteration)**: Adaptive memory promotion heuristics, pipeline reflection/verification stages, and async workflow graph schedulers are active research areas.
+
+---
+
+## 14. Adaptive Memory Policy Engine
+
+### Objective & Architectural Decoupling
+
+We have evolved the conversation ingestion pipeline from a simple count threshold into an extensible, capability-driven policy engine. Instead of accessing storage repositories or session cache databases directly, the policy engine is a pure, side-effect-free evaluator that takes an immutable `PromotionContext` and returns a detailed `PromotionDecision`.
+
+```
+ConversationManager (Ingestion Flow)
+        │
+        ├── 1. Load Session & Goals
+        ├── 2. Build PromotionContext (Pure Capability Object)
+        │
+        ▼
+  PromotionEngine (Pure Evaluator)
+        │
+        ├── 3. Evaluate Policy Tree (Logical & Weighted Composition)
+        │
+        ▼
+PromotionDecision (Promote Trigger, Normalized Confidence, Reason Codes)
+        │
+        ▼
+ConversationManager (Orchestrator Execution Stage)
+        │
+        └── 4. If promote: execute promote_memories()
+```
+
+### Core Abstractions
+
+1. **`StmView`**: Read-only abstraction over the volatile memory queue. Prevents exposing internal mutability or sliding window layout details to the policies.
+2. **`PromotionContext`**: Holds dynamic signals for policy execution: the current `SessionId`, a reference to the `StmView`, current `SessionMetadata` (active goals), and a monotonic `now` Instant.
+3. **`PromotionReason`**: Strongly typed reasons enum for detailed audit trails:
+   - `RecencyThreshold`
+   - `TimeThreshold`
+   - `HighImportance`
+   - `GoalMatch`
+   - `UserPinned`
+   - `CompositeSatisfied`
+   - `WeightedThresholdExceeded`
+4. **`PromotionDecision`**: Pure representation of a policy result, containing a boolean `promote` flag, advisory `confidence` float, and `reasons: Vec<PromotionReason>`.
+
+### Concrete Policies
+
+- **`RecencyPolicy`**: Evaluates either node cache counts or time-based age thresholds of the oldest node.
+- **`SemanticImportancePolicy`**: Queries an injected `ImportanceScorer` to evaluate whether individual or average importance metrics exceed a defined threshold.
+- **`GoalAwarePolicy`**: Utilizes an injected `GoalMatcher` to match session context short-term memories against active task goals.
+- **`UserPinnedPolicy`**: Triggers memory promotion if user-defined weights or explicit pin properties match criteria.
+
+### Logical & Weighted Composition
+
+- **`CompositePolicy`**: Combines sub-policies using standard logical operators: `And`, `Or`, `Not`. Evaluation is fully short-circuited (e.g. `And` stops on first false; `Or` stops on first true) and aggregates reasons deterministically following evaluation order.
+- **`WeightedCompositePolicy`**: Aggregates boolean decisions from sub-policies, summing weight multipliers to determine if they meet a threshold. Normalizes overall confidence relative to total available weights.
+
+### Performance & Zero-Overhead Dispatches
+
+The orchestrator utilizes dynamic trait type erasure `Arc<dyn PromotionEngine>` only at the composition root. Internally, the generic wrapper `PromotionEngineImpl<P>` binds directly to a concrete policy type `P`, avoiding unnecessary extra dynamic dispatch boundaries.
+
+Criterion microbenchmarks verify linear execution scaling with zero overhead:
+* **16 nodes**: ~1.26 µs
+* **64 nodes**: ~4.73 µs
+* **256 nodes**: ~19.62 µs
+* **1024 nodes**: ~76.81 µs
+
+---
+
+## 15. Agent Reflection & Verification Stage
+
+The **Agent Execution Pipeline** incorporates modular stages for output reflection (self-correction) and safety/correctness verification.
+
+```
+[User Prompt]
+      │
+      ▼
+ReasoningStage ◄───┐
+      │            │
+[Response]         │ (Max 3 retries on Retry Outcome)
+      │            │
+ReflectionStage ───┘ (Regex check for forbidden patterns, eg. "TODO")
+      │
+(Accept Outcome)
+      │
+      ▼
+VerificationStage    (Safety checks, eg. "unsafe", and memory confidence heuristics)
+      │
+(Passed Outcome)
+      │
+      ▼
+CommitStage          (Persist memories to SQLite OLTP)
+```
+
+### Pure Decision Engines
+All decisions (for Volatile Memory Promotion, Output Reflection, and Content Verification) are unified under the generic, thread-safe `DecisionEngine<C, D>` trait defined in `brain-core::extensibility`:
+```rust
+pub trait DecisionEngine<C, D>: Send + Sync {
+    fn evaluate(&self, context: &C) -> Result<D, BrainError>;
+}
+```
+
+### Self-Correction Control Loop
+To preserve stage single-responsibility boundaries, reasoning retries are managed symbolically by the `ExecutionRunner` rather than within individual stages:
+1. **`ReflectionStage`**: Evaluates the generated output against the active policy. If a forbidden pattern (e.g. `"TODO"`) is detected, it returns `StageOutcome::Retry { feedback, target: StageIdentifier::Reasoning }`.
+2. **`ExecutionRunner`**: Catches the retry signal, increments the retry attempt counter (capped at 3), updates the mutable `ExecutionState::feedback_prompt` variable, and rolls execution back to the `ReasoningStage` using a precomputed symbolic index mapping.
+3. **`ReasoningStage`**: Prepend the reflection feedback instructions to the reasoning prompt to generate a corrected output.
+
+### Telemetry & Output Separation
+During stage execution, stage-specific telemetry is decoupled from the generated user-facing tokens by streaming dedicated event packets:
+- **`ReflectionEvaluated { outcome }`**: Streams the structured reflection results (`Accept` or `Retry`).
+- **`VerificationCompleted { outcome, confidence_score }`**: Streams safety passes/failures and the normalized advisory confidence metric (`[0.0, 1.0]`).
+
+---
+
+## 16. Appendix
 
 ### Standard Paths Reference
 * **Main Directory**: `~/.brain/`
@@ -484,11 +665,15 @@ const MyComponent = () => {
    ```
 3. **Run Unit & Integration Tests**:
    ```bash
-   PYO3_PYTHON=/Users/ritikpathania/.local/share/uv/python/cpython-3.12-macos-aarch64-none/bin/python3.12 cargo test
+   RUSTFLAGS="-L /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib" \
+   DYLD_FRAMEWORK_PATH="/Library/Developer/CommandLineTools/Library/Frameworks" \
+   PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo test
    ```
 4. **Execute Criterion Benchmarks**:
    ```bash
-   cargo bench -p brain-plugins
+   RUSTFLAGS="-L /Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib" \
+   DYLD_FRAMEWORK_PATH="/Library/Developer/CommandLineTools/Library/Frameworks" \
+   PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo bench --bench policy_benchmarks
    ```
 5. **Run React Profiler Benchmarks**:
    ```bash
