@@ -30,7 +30,7 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
 12. [TUI Client Architecture & Unidirectional Flow](#12-tui-client-architecture--unidirectional-flow)
 13. [Architectural Stability Guidelines](#13-architectural-stability-guidelines)
 14. [Adaptive Memory Policy Engine](#14-adaptive-memory-policy-engine)
-15. [Agent Reflection & Verification Stage](#15-agent-reflection--verification-stage)
+15. [Workflow Graphs & DAG Execution](#15-workflow-graphs--dag-execution)
 16. [Appendix](#16-appendix)
 
 ---
@@ -590,49 +590,73 @@ Criterion microbenchmarks verify linear execution scaling with zero overhead:
 
 ---
 
-## 15. Agent Reflection & Verification Stage
+## 15. Workflow Graphs & DAG Execution
 
-The **Agent Execution Pipeline** incorporates modular stages for output reflection (self-correction) and safety/correctness verification.
+The **Agent Execution Pipeline** executes as a Directed Acyclic Graph (DAG) of stage nodes. Routing, loop-backs, and runtime policies are evaluated dynamically by the `ExecutionRunner` traversing the graph topology.
 
 ```
 [User Prompt]
       │
       ▼
+PlanningStage
+      │
+      ▼
+RetrievalStage
+      │
+      ▼
+ToolExecutionStage
+      │
+      ▼
 ReasoningStage ◄───┐
       │            │
-[Response]         │ (Max 3 retries on Retry Outcome)
+[Response]         │ (Retry loop-back target driven by RetryPolicy)
       │            │
-ReflectionStage ───┘ (Regex check for forbidden patterns, eg. "TODO")
+ReflectionStage ───┘ (Outcome::Retry)
       │
-(Accept Outcome)
-      │
-      ▼
-VerificationStage    (Safety checks, eg. "unsafe", and memory confidence heuristics)
-      │
-(Passed Outcome)
+(Outcome::Continue)
       │
       ▼
-CommitStage          (Persist memories to SQLite OLTP)
+VerificationStage
+      │
+(Outcome::Continue)
+      │
+      ▼
+CommitStage (Terminal Node)
 ```
 
-### Pure Decision Engines
-All decisions (for Volatile Memory Promotion, Output Reflection, and Content Verification) are unified under the generic, thread-safe `DecisionEngine<C, D>` trait defined in `brain-core::extensibility`:
+### Core Abstractions
+
+1. **`WorkflowGraph`**: Declarative, immutable container mapping `StageIdentifier` keys to `WorkflowNode` configurations, along with an entry `start_node`.
+2. **`WorkflowNode`**: Represents a single vertex in the graph. It owns:
+   - `stage`: The logic payload (`Box<dyn ExecutionStage>`).
+   - `next_stage`: An option pointing to the next sequential node (`Option<StageIdentifier>`).
+   - `policies`: A list of execution check policies (`Vec<Box<dyn NodeExecutionPolicy>>`).
+3. **`WorkflowExecutionState`**: Holds the mutable runtime parameters of the active execution session, tracking the `current_stage` pointer and stage-local `attempts` counts.
+
+### Stateless Execution Policies
+To scale execution behavior without structural modifications, check policies conform to the stateless, thread-safe `NodeExecutionPolicy` trait:
 ```rust
-pub trait DecisionEngine<C, D>: Send + Sync {
-    fn evaluate(&self, context: &C) -> Result<D, BrainError>;
+pub trait NodeExecutionPolicy: Send + Sync {
+    fn name(&self) -> &'static str;
+    fn evaluate(&self, ctx: &PolicyContext<'_>) -> Result<PolicyDecision, BrainError>;
 }
 ```
+All mutable parameters (attempts, outcomes, and execution contexts) are fed dynamically via `PolicyContext`. Policies are evaluated in insertion order and short-circuit on the first `PolicyDecision::Fail`.
 
-### Self-Correction Control Loop
-To preserve stage single-responsibility boundaries, reasoning retries are managed symbolically by the `ExecutionRunner` rather than within individual stages:
-1. **`ReflectionStage`**: Evaluates the generated output against the active policy. If a forbidden pattern (e.g. `"TODO"`) is detected, it returns `StageOutcome::Retry { feedback, target: StageIdentifier::Reasoning }`.
-2. **`ExecutionRunner`**: Catches the retry signal, increments the retry attempt counter (capped at 3), updates the mutable `ExecutionState::feedback_prompt` variable, and rolls execution back to the `ReasoningStage` using a precomputed symbolic index mapping.
-3. **`ReasoningStage`**: Prepend the reflection feedback instructions to the reasoning prompt to generate a corrected output.
+### Direct Stage Outcome Transitions
+Routing is driven directly by stage outcomes, avoiding the need for parallel transition mapping tables:
+- **`StageOutcome::Continue`**: Clears the current node's retry counter and transitions to `node.next_stage`. If `None`, execution structurally terminates.
+- **`StageOutcome::Retry { target, feedback }`**: Increments the current stage's retry attempt count, prepends correction feedback, and jumps back to `target`.
+- **`StageOutcome::Finish`**: Halts execution early behaviorally, terminating successfully regardless of remaining graph topology.
+- **`StageOutcome::Cancelled`**: Cooperative cancellation aborts execution.
 
-### Telemetry & Output Separation
-During stage execution, stage-specific telemetry is decoupled from the generated user-facing tokens by streaming dedicated event packets:
-- **`ReflectionEvaluated { outcome }`**: Streams the structured reflection results (`Accept` or `Retry`).
-- **`VerificationCompleted { outcome, confidence_score }`**: Streams safety passes/failures and the normalized advisory confidence metric (`[0.0, 1.0]`).
+### Structural Graph Validation
+Graph configurations are validated at build-time by the private `WorkflowGraphValidator` collaborator to enforce these guarantees:
+- **Entry Integrity**: Exactly one entry `start_node` is declared and present.
+- **Referential Integrity**: All `next_stage` and retry target linkages resolve to existing nodes.
+- **Connectivity**: Every node is reachable from the start node, and at least one terminal path exists.
+- **Acyclicity**: No cycles are allowed in the sequential `next_stage` path. Backwards loops are only permitted via explicit self-correction retry signals.
+- **Policy Completeness**: Nodes carrying retry capabilities (e.g. `ReflectionStage`) must contain a `RetryPolicy` to prevent infinite loops, and duplicate policy types are rejected.
 
 ---
 
