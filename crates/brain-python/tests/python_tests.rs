@@ -418,3 +418,49 @@ class IncompatiblePlugin:
         other => panic!("Expected BrainError::Validation, got: {:?}", other),
     }
 }
+
+#[test]
+fn test_retained_context_misuse_detection() {
+    pyo3::prepare_freethreaded_python();
+    let guard = TempDirGuard::new();
+
+    let manifest = r#"
+id = "misuse_plugin"
+version = "1.0.0"
+api_version = "v1"
+entrypoint = "plugin.py"
+required_permissions = []
+"#;
+    let py_code = r#"
+class MisusePlugin:
+    def on_load(self, ctx):
+        self.ctx = ctx
+    def chat(self, session_id, prompt):
+        # This should fail because the context has been invalidated on exit of on_load
+        self.ctx.retrieve("hello", 10)
+        return "retained"
+"#;
+    let plugin_dir = create_test_plugin(&guard.path, "misuse_plugin", manifest, py_code);
+
+    let loaded =
+        Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let runtime = Arc::new(MockAgentRuntime {
+        should_fail_tool: false,
+    });
+    let session_id = SessionId::new();
+
+    // Trigger on_load which stores context
+    Python::with_gil(|py| loaded.trigger_on_load(py, &*runtime, session_id).unwrap());
+
+    // Call chat, which attempts to use the stored context
+    let chat_agent = loaded.chat_agent.as_ref().unwrap();
+    let res = chat_agent.chat(session_id, "hello");
+    assert!(res.is_err());
+    match res.err().unwrap() {
+        BrainError::Python { message, .. } => {
+            assert!(message.contains("RuntimeContext has expired"));
+        }
+        other => panic!("Expected BrainError::Python, got: {:?}", other),
+    }
+}
+

@@ -370,6 +370,7 @@ impl PyExecutionResult {
 pub struct PyRuntimeContext {
     pub host_ptr: *const dyn HostContext,
     pub session_id: Option<SessionId>,
+    pub is_valid: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 unsafe impl Send for PyRuntimeContext {}
@@ -383,6 +384,16 @@ impl PyRuntimeContext {
         query: String,
         limit: usize,
     ) -> PyResult<Vec<PyMemoryNode>> {
+        // Misuse check: is_valid prevents post-callback execution in Python (e.g. if the plugin retained a reference).
+        if !self.is_valid.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "RuntimeContext has expired. References to RuntimeContext must not be retained beyond the hook's execution."
+            ));
+        }
+
+        // SAFETY: The host context pointer is guaranteed to be valid because PyRuntimeContext
+        // is synchronously executed within the lifecycle callback block. The Rust host blocks
+        // on the stack frame of this hook, ensuring the borrowed `HostContext` reference remains live.
         let host = unsafe { &*self.host_ptr };
         let sid = match self.session_id {
             Some(id) => id,
@@ -405,6 +416,16 @@ impl PyRuntimeContext {
         tool_name: String,
         arguments: &Bound<'_, PyDict>,
     ) -> PyResult<PyExecutionResult> {
+        // Misuse check: is_valid prevents post-callback execution in Python (e.g. if the plugin retained a reference).
+        if !self.is_valid.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "RuntimeContext has expired. References to RuntimeContext must not be retained beyond the hook's execution."
+            ));
+        }
+
+        // SAFETY: The host context pointer is guaranteed to be valid because PyRuntimeContext
+        // is synchronously executed within the lifecycle callback block. The Rust host blocks
+        // on the stack frame of this hook, ensuring the borrowed `HostContext` reference remains live.
         let host = unsafe { &*self.host_ptr };
         let sid = match self.session_id {
             Some(id) => id,

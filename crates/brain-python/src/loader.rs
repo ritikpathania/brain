@@ -88,6 +88,7 @@ impl PluginEventHandler for LoadedPlugin {
             let ctx = crate::api::PyRuntimeContext {
                 host_ptr: unsafe { std::mem::transmute(event.context.host) },
                 session_id: Some(session_id),
+                is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
             };
             match event.kind {
                 PluginEventKind::Load => {
@@ -120,6 +121,7 @@ impl LoadedPlugin {
         let ctx = crate::api::PyRuntimeContext {
             host_ptr: unsafe { std::mem::transmute(host) },
             session_id: Some(session_id),
+            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_load", ctx)
     }
@@ -134,6 +136,7 @@ impl LoadedPlugin {
         let ctx = crate::api::PyRuntimeContext {
             host_ptr: unsafe { std::mem::transmute(host) },
             session_id: Some(session_id),
+            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_unload", ctx)
     }
@@ -148,6 +151,7 @@ impl LoadedPlugin {
         let ctx = crate::api::PyRuntimeContext {
             host_ptr: unsafe { std::mem::transmute(host) },
             session_id: Some(session_id),
+            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_start", ctx)
     }
@@ -162,6 +166,7 @@ impl LoadedPlugin {
         let ctx = crate::api::PyRuntimeContext {
             host_ptr: unsafe { std::mem::transmute(host) },
             session_id: Some(session_id),
+            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_end", ctx)
     }
@@ -261,25 +266,31 @@ fn call_lifecycle_hook(
     hook_name: &str,
     ctx: crate::api::PyRuntimeContext,
 ) -> Result<(), BrainError> {
-    let bound_inst = instance.bind(py);
-    if let Ok(hook) = bound_inst.getattr(hook_name) {
-        if hook.is_callable() {
-            hook.call1((ctx,))
-                .map_err(|e| py_err_to_brain_error(py, e))?;
-            return Ok(());
+    let is_valid = ctx.is_valid.clone();
+    let res = (|| {
+        let bound_inst = instance.bind(py);
+        if let Ok(hook) = bound_inst.getattr(hook_name) {
+            if hook.is_callable() {
+                hook.call1((ctx.clone(),))
+                    .map_err(|e| py_err_to_brain_error(py, e))?;
+                return Ok(());
+            }
         }
-    }
 
-    let bound_mod = module.bind(py);
-    if let Ok(hook) = bound_mod.getattr(hook_name) {
-        if hook.is_callable() {
-            hook.call1((ctx,))
-                .map_err(|e| py_err_to_brain_error(py, e))?;
-            return Ok(());
+        let bound_mod = module.bind(py);
+        if let Ok(hook) = bound_mod.getattr(hook_name) {
+            if hook.is_callable() {
+                hook.call1((ctx,))
+                    .map_err(|e| py_err_to_brain_error(py, e))?;
+                return Ok(());
+            }
         }
-    }
 
-    Ok(())
+        Ok(())
+    })();
+    // Invalidate the runtime context immediately on hook completion to detect Python misuse.
+    is_valid.store(false, std::sync::atomic::Ordering::Relaxed);
+    res
 }
 
 /// Scans directory structures and manages dynamic Python plugin loading with fault isolation.
