@@ -18,6 +18,7 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
    - [Python Runtime Extensibility (`brain-python`)](#python-runtime-extensibility-brain-python)
    - [Plugin Subsystem (`brain-plugins`)](#plugin-subsystem-brain-plugins)
    - [Application Runtime Lifecycle (`brain-services`)](#application-runtime-lifecycle-brain-services)
+   - [Agent Execution Pipeline (`brain-services`)](#agent-execution-pipeline-brain-services)
 6. [Data Model](#6-data-model)
 7. [Lifecycle & Request Flows](#7-lifecycle--request-flows)
 8. [Background Workers](#8-background-workers)
@@ -231,6 +232,18 @@ Acts as the composite root of the entire application.
 * **Rollback-Aware Startup**: Coordinates composable `StartupPhase` stages (Config, Storage, Python, Tools, Plugins, Services). If any phase fails, all completed phases are rolled back in reverse order, returning the system to `Created`.
 * **Observer Hooking**: `RuntimeObserver` notifies registered observers of state transitions. Observer failures are treated as best-effort, logged via `tracing::warn!`, and never block the runtime lifecycle.
 
+### Agent Execution Pipeline (`brain-services`)
+Orchestrates individual user requests through a decoupled, stage-based execution loop.
+* **Separation of Concerns**: `AgentExecutionEngine` serves as the public facade, returning an `ExecutionHandle` containing event stream receivers and cancellation triggers. The actual work runs inside a spawned Tokio task executing `ExecutionRunner` stages sequentially.
+* **Stage-Based Pipeline Loop**: Executes granular, modular stages conforming to the `ExecutionStage` trait:
+  1. `Planning`: Resolves conversation context and calls the `PlannerAgent` to outline tool steps.
+  2. `Retrieval`: Searches memory sources via the retrieval facade and populates context matches.
+  3. `ToolExecution`: Runs planned tools iteratively via the tool executor up to configured limits.
+  4. `Reasoning`: Invokes the reasoning `ChatAgent` and streams word tokens back to the caller.
+  5. `Commit`: Transactionally commits final messages and graph updates using the `MemoryCommitService`.
+* **State vs. Context Separation**: Keeps execution parameters immutable inside `ExecutionContext` while modifying intermediate results (memories, token streams, planner output) progressively inside a mutable `ExecutionState`.
+* **Event Sink**: Stages emit lifecycle updates strictly via `ExecutionEventSink` which timestamps events, assigns monotonic sequence numbers, and aggregates metrics (`ExecutionMetrics`) automatically.
+
 ---
 
 ## 6. Data Model
@@ -239,7 +252,7 @@ All domain data models are defined under `brain-domain` using the `#[non_exhaust
 
 ### Strongly-Typed Identifiers
 To prevent ID confusion across entities, the system defines unique type wrappers around `ulid::Ulid` and `uuid::Uuid`:
-* `SessionId`, `NodeId`, `EdgeId`, `PluginId`, `ConversationId`, `MessageId`
+* `SessionId`, `NodeId`, `EdgeId`, `PluginId`, `ConversationId`, `MessageId`, `ExecutionId`
 
 ### Core Schema Structures
 * **Node**: Graph memory unit. Contains a strongly-typed `NodeType` (Concept, Action, Event, State) and a JSON properties string mapping schema-less attributes.
