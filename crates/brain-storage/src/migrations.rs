@@ -39,6 +39,25 @@ const MIGRATIONS: &[&str] = &[
         value TEXT NOT NULL
     );
     "#,
+    // Version 2 Schema Setup (PR-014 checkpoints and summaries)
+    r#"
+    CREATE TABLE IF NOT EXISTS checkpoints (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        history TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS summaries (
+        session_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        start_idx INTEGER NOT NULL,
+        end_idx INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        PRIMARY KEY (session_id, version)
+    );
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

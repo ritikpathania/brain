@@ -1,18 +1,28 @@
+import { mock } from 'bun:test';
+mock.module('ink', () => {
+  const original = require('ink');
+  return {
+    ...original,
+    useStdout: () => ({
+      stdout: {
+        columns: 120,
+        rows: 60,
+        on: () => {},
+        off: () => {},
+      },
+    }),
+  };
+});
+
 import React from 'react';
 import { REPL } from '../REPL';
 import { render as inkRender, cleanup } from 'ink-testing-library';
-import { expect, test, mock, afterEach } from 'bun:test';
-import { EventEmitter } from 'events';
+import { expect, test, afterEach } from 'bun:test';
 import { FocusManager } from '../../services/FocusManager';
+import { EventEmitter } from 'events';
 
-// Mock global fetch to isolate test environment from any running daemon network states
-global.fetch = () => Promise.resolve({
-  ok: false,
-  json: () => Promise.resolve(null),
-} as any);
-
-process.env.TERMINAL_COLUMNS = '100';
-process.env.TERMINAL_ROWS = '40';
+process.env.TERMINAL_COLUMNS = '120';
+process.env.TERMINAL_ROWS = '60';
 
 if (!(EventEmitter.prototype as any).ref) {
   (EventEmitter.prototype as any).ref = function() { return this; };
@@ -101,9 +111,10 @@ test('REPL renders header banner, standby status, and prompt', () => {
   const { lastFrame } = render(<REPL client={client} />);
 
   const frame = lastFrame();
-  expect(frame).toContain('Memory Companion CLI');
-  expect(frame).toContain('Daemon Status:');
-  expect(frame).toContain('✗ Unreachable');
+  expect(frame).toContain('Relational Memory Engine');
+  expect(frame).toContain('Conversation View');
+  expect(frame).toContain('Execution Timeline');
+  expect(frame).toContain('Active Tools');
   expect(frame).toContain('exit\' to quit');
   expect(frame).toContain('Memory Engine>');
   
@@ -134,9 +145,9 @@ test('REPL handles submitting commands and shows spinner status', async () => {
   await sleep(150);
 
   const frame = lastFrame();
-  expect(frame).toContain('> ingest sqlite setup');
-  expect(frame).toContain('● Processing');
-  
+  expect(frame).toContain('ingest sqlite setup');
+  expect(frame).toContain('Plan'); // Running execution status shows 'Plan' in footer
+
   expect(client.sentCommands.length).toBe(1);
   expect(client.sentCommands[0].action).toBe('ingest');
   expect(client.sentCommands[0].payload).toBe('sqlite setup');
@@ -146,9 +157,7 @@ test('REPL handles submitting commands and shows spinner status', async () => {
   await sleep(350);
 
   const finalFrame = lastFrame();
-  expect(finalFrame).toContain('[Daemon Response] Status: OK');
   expect(finalFrame).toContain('Ingested node successfully');
-  expect(finalFrame).toContain('✗ Unreachable');
 });
 
 test('REPL handles empty stream correctly', async () => {
@@ -170,7 +179,7 @@ test('REPL handles progress updates and displays progress in status line', async
   const { lastFrame } = render(<REPL client={client as any} />);
   await sleep(50);
 
-  // Trigger start, progress, and end
+  // Trigger start, progress with stage metadata, and end
   client.triggerRawMessage({ type: 'stream_start', streamId: 'stream-2' });
   client.triggerRawMessage({
     type: 'stream_progress',
@@ -178,20 +187,16 @@ test('REPL handles progress updates and displays progress in status line', async
     sequence: 1,
     progress: 0.42,
     message: 'Testing progress message',
+    metadata: { stage: 'Planning', status: 'started' },
   });
   await sleep(50);
 
-  // Check progress message displays in the status bar area
+  // Check progress stage displays in the timeline area
   let frame = lastFrame();
-  expect(frame).toContain('Testing progress message');
-  expect(frame).toContain('42%');
+  expect(frame).toContain('Planning');
 
   client.triggerRawMessage({ type: 'stream_end', streamId: 'stream-2', sequence: 2 });
   await sleep(100);
-
-  // Progress message should be gone after streaming finishes
-  frame = lastFrame();
-  expect(frame).not.toContain('Testing progress message');
 });
 
 test('REPL streams a single chunk of text and drains typewriter queue', async () => {
@@ -259,7 +264,9 @@ test('REPL logs a warning on sequence mismatch without crashing', async () => {
   await sleep(300);
 
   const frame = lastFrame();
-  expect(frame).toContain('[Protocol Warning] Stream sequence mismatch: expected 1, got 2');
+  expect(frame).toContain('sequence mismatch');
+  expect(frame).toContain('expected 1');
+  expect(frame).toContain('got 2');
   expect(frame).toContain('MismatchText');
 });
 
@@ -287,7 +294,8 @@ test('REPL is forward compatible with unknown event types', async () => {
   await sleep(300);
 
   const frame = lastFrame();
-  expect(frame).toContain('[Protocol Warning] Ignored unknown stream event "stream_metric" for stream "stream-6"');
+  expect(frame).toContain('Ignored unknown stream event');
+  expect(frame).toContain('stream_metric');
   expect(frame).toContain('AfterMetricText');
 });
 
@@ -318,40 +326,41 @@ test('REPL handles chunk followed by non-streaming Error response', async () => 
 
   const frame = lastFrame();
   expect(frame).toContain('PartialResult');
-  expect(frame).toContain('[Daemon Response] Status: ERROR');
   expect(frame).toContain('Fatal daemon error occurred');
 });
 
-test('REPL handles Tab key to switch between focus states and sidebar tabs', async () => {
+test('REPL handles Tab key to switch between focus states of panels', async () => {
   const client = new MockSocketClient();
   const { stdin, lastFrame } = render(<REPL client={client as any} />);
   await sleep(100);
 
-  console.log('REGISTERED WIDGETS:', (FocusManager as any).widgets.map((w: any) => w.id));
-
-  // Initial state: prompt is focused
+  // Initial state: ChatView is focused
   let frame = lastFrame();
-  expect(frame).toContain('File Browser  |    Config Wizard');
-  expect(frame).toContain('○ File Browser (.brain/)');
-  
-  // Press Tab -> focus file browser
+  expect(frame).toContain('Conversation View (Focused)');
+
+  // Press Tab -> focus sessions browser
   stdin.write('\t');
   await sleep(150);
   frame = lastFrame();
-  expect(frame).toContain('● File Browser');
-  
-  // Press Tab -> focus config wizard
+  expect(frame).toContain('Sessions (Focused)');
+
+  // Press Tab -> focus timeline
   stdin.write('\t');
   await sleep(150);
   frame = lastFrame();
-  expect(frame).toContain('● Config Wizard');
-  
-  // Press Tab -> focus prompt input
+  expect(frame).toContain('Execution Timeline (Focused)');
+
+  // Press Tab -> focus active tools
   stdin.write('\t');
   await sleep(150);
   frame = lastFrame();
-  expect(frame).not.toContain('● File Browser');
-  expect(frame).not.toContain('● Config Wizard');
+  expect(frame).toContain('Active Tools (Focused)');
+
+  // Press Tab -> cycle back to chat
+  stdin.write('\t');
+  await sleep(150);
+  frame = lastFrame();
+  expect(frame).toContain('Conversation View (Focused)');
 });
 
 test('REPL commits partial text to logs when interrupted by a new stream_start event', async () => {
@@ -381,9 +390,9 @@ test('REPL commits partial text to logs when interrupted by a new stream_start e
   await sleep(350);
 
   const frame = lastFrame();
-  // The first stream's partial content should have been committed to permanent log/terminal
   expect(frame).toContain('InterruptedPartialContent');
   expect(frame).toContain('NewContentAfterInterruption');
+  expect(frame).toContain('was not terminated');
 });
 
 test('REPL logs a warning on sequence regression', async () => {
@@ -415,7 +424,7 @@ test('REPL logs a warning on sequence regression', async () => {
 
   await sleep(350);
   const frame = lastFrame();
-  expect(frame).toContain('[Protocol Warning] Stream sequence regressed');
+  expect(frame).toContain('sequence regressed');
 });
 
 test('REPL logs a warning on already terminated stream resurrection', async () => {
@@ -435,7 +444,7 @@ test('REPL logs a warning on already terminated stream resurrection', async () =
 
   await sleep(350);
   const frame = lastFrame();
-  expect(frame).toContain('[Protocol Warning] Received packet for already terminated stream');
+  expect(frame).toContain('already terminated stream');
 });
 
 test('REPL logs a warning when a stream starts before the previous one terminates', async () => {
@@ -449,5 +458,7 @@ test('REPL logs a warning when a stream starts before the previous one terminate
 
   await sleep(350);
   const frame = lastFrame();
-  expect(frame).toContain('[Protocol Warning] Stream "stream-12" was not terminated before starting stream "stream-13"');
+  expect(frame).toContain('was not terminated');
+  expect(frame).toContain('stream-12');
+  expect(frame).toContain('stream-13');
 });

@@ -8,7 +8,27 @@
 1. **Feature Parity**: Verify every feature from the legacy client exists and operates correctly (scrolling, multiline editing, streaming, cancellation, history, sessions, resizing, markdown, shortcuts).
 2. **Behavioral Parity**: Verify operational behavior behaves matching user expectations (typing latency, resize anchors, scroll anchoring, typewriter pacing, cursor movements, submission timing).
 3. **Stress Testing**: Run extreme scenarios to verify safety under pressure (long threads, massive streams, repeated switches, resize spam, cancel spam, huge histories).
-4. **Legacy Removal Audit**: Check that no active runtime paths depend on Node/Bun/Ink/React.
+4. **Legacy Removal & Dependency Graph Audit**: Check that no active runtime paths depend on Node/Bun/Ink/React, and verify that no Rust workspace crates retain dependencies on legacy compatibility layers or deprecated client modules.
+
+---
+
+## Exit Checklist (Completion Criteria)
+- [ ] **Criteria 1**: All parity tests pass cleanly.
+- [ ] **Criteria 2**: All stress tests pass cleanly.
+- [ ] **Criteria 3**: Zero Clippy warnings or Rust lints in presentation crates.
+- [ ] **Criteria 4**: No active runtime dependencies on Bun, Node, Ink, or React.
+- [ ] **Criteria 5**: No Rust workspace crates retain dependencies on legacy compatibility wrappers.
+- [ ] **Criteria 6**: All user documentation is updated to reference the new TUI client.
+
+---
+
+## Baseline Performance Metrics
+We will measure and log the following baseline statistics inside our final report:
+- **Cold Startup Time**: Time elapsed from binary execution to Alternate Screen rendering.
+- **Idle Memory Footprint**: RSS memory usage of the client process while idle.
+- **Render Latency**: Frame redraw commit time (measured via profiler/logs).
+- **Streaming Latency**: Input token delivery and typewriter queue pacing latency.
+- **Session Switch Latency**: Database query and history reload completion time.
 
 ---
 

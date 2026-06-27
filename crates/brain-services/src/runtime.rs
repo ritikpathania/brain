@@ -118,9 +118,11 @@ pub(crate) struct RuntimeServiceLocator {
     pub storage: Option<Arc<SqliteStorage>>,
     pub session_manager: Option<Arc<SessionCacheManager>>,
     pub retrieval_service: Option<Arc<crate::retrieval::RetrievalServiceImpl>>,
+    pub conversation_manager: Option<Arc<dyn crate::conversation::ConversationManager>>,
     pub tool_registry: Option<Arc<ToolRegistryImpl>>,
     pub tool_executor: Option<Arc<ToolExecutor>>,
     pub plugin_manager: Option<Arc<PluginManager>>,
+    pub streaming_runtime: Option<Arc<crate::agent::streaming::StreamingRuntime>>,
 }
 
 /// Unified composition root and lifecycle owner of the Brain Relational Engine.
@@ -275,6 +277,22 @@ impl ApplicationRuntime {
             .map(|s| s as Arc<dyn RetrievalService>)
             .ok_or_else(|| BrainError::Validation {
                 message: "Retrieval service not initialized".to_string(),
+            })
+    }
+
+    /// Exposes the StreamingRuntime observer layer.
+    pub fn streaming(&self) -> Result<Arc<crate::agent::streaming::StreamingRuntime>, BrainError> {
+        if self.state() != RuntimeState::Running {
+            return Err(BrainError::InvalidTransition {
+                message: "Runtime is not in Running state".to_string(),
+            });
+        }
+        let locator = self.service_locator.read();
+        locator
+            .streaming_runtime
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: "Streaming runtime not initialized".to_string(),
             })
     }
 
@@ -536,6 +554,7 @@ pub struct RuntimeBuilder {
     config: Option<BrainSettings>,
     storage: Option<Arc<SqliteStorage>>,
     session_manager: Option<Arc<SessionCacheManager>>,
+    conversation_manager: Option<Arc<dyn crate::conversation::ConversationManager>>,
     tool_executor: Option<Arc<ToolExecutor>>,
     plugin_manager: Option<Arc<PluginManager>>,
     observers: Vec<Arc<dyn RuntimeObserver>>,
@@ -554,6 +573,7 @@ impl RuntimeBuilder {
             config: None,
             storage: None,
             session_manager: None,
+            conversation_manager: None,
             tool_executor: None,
             plugin_manager: None,
             observers: Vec::new(),
@@ -575,6 +595,15 @@ impl RuntimeBuilder {
     /// Pre-injects a mock or custom session cache manager.
     pub fn with_session_manager(mut self, manager: Arc<SessionCacheManager>) -> Self {
         self.session_manager = Some(manager);
+        self
+    }
+
+    /// Pre-injects a custom conversation manager.
+    pub fn with_conversation_manager(
+        mut self,
+        manager: Arc<dyn crate::conversation::ConversationManager>,
+    ) -> Self {
+        self.conversation_manager = Some(manager);
         self
     }
 
@@ -610,9 +639,11 @@ impl RuntimeBuilder {
             storage: self.storage,
             session_manager: self.session_manager,
             retrieval_service: None,
+            conversation_manager: self.conversation_manager,
             tool_registry: None,
             tool_executor: self.tool_executor,
             plugin_manager: self.plugin_manager,
+            streaming_runtime: None,
         };
 
         Ok(ApplicationRuntime {
@@ -745,7 +776,11 @@ impl StartupPhase for ServicesReadyPhase {
     }
     fn execute(&self, runtime: &ApplicationRuntime) -> Result<(), BrainError> {
         let mut locator = runtime.service_locator.write();
-        if locator.session_manager.is_some() && locator.retrieval_service.is_some() {
+        if locator.session_manager.is_some()
+            && locator.retrieval_service.is_some()
+            && locator.conversation_manager.is_some()
+            && locator.streaming_runtime.is_some()
+        {
             return Ok(());
         }
         let storage = locator
@@ -756,17 +791,41 @@ impl StartupPhase for ServicesReadyPhase {
             })?;
         let session_manager = Arc::new(SessionCacheManager::new());
         let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new(
-            storage,
+            storage.clone(),
             session_manager.clone(),
+        ));
+        let conversation_manager: Arc<dyn crate::conversation::ConversationManager> =
+            Arc::new(crate::conversation::ConversationManagerImpl::new(
+                storage.clone(),
+                storage.clone(),
+                session_manager.clone(),
+                Arc::new(crate::conversation::WordSpaceTokenCounter),
+                Arc::new(crate::conversation::DummyMemoryExtractor),
+                Arc::new(crate::conversation::PromotionEngineImpl::new(
+                    crate::conversation::CountThresholdPromotionPolicy::new(5),
+                )),
+                Arc::new(crate::conversation::CountThresholdSummaryPolicy::new(10)),
+                Arc::new(crate::conversation::SqliteCheckpointStore::new(
+                    storage.clone(),
+                )),
+                retrieval_service.clone(),
+                Arc::new(crate::conversation::DummyChatAgent),
+            ));
+        let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(
+            Arc::new(crate::agent::streaming::DefaultStreamEventMapper),
         ));
         locator.session_manager = Some(session_manager);
         locator.retrieval_service = Some(retrieval_service);
+        locator.conversation_manager = Some(conversation_manager);
+        locator.streaming_runtime = Some(streaming_runtime);
         Ok(())
     }
     fn rollback(&self, runtime: &ApplicationRuntime) -> Result<(), BrainError> {
         let mut locator = runtime.service_locator.write();
         locator.session_manager = None;
         locator.retrieval_service = None;
+        locator.conversation_manager = None;
+        locator.streaming_runtime = None;
         Ok(())
     }
 }

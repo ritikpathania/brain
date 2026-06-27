@@ -24,3 +24,6 @@ pub use runtime::{
 
 /// Agent execution pipeline and orchestration loop.
 pub mod agent;
+
+/// Conversation and memory life cycle management.
+pub mod conversation;
