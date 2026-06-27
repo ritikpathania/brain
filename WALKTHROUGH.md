@@ -31,7 +31,8 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
 13. [Architectural Stability Guidelines](#13-architectural-stability-guidelines)
 14. [Adaptive Memory Policy Engine](#14-adaptive-memory-policy-engine)
 15. [Workflow Graphs & DAG Execution](#15-workflow-graphs--dag-execution)
-16. [Appendix](#16-appendix)
+16. [Native Ratatui TUI Client](#16-native-ratatui-tui-client)
+17. [Appendix](#17-appendix)
 
 ---
 
@@ -660,7 +661,39 @@ Graph configurations are validated at build-time by the private `WorkflowGraphVa
 
 ---
 
-## 16. Appendix
+## 16. Native Ratatui TUI Client
+
+The **Ratatui TUI Client** is a native Rust terminal user interface client replacing the legacy Node/React/Ink client stack. It is composed of a pure library presentation crate (`brain-tui`) and integrated directly into the `brain` executable composition root (`apps/brain-v2`).
+
+```
+                    brain-v2 (Binary Composition)
+                          │
+             ┌────────────┴────────────┐
+             ▼                         ▼
+         UdsClient              EmbeddedClient
+             │                         │
+      (Unix Socket UDS)        (Direct In-Process)
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                   ExecutionClient (Trait Abstraction)
+                          │
+                          ▼
+                      brain-tui (stateless UI renderer)
+```
+
+### Decoupled Presentation Boundaries
+The client is structured to remain entirely transport-agnostic. It interacts with the backend execution engine exclusively via the `ExecutionClient` trait, enabling hot-swapping between the background UDS daemon connection (`UdsClient`) and direct in-process runtime execution (`EmbeddedClient`).
+
+### Terminal Lifecycle & RAII Guard
+To prevent terminal corruption on errors or cancellations, Crossterm raw mode and alternate screen setup are isolated behind the focused RAII `TerminalGuard` structure. Global terminal settings are automatically restored when the guard is dropped, ensuring terminal state integrity.
+
+### Dual-Queue Multiplexing Event Loop
+The interactive loop runs asynchronously on a Tokio task, multiplexing operating system events (`TerminalEvent`: keystrokes, resizes) and application events (`AppEvent`: streamed server packets) onto a unified `Event` receiver, preventing blocking conditions.
+
+---
+
+## 17. Appendix
 
 ### Standard Paths Reference
 * **Main Directory**: `~/.brain/`
