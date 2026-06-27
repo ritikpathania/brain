@@ -691,6 +691,15 @@ To prevent terminal corruption on errors or cancellations, Crossterm raw mode an
 ### Dual-Queue Multiplexing Event Loop
 The interactive loop runs asynchronously on a Tokio task, multiplexing operating system events (`TerminalEvent`: keystrokes, resizes) and application events (`AppEvent`: streamed server packets) onto a unified `Event` receiver, preventing blocking conditions.
 
+### State Reducer Engine
+UI state transitions are driven by a pure, side-effect free unidirectional flow:
+```
+TerminalEvent (Key/Resize) ──► Action ──► UiState::update() ──► UpdateResult
+```
+- **Action**: UI-oriented enum (e.g. `InsertChar`, `MoveCursorLeft`, `Backspace`, `Quit`) decoupling presentation states from transport events.
+- **UpdateResult**: Enum (`NoChange`, `Changed`, `Exit`) optimizing terminal redraw cycles and signaling loop termination.
+- **EditorState**: Encapsulates editing operations (using `Vec<char>` internally) to prevent indexing panics on multi-byte UTF-8 boundaries.
+
 ---
 
 ## 17. Appendix
