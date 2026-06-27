@@ -27,6 +27,36 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::time::Duration;
 
+use crate::state::{FocusRegion, LoadRequestId};
+use brain_domain::SessionId;
+
+async fn trigger_history_load(
+    client: &std::sync::Arc<dyn ExecutionClient>,
+    sender: tokio::sync::mpsc::UnboundedSender<Event>,
+    session_id: SessionId,
+    request_id: LoadRequestId,
+) {
+    let client_clone = client.clone();
+    tokio::spawn(async move {
+        match client_clone.load_session(session_id).await {
+            Ok(messages) => {
+                let _ = sender.send(Event::App(AppEvent::HistoryLoaded {
+                    session_id,
+                    request_id,
+                    messages,
+                }));
+            }
+            Err(err) => {
+                let _ = sender.send(Event::App(AppEvent::HistoryLoadFailed {
+                    session_id,
+                    request_id,
+                    error: err.to_string(),
+                }));
+            }
+        }
+    });
+}
+
 /// Main entry point launching the Ratatui interactive user interface.
 pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     // 1. Initialize raw mode and alternate screen via the RAII guard
@@ -38,6 +68,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         message: format!("Failed to create terminal backend: {}", e),
     })?;
 
+    // Wrap the client in Arc so it can be shared with background tasks
+    let client: std::sync::Arc<dyn ExecutionClient> = client.into();
+
     // 3. Initialize Event multiplexer, Layout renderer, and UI State
     let mut events = EventHandler::new(Duration::from_millis(10)); // 10ms for smooth ticks
     let renderer = AppRenderer::new();
@@ -46,6 +79,26 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     
     let mut active_cancel: Option<tokio_util::sync::CancellationToken> = None;
     let mut tokenizer = crate::state::IncrementalTokenizer::new();
+    let mut request_id_counter = 0u64;
+
+    // 3a. Query initial session list and history
+    {
+        let client_clone = client.clone();
+        let tx = events.sender();
+        let initial_session_id = state.session_id;
+        tokio::spawn(async move {
+            if let Ok(summaries) = client_clone.list_sessions().await {
+                let _ = tx.send(Event::App(AppEvent::SessionsLoaded(summaries)));
+            }
+            if let Ok(messages) = client_clone.load_session(initial_session_id).await {
+                let _ = tx.send(Event::App(AppEvent::HistoryLoaded {
+                    session_id: initial_session_id,
+                    request_id: LoadRequestId(0),
+                    messages,
+                }));
+            }
+        });
+    }
 
     terminal.clear().map_err(|e| BrainError::Validation {
         message: format!("Failed to clear terminal: {}", e),
@@ -84,18 +137,80 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             }
                             Some(Action::Quit)
                         }
+                        crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
                         crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
-                        crossterm::event::KeyCode::Backspace => Some(Action::Backspace),
-                        crossterm::event::KeyCode::Delete => Some(Action::Delete),
+                        crossterm::event::KeyCode::Backspace => {
+                            if state.focus == FocusRegion::Sidebar {
+                                if state.selected_session_idx < state.sessions.len() {
+                                    let session_id = state.sessions[state.selected_session_idx].id;
+                                    let client_clone = client.clone();
+                                    tokio::spawn(async move {
+                                        let _ = client_clone.delete_session(session_id).await;
+                                    });
+                                    Some(Action::DeleteSession(session_id))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                Some(Action::Backspace)
+                            }
+                        }
+                        crossterm::event::KeyCode::Delete => {
+                            if state.focus == FocusRegion::Sidebar {
+                                if state.selected_session_idx < state.sessions.len() {
+                                    let session_id = state.sessions[state.selected_session_idx].id;
+                                    let client_clone = client.clone();
+                                    tokio::spawn(async move {
+                                        let _ = client_clone.delete_session(session_id).await;
+                                    });
+                                    Some(Action::DeleteSession(session_id))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                Some(Action::Delete)
+                            }
+                        }
                         crossterm::event::KeyCode::Left => Some(Action::MoveCursorLeft),
                         crossterm::event::KeyCode::Right => Some(Action::MoveCursorRight),
-                        crossterm::event::KeyCode::Up => Some(Action::RecallPrevious),
-                        crossterm::event::KeyCode::Down => Some(Action::RecallNext),
-                        crossterm::event::KeyCode::Enter => Some(Action::SubmitPrompt),
+                        crossterm::event::KeyCode::Up => {
+                            if state.focus == FocusRegion::Sidebar {
+                                Some(Action::MoveSidebarCursorUp)
+                            } else {
+                                Some(Action::RecallPrevious)
+                            }
+                        }
+                        crossterm::event::KeyCode::Down => {
+                            if state.focus == FocusRegion::Sidebar {
+                                Some(Action::MoveSidebarCursorDown)
+                            } else {
+                                Some(Action::RecallNext)
+                            }
+                        }
+                        crossterm::event::KeyCode::Enter => {
+                            if state.focus == FocusRegion::Sidebar {
+                                if state.selected_session_idx < state.sessions.len() {
+                                    let session_id = state.sessions[state.selected_session_idx].id;
+                                    request_id_counter += 1;
+                                    let req_id = LoadRequestId(request_id_counter);
+                                    state.update(Action::ActivateSession {
+                                        session_id,
+                                        request_id: req_id,
+                                    });
+                                    trigger_history_load(&client, events.sender(), session_id, req_id).await;
+                                    None
+                                } else {
+                                    None
+                                }
+                            } else {
+                                Some(Action::SubmitPrompt)
+                            }
+                        }
                         _ => None,
                     };
                     if let Some(act) = action {
-                        match state.update(act) {
+                        let res = state.update(act);
+                        match res {
                             UpdateResult::Exit => break,
                             UpdateResult::Changed => {}
                             UpdateResult::NoChange => {}
@@ -129,6 +244,15 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     });
                                 }
                             }
+                            UpdateResult::LoadSession(session_id) => {
+                                request_id_counter += 1;
+                                let req_id = LoadRequestId(request_id_counter);
+                                state.update(Action::ActivateSession {
+                                    session_id,
+                                    request_id: req_id,
+                                });
+                                trigger_history_load(&client, events.sender(), session_id, req_id).await;
+                            }
                         }
                     }
                 }
@@ -136,6 +260,15 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                     if let UpdateResult::Exit = state.update(Action::Resize(w, h)) {
                         break;
                     }
+                }
+                Event::App(AppEvent::SessionsLoaded(summaries)) => {
+                    state.update(Action::LoadSessions(summaries));
+                }
+                Event::App(AppEvent::HistoryLoaded { session_id, request_id, messages }) => {
+                    state.update(Action::SessionLoaded { session_id, request_id, messages });
+                }
+                Event::App(AppEvent::HistoryLoadFailed { session_id, request_id, error }) => {
+                    state.update(Action::SessionLoadFailed { session_id, request_id, error });
                 }
                 Event::App(AppEvent::Stream(stream_event)) => {
                     match stream_event.kind {
@@ -182,13 +315,14 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
 mod integration_tests {
     use super::*;
     use crate::client::{ExecutionRequest, EventReceiver, SessionSummary};
-    use crate::state::GenerationState;
+    use crate::state::{GenerationState, SessionLoadState, PendingLoad};
     use crate::ui::theme::Theme;
     use crate::ui::renderer::AppRenderer;
     use brain_domain::Message;
     use async_trait::async_trait;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio_util::sync::CancellationToken;
+    use std::time::SystemTime;
 
     struct StubClient;
 
@@ -223,31 +357,34 @@ mod integration_tests {
         let theme = Theme::default();
         let renderer = AppRenderer::new();
 
-        // 1. Test size 80x24
+        // 1. Test size 80x24 (with sidebar)
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| {
             let area = f.size();
             // Verify layout partitions are calculated cleanly
-            let (h, c, p, s) = renderer.compute_layout(area);
+            let (h, sb, c, p, s) = renderer.compute_layout(area);
             assert_eq!(h.height, 3);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);
             assert!(c.height >= 10);
+            assert!(sb.height >= 10);
+            assert_eq!(sb.width, 25);
             
             renderer.draw(f, area, &state, &theme);
         }).unwrap();
 
-        // 2. Test size 120x40
-        let backend = TestBackend::new(120, 40);
+        // 2. Test size 70x24 (compact - no sidebar)
+        let backend = TestBackend::new(70, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| {
             let area = f.size();
-            let (h, c, p, s) = renderer.compute_layout(area);
+            let (h, sb, c, p, s) = renderer.compute_layout(area);
             assert_eq!(h.height, 3);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);
             assert!(c.height >= 10);
+            assert_eq!(sb.width, 0); // No sidebar area
 
             renderer.draw(f, area, &state, &theme);
         }).unwrap();
@@ -316,5 +453,116 @@ mod integration_tests {
         state.update(Action::CancelStream);
         assert_eq!(state.generation_state, GenerationState::Cancelled(None));
         assert!(state.typewriter.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_session_switching_and_flicker_free_transitions() {
+        let mut state = UiState::new();
+        let session_a = SessionId::new();
+        let session_b = SessionId::new();
+
+        // 1. Populate initial active messages (Conversation A)
+        let msg_a = Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::User,
+            "Hello A".to_string(),
+        );
+        state.session_id = session_a;
+        state.session_title = "Session A".to_string();
+        state.active_messages = vec![msg_a];
+
+        // 2. Trigger switch to Session B (enter loading phase)
+        let req_1 = LoadRequestId(1);
+        state.update(Action::ActivateSession {
+            session_id: session_b,
+            request_id: req_1,
+        });
+
+        // 3. ASSERT: Flicker-free guarantee holds
+        // During the loading phase, the displayed active messages must still represent Conversation A
+        assert_eq!(state.active_messages.len(), 1);
+        assert_eq!(state.active_messages[0].content, "Hello A");
+        assert_eq!(state.session_load_state, SessionLoadState::Loading);
+
+        // 4. Session B load completes
+        let msg_b = Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::User,
+            "Hello B".to_string(),
+        );
+        state.update(Action::SessionLoaded {
+            session_id: session_b,
+            request_id: req_1,
+            messages: vec![msg_b],
+        });
+
+        // 5. ASSERT: Conversation B has now fully replaced A
+        assert_eq!(state.session_id, session_b);
+        assert_eq!(state.active_messages.len(), 1);
+        assert_eq!(state.active_messages[0].content, "Hello B");
+        assert_eq!(state.session_load_state, SessionLoadState::Loaded(vec![]));
+    }
+
+    #[tokio::test]
+    async fn test_double_load_and_deletion_race() {
+        let mut state = UiState::new();
+        let session_a = SessionId::new();
+        let session_b = SessionId::new();
+
+        // Setup sessions list
+        state.sessions = vec![
+            crate::state::SessionViewModel {
+                id: session_a,
+                title: "Session A".to_string(),
+                updated_at: SystemTime::now(),
+                active: true,
+                preview: None,
+            },
+            crate::state::SessionViewModel {
+                id: session_b,
+                title: "Session B".to_string(),
+                updated_at: SystemTime::now(),
+                active: false,
+                preview: None,
+            },
+        ];
+
+        // 1. Initiate Load A (request 1)
+        let req_1 = LoadRequestId(1);
+        state.update(Action::ActivateSession { session_id: session_a, request_id: req_1 });
+        assert_eq!(state.pending_load, Some(PendingLoad { session_id: session_a, request_id: req_1 }));
+
+        // 2. Initiate Load B (request 2) - overrides target
+        let req_2 = LoadRequestId(2);
+        state.update(Action::ActivateSession { session_id: session_b, request_id: req_2 });
+        assert_eq!(state.pending_load, Some(PendingLoad { session_id: session_b, request_id: req_2 }));
+
+        // 3. Delete Session B mid-load - must invalidate the pending load
+        state.update(Action::DeleteSession(session_b));
+        assert_eq!(state.pending_load, None);
+
+        // 4. Request 2 completes - must be ignored because pending_load was cleared
+        let res_b = state.update(Action::SessionLoaded {
+            session_id: session_b,
+            request_id: req_2,
+            messages: vec![Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::User,
+                "Hello B".to_string(),
+            )],
+        });
+        assert_eq!(res_b, UpdateResult::NoChange);
+
+        // 5. Request 1 completes - must be ignored because its request ID (1) is older/stale compared to request 2
+        let res_a = state.update(Action::SessionLoaded {
+            session_id: session_a,
+            request_id: req_1,
+            messages: vec![Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::User,
+                "Hello A".to_string(),
+            )],
+        });
+        assert_eq!(res_a, UpdateResult::NoChange);
     }
 }

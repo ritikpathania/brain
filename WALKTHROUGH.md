@@ -722,7 +722,21 @@ To achieve a smooth response reading flow matching modern LLM chat applications:
 - **Backend vs. Visual Animation Completion**: A stream is only treated as `Finished` when the backend stream closes AND the typewriter queue has fully drained, preventing the status bar from declaring completion while text is still typewriting on screen.
 - **Immediate Cancellation**: Pressing `Esc` immediately cancels the active generation request, drops the Tokio execution channel, flushes the typewriter queue, and transitions the state machine to `Cancelled`.
 
+### Sessions & History
+To manage database-backed conversation threads, selection browser widgets, and lazy-loading cycles:
+- **Opaque Identifiers**: Session references use opaque `SessionId` value types throughout TUI widgets instead of bare strings, maintaining API encapsulation.
+- **Three-Way Focus/Selection/Active State Isolation**:
+  - *Focus widget*: Tab cycles input focus between the editor input bar and the sidebar thread navigator.
+  - *Selected row cursor*: Pressing Up/Down arrows navigates the selected row inside the sidebar list without loading database records.
+  - *Active session*: Pressing Enter activates the selected session, triggering the asynchronous query pipeline.
+- **Grouped Immutable `PendingLoad`**: Grouping the target `SessionId` and a versioned `LoadRequestId` inside a single struct enforces atomic updates, preventing desynchronized state references.
+- **Stale Response Mitigation via Request Versioning**: Incremental `LoadRequestId` identifiers are managed by the run loop and consumed deterministically by the state reducer. Asynchronous completions carrying stale request IDs are safely ignored, preventing late-arriving queries from overwriting newer selections.
+- **Centralized Idempotent Load Clears**: The reducer helper `clear_pending_load()` idempotently resets the load context during loaded, failed, cancelled, deleted, or shutdown transitions.
+- **Flicker-Free Transitions**: When a session is activated, the messages from the previous conversation remain fully rendered on screen alongside a loading block status, replacing the view ONLY when the new messages are successfully loaded.
+- **Safe Deletion Invariant**: Permanent thread deletions update database repositories and invalidate pending load references. If the active session is deleted, the TUI automatically selects the nearest remaining row and initiates a replacement query.
+
 ---
+
 
 ## 17. Appendix
 

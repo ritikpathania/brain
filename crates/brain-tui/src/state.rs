@@ -55,6 +55,72 @@ pub enum GenerationState {
     Error(String),
 }
 
+/// Focusable input panel partitions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusRegion {
+    /// Focus inside the editor prompt input buffer.
+    Editor,
+    /// Focus inside the sidebar session listing browser.
+    Sidebar,
+}
+
+/// Monotonic identifier tracking asynchronous session load invocations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct LoadRequestId(pub u64);
+
+/// Grouped value object representing an uncompleted database query.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingLoad {
+    /// Unique target session.
+    pub session_id: SessionId,
+    /// Unique target request version.
+    pub request_id: LoadRequestId,
+}
+
+/// State machine tracking lazy message loading.
+#[derive(Debug, Clone)]
+pub enum SessionLoadState {
+    /// No lazy load is currently active.
+    NotLoaded,
+    /// Active asynchronous load running.
+    Loading,
+    /// Lazy load completed successfully.
+    Loaded(Vec<brain_domain::Message>),
+    /// Lazy load failed with diagnostic error details.
+    Error(String),
+}
+
+impl PartialEq for SessionLoadState {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::NotLoaded, Self::NotLoaded) => true,
+            (Self::Loading, Self::Loading) => true,
+            (Self::Loaded(_), Self::Loaded(_)) => true,
+            (Self::Error(e1), Self::Error(e2)) => e1 == e2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for SessionLoadState {}
+
+
+/// Client-facing presentation view model representing a session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionViewModel {
+    /// Unique identifier.
+    pub id: SessionId,
+    /// Descriptive title.
+    pub title: String,
+    /// Time of last update checkpoint.
+    pub updated_at: SystemTime,
+    /// Is this session the active session.
+    pub active: bool,
+    /// Optional text preview summary of the final thread messages.
+    pub preview: Option<String>,
+}
+
+
 /// Semantic outcome of a typewriter queue tick drain cycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DrainResult {
@@ -406,6 +472,18 @@ pub struct UiState {
     pub typewriter: TypewriterQueue,
     /// The formatted visible generated text response.
     pub active_response: String,
+    /// Focus region layout tracker.
+    pub focus: FocusRegion,
+    /// List of session metadata view models.
+    pub sessions: Vec<SessionViewModel>,
+    /// Selected index inside `sessions` list.
+    pub selected_session_idx: usize,
+    /// Track pending activations atomically.
+    pub pending_load: Option<PendingLoad>,
+    /// Track active loading state.
+    pub session_load_state: SessionLoadState,
+    /// List of historical messages for the active session.
+    pub active_messages: Vec<brain_domain::Message>,
 }
 
 /// Structured user action triggering pure state transitions.
@@ -444,6 +522,41 @@ pub enum Action {
     CancelStream,
     /// Report model or socket communication error.
     ReportError(String),
+    /// Loaded list of session metadata summaries.
+    LoadSessions(Vec<crate::client::SessionSummary>),
+    /// Tab cycles focus region.
+    ToggleFocus,
+    /// Move selected sidebar list cursor up.
+    MoveSidebarCursorUp,
+    /// Move selected sidebar list cursor down.
+    MoveSidebarCursorDown,
+    /// Enter activates highlighted session, spawning async history query.
+    ActivateSession {
+        /// Selected session ID to load.
+        session_id: SessionId,
+        /// Monotonic version tracking load sequence.
+        request_id: LoadRequestId,
+    },
+    /// Asynchronous lazy-load of session messages completes successfully.
+    SessionLoaded {
+        /// Loaded session ID.
+        session_id: SessionId,
+        /// Original matching request ID version.
+        request_id: LoadRequestId,
+        /// Full list of historical messages.
+        messages: Vec<brain_domain::Message>,
+    },
+    /// Asynchronous lazy-load fails with diagnostic error details.
+    SessionLoadFailed {
+        /// Target session ID.
+        session_id: SessionId,
+        /// Matching request ID.
+        request_id: LoadRequestId,
+        /// Diagnostic error description.
+        error: String,
+    },
+    /// Delete selected session thread permanently.
+    DeleteSession(SessionId),
 }
 
 /// Pure status indicator returning from state updates.
@@ -455,6 +568,8 @@ pub enum UpdateResult {
     Changed,
     /// Request execution of submitted prompt.
     PromptSubmitted(String),
+    /// Request loading of the specified session history.
+    LoadSession(SessionId),
     /// Exit main interactive loop.
     Exit,
 }
@@ -475,6 +590,12 @@ impl UiState {
             generation_state: GenerationState::Idle,
             typewriter: TypewriterQueue::new(),
             active_response: String::new(),
+            focus: FocusRegion::Editor,
+            sessions: Vec::new(),
+            selected_session_idx: 0,
+            pending_load: None,
+            session_load_state: SessionLoadState::NotLoaded,
+            active_messages: Vec::new(),
         }
     }
 
@@ -493,6 +614,20 @@ impl UiState {
             generation_state: GenerationState::Idle,
             typewriter: TypewriterQueue::new(),
             active_response: String::new(),
+            focus: FocusRegion::Editor,
+            sessions: Vec::new(),
+            selected_session_idx: 0,
+            pending_load: None,
+            session_load_state: SessionLoadState::NotLoaded,
+            active_messages: Vec::new(),
+        }
+    }
+
+    /// Idempotent helper clearing the pending load target and updating load state if Loading.
+    pub fn clear_pending_load(&mut self) {
+        self.pending_load = None;
+        if matches!(self.session_load_state, SessionLoadState::Loading) {
+            self.session_load_state = SessionLoadState::NotLoaded;
         }
     }
 
@@ -508,56 +643,90 @@ impl UiState {
     pub fn update(&mut self, action: Action) -> UpdateResult {
         match action {
             Action::InsertChar(c) => {
-                self.editor.insert(c);
-                UpdateResult::Changed
-            }
-            Action::MoveCursorLeft => {
-                self.editor.move_left();
-                UpdateResult::Changed
-            }
-            Action::MoveCursorRight => {
-                self.editor.move_right();
-                UpdateResult::Changed
-            }
-            Action::Backspace => {
-                self.editor.backspace();
-                UpdateResult::Changed
-            }
-            Action::Delete => {
-                self.editor.delete();
-                UpdateResult::Changed
-            }
-            Action::Resize(_, _) => {
-                UpdateResult::Changed
-            }
-            Action::Quit => {
-                UpdateResult::Exit
-            }
-            Action::SetConnectionMode(mode) => {
-                if self.connection_mode != mode {
-                    self.connection_mode = mode;
+                if self.focus == FocusRegion::Editor {
+                    self.editor.insert(c);
                     UpdateResult::Changed
                 } else {
                     UpdateResult::NoChange
                 }
             }
-            Action::SubmitPrompt => {
-                if self.is_generating() {
+            Action::MoveCursorLeft => {
+                if self.focus == FocusRegion::Editor {
+                    self.editor.move_left();
+                    UpdateResult::Changed
+                } else {
                     UpdateResult::NoChange
-                } else if let Some(prompt) = self.editor.submit() {
+                }
+            }
+            Action::MoveCursorRight => {
+                if self.focus == FocusRegion::Editor {
+                    self.editor.move_right();
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::Backspace => {
+                if self.focus == FocusRegion::Editor {
+                    self.editor.backspace();
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::Delete => {
+                if self.focus == FocusRegion::Editor {
+                    self.editor.delete();
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::Resize(cols, rows) => {
+                let _ = (cols, rows);
+                UpdateResult::Changed
+            }
+            Action::Quit => {
+                self.clear_pending_load();
+                UpdateResult::Exit
+            }
+            Action::SetConnectionMode(mode) => {
+                self.connection_mode = mode;
+                UpdateResult::Changed
+            }
+            Action::SubmitPrompt => {
+                if self.focus == FocusRegion::Editor {
+                    if self.is_generating() {
+                        return UpdateResult::NoChange;
+                    }
+                    let prompt = self.editor.text();
+                    if prompt.trim().is_empty() {
+                        return UpdateResult::NoChange;
+                    }
+                    self.editor.submit();
                     self.generation_state = GenerationState::Starting;
+                    self.active_response = String::new();
+                    self.typewriter.clear();
                     UpdateResult::PromptSubmitted(prompt)
                 } else {
                     UpdateResult::NoChange
                 }
             }
             Action::RecallPrevious => {
-                self.editor.recall_up();
-                UpdateResult::Changed
+                if self.focus == FocusRegion::Editor {
+                    self.editor.recall_up();
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
             }
             Action::RecallNext => {
-                self.editor.recall_down();
-                UpdateResult::Changed
+                if self.focus == FocusRegion::Editor {
+                    self.editor.recall_down();
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
             }
             Action::StartStream => {
                 self.typewriter.clear();
@@ -603,6 +772,126 @@ impl UiState {
                 self.typewriter.clear();
                 self.generation_state = GenerationState::Error(msg);
                 UpdateResult::Changed
+            }
+            Action::LoadSessions(summaries) => {
+                self.sessions = summaries
+                    .into_iter()
+                    .map(|s| {
+                        let active = s.id == self.session_id;
+                        SessionViewModel {
+                            id: s.id,
+                            title: s.title,
+                            updated_at: s.updated_at,
+                            active,
+                            preview: None,
+                        }
+                    })
+                    .collect();
+                if let Some(idx) = self.sessions.iter().position(|s| s.id == self.session_id) {
+                    self.selected_session_idx = idx;
+                } else {
+                    self.selected_session_idx = 0;
+                }
+                UpdateResult::Changed
+            }
+            Action::ToggleFocus => {
+                self.focus = match self.focus {
+                    FocusRegion::Editor => FocusRegion::Sidebar,
+                    FocusRegion::Sidebar => FocusRegion::Editor,
+                };
+                UpdateResult::Changed
+            }
+            Action::MoveSidebarCursorUp => {
+                if self.focus == FocusRegion::Sidebar && self.selected_session_idx > 0 {
+                    self.selected_session_idx -= 1;
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::MoveSidebarCursorDown => {
+                if self.focus == FocusRegion::Sidebar
+                    && !self.sessions.is_empty()
+                    && self.selected_session_idx < self.sessions.len() - 1
+                {
+                    self.selected_session_idx += 1;
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::ActivateSession { session_id, request_id } => {
+                self.pending_load = Some(PendingLoad { session_id, request_id });
+                self.session_load_state = SessionLoadState::Loading;
+                UpdateResult::Changed
+            }
+            Action::SessionLoaded { session_id, request_id, messages } => {
+                if let Some(ref pending) = self.pending_load {
+                    if pending.request_id == request_id {
+                        debug_assert_eq!(pending.session_id, session_id);
+                        debug_assert_eq!(pending.request_id, request_id);
+
+                        self.session_id = session_id;
+                        for s in &mut self.sessions {
+                            s.active = s.id == session_id;
+                        }
+                        if let Some(idx) = self.sessions.iter().position(|s| s.id == session_id) {
+                            self.session_title = self.sessions[idx].title.clone();
+                        }
+                        self.active_messages = messages.clone();
+                        self.session_load_state = SessionLoadState::Loaded(messages);
+                        self.clear_pending_load();
+                        return UpdateResult::Changed;
+                    }
+                }
+                UpdateResult::NoChange
+            }
+            Action::SessionLoadFailed { session_id, request_id, error } => {
+                if let Some(ref pending) = self.pending_load {
+                    if pending.request_id == request_id {
+                        debug_assert_eq!(pending.session_id, session_id);
+                        debug_assert_eq!(pending.request_id, request_id);
+
+                        self.session_load_state = SessionLoadState::Error(error);
+                        self.clear_pending_load();
+                        return UpdateResult::Changed;
+                    }
+                }
+                UpdateResult::NoChange
+            }
+            Action::DeleteSession(session_id) => {
+                if let Some(ref pending) = self.pending_load {
+                    if pending.session_id == session_id {
+                        self.clear_pending_load();
+                    }
+                }
+                if let Some(idx) = self.sessions.iter().position(|s| s.id == session_id) {
+                    self.sessions.remove(idx);
+                }
+                if self.session_id == session_id {
+                    if !self.sessions.is_empty() {
+                        if self.selected_session_idx >= self.sessions.len() {
+                            self.selected_session_idx = self.sessions.len() - 1;
+                        }
+                        let next_id = self.sessions[self.selected_session_idx].id;
+                        self.session_id = next_id;
+                        self.active_messages.clear();
+                        self.clear_pending_load();
+                        UpdateResult::LoadSession(next_id)
+                    } else {
+                        self.session_id = SessionId::new();
+                        self.session_title = "New Conversation".to_string();
+                        self.active_messages.clear();
+                        self.selected_session_idx = 0;
+                        self.clear_pending_load();
+                        UpdateResult::Changed
+                    }
+                } else {
+                    if self.selected_session_idx >= self.sessions.len() && !self.sessions.is_empty() {
+                        self.selected_session_idx = self.sessions.len() - 1;
+                    }
+                    UpdateResult::Changed
+                }
             }
         }
     }
@@ -776,4 +1065,99 @@ mod tests {
         assert_eq!(state.active_response, "A ");
         assert_eq!(state.generation_state, GenerationState::Finished);
     }
+
+    #[test]
+    fn test_session_switching_invariants() {
+        let mut state = UiState::new();
+        let session_a = SessionId::new();
+        let session_b = SessionId::new();
+
+        let summaries = vec![
+            crate::client::SessionSummary {
+                id: session_a,
+                title: "Session A".to_string(),
+                updated_at: SystemTime::now(),
+            },
+            crate::client::SessionSummary {
+                id: session_b,
+                title: "Session B".to_string(),
+                updated_at: SystemTime::now(),
+            },
+        ];
+
+        // Load sessions list
+        state.update(Action::LoadSessions(summaries));
+        assert_eq!(state.sessions.len(), 2);
+        assert_eq!(state.selected_session_idx, 0); // selected defaults to first
+
+        // Focus sidebar and navigate selected cursor row
+        state.update(Action::ToggleFocus);
+        assert_eq!(state.focus, FocusRegion::Sidebar);
+        state.update(Action::MoveSidebarCursorDown);
+        assert_eq!(state.selected_session_idx, 1);
+
+        // Enter triggers activation on B
+        let req_1 = LoadRequestId(1);
+        let res = state.update(Action::ActivateSession {
+            session_id: session_b,
+            request_id: req_1,
+        });
+        assert_eq!(res, UpdateResult::Changed);
+        assert_eq!(
+            state.pending_load,
+            Some(PendingLoad {
+                session_id: session_b,
+                request_id: req_1
+            })
+        );
+        assert_eq!(state.session_load_state, SessionLoadState::Loading);
+
+        // Previous session remains active during load
+        assert_ne!(state.session_id, session_b);
+
+        // Load completes with matching request id
+        let messages = vec![];
+        let res2 = state.update(Action::SessionLoaded {
+            session_id: session_b,
+            request_id: req_1,
+            messages,
+        });
+        assert_eq!(res2, UpdateResult::Changed);
+        assert_eq!(state.session_id, session_b);
+        assert_eq!(state.session_title, "Session B");
+        assert_eq!(state.pending_load, None);
+        assert_eq!(state.session_load_state, SessionLoadState::Loaded(vec![]));
+    }
+
+    #[test]
+    fn test_terminal_paths_clear_pending_load() {
+        let session_a = SessionId::new();
+        let req_id = LoadRequestId(42);
+
+        // Path 1: Successful Load
+        let mut state = UiState::new();
+        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        assert!(state.pending_load.is_some());
+        state.update(Action::SessionLoaded { session_id: session_a, request_id: req_id, messages: vec![] });
+        assert_eq!(state.pending_load, None);
+
+        // Path 2: Failed Load
+        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        assert!(state.pending_load.is_some());
+        state.update(Action::SessionLoadFailed { session_id: session_a, request_id: req_id, error: "fail".to_string() });
+        assert_eq!(state.pending_load, None);
+
+        // Path 3: Deleted Pending Session
+        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        assert!(state.pending_load.is_some());
+        state.update(Action::DeleteSession(session_a));
+        assert_eq!(state.pending_load, None);
+
+        // Path 4: Shutdown / Quit
+        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        assert!(state.pending_load.is_some());
+        state.update(Action::Quit);
+        assert_eq!(state.pending_load, None);
+    }
 }
+

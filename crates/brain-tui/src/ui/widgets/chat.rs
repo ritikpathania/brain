@@ -13,6 +13,8 @@ pub struct ChatMessageViewModel {
 
 /// ViewModel carrying Message items and scroll parameters.
 pub struct ChatView {
+    /// Title of the conversation panel.
+    pub title: String,
     /// Ordered list of chat messages for display.
     pub messages: Vec<ChatMessageViewModel>,
     /// Active scroll position offset.
@@ -22,9 +24,10 @@ pub struct ChatView {
 /// Renders the scrollable message window viewport in the center.
 pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
     let block = Block::default()
-        .title(" Conversation ")
+        .title(view.title.as_str())
         .borders(Borders::ALL)
         .border_style(theme.border);
+
 
     let items: Vec<ListItem> = view.messages.iter().map(|msg| {
         let text = format!("{}: {}", msg.sender, msg.content);

@@ -6,3 +6,6 @@ pub mod chat;
 pub mod prompt;
 /// Status footer widget carrying shortcuts list.
 pub mod status;
+/// Sidebar widget listing session threads.
+pub mod sidebar;
+

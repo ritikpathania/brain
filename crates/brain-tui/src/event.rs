@@ -20,7 +20,28 @@ pub enum AppEvent {
     Error(String),
     /// Graceful UI shutdown request.
     Shutdown,
+    /// Loaded list of session summaries.
+    SessionsLoaded(Vec<crate::client::SessionSummary>),
+    /// Lazy message history successfully resolved.
+    HistoryLoaded {
+        /// Loaded session ID.
+        session_id: brain_domain::SessionId,
+        /// Original request ID.
+        request_id: crate::state::LoadRequestId,
+        /// Historical message list.
+        messages: Vec<brain_domain::Message>,
+    },
+    /// Lazy message history load failed.
+    HistoryLoadFailed {
+        /// Target session ID.
+        session_id: brain_domain::SessionId,
+        /// Original request ID.
+        request_id: crate::state::LoadRequestId,
+        /// Diagnostic error description.
+        error: String,
+    },
 }
+
 
 /// Combined event stream container.
 pub enum Event {
@@ -102,6 +123,11 @@ impl EventHandler {
     /// Receives the next multiplexed event from the input or tick queues.
     pub async fn next(&mut self) -> Option<Event> {
         self.rx.recv().await
+    }
+
+    /// Exposes a clone of the channel sender.
+    pub fn sender(&self) -> UnboundedSender<Event> {
+        self._tx.clone()
     }
 }
 
