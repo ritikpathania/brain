@@ -168,12 +168,10 @@ impl WorkflowGraphValidator {
             }
 
             // Retry validation using dynamic ExecutionStage capability
-            if node.stage.supports_retry() {
-                if !seen_policies.contains("RetryPolicy") {
-                    return Err(BrainError::Validation {
-                        message: format!("Stage {:?} is capable of retrying but lacks a RetryPolicy", id),
-                      });
-                }
+            if node.stage.supports_retry() && !seen_policies.contains("RetryPolicy") {
+                return Err(BrainError::Validation {
+                    message: format!("Stage {:?} is capable of retrying but lacks a RetryPolicy", id),
+                });
             }
         }
 

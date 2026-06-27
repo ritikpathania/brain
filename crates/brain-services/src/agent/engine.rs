@@ -455,37 +455,18 @@ impl ExecutionStage for VerificationStage {
     }
 }
 
-/// Coordinates and executes stages sequentially.
+/// Coordinates and executes stages sequentially using a workflow graph.
 pub struct ExecutionRunner {
-    stages: Vec<Box<dyn ExecutionStage>>,
-    stage_indices: std::collections::HashMap<StageIdentifier, usize>,
+    graph: crate::agent::graph::WorkflowGraph,
 }
 
 impl ExecutionRunner {
-    /// Creates a runner initialized with standard execution stages.
-    pub fn new() -> Self {
-        let stages: Vec<Box<dyn ExecutionStage>> = vec![
-            Box::new(PlanningStage),
-            Box::new(RetrievalStage),
-            Box::new(ToolStage),
-            Box::new(ReasoningStage),
-            Box::new(ReflectionStage),
-            Box::new(VerificationStage),
-            Box::new(CommitStage),
-        ];
-
-        let mut stage_indices = std::collections::HashMap::new();
-        for (idx, stage) in stages.iter().enumerate() {
-            stage_indices.insert(stage.id(), idx);
-        }
-
-        Self {
-            stages,
-            stage_indices,
-        }
+    /// Creates a new `ExecutionRunner` with a validated workflow graph.
+    pub fn new(graph: crate::agent::graph::WorkflowGraph) -> Self {
+        Self { graph }
     }
 
-    /// Executes sequential stages on state using context parameters.
+    /// Executes graph stages on state using context parameters.
     pub fn run(
         &self,
         ctx: &ExecutionContext,
@@ -497,61 +478,101 @@ impl ExecutionRunner {
             prompt: ctx.prompt.clone(),
         });
 
-        let mut stage_index = 0;
-        let mut attempts = 0;
-        let max_attempts = 3;
+        let mut exec_state = crate::agent::graph::WorkflowExecutionState {
+            current_stage: self.graph.start_node,
+            attempts: std::collections::HashMap::new(),
+        };
 
-        while stage_index < self.stages.len() {
-            let stage = &self.stages[stage_index];
+        enum TransitionTarget {
+            Next(StageIdentifier),
+            Finish,
+            Cancelled,
+        }
 
+        loop {
             if ctx.cancellation.is_cancelled() {
                 return Err(BrainError::Cancelled {
                     message: "Execution cancelled".to_string(),
                 });
             }
 
-            ctx.sink.emit(AgentExecutionEventPayload::StageStarted {
-                session_id: ctx.session_id,
-                stage: stage.name(),
-            });
-
-            let start = Instant::now();
-            let outcome = stage.execute(ctx, state)?;
-            let duration_ms = start.elapsed().as_millis() as u64;
-
-            ctx.sink.emit(AgentExecutionEventPayload::StageCompleted {
-                session_id: ctx.session_id,
-                stage: stage.name(),
-                duration_ms,
-            });
-
-            steps.push(ExecutionStep {
-                stage_name: stage.name(),
-                duration_ms,
-            });
-
-            match outcome {
-                StageOutcome::Continue => {
-                    stage_index += 1;
-                }
-                StageOutcome::Retry { feedback, target } => {
-                    attempts += 1;
-                    if attempts >= max_attempts {
+            let next_target = {
+                let node = match self.graph.nodes.get(&exec_state.current_stage) {
+                    Some(n) => n,
+                    None => {
                         return Err(BrainError::Validation {
-                            message: format!("Self-correction failed after {} attempts.", max_attempts),
+                            message: format!("Stage {:?} not found in graph during execution", exec_state.current_stage),
                         });
                     }
-                    if let Some(&idx) = self.stage_indices.get(&target) {
-                        state.feedback_prompt = Some(feedback);
-                        stage_index = idx;
-                    } else {
-                        stage_index += 1;
+                };
+
+                ctx.sink.emit(AgentExecutionEventPayload::StageStarted {
+                    session_id: ctx.session_id,
+                    stage: node.stage.name(),
+                });
+
+                let start = Instant::now();
+                let outcome = node.stage.execute(ctx, state)?;
+                let duration_ms = start.elapsed().as_millis() as u64;
+
+                ctx.sink.emit(AgentExecutionEventPayload::StageCompleted {
+                    session_id: ctx.session_id,
+                    stage: node.stage.name(),
+                    duration_ms,
+                });
+
+                steps.push(ExecutionStep {
+                    stage_name: node.stage.name(),
+                    duration_ms,
+                });
+
+                // Increment retry counter ONLY on StageOutcome::Retry outcomes
+                if let StageOutcome::Retry { .. } = &outcome {
+                    let attempt_count = exec_state.attempts.entry(exec_state.current_stage).or_insert(0);
+                    *attempt_count += 1;
+                }
+
+                // Retrieve attempt count
+                let attempt_count = exec_state.attempts.get(&exec_state.current_stage).cloned().unwrap_or(0);
+
+                // Evaluate policies in insertion order (short-circuiting on failure)
+                let policy_ctx = crate::agent::graph::PolicyContext {
+                    execution: ctx,
+                    stage: exec_state.current_stage,
+                    attempts: attempt_count,
+                    outcome: &outcome,
+                };
+
+                for policy in &node.policies {
+                    if let crate::agent::graph::PolicyDecision::Fail { message } = policy.evaluate(&policy_ctx)? {
+                        return Err(BrainError::Validation { message });
                     }
                 }
-                StageOutcome::Finish => {
+
+                // Process routing transitions driven directly by outcome and terminal semantics
+                match outcome {
+                    StageOutcome::Continue => {
+                        // Reset retry counter on successful progress leaving the stage
+                        exec_state.attempts.remove(&exec_state.current_stage);
+                        node.next_stage.map(TransitionTarget::Next)
+                    }
+                    StageOutcome::Retry { target, feedback } => {
+                        state.feedback_prompt = Some(feedback);
+                        Some(TransitionTarget::Next(target))
+                    }
+                    StageOutcome::Finish => Some(TransitionTarget::Finish),
+                    StageOutcome::Cancelled => Some(TransitionTarget::Cancelled),
+                }
+            };
+
+            match next_target {
+                Some(TransitionTarget::Next(target)) => {
+                    exec_state.current_stage = target;
+                }
+                Some(TransitionTarget::Finish) | None => {
                     break;
                 }
-                StageOutcome::Cancelled => {
+                Some(TransitionTarget::Cancelled) => {
                     return Err(BrainError::Cancelled {
                         message: "Execution cancelled".to_string(),
                     });
@@ -570,7 +591,46 @@ impl ExecutionRunner {
 
 impl Default for ExecutionRunner {
     fn default() -> Self {
-        Self::new()
+        let graph = crate::agent::graph::WorkflowGraphBuilder::new()
+            .start_node(StageIdentifier::Planning)
+            .node(StageIdentifier::Planning, crate::agent::graph::WorkflowNode {
+                stage: Box::new(PlanningStage),
+                next_stage: Some(StageIdentifier::Retrieval),
+                policies: vec![],
+            })
+            .node(StageIdentifier::Retrieval, crate::agent::graph::WorkflowNode {
+                stage: Box::new(RetrievalStage),
+                next_stage: Some(StageIdentifier::ToolExecution),
+                policies: vec![],
+            })
+            .node(StageIdentifier::ToolExecution, crate::agent::graph::WorkflowNode {
+                stage: Box::new(ToolStage),
+                next_stage: Some(StageIdentifier::Reasoning),
+                policies: vec![],
+            })
+            .node(StageIdentifier::Reasoning, crate::agent::graph::WorkflowNode {
+                stage: Box::new(ReasoningStage),
+                next_stage: Some(StageIdentifier::Reflection),
+                policies: vec![],
+            })
+            .node(StageIdentifier::Reflection, crate::agent::graph::WorkflowNode {
+                stage: Box::new(ReflectionStage),
+                next_stage: Some(StageIdentifier::Verification),
+                policies: vec![Box::new(crate::agent::graph::RetryPolicy { max_attempts: 3 })],
+            })
+            .node(StageIdentifier::Verification, crate::agent::graph::WorkflowNode {
+                stage: Box::new(VerificationStage),
+                next_stage: Some(StageIdentifier::Commit),
+                policies: vec![],
+            })
+            .node(StageIdentifier::Commit, crate::agent::graph::WorkflowNode {
+                stage: Box::new(CommitStage),
+                next_stage: None,
+                policies: vec![],
+            })
+            .build()
+            .expect("Default workflow graph should be valid");
+        Self::new(graph)
     }
 }
 
@@ -648,7 +708,7 @@ impl AgentExecutionEngine {
             verification_engine: self.verification_engine.clone(),
         };
 
-        let runner = ExecutionRunner::new();
+        let runner = ExecutionRunner::default();
         let status_clone = status.clone();
 
         tokio::spawn(async move {
