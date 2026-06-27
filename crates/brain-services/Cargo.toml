@@ -9,6 +9,17 @@ serde_json.workspace = true
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
 brain-session = { path = "../brain-session" }
+brain-config = { path = "../brain-config" }
+brain-storage = { path = "../brain-storage" }
+brain-plugins = { path = "../brain-plugins" }
+brain-python = { path = "../brain-python" }
+brain-tools = { path = "../brain-tools" }
+brain-events = { path = "../brain-events" }
+brain-observability = { path = "../brain-observability" }
+parking_lot = "0.12"
+pyo3 = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 brain-storage = { path = "../brain-storage", features = ["test-utils"] }
