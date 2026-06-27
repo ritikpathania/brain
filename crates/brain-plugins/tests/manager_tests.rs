@@ -1,22 +1,27 @@
+use parking_lot::RwLock;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
-use parking_lot::RwLock;
 
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
-    ApiVersion, Plugin, PluginCapabilities, PluginContext, PluginEvent, PluginEventKind,
-    PluginEventHandler, PluginLifecycle, PluginManifest, PluginMetadata,
-    CapabilityDescriptor, HostContext, ExecutionResult
+    ApiVersion, CapabilityDescriptor, ExecutionResult, HostContext, Plugin, PluginCapabilities,
+    PluginContext, PluginEvent, PluginEventHandler, PluginEventKind, PluginLifecycle,
+    PluginManifest, PluginMetadata,
 };
-use brain_domain::{PluginId, PluginState, Node, SessionId};
+use brain_domain::{Node, PluginId, PluginState, SessionId};
 use brain_plugins::{InstalledPlugin, LoaderKind, PluginLoader, PluginManager};
 
 struct DummyHost;
 
 impl HostContext for DummyHost {
-    fn retrieve(&self, _session_id: &SessionId, _query: &str, _limit: usize) -> Result<Vec<Node>, BrainError> {
+    fn retrieve(
+        &self,
+        _session_id: &SessionId,
+        _query: &str,
+        _limit: usize,
+    ) -> Result<Vec<Node>, BrainError> {
         Ok(Vec::new())
     }
 
@@ -136,11 +141,28 @@ impl PluginLoader for MockLoader {
     }
 
     fn load(&self, descriptor: &InstalledPlugin) -> Result<Box<dyn Plugin>, BrainError> {
-        let count = self.load_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let active_barrier = if count >= 1 { self.barrier.clone() } else { None };
-        let active_fail_activate = if count >= 1 { self.should_fail_activate } else { false };
-        let active_fail_initialize = if count >= 1 { self.should_fail_initialize } else { false };
-        println!("MOCKLOADER LOAD: count = {}, active_fail_activate = {}", count, active_fail_activate);
+        let count = self
+            .load_count
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let active_barrier = if count >= 1 {
+            self.barrier.clone()
+        } else {
+            None
+        };
+        let active_fail_activate = if count >= 1 {
+            self.should_fail_activate
+        } else {
+            false
+        };
+        let active_fail_initialize = if count >= 1 {
+            self.should_fail_initialize
+        } else {
+            false
+        };
+        println!(
+            "MOCKLOADER LOAD: count = {}, active_fail_activate = {}",
+            count, active_fail_activate
+        );
         Ok(Box::new(MockPlugin {
             manifest: descriptor.manifest.clone(),
             state: PluginState::Discovered,
@@ -448,9 +470,7 @@ fn test_reload_race_parallel_reloads() {
     let mut handles = Vec::new();
     for _ in 0..4 {
         let m = manager.clone();
-        handles.push(thread::spawn(move || {
-            m.reload(&id)
-        }));
+        handles.push(thread::spawn(move || m.reload(&id)));
     }
 
     for h in handles {
@@ -491,9 +511,7 @@ fn test_reload_race_unload_during_reload() {
 
     // Spawn thread to call reload, which will block on initialization
     let m = manager.clone();
-    let reload_handle = thread::spawn(move || {
-        m.reload(&id)
-    });
+    let reload_handle = thread::spawn(move || m.reload(&id));
 
     // Wait for the reload thread to enter initialize() and block
     barrier.wait();
@@ -596,7 +614,7 @@ fn test_reload_loader_failure_cleanup() {
     // Reload must fail because the new instance fails activation (load_count = 1)
     let reload_res = manager.reload(&id);
     assert!(reload_res.is_err());
-    
+
     // The registry state should still remain Active (points to the original plugin)
     assert_eq!(manager.list()[0].state, PluginState::Active);
 }
@@ -604,7 +622,7 @@ fn test_reload_loader_failure_cleanup() {
 #[test]
 fn test_event_dispatch_isolation() {
     let event_count = Arc::new(RwLock::new(0));
-    
+
     // Create 3 loaders: A fails, B and C succeed.
     let loader_ok = Box::new(MockLoader {
         event_count: event_count.clone(),
@@ -678,11 +696,22 @@ fn test_event_dispatch_isolation() {
     assert_eq!(report.failed, 1);
     assert_eq!(report.errors.len(), 1);
     assert_eq!(report.errors[0].plugin_id, id_a);
-    assert!(report.errors[0].error.to_string().contains("Mock dispatch failure"));
+    assert!(report.errors[0]
+        .error
+        .to_string()
+        .contains("Mock dispatch failure"));
 
     // Check states
-    assert_eq!(manager.list().iter().find(|p| p.id == id_a).unwrap().state, PluginState::Active);
-    assert_eq!(manager.list().iter().find(|p| p.id == id_b).unwrap().state, PluginState::Active);
-    assert_eq!(manager.list().iter().find(|p| p.id == id_c).unwrap().state, PluginState::Active);
+    assert_eq!(
+        manager.list().iter().find(|p| p.id == id_a).unwrap().state,
+        PluginState::Active
+    );
+    assert_eq!(
+        manager.list().iter().find(|p| p.id == id_b).unwrap().state,
+        PluginState::Active
+    );
+    assert_eq!(
+        manager.list().iter().find(|p| p.id == id_c).unwrap().state,
+        PluginState::Active
+    );
 }
-

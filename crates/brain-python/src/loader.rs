@@ -9,9 +9,8 @@ use crate::runtime::{
 };
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
-    Plugin, PluginCapabilities, PluginEvent, PluginEventKind,
-    PluginEventHandler, PluginLifecycle, PluginManifest, PluginMetadata, PluginCapability,
-    CapabilityDescriptor, HostContext
+    CapabilityDescriptor, HostContext, Plugin, PluginCapabilities, PluginCapability, PluginEvent,
+    PluginEventHandler, PluginEventKind, PluginLifecycle, PluginManifest, PluginMetadata,
 };
 use brain_domain::{PluginId, PluginState};
 use brain_plugins::{InstalledPlugin, LoaderKind, PluginLoader};
@@ -82,9 +81,12 @@ impl PluginCapabilities for LoadedPlugin {
 impl PluginEventHandler for LoadedPlugin {
     fn dispatch(&self, event: &PluginEvent<'_>) -> Result<(), BrainError> {
         Python::with_gil(|py| {
-            let session_id = event.context.session_id.ok_or_else(|| BrainError::Validation {
-                message: "Session ID is required for Python runtime context".to_string(),
-            })?;
+            let session_id = event
+                .context
+                .session_id
+                .ok_or_else(|| BrainError::Validation {
+                    message: "Session ID is required for Python runtime context".to_string(),
+                })?;
             let ctx = crate::api::PyRuntimeContext {
                 host_ptr: unsafe { std::mem::transmute(event.context.host) },
                 session_id: Some(session_id),
@@ -315,7 +317,10 @@ impl PluginLoader for PythonPluginLoader {
 
 impl PythonPluginLoader {
     /// Loads a single Python plugin from its directory.
-    pub fn load_plugin(py: Python<'_>, descriptor: &InstalledPlugin) -> Result<LoadedPlugin, BrainError> {
+    pub fn load_plugin(
+        py: Python<'_>,
+        descriptor: &InstalledPlugin,
+    ) -> Result<LoadedPlugin, BrainError> {
         let manifest = &descriptor.manifest;
         let plugin_dir = &descriptor.path;
 
@@ -343,12 +348,15 @@ impl PythonPluginLoader {
                 })?;
 
         let agent_class =
-            find_agent_class(bound_module, &manifest.id().to_string()).map_err(|e| BrainError::Python {
-                message: format!(
-                    "Failed to find agent class in entrypoint for plugin '{}': {}",
-                    manifest.id(), e
-                ),
-                traceback: Some(e.to_string()),
+            find_agent_class(bound_module, &manifest.id().to_string()).map_err(|e| {
+                BrainError::Python {
+                    message: format!(
+                        "Failed to find agent class in entrypoint for plugin '{}': {}",
+                        manifest.id(),
+                        e
+                    ),
+                    traceback: Some(e.to_string()),
+                }
             })?;
 
         let instance = agent_class
@@ -452,7 +460,11 @@ impl PythonPluginLoader {
                                 loaded.push(plugin);
                             }
                             Err(e) => {
-                                tracing::error!("Failed to load plugin from {}: {}", path.display(), e);
+                                tracing::error!(
+                                    "Failed to load plugin from {}: {}",
+                                    path.display(),
+                                    e
+                                );
                             }
                         }
                     }

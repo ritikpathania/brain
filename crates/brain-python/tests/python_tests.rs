@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 
 use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
-use brain_core::extensibility::{PluginLifecycle, HostContext};
+use brain_core::extensibility::{HostContext, PluginLifecycle};
 use brain_domain::{Conversation, Node, NodeId, NodeType, PluginId, PluginState, SessionId};
 use brain_plugins::{InstalledPlugin, LoaderKind};
 use brain_python::loader::PythonPluginLoader;
@@ -155,7 +155,8 @@ class MockPlugin:
     let plugin_dir = create_test_plugin(&guard.path, "mock_plugin", manifest, py_code);
 
     let manifest_path = plugin_dir.join("plugin.toml");
-    let core_manifest = brain_core::extensibility::PluginManifest::from_path(&manifest_path).unwrap();
+    let core_manifest =
+        brain_core::extensibility::PluginManifest::from_path(&manifest_path).unwrap();
     let installed = InstalledPlugin {
         manifest: core_manifest,
         path: plugin_dir.clone(),
@@ -165,7 +166,10 @@ class MockPlugin:
         Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &installed).unwrap());
 
     // Verify PluginLifecycle implementations
-    assert_eq!(loaded.manifest.id(), "mock_plugin".parse::<PluginId>().unwrap());
+    assert_eq!(
+        loaded.manifest.id(),
+        "mock_plugin".parse::<PluginId>().unwrap()
+    );
     assert_eq!(loaded.state(), PluginState::Discovered);
 
     loaded.load().unwrap();
@@ -184,9 +188,7 @@ class MockPlugin:
     let session_id = SessionId::new();
 
     Python::with_gil(|py| {
-        loaded
-            .trigger_on_load(py, &*runtime, session_id)
-            .unwrap();
+        loaded.trigger_on_load(py, &*runtime, session_id).unwrap();
         loaded
             .trigger_on_session_start(py, &*runtime, session_id)
             .unwrap();
@@ -220,8 +222,6 @@ class MockPlugin:
     assert_eq!(nodes[0].label, "Node 99");
     assert!(edges.is_empty());
 }
-
-
 
 #[test]
 fn test_plugin_isolation_and_fault_tolerance() {
@@ -268,7 +268,10 @@ class BrokenPlugin
 
     // Verify that the valid plugin is loaded successfully, and the broken one is isolated and skipped
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].manifest.id(), "ok_plugin".parse::<PluginId>().unwrap());
+    assert_eq!(
+        loaded[0].manifest.id(),
+        "ok_plugin".parse::<PluginId>().unwrap()
+    );
 }
 
 #[test]
@@ -337,8 +340,7 @@ class PermissionPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "permission_plugin", manifest, py_code);
 
-    let loaded =
-        Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let runtime = Arc::new(MockAgentRuntime {
         should_fail_tool: true,
     });
@@ -442,8 +444,7 @@ class MisusePlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "misuse_plugin", manifest, py_code);
 
-    let loaded =
-        Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let runtime = Arc::new(MockAgentRuntime {
         should_fail_tool: false,
     });
@@ -463,4 +464,3 @@ class MisusePlugin:
         other => panic!("Expected BrainError::Python, got: {:?}", other),
     }
 }
-

@@ -1,10 +1,10 @@
+use parking_lot::RwLock;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use parking_lot::RwLock;
 
 use brain_core::errors::BrainError;
-use brain_core::extensibility::{ApiVersion, Plugin, PluginManifest, PluginEvent};
+use brain_core::extensibility::{ApiVersion, Plugin, PluginEvent, PluginManifest};
 use brain_domain::{PluginId, PluginState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -59,7 +59,9 @@ impl Default for PluginRegistry {
 
 impl PluginRegistry {
     pub fn new() -> Self {
-        Self { plugins: BTreeMap::new() }
+        Self {
+            plugins: BTreeMap::new(),
+        }
     }
 
     pub fn register(&mut self, installed: InstalledPlugin) -> Result<(), BrainError> {
@@ -69,10 +71,13 @@ impl PluginRegistry {
                 message: format!("Plugin ID {} is already registered", id),
             });
         }
-        self.plugins.insert(id, ManagedPlugin {
-            installed,
-            active_instance: None,
-        });
+        self.plugins.insert(
+            id,
+            ManagedPlugin {
+                installed,
+                active_instance: None,
+            },
+        );
         Ok(())
     }
 
@@ -85,19 +90,24 @@ impl PluginRegistry {
     }
 
     pub fn list(&self) -> Vec<PluginSummary> {
-        self.plugins.values().map(|mp| {
-            let state = mp.active_instance.as_ref()
-                .map(|p| p.inner.read().state())
-                .unwrap_or(PluginState::Discovered);
-            PluginSummary {
-                id: mp.installed.manifest.id(),
-                version: mp.installed.manifest.version().clone(),
-                api_version: mp.installed.manifest.api_version(),
-                state,
-                path: mp.installed.path.clone(),
-                loader_kind: mp.installed.loader_kind,
-            }
-        }).collect()
+        self.plugins
+            .values()
+            .map(|mp| {
+                let state = mp
+                    .active_instance
+                    .as_ref()
+                    .map(|p| p.inner.read().state())
+                    .unwrap_or(PluginState::Discovered);
+                PluginSummary {
+                    id: mp.installed.manifest.id(),
+                    version: mp.installed.manifest.version().clone(),
+                    api_version: mp.installed.manifest.api_version(),
+                    state,
+                    path: mp.installed.path.clone(),
+                    loader_kind: mp.installed.loader_kind,
+                }
+            })
+            .collect()
     }
 }
 
@@ -180,10 +190,15 @@ impl PluginManager {
                 message: format!("Plugin {} not found in registry", id),
             })?;
             if managed.active_instance.is_none() {
-                let loader = self.loaders.get(&managed.installed.loader_kind)
+                let loader = self
+                    .loaders
+                    .get(&managed.installed.loader_kind)
                     .ok_or_else(|| BrainError::Validation {
-                        message: format!("No loader configured for kind: {:?}", managed.installed.loader_kind),
-                })?;
+                        message: format!(
+                            "No loader configured for kind: {:?}",
+                            managed.installed.loader_kind
+                        ),
+                    })?;
                 let instance = loader.load(&managed.installed)?;
                 managed.active_instance = Some(PluginHandle {
                     inner: Arc::new(RwLock::new(instance)),
@@ -201,9 +216,12 @@ impl PluginManager {
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
-                message: format!("Plugin {} is not loaded", id),
-            })?
+            managed
+                .active_instance
+                .clone()
+                .ok_or_else(|| BrainError::InvalidTransition {
+                    message: format!("Plugin {} is not loaded", id),
+                })?
         };
         let res = inst.inner.write().initialize();
         res
@@ -215,9 +233,12 @@ impl PluginManager {
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
-                message: format!("Plugin {} is not loaded", id),
-            })?
+            managed
+                .active_instance
+                .clone()
+                .ok_or_else(|| BrainError::InvalidTransition {
+                    message: format!("Plugin {} is not loaded", id),
+                })?
         };
         let res = inst.inner.write().activate();
         res
@@ -229,9 +250,12 @@ impl PluginManager {
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
-                message: format!("Plugin {} is not loaded", id),
-            })?
+            managed
+                .active_instance
+                .clone()
+                .ok_or_else(|| BrainError::InvalidTransition {
+                    message: format!("Plugin {} is not loaded", id),
+                })?
         };
         let res = inst.inner.write().suspend();
         res
@@ -243,9 +267,12 @@ impl PluginManager {
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
-                message: format!("Plugin {} is not loaded", id),
-            })?
+            managed
+                .active_instance
+                .clone()
+                .ok_or_else(|| BrainError::InvalidTransition {
+                    message: format!("Plugin {} is not loaded", id),
+                })?
         };
         let res = inst.inner.write().resume();
         res
@@ -257,9 +284,12 @@ impl PluginManager {
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found", id),
             })?;
-            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
-                message: format!("Plugin {} is not loaded", id),
-            })?
+            managed
+                .active_instance
+                .clone()
+                .ok_or_else(|| BrainError::InvalidTransition {
+                    message: format!("Plugin {} is not loaded", id),
+                })?
         };
         let res = inst.inner.write().unload();
         res
@@ -280,10 +310,15 @@ impl PluginManager {
             None => return Ok(()),
         };
 
-        let loader = self.loaders.get(&descriptor.loader_kind)
-            .ok_or_else(|| BrainError::Validation {
-                message: format!("No compatible loader found for kind: {:?}", descriptor.loader_kind),
-            })?;
+        let loader =
+            self.loaders
+                .get(&descriptor.loader_kind)
+                .ok_or_else(|| BrainError::Validation {
+                    message: format!(
+                        "No compatible loader found for kind: {:?}",
+                        descriptor.loader_kind
+                    ),
+                })?;
 
         // 1. Transactionally spin up new instance up to Active in isolation
         let mut new_plugin = loader.load(&descriptor)?;
@@ -320,9 +355,7 @@ impl PluginManager {
             Ok(())
         };
 
-        if let Err(e) = load_and_activate() {
-            return Err(e);
-        }
+        load_and_activate()?;
 
         // 2. Perform the RCU swap under the write lock by replacing the inner Box inside the existing active handle.
         // This ensures that concurrent dispatch threads holding cloned handles observe the new plugin instance.
@@ -332,7 +365,9 @@ impl PluginManager {
             let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
                 message: format!("Plugin {} not found during swap", id),
             })?;
-            let is_unloaded = managed.active_instance.as_ref()
+            let is_unloaded = managed
+                .active_instance
+                .as_ref()
                 .map(|h| h.inner.read().state() == PluginState::Unloaded)
                 .unwrap_or(true);
             if is_unloaded {
@@ -351,7 +386,7 @@ impl PluginManager {
                     message: "Plugin was unloaded during reload".to_string(),
                 });
             }
-            
+
             // Swap the inner instance inside the existing registry handle.
             let mut inner = handle.inner.write();
             std::mem::replace(&mut *inner, new_plugin)
@@ -379,7 +414,8 @@ impl PluginManager {
         // Clone Arc handles under short read lock
         let active_plugins: Vec<PluginHandle> = {
             let reg = self.registry.read();
-            reg.plugins.values()
+            reg.plugins
+                .values()
                 .filter_map(|mp| {
                     if let Some(ref inst) = mp.active_instance {
                         if inst.inner.read().state() == PluginState::Active {

@@ -1,6 +1,6 @@
+use crate::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use crate::errors::BrainError;
-use crate::agents::{ChatAgent, PlannerAgent, EmbeddingAgent, ExtractionAgent};
-use brain_domain::{PluginId, PluginState, SessionId, Node};
+use brain_domain::{Node, PluginId, PluginState, SessionId};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -130,7 +130,12 @@ impl PluginManifest {
 /// Bridge trait exposing host capabilities back to the executing plugins.
 pub trait HostContext: Send + Sync {
     /// Performs a semantic search retrieval against the active memory engine.
-    fn retrieve(&self, session_id: &SessionId, query: &str, limit: usize) -> Result<Vec<Node>, BrainError>;
+    fn retrieve(
+        &self,
+        session_id: &SessionId,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<Node>, BrainError>;
     /// Invokes a registered system tool on behalf of a plugin.
     fn execute_tool(
         &self,
@@ -233,13 +238,9 @@ pub trait PluginEventHandler: Send + Sync {
 
 /// Composed plugin contract containing metadata, lifecycle, capabilities, and events.
 pub trait Plugin:
-    PluginMetadata
-    + PluginLifecycle
-    + PluginCapabilities
-    + PluginEventHandler
-    + Send
-    + Sync
-{}
+    PluginMetadata + PluginLifecycle + PluginCapabilities + PluginEventHandler + Send + Sync
+{
+}
 
 /// Policy settings defining the execution runtime behavior of a tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]

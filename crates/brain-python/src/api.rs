@@ -397,7 +397,11 @@ impl PyRuntimeContext {
         let host = unsafe { &*self.host_ptr };
         let sid = match self.session_id {
             Some(id) => id,
-            None => return Err(pyo3::exceptions::PyValueError::new_err("Session ID is required")),
+            None => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Session ID is required",
+                ))
+            }
         };
 
         let nodes = py
@@ -429,7 +433,11 @@ impl PyRuntimeContext {
         let host = unsafe { &*self.host_ptr };
         let sid = match self.session_id {
             Some(id) => id,
-            None => return Err(pyo3::exceptions::PyValueError::new_err("Session ID is required")),
+            None => {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "Session ID is required",
+                ))
+            }
         };
 
         let json_args = py_to_json(py, arguments)?;
