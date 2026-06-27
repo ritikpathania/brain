@@ -19,6 +19,7 @@ pub mod ui;
 
 use crate::client::ExecutionClient;
 use crate::event::{Event, AppEvent, EventHandler};
+use crate::state::{UiState, Action, UpdateResult};
 use crate::terminal::TerminalGuard;
 use crate::ui::renderer::AppRenderer;
 use brain_core::errors::BrainError;
@@ -37,9 +38,10 @@ pub async fn run(_client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         message: format!("Failed to create terminal backend: {}", e),
     })?;
 
-    // 3. Initialize Event multiplexer & Layout renderer
+    // 3. Initialize Event multiplexer, Layout renderer, and UI State
     let mut events = EventHandler::new(Duration::from_millis(100));
     let renderer = AppRenderer::new();
+    let mut state = UiState::new();
 
     terminal.clear().map_err(|e| BrainError::Validation {
         message: format!("Failed to clear terminal: {}", e),
@@ -60,10 +62,28 @@ pub async fn run(_client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         if let Some(event) = events.next().await {
             match event {
                 Event::Terminal(crate::event::TerminalEvent::Key(key)) => {
-                    // Quit on Ctrl+C or Escape
-                    if key.code == crossterm::event::KeyCode::Esc ||
-                       (key.code == crossterm::event::KeyCode::Char('c') &&
-                        key.modifiers == crossterm::event::KeyModifiers::CONTROL) {
+                    let action = match key.code {
+                        crossterm::event::KeyCode::Esc => Some(Action::Quit),
+                        crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            Some(Action::Quit)
+                        }
+                        crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
+                        crossterm::event::KeyCode::Backspace => Some(Action::Backspace),
+                        crossterm::event::KeyCode::Delete => Some(Action::Delete),
+                        crossterm::event::KeyCode::Left => Some(Action::MoveCursorLeft),
+                        crossterm::event::KeyCode::Right => Some(Action::MoveCursorRight),
+                        _ => None,
+                    };
+                    if let Some(act) = action {
+                        match state.update(act) {
+                            UpdateResult::Exit => break,
+                            UpdateResult::Changed => {}
+                            UpdateResult::NoChange => {}
+                        }
+                    }
+                }
+                Event::Terminal(crate::event::TerminalEvent::Resize(w, h)) => {
+                    if let UpdateResult::Exit = state.update(Action::Resize(w, h)) {
                         break;
                     }
                 }
