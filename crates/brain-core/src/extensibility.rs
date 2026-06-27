@@ -215,6 +215,11 @@ pub trait PluginLifecycle: Send + Sync {
 }
 
 /// Trait exposing all registered capabilities exported by this plugin.
+///
+/// # Capability Evolution & Compatibility Policy
+/// - **Immutability**: Existing capability semantics (such as Chat, Planner, Embedding, and Extraction) are immutable.
+/// - **Forward Compatibility**: Unknown capability types defined in new plugin manifests must be gracefully ignored by older runtimes during parsing and loading.
+/// - **ApiVersion Boundary**: Removing, modifying, or breaking the contract of any existing capability requires introducing a new `ApiVersion`.
 pub trait PluginCapabilities: Send + Sync {
     /// Returns a list of capability descriptors.
     fn capabilities(&self) -> &[CapabilityDescriptor];
