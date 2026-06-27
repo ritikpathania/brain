@@ -23,9 +23,13 @@ pub mod extensibility;
 /// Core retrieval abstractions and traits.
 pub mod retrieval;
 
+/// Canonical stream event models.
+pub mod events;
+
 pub use agents::*;
 pub use errors::*;
 pub use extensibility::*;
 pub use repositories::*;
 pub use retrieval::*;
 pub use services::*;
+pub use events::*;
