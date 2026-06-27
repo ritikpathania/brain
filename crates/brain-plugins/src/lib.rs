@@ -1,10 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use parking_lot::RwLock;
 
 use brain_core::errors::BrainError;
-use brain_core::extensibility::{ApiVersion, Plugin, PluginManifest};
+use brain_core::extensibility::{ApiVersion, Plugin, PluginManifest, PluginEvent};
 use brain_domain::{PluginId, PluginState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -29,7 +29,7 @@ pub trait PluginLoader: Send + Sync {
 
 #[derive(Clone)]
 pub struct PluginHandle {
-    pub inner: Arc<RwLock<dyn Plugin>>,
+    pub inner: Arc<RwLock<Box<dyn Plugin>>>,
 }
 
 pub struct ManagedPlugin {
@@ -138,5 +138,222 @@ impl PluginScanner {
             }
         }
         Ok(discovered)
+    }
+}
+
+#[derive(Debug)]
+pub struct PluginDispatchError {
+    pub plugin_id: PluginId,
+    pub error: BrainError,
+}
+
+#[derive(Debug)]
+pub struct PluginDispatchReport {
+    pub dispatched: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+    pub errors: Vec<PluginDispatchError>,
+}
+
+pub struct PluginManager {
+    registry: RwLock<PluginRegistry>,
+    loaders: HashMap<LoaderKind, Box<dyn PluginLoader>>,
+}
+
+impl PluginManager {
+    pub fn new(loaders: HashMap<LoaderKind, Box<dyn PluginLoader>>) -> Self {
+        Self {
+            registry: RwLock::new(PluginRegistry::new()),
+            loaders,
+        }
+    }
+
+    pub fn register(&self, installed: InstalledPlugin) -> Result<(), BrainError> {
+        let mut reg = self.registry.write();
+        reg.register(installed)
+    }
+
+    pub fn load(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let mut reg = self.registry.write();
+            let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found in registry", id),
+            })?;
+            if managed.active_instance.is_none() {
+                let loader = self.loaders.get(&managed.installed.loader_kind)
+                    .ok_or_else(|| BrainError::Validation {
+                        message: format!("No loader configured for kind: {:?}", managed.installed.loader_kind),
+                })?;
+                let instance = loader.load(&managed.installed)?;
+                managed.active_instance = Some(PluginHandle {
+                    inner: Arc::new(RwLock::new(instance)),
+                });
+            }
+            managed.active_instance.clone().unwrap()
+        };
+        let res = inst.inner.write().load();
+        res
+    }
+
+    pub fn initialize(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
+                message: format!("Plugin {} is not loaded", id),
+            })?
+        };
+        let res = inst.inner.write().initialize();
+        res
+    }
+
+    pub fn activate(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
+                message: format!("Plugin {} is not loaded", id),
+            })?
+        };
+        let res = inst.inner.write().activate();
+        res
+    }
+
+    pub fn suspend(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
+                message: format!("Plugin {} is not loaded", id),
+            })?
+        };
+        let res = inst.inner.write().suspend();
+        res
+    }
+
+    pub fn resume(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
+                message: format!("Plugin {} is not loaded", id),
+            })?
+        };
+        let res = inst.inner.write().resume();
+        res
+    }
+
+    pub fn unload(&self, id: &PluginId) -> Result<(), BrainError> {
+        let inst = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.active_instance.clone().ok_or_else(|| BrainError::InvalidTransition {
+                message: format!("Plugin {} is not loaded", id),
+            })?
+        };
+        let res = inst.inner.write().unload();
+        res
+    }
+
+    pub fn reload(&self, id: &PluginId) -> Result<(), BrainError> {
+        let descriptor = {
+            let reg = self.registry.read();
+            let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found", id),
+            })?;
+            managed.installed.clone()
+        };
+
+        let loader = self.loaders.get(&descriptor.loader_kind)
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("No compatible loader found for kind: {:?}", descriptor.loader_kind),
+            })?;
+
+        // 1. Transactionally spin up new instance up to Active in isolation
+        let mut new_plugin = loader.load(&descriptor)?;
+        new_plugin.load()?;
+        new_plugin.initialize()?;
+        new_plugin.activate()?;
+
+        // 2. Perform the swap under the write lock, retaining the old instance reference
+        let old_instance = {
+            let mut reg = self.registry.write();
+            let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
+                message: format!("Plugin {} not found during swap", id),
+            })?;
+            let old = managed.active_instance.clone();
+            managed.active_instance = Some(PluginHandle {
+                inner: Arc::new(RwLock::new(new_plugin)),
+            });
+            old
+        };
+
+        // 3. Unload the old instance outside the registry lock (Best effort / rollback safe)
+        if let Some(old_inst) = old_instance {
+            if let Err(e) = old_inst.inner.write().unload() {
+                tracing::warn!("Failed to unload old instance for plugin {} during reload: {}", id, e);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn list(&self) -> Vec<PluginSummary> {
+        self.registry.read().list()
+    }
+
+    pub fn dispatch_event(&self, event: &PluginEvent<'_>) -> PluginDispatchReport {
+        // Clone Arc handles under short read lock
+        let active_plugins: Vec<PluginHandle> = {
+            let reg = self.registry.read();
+            reg.plugins.values()
+                .filter_map(|mp| {
+                    if let Some(ref inst) = mp.active_instance {
+                        if inst.inner.read().state() == PluginState::Active {
+                            return Some(inst.clone());
+                        }
+                    }
+                    None
+                })
+                .collect()
+        };
+
+        // Dispatch outside the registry lock
+        let mut dispatched = 0;
+        let mut succeeded = 0;
+        let mut failed = 0;
+        let mut errors = Vec::new();
+
+        for handle in active_plugins {
+            dispatched += 1;
+            let plugin = handle.inner.read();
+            match plugin.dispatch(event) {
+                Ok(_) => succeeded += 1,
+                Err(e) => {
+                    failed += 1;
+                    errors.push(PluginDispatchError {
+                        plugin_id: plugin.manifest().id(),
+                        error: e,
+                    });
+                }
+            }
+        }
+
+        PluginDispatchReport {
+            dispatched,
+            succeeded,
+            failed,
+            errors,
+        }
     }
 }
