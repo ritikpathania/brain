@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 brain-core = { path = "../brain-core" }
+brain-domain = { path = "../brain-domain" }
+semver = { version = "1.0", features = ["serde"] }
+parking_lot = "0.12"
+toml.workspace = true
+tracing.workspace = true
+serde.workspace = true

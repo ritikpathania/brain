@@ -110,7 +110,7 @@ impl fmt::Display for EdgeId {
 
 /// Strongly-typed identifier for an extension plugin.
 /// Wraps a chronological, sortable `ulid::Ulid`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct PluginId(pub Ulid);
 
 impl PluginId {
