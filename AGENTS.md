@@ -94,3 +94,10 @@ When working with queries or communication between the Rust Daemon and the React
    - **Sequence Validator**: The client tracks the expected sequence number and logs warnings on mismatch (skipped/duplicate sequences) without crashing.
    - **Forward Compatibility**: The client must ignore unknown future event types (e.g. `stream_metric`) and log a warning including the `streamId` if present, continuing to render the stream.
    - **Interruption/Errors**: If a hard error or new response arrives mid-stream, the client commits the previous partial text to logs first rather than overwriting it, then handles the new message.
+
+## Technical Walkthrough & Documentation Invariant
+
+When claiming work is complete, performing walkthroughs, or explaining architectural changes:
+- Always update the unified, project-level documentation at [WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md) directly.
+- Ensure `WALKTHROUGH.md` reads as a single, cohesive technical design and onboarding manual written from scratch.
+- Merge overlapping sections, remove duplicate explanations, and maintain consistent headers and tone throughout the document. Do not simply concatenate milestone walkthroughs.
