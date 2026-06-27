@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread;
 use parking_lot::RwLock;
 
 use brain_core::errors::BrainError;
@@ -264,4 +265,108 @@ fn test_plugin_hot_reload() {
     // Reload
     manager.reload(&id).unwrap();
     assert_eq!(manager.list()[0].state, PluginState::Active);
+}
+
+#[test]
+fn test_plugin_manager_concurrency_stress() {
+    let event_count = Arc::new(RwLock::new(0));
+    let loader = Box::new(MockLoader {
+        event_count: event_count.clone(),
+        should_fail_dispatch: false,
+    });
+
+    let mut loaders = HashMap::new();
+    loaders.insert(LoaderKind::Native, loader as Box<dyn PluginLoader>);
+
+    let manager = Arc::new(PluginManager::new(loaders));
+    let id = PluginId::new();
+    let installed = InstalledPlugin {
+        manifest: make_manifest(id),
+        path: PathBuf::from("/tmp/mock_plugin"),
+        loader_kind: LoaderKind::Native,
+    };
+
+    manager.register(installed).unwrap();
+    manager.load(&id).unwrap();
+    manager.initialize(&id).unwrap();
+    manager.activate(&id).unwrap();
+
+    let mut threads = Vec::new();
+
+    // Spawn 8 threads running parallel operations
+    // Thread 1 & 2: reload(id)
+    for _ in 0..2 {
+        let m = manager.clone();
+        threads.push(thread::spawn(move || {
+            for _ in 0..10_000 {
+                let _ = m.reload(&id);
+            }
+        }));
+    }
+
+    // Thread 3 & 4: dispatch_event(&event)
+    let host = Arc::new(DummyHost);
+    for _ in 0..2 {
+        let m = manager.clone();
+        let h = host.clone();
+        threads.push(thread::spawn(move || {
+            let context = PluginContext {
+                host: &*h,
+                session_id: None,
+            };
+            let event = PluginEvent {
+                kind: PluginEventKind::SessionStart,
+                context: &context,
+            };
+            for _ in 0..10_000 {
+                let _ = m.dispatch_event(&event);
+            }
+        }));
+    }
+
+    // Thread 5: list()
+    {
+        let m = manager.clone();
+        threads.push(thread::spawn(move || {
+            for _ in 0..10_000 {
+                let _ = m.list();
+            }
+        }));
+    }
+
+    // Thread 6: load(id)
+    {
+        let m = manager.clone();
+        threads.push(thread::spawn(move || {
+            for _ in 0..10_000 {
+                let _ = m.load(&id);
+            }
+        }));
+    }
+
+    // Thread 7: unload(id)
+    {
+        let m = manager.clone();
+        threads.push(thread::spawn(move || {
+            for _ in 0..10_000 {
+                let _ = m.unload(&id);
+            }
+        }));
+    }
+
+    // Thread 8: suspend(id) / resume(id)
+    {
+        let m = manager.clone();
+        threads.push(thread::spawn(move || {
+            for _ in 0..10_000 {
+                let _ = m.suspend(&id);
+                let _ = m.resume(&id);
+            }
+        }));
+    }
+
+    // Join all threads
+    for t in threads {
+        t.join().unwrap();
+    }
 }
