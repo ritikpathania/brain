@@ -36,6 +36,7 @@ pub(crate) fn py_err_to_brain_error(py: Python<'_>, err: PyErr) -> BrainError {
 }
 
 /// A handle wrapping a Python agent instance and caching its method callables.
+#[derive(Clone)]
 pub struct PythonAgentHandle {
     pub instance: Py<PyAny>,
     pub methods: HashMap<String, Py<PyAny>>,
@@ -135,6 +136,7 @@ impl PythonAgentHandle {
 }
 
 /// ChatAgent wrapper delegating to Python implementation.
+#[derive(Clone)]
 pub struct PythonChatAgent {
     pub handle: PythonAgentHandle,
     pub name: String,
@@ -185,6 +187,7 @@ impl ChatAgent for PythonChatAgent {
 }
 
 /// PlannerAgent wrapper delegating to Python implementation.
+#[derive(Clone)]
 pub struct PythonPlannerAgent {
     pub handle: PythonAgentHandle,
     pub name: String,
@@ -280,6 +283,7 @@ impl PlannerAgent for PythonPlannerAgent {
 }
 
 /// EmbeddingAgent wrapper delegating to Python implementation.
+#[derive(Clone)]
 pub struct PythonEmbeddingAgent {
     pub handle: PythonAgentHandle,
     pub name: String,
@@ -347,6 +351,7 @@ impl EmbeddingAgent for PythonEmbeddingAgent {
 }
 
 /// ExtractionAgent wrapper delegating to Python implementation.
+#[derive(Clone)]
 pub struct PythonExtractionAgent {
     pub handle: PythonAgentHandle,
     pub name: String,

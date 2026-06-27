@@ -1,27 +1,22 @@
 use pyo3::prelude::*;
-use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::runtime::{
     py_err_to_brain_error, PythonChatAgent, PythonEmbeddingAgent, PythonExtractionAgent,
     PythonPlannerAgent,
 };
 use brain_core::errors::BrainError;
-use brain_core::extensibility::{PluginLifecycle, PluginRegistryLookup};
+use brain_core::extensibility::{
+    Plugin, PluginCapabilities, PluginEvent, PluginEventKind,
+    PluginEventHandler, PluginLifecycle, PluginManifest, PluginMetadata, PluginCapability,
+    CapabilityDescriptor, HostContext
+};
 use brain_domain::{PluginId, PluginState};
+use brain_plugins::{InstalledPlugin, LoaderKind, PluginLoader};
 
-/// Representation of the configuration manifest file: `plugin.toml`.
-#[derive(Debug, Clone, Deserialize)]
-pub struct PluginManifest {
-    pub id: String,
-    pub version: String,
-    pub api_version: String,
-    pub entrypoint: String,
-    pub required_permissions: Vec<String>,
-}
-
-/// A stateful loaded Python plugin encapsulating Python resources and implementing PluginLifecycle.
+/// A stateful loaded Python plugin encapsulating Python resources and implementing Plugin.
 pub struct LoadedPlugin {
     pub manifest: PluginManifest,
     pub plugin_id: PluginId,
@@ -33,47 +28,27 @@ pub struct LoadedPlugin {
     pub planner_agent: Option<PythonPlannerAgent>,
     pub embedding_agent: Option<PythonEmbeddingAgent>,
     pub extraction_agent: Option<PythonExtractionAgent>,
+    pub capabilities: Vec<CapabilityDescriptor>,
+}
+
+impl PluginMetadata for LoadedPlugin {
+    fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
 }
 
 impl PluginLifecycle for LoadedPlugin {
-    fn id(&self) -> &PluginId {
-        &self.plugin_id
-    }
-
-    fn current_state(&self) -> PluginState {
+    fn state(&self) -> PluginState {
         self.state
     }
 
-    fn dependencies(&self) -> Vec<PluginId> {
-        Vec::new()
-    }
-
-    fn discover(&mut self, path: &Path) -> Result<(), BrainError> {
-        self.path = path.to_path_buf();
-        self.state = PluginState::DependenciesResolved;
-        Ok(())
-    }
-
-    fn resolve_dependencies(
-        &mut self,
-        _registry: &dyn PluginRegistryLookup,
-    ) -> Result<(), BrainError> {
-        self.state = PluginState::Validated;
-        Ok(())
-    }
-
-    fn validate(&mut self) -> Result<(), BrainError> {
+    fn load(&mut self) -> Result<(), BrainError> {
         self.state = PluginState::Loaded;
         Ok(())
     }
 
-    fn load(&mut self) -> Result<(), BrainError> {
-        self.state = PluginState::Initialized;
-        Ok(())
-    }
-
     fn initialize(&mut self) -> Result<(), BrainError> {
-        self.state = PluginState::Active;
+        self.state = PluginState::Initialized;
         Ok(())
     }
 
@@ -98,31 +73,67 @@ impl PluginLifecycle for LoadedPlugin {
     }
 }
 
+impl PluginCapabilities for LoadedPlugin {
+    fn capabilities(&self) -> &[CapabilityDescriptor] {
+        &self.capabilities
+    }
+}
+
+impl PluginEventHandler for LoadedPlugin {
+    fn dispatch(&self, event: &PluginEvent<'_>) -> Result<(), BrainError> {
+        Python::with_gil(|py| {
+            let session_id = event.context.session_id.ok_or_else(|| BrainError::Validation {
+                message: "Session ID is required for Python runtime context".to_string(),
+            })?;
+            let ctx = crate::api::PyRuntimeContext {
+                host_ptr: unsafe { std::mem::transmute(event.context.host) },
+                session_id: Some(session_id),
+            };
+            match event.kind {
+                PluginEventKind::Load => {
+                    call_lifecycle_hook(py, &self.instance, &self.module, "on_load", ctx)
+                }
+                PluginEventKind::Unload => {
+                    call_lifecycle_hook(py, &self.instance, &self.module, "on_unload", ctx)
+                }
+                PluginEventKind::SessionStart => {
+                    call_lifecycle_hook(py, &self.instance, &self.module, "on_session_start", ctx)
+                }
+                PluginEventKind::SessionEnd => {
+                    call_lifecycle_hook(py, &self.instance, &self.module, "on_session_end", ctx)
+                }
+            }
+        })
+    }
+}
+
+impl Plugin for LoadedPlugin {}
+
 impl LoadedPlugin {
     /// Triggers the optional Python-side `on_load(ctx)` hook.
     pub fn trigger_on_load(
-        &mut self,
+        &self,
         py: Python<'_>,
-        runtime: std::sync::Arc<dyn brain_core::agents::AgentRuntime>,
+        host: &dyn HostContext,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
         let ctx = crate::api::PyRuntimeContext {
-            runtime,
-            session_id,
+            host_ptr: unsafe { std::mem::transmute(host) },
+            session_id: Some(session_id),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_load", ctx)
     }
 
     /// Triggers the optional Python-side `on_unload(ctx)` hook.
     pub fn trigger_on_unload(
-        &mut self,
+        &self,
         py: Python<'_>,
-        runtime: std::sync::Arc<dyn brain_core::agents::AgentRuntime>,
+        host: &dyn HostContext,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
         let ctx = crate::api::PyRuntimeContext {
-            runtime,
-            session_id,
+            host_ptr: unsafe { std::mem::transmute(host) },
+            session_id: Some(session_id),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_unload", ctx)
     }
@@ -131,12 +142,12 @@ impl LoadedPlugin {
     pub fn trigger_on_session_start(
         &self,
         py: Python<'_>,
-        runtime: std::sync::Arc<dyn brain_core::agents::AgentRuntime>,
+        host: &dyn HostContext,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
         let ctx = crate::api::PyRuntimeContext {
-            runtime,
-            session_id,
+            host_ptr: unsafe { std::mem::transmute(host) },
+            session_id: Some(session_id),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_start", ctx)
     }
@@ -145,12 +156,12 @@ impl LoadedPlugin {
     pub fn trigger_on_session_end(
         &self,
         py: Python<'_>,
-        runtime: std::sync::Arc<dyn brain_core::agents::AgentRuntime>,
+        host: &dyn HostContext,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
         let ctx = crate::api::PyRuntimeContext {
-            runtime,
-            session_id,
+            host_ptr: unsafe { std::mem::transmute(host) },
+            session_id: Some(session_id),
         };
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_end", ctx)
     }
@@ -274,52 +285,41 @@ fn call_lifecycle_hook(
 /// Scans directory structures and manages dynamic Python plugin loading with fault isolation.
 pub struct PythonPluginLoader;
 
+impl PluginLoader for PythonPluginLoader {
+    fn kind(&self) -> LoaderKind {
+        LoaderKind::Python
+    }
+
+    fn supports(&self, path: &Path) -> bool {
+        path.join("plugin.toml").exists()
+    }
+
+    fn load(&self, descriptor: &InstalledPlugin) -> Result<Box<dyn Plugin>, BrainError> {
+        Python::with_gil(|py| {
+            let loaded = Self::load_plugin(py, descriptor)?;
+            Ok(Box::new(loaded) as Box<dyn Plugin>)
+        })
+    }
+}
+
 impl PythonPluginLoader {
     /// Loads a single Python plugin from its directory.
-    pub fn load_plugin(py: Python<'_>, plugin_dir: &Path) -> Result<LoadedPlugin, BrainError> {
-        let manifest_path = plugin_dir.join("plugin.toml");
-        if !manifest_path.exists() {
-            return Err(BrainError::Validation {
-                message: format!("plugin.toml not found in {}", plugin_dir.display()),
-            });
-        }
+    pub fn load_plugin(py: Python<'_>, descriptor: &InstalledPlugin) -> Result<LoadedPlugin, BrainError> {
+        let manifest = &descriptor.manifest;
+        let plugin_dir = &descriptor.path;
 
-        let manifest_content =
-            fs::read_to_string(&manifest_path).map_err(|e| BrainError::Storage {
-                message: format!("Failed to read plugin.toml: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-
-        let manifest: PluginManifest =
-            toml::from_str(&manifest_content).map_err(|e| BrainError::Validation {
-                message: format!(
-                    "Failed to parse plugin.toml in {}: {}",
-                    plugin_dir.display(),
-                    e
-                ),
-            })?;
-
-        // Validate API version compatibility
-        if manifest.api_version != "v1" {
-            return Err(BrainError::Validation {
-                message: format!(
-                    "Unsupported plugin API version '{}' in plugin '{}'. Only 'v1' is supported.",
-                    manifest.api_version, manifest.id
-                ),
-            });
-        }
-
-        let entrypoint_path = plugin_dir.join(&manifest.entrypoint);
+        let entrypoint_path = plugin_dir.join(manifest.entrypoint());
         if !entrypoint_path.exists() {
             return Err(BrainError::Validation {
                 message: format!(
                     "Entrypoint '{}' not found in plugin '{}'",
-                    manifest.entrypoint, manifest.id
+                    manifest.entrypoint().display(),
+                    manifest.id()
                 ),
             });
         }
 
-        let module = load_python_module(py, &manifest.id, &entrypoint_path)
+        let module = load_python_module(py, &manifest.id().to_string(), &entrypoint_path)
             .map_err(|e| py_err_to_brain_error(py, e))?;
 
         let bound_module =
@@ -332,10 +332,10 @@ impl PythonPluginLoader {
                 })?;
 
         let agent_class =
-            find_agent_class(bound_module, &manifest.id).map_err(|e| BrainError::Python {
+            find_agent_class(bound_module, &manifest.id().to_string()).map_err(|e| BrainError::Python {
                 message: format!(
                     "Failed to find agent class in entrypoint for plugin '{}': {}",
-                    manifest.id, e
+                    manifest.id(), e
                 ),
                 traceback: Some(e.to_string()),
             })?;
@@ -369,27 +369,35 @@ impl PythonPluginLoader {
             None
         };
 
-        let plugin_id = manifest.id.parse::<PluginId>().unwrap_or_else(|_| {
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher1 = DefaultHasher::new();
-            manifest.id.hash(&mut hasher1);
-            let h1 = hasher1.finish();
-
-            let mut hasher2 = DefaultHasher::new();
-            (&manifest.id, "salt").hash(&mut hasher2);
-            let h2 = hasher2.finish();
-
-            let mut bytes = [0u8; 16];
-            bytes[0..8].copy_from_slice(&h1.to_be_bytes());
-            bytes[8..16].copy_from_slice(&h2.to_be_bytes());
-
-            PluginId(ulid::Ulid::from_bytes(bytes))
-        });
+        let mut capabilities = Vec::new();
+        if let Some(agent) = chat_agent.clone() {
+            capabilities.push(CapabilityDescriptor {
+                name: "chat",
+                capability: PluginCapability::Chat(Arc::new(agent)),
+            });
+        }
+        if let Some(agent) = planner_agent.clone() {
+            capabilities.push(CapabilityDescriptor {
+                name: "planner",
+                capability: PluginCapability::Planner(Arc::new(agent)),
+            });
+        }
+        if let Some(agent) = embedding_agent.clone() {
+            capabilities.push(CapabilityDescriptor {
+                name: "embedding",
+                capability: PluginCapability::Embedding(Arc::new(agent)),
+            });
+        }
+        if let Some(agent) = extraction_agent.clone() {
+            capabilities.push(CapabilityDescriptor {
+                name: "extraction",
+                capability: PluginCapability::Extraction(Arc::new(agent)),
+            });
+        }
 
         Ok(LoadedPlugin {
-            manifest,
-            plugin_id,
+            manifest: manifest.clone(),
+            plugin_id: manifest.id(),
             path: plugin_dir.to_path_buf(),
             state: PluginState::Discovered,
             module,
@@ -398,6 +406,7 @@ impl PythonPluginLoader {
             planner_agent,
             embedding_agent,
             extraction_agent,
+            capabilities,
         })
     }
 
@@ -419,26 +428,38 @@ impl PythonPluginLoader {
         for entry in read_dir.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                match Self::load_plugin(py, &path) {
-                    Ok(mut plugin) => {
-                        // Automatically run through discovery lifecycle transitions
-                        if let Err(e) = plugin.discover(&path) {
-                            tracing::error!(
-                                "Failed discover lifecycle for plugin '{}': {}",
-                                plugin.manifest.id,
-                                e
-                            );
-                        } else {
-                            loaded.push(plugin);
+                let manifest_path = path.join("plugin.toml");
+                if manifest_path.exists() {
+                    if let Ok(manifest) = PluginManifest::from_path(&manifest_path) {
+                        let installed = InstalledPlugin {
+                            manifest,
+                            path: path.clone(),
+                            loader_kind: LoaderKind::Python,
+                        };
+                        match Self::load_plugin(py, &installed) {
+                            Ok(plugin) => {
+                                loaded.push(plugin);
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to load plugin from {}: {}", path.display(), e);
+                            }
                         }
-                    }
-                    Err(e) => {
-                        // Strict plugin isolation: log error and proceed
-                        tracing::error!("Failed to load plugin from {}: {}", path.display(), e);
                     }
                 }
             }
         }
         loaded
+    }
+
+    /// Loads a plugin from its directory.
+    pub fn load_from_dir(py: Python<'_>, plugin_dir: &Path) -> Result<LoadedPlugin, BrainError> {
+        let manifest_path = plugin_dir.join("plugin.toml");
+        let manifest = PluginManifest::from_path(&manifest_path)?;
+        let descriptor = InstalledPlugin {
+            manifest,
+            path: plugin_dir.to_path_buf(),
+            loader_kind: LoaderKind::Python,
+        };
+        Self::load_plugin(py, &descriptor)
     }
 }

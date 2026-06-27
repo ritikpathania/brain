@@ -6,10 +6,11 @@ use std::thread;
 
 use pyo3::prelude::*;
 
-use brain_core::agents::{AgentRuntime, ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
+use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
-use brain_core::extensibility::{PluginLifecycle, PluginRegistryLookup};
+use brain_core::extensibility::{PluginLifecycle, HostContext};
 use brain_domain::{Conversation, Node, NodeId, NodeType, PluginId, PluginState, SessionId};
+use brain_plugins::{InstalledPlugin, LoaderKind};
 use brain_python::loader::PythonPluginLoader;
 
 struct TempDirGuard {
@@ -35,7 +36,7 @@ struct MockAgentRuntime {
     pub should_fail_tool: bool,
 }
 
-impl AgentRuntime for MockAgentRuntime {
+impl HostContext for MockAgentRuntime {
     fn retrieve(
         &self,
         _session_id: &SessionId,
@@ -153,28 +154,28 @@ class MockPlugin:
 
     let plugin_dir = create_test_plugin(&guard.path, "mock_plugin", manifest, py_code);
 
+    let manifest_path = plugin_dir.join("plugin.toml");
+    let core_manifest = brain_core::extensibility::PluginManifest::from_path(&manifest_path).unwrap();
+    let installed = InstalledPlugin {
+        manifest: core_manifest,
+        path: plugin_dir.clone(),
+        loader_kind: LoaderKind::Python,
+    };
     let mut loaded =
-        Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &plugin_dir).unwrap());
+        Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &installed).unwrap());
 
     // Verify PluginLifecycle implementations
-    assert_eq!(loaded.manifest.id, "mock_plugin");
-    assert_eq!(loaded.current_state(), PluginState::Discovered);
-
-    loaded.discover(&plugin_dir).unwrap();
-    assert_eq!(loaded.current_state(), PluginState::DependenciesResolved);
-
-    let registry = MockRegistryLookup;
-    loaded.resolve_dependencies(&registry).unwrap();
-    assert_eq!(loaded.current_state(), PluginState::Validated);
-
-    loaded.validate().unwrap();
-    assert_eq!(loaded.current_state(), PluginState::Loaded);
+    assert_eq!(loaded.manifest.id(), "mock_plugin".parse::<PluginId>().unwrap());
+    assert_eq!(loaded.state(), PluginState::Discovered);
 
     loaded.load().unwrap();
-    assert_eq!(loaded.current_state(), PluginState::Initialized);
+    assert_eq!(loaded.state(), PluginState::Loaded);
 
     loaded.initialize().unwrap();
-    assert_eq!(loaded.current_state(), PluginState::Active);
+    assert_eq!(loaded.state(), PluginState::Initialized);
+
+    loaded.activate().unwrap();
+    assert_eq!(loaded.state(), PluginState::Active);
 
     // Verify lifecycle hook trigger calls PyRuntimeContext retrieve
     let runtime = Arc::new(MockAgentRuntime {
@@ -184,10 +185,10 @@ class MockPlugin:
 
     Python::with_gil(|py| {
         loaded
-            .trigger_on_load(py, runtime.clone(), session_id)
+            .trigger_on_load(py, &*runtime, session_id)
             .unwrap();
         loaded
-            .trigger_on_session_start(py, runtime.clone(), session_id)
+            .trigger_on_session_start(py, &*runtime, session_id)
             .unwrap();
     });
 
@@ -220,12 +221,7 @@ class MockPlugin:
     assert!(edges.is_empty());
 }
 
-struct MockRegistryLookup;
-impl PluginRegistryLookup for MockRegistryLookup {
-    fn get_plugin_state(&self, _id: &PluginId) -> Option<PluginState> {
-        None
-    }
-}
+
 
 #[test]
 fn test_plugin_isolation_and_fault_tolerance() {
@@ -272,7 +268,7 @@ class BrokenPlugin
 
     // Verify that the valid plugin is loaded successfully, and the broken one is isolated and skipped
     assert_eq!(loaded.len(), 1);
-    assert_eq!(loaded[0].manifest.id, "ok_plugin");
+    assert_eq!(loaded[0].manifest.id(), "ok_plugin".parse::<PluginId>().unwrap());
 }
 
 #[test]
@@ -297,7 +293,7 @@ class ParallelPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "parallel_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &plugin_dir).unwrap());
+    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
 
     let loaded = Arc::new(loaded);
     let mut handles = Vec::new();
@@ -341,15 +337,15 @@ class PermissionPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "permission_plugin", manifest, py_code);
 
-    let mut loaded =
-        Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &plugin_dir).unwrap());
+    let loaded =
+        Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let runtime = Arc::new(MockAgentRuntime {
         should_fail_tool: true,
     });
     let session_id = SessionId::new();
 
     // Expect the execution error to propagate back as a BrainError::Python wrapping PyErr
-    let res = Python::with_gil(|py| loaded.trigger_on_load(py, runtime, session_id));
+    let res = Python::with_gil(|py| loaded.trigger_on_load(py, &*runtime, session_id));
     assert!(res.is_err());
     match res.err().unwrap() {
         BrainError::Python { message, .. } => {
@@ -378,7 +374,7 @@ class ExceptionPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "exception_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &plugin_dir).unwrap());
+    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let chat_agent = loaded.chat_agent.as_ref().unwrap();
     let session_id = SessionId::new();
 
@@ -413,7 +409,7 @@ class IncompatiblePlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "incompatible_plugin", manifest, py_code);
 
-    let res = Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &plugin_dir));
+    let res = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir));
     assert!(res.is_err());
     match res.err().unwrap() {
         BrainError::Validation { message } => {

@@ -110,7 +110,7 @@ impl fmt::Display for EdgeId {
 
 /// Strongly-typed identifier for an extension plugin.
 /// Wraps a chronological, sortable `ulid::Ulid`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct PluginId(pub Ulid);
 
 impl PluginId {
@@ -229,10 +229,28 @@ impl std::str::FromStr for NodeId {
 }
 
 impl std::str::FromStr for PluginId {
-    type Err = ulid::DecodeError;
+    type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        std::str::FromStr::from_str(s).map(Self)
+        if let Ok(ulid) = ulid::Ulid::from_string(s) {
+            Ok(PluginId(ulid))
+        } else {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher1 = DefaultHasher::new();
+            s.hash(&mut hasher1);
+            let h1 = hasher1.finish();
+
+            let mut hasher2 = DefaultHasher::new();
+            (s, "salt").hash(&mut hasher2);
+            let h2 = hasher2.finish();
+
+            let mut bytes = [0u8; 16];
+            bytes[0..8].copy_from_slice(&h1.to_be_bytes());
+            bytes[8..16].copy_from_slice(&h2.to_be_bytes());
+
+            Ok(PluginId(ulid::Ulid::from_bytes(bytes)))
+        }
     }
 }
 
@@ -257,5 +275,33 @@ impl std::str::FromStr for DocumentId {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PluginId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if let Ok(ulid) = ulid::Ulid::from_string(&s) {
+            Ok(PluginId(ulid))
+        } else {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher1 = DefaultHasher::new();
+            s.hash(&mut hasher1);
+            let h1 = hasher1.finish();
+
+            let mut hasher2 = DefaultHasher::new();
+            (&s, "salt").hash(&mut hasher2);
+            let h2 = hasher2.finish();
+
+            let mut bytes = [0u8; 16];
+            bytes[0..8].copy_from_slice(&h1.to_be_bytes());
+            bytes[8..16].copy_from_slice(&h2.to_be_bytes());
+
+            Ok(PluginId(ulid::Ulid::from_bytes(bytes)))
+        }
     }
 }

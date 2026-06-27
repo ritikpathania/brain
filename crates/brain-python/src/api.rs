@@ -1,11 +1,9 @@
 use std::str::FromStr;
-use std::sync::Arc;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
-use brain_core::agents::AgentRuntime;
-use brain_core::extensibility::ExecutionResult;
+use brain_core::extensibility::{ExecutionResult, HostContext};
 use brain_domain::{Conversation, Edge, MessageRole, Node, NodeType, SessionId, ToolCall};
 
 /// Converts a PyObject representation of JSON-compatible values to a `serde_json::Value`.
@@ -370,9 +368,12 @@ impl PyExecutionResult {
 #[pyclass(name = "RuntimeContext")]
 #[derive(Clone)]
 pub struct PyRuntimeContext {
-    pub runtime: Arc<dyn AgentRuntime>,
-    pub session_id: SessionId,
+    pub host_ptr: *const dyn HostContext,
+    pub session_id: Option<SessionId>,
 }
+
+unsafe impl Send for PyRuntimeContext {}
+unsafe impl Sync for PyRuntimeContext {}
 
 #[pymethods]
 impl PyRuntimeContext {
@@ -382,11 +383,14 @@ impl PyRuntimeContext {
         query: String,
         limit: usize,
     ) -> PyResult<Vec<PyMemoryNode>> {
-        let runtime = self.runtime.clone();
-        let sid = self.session_id;
+        let host = unsafe { &*self.host_ptr };
+        let sid = match self.session_id {
+            Some(id) => id,
+            None => return Err(pyo3::exceptions::PyValueError::new_err("Session ID is required")),
+        };
 
         let nodes = py
-            .allow_threads(move || runtime.retrieve(&sid, &query, limit))
+            .allow_threads(move || host.retrieve(&sid, &query, limit))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
         Ok(nodes
@@ -401,8 +405,11 @@ impl PyRuntimeContext {
         tool_name: String,
         arguments: &Bound<'_, PyDict>,
     ) -> PyResult<PyExecutionResult> {
-        let runtime = self.runtime.clone();
-        let sid = self.session_id;
+        let host = unsafe { &*self.host_ptr };
+        let sid = match self.session_id {
+            Some(id) => id,
+            None => return Err(pyo3::exceptions::PyValueError::new_err("Session ID is required")),
+        };
 
         let json_args = py_to_json(py, arguments)?;
         let map_args = match json_args {
@@ -415,7 +422,7 @@ impl PyRuntimeContext {
         };
 
         let res = py
-            .allow_threads(move || runtime.execute_tool(&sid, &tool_name, &map_args))
+            .allow_threads(move || host.execute_tool(&sid, &tool_name, &map_args))
             .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
 
         Ok(PyExecutionResult { inner: res })

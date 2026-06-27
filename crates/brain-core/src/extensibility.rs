@@ -29,10 +29,37 @@ pub enum Permission {
 }
 
 /// Version enumeration for the Plugin API contract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ApiVersion {
     /// Version 1 of the plugin API.
     V1,
+}
+
+impl<'de> serde::Deserialize<'de> for ApiVersion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "v1" => Ok(ApiVersion::V1),
+            other => Err(serde::de::Error::custom(format!(
+                "Unsupported plugin API version '{}'. Only 'v1' is supported.",
+                other
+            ))),
+        }
+    }
+}
+
+impl serde::Serialize for ApiVersion {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            ApiVersion::V1 => serializer.serialize_str("v1"),
+        }
+    }
 }
 
 /// Metadata configuration schema loaded from the plugin manifest file.
