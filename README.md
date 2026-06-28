@@ -6,10 +6,10 @@ A stateful, terminal-based AI assistant interface that acts as a dedicated Relat
 
 ```
               ┌──────────────────────────────────────┐
-              │             Bun TUI CLI              │
-              │         (React / Ink / TSX)          │
+              │             Ratatui TUI              │
+              │         (Native Rust Client)         │
               └──────────────────┬───────────────────┘
-                                 │ Unix Domain Socket (UDS)
+                                 │ In-Process / UDS Connection
                                  ▼
               ┌──────────────────────────────────────┐
               │             Rust Daemon              │
@@ -23,13 +23,13 @@ A stateful, terminal-based AI assistant interface that acts as a dedicated Relat
               └──────────────────────────────────────┘
 ```
 
-- **Frontend / CLI (`/cli`)**: Built using Bun, React, Ink, and TypeScript. Acts as the user-facing TUI that communicates with the daemon over local Unix Domain Sockets (UDS). Implements a modular token-based TUI design system (`cli/src/components/design-system/`) supporting dark, light, daltonized, and ANSI-16 modes, with precomputed themes and optimized primitives.
+- **Frontend / CLI (`/crates/brain-tui`)**: Built using Rust and Ratatui. Acts as the user-facing interactive TUI. Implements a modular token-based TUI design system (`crates/brain-tui/src/ui/`) supporting dark/light mode configurations.
 - **Backend / Daemon (`/daemon`)**: A high-speed Rust listener managing the volatile Short-Term Memory (STM) sliding window cache and the persistent Long-Term Memory (LTM) SQLite graph database.
 - **Semantic Extractor (`/daemon/daemon`)**: A Python module invoked via PyO3 FFI to extract structured nodes and edges from raw conversation logs.
 
 ### Core Capabilities
 - **Low-Latency Hybrid Retrieval**: Designed for sub-millisecond STM retrieval and low-latency hybrid retrieval, combining BM25, vector search, reciprocal rank fusion (RRF), and graph-based expansion.
-- **Real-Time Streaming Protocol over UDS**: Multi-stage pipeline streaming response chunks and progress updates incrementally using a structured tagged event protocol (`StreamEvent`). Features include monotonic sequence tracking, forward compatibility, and client-side typewriter queue buffering.
+- **Real-Time Streaming Protocol**: Multi-stage pipeline streaming response chunks and progress updates incrementally using a structured tagged event protocol (`StreamEvent`). Features include monotonic sequence tracking, forward compatibility, and client-side typewriter queue buffering.
 - **Native SQLite Vector Storage**: Native SQLite-backed vector storage without an external vector database, using raw binary BLOB storage and standard float arithmetic.
 - **Production-Grade Observability**: Lock-free runtime metrics instrumentation, structured JSON/Text logging, and background syncing of analytical telemetry to DuckDB.
 
@@ -93,50 +93,23 @@ To run the entire system locally:
 
 1. **Sync all project environments**:
    ```bash
-   make setup
+   cd daemon && uv sync
    ```
-2. **Start the Rust daemon**:
+2. **Start the Rust daemon / interactive app**:
    ```bash
-   make run-daemon
-   ```
-3. **Start the CLI client** (in a separate terminal):
-   ```bash
-   make run-cli
-   ```
-   *Note: Override the active theme using the `--theme`/`-t` flag or the `BRAIN_THEME` env var:*
-   ```bash
-   # Override active theme via cli option
-   bun run src/main.tsx --theme light-daltonized
-
-   # Or using environment variables
-   BRAIN_THEME=dark-ansi make run-cli
+   PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo run --package brain-v2
    ```
 
 ---
 
 ## TUI Verification & Testing
 
-To test the React/Ink TUI correctness and profile its rendering performance:
+To test the Ratatui TUI correctness and profile its rendering performance:
 
-1. **Run Golden Snapshot/Interaction Tests**:
-   Runs correctness tests and interactive snapshots (keyboard themes, arrow navigation, toast, resize scenarios):
+1. **Run Automated Parity & Stress Tests**:
    ```bash
-   cd cli && bun test
+   PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test -p brain-tui
    ```
-2. **Run Deterministic Render Benchmarks**:
-   Runs manual updates under a React `<Profiler>` for Logs, Markdown, Resize, and Theme workloads:
-   ```bash
-   cd cli && bun run benchmark:render
-   ```
-3. **Compare Benchmark Trends**:
-   ```bash
-   # Compare the current run against the baseline report
-   cd cli && bun run benchmark:compare
-
-   # View chronological trends over the last N runs (running-average smoothed)
-   cd cli && bun run benchmark:compare --last 5
-   ```
-
 ---
 
 ## Production-Grade Observability (Phase 5)
