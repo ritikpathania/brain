@@ -777,7 +777,4 @@ To manage database-backed conversation threads, selection browser widgets, and l
    DYLD_FRAMEWORK_PATH="/Library/Developer/CommandLineTools/Library/Frameworks" \
    PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 cargo bench --bench policy_benchmarks
    ```
-5. **Run React Profiler Benchmarks**:
-   ```bash
-   cd cli && bun run benchmark:render
-   ```
+
