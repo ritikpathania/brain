@@ -30,7 +30,7 @@ The purge will be executed atomically following this sequence:
 1. **Pre-Purge Audits**: Verify default TUI runtime paths and document dead references.
 2. **Atomic Deletion Commit**: Delete `cli/` and config files in a single, dedicated git commit.
 3. **Post-Purge Scan & Negative Verification**: Run repository-wide search for retired identifiers, confirm absence of Node/JS-related configuration and CI steps, verify clean compilation and fresh-clone onboarding checks.
-4. **Sign-off**: Author and commit the final Purge Report detailing the post-purge snapshot, repository state summary, and repository status conclusion.
+4. **Sign-off**: Author and commit the final Purge Report detailing the post-purge snapshot, repository state summary, repository health summary, traceability matrix, and repository status conclusion.
 
 ---
 
@@ -72,11 +72,17 @@ The purge will be executed atomically following this sequence:
   Create `docs/migration/purge_report.md` detailing:
   - Commit Hash & Date immediately after completion.
   - **Repository State Summary**: Active frontend technology (Ratatui TUI), supported build toolchain (Rust Cargo), supported package manager (Cargo), primary application entry point (`apps/brain-v2`), supported contributor workflow.
+  - **Repository Health Summary**: Objective counts of active items post-purge:
+    - Remaining Rust workspace crates (13 crates)
+    - Remaining external toolchains required (Rust & Python only)
+    - Remaining supported package managers (Cargo only)
+    - Remaining frontend implementations (Ratatui TUI only)
   - Cargo workspace status and number of remaining workspace crates (13 crates).
   - Confirmation of clean checkout builds.
   - Scope of legacy files and directories removed.
   - Justification of safety (what replaced it).
   - Quantitative impacts (before vs. after metrics table).
+  - **Traceability Matrix**: Maps each exit checklist criterion to the specific evidence/file validating it.
   - References pointing back to `parity_audit_report.md` and `native_ratatui_migration_report.md` for earlier test evidence and baseline results, avoiding content duplication.
   - **Repository Status Conclusion**: Concise plain-language summary confirming legacy React/Ink retirement, native Ratatui default integration, Cargo-only build workflows, and exit checklist execution.
 - [ ] **Step 3.6: Commit Report**
