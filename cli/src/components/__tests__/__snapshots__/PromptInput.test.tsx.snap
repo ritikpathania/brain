@@ -1,3 +1,0 @@
-// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
-
-exports[`PromptInput renders default placeholder and prefix 1`] = `"Memory Engine> Type a memory command (e.g. query, ingest) or exit...█"`;
