@@ -16,6 +16,24 @@
 
 ---
 
+## Repository Impact Metrics
+We will measure and log the following before/after metrics inside the final report:
+- **Files Removed**: Number of legacy TS/JS configuration files deleted.
+- **Lines Removed**: Net lines of TypeScript and React/Ink code deleted.
+- **Workspace Packages**: Number of active packages in the cargo/bun configurations.
+- **Node Dependencies**: Total count of active node modules (reduced to 0).
+
+---
+
+## Commit Workflow Sequence
+The purge will be executed atomically following this sequence:
+1. **Pre-Purge Audits**: Verify default TUI runtime paths and document dead references.
+2. **Atomic Deletion Commit**: Delete `cli/` and config files in a single, dedicated git commit.
+3. **Final Verification**: Run clean compilation and workspace checks.
+4. **Sign-off**: Author and commit the final Purge Report.
+
+---
+
 ### Task 1: Verify Replacement & Update Documentation
 
 - [ ] **Step 1: Check native client default launcher**
@@ -24,18 +42,18 @@
   Update the main `README.md`, `Makefile`, and `INSTALL.md` files to remove all references to `cli/` and `bun/npm/node`, documenting only Cargo and native Rust steps.
 - [ ] **Step 3: Update package.sh**
   Update or rewrite `package.sh` to compile `brain-v2` in release mode, omitting the legacy asset-bundling step.
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit Documentation updates**
   Commit Task 1: `git add . && git commit -m "docs: update main README, Makefile, and build scripts for native Rust client default"`
 
 ---
 
 ### Task 2: Purge Legacy Frontend & Assets
 
-- [ ] **Step 1: Delete cli/ directory**
-  Remove the `cli/` directory.
-- [ ] **Step 2: Search and purge Ink/React remnants**
-  Search the workspace to verify no residual React, Ink, or Yoga references exist.
-- [ ] **Step 3: Commit Purge**
+- [ ] **Step 1: Conduct Dead Reference Audit**
+  Scan CI workflows, shell scripts, Makefiles, documentation, Cargo metadata, and comments to ensure no contributor instructions or scripts mention the old client (`cli/` or bun/npm tasks).
+- [ ] **Step 2: Delete cli/ directory & config files**
+  Delete the `cli/` directory and any root configuration files (e.g. `package.json`, lockfiles).
+- [ ] **Step 3: Commit Purge (Atomic Commit)**
   Commit Task 2: `git rm -r cli && git commit -m "chore: purge legacy cli typescript react/ink codebase"`
 
 ---
@@ -48,6 +66,6 @@
   Create `docs/migration/purge_report.md` detailing:
   - Scope of removals
   - Justification of safety (what replaced it)
-  - Quantitative impacts (dependency counts, repository size, build file savings)
+  - Quantitative impacts (dependency counts, repository size, build file savings before vs. after)
 - [ ] **Step 3.3: Commit Report**
   Commit Task 3: `git add . && git commit -m "docs(tui): complete native ratatui purge report"`
