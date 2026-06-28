@@ -95,14 +95,20 @@ Any discrepancy or bug identified during validation will be logged in the audit 
 
 - [ ] **Step 1: Write Canonical Migration Report**
   Create a unified sign-off document summarizing:
+  - **Executive Validation Summary**:
+    - Total automated tests executed
+    - Total manual checks conducted
+    - Findings by severity (Critical, Major, Minor, Cosmetic)
+    - Overall release recommendation (Pass / Pass with Notes / Fail)
   - Report Version & Release snapshot details (Migration Date, Commit Hash, Report Version)
   - Validation Scope (explicitly delineating interface verification boundaries vs. out-of-scope backend/LLM behaviors)
   - Migration scope and context
   - Final Native Architecture overview
   - Detailed Parity Verification checklist results
-  - Known Limitations section (intentional deferrals, platform differences, future work)
+  - Known Limitations section (intentional platform differences, OS limitations)
   - Performance Metrics table (separating Target Thresholds from Measured Observations, paired with env parameters)
   - Legacy Removal results & dependency audit checklist
+  - Future Work section (non-blocking enhancements, subsequent extensions)
   - Explicit exit checklist status
 - [ ] **Step 2: Commit**
   Commit Task 3: `git add . && git commit -m "docs(tui): produce canonical native ratatui migration report and final sign-off"`
