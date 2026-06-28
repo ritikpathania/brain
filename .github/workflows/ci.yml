@@ -27,29 +27,16 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            daemon/target/
+            target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install & Build CLI Assets
-        run: |
-          cd cli
-          bun install --ignore-scripts
-          bun run build
 
       - name: Check Rust Formatting
         run: |
-          cd daemon
           cargo fmt --all -- --check
 
       - name: Run Clippy
         run: |
-          cd daemon
-          cargo clippy --all-targets -- -D warnings
+          cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -117,17 +104,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install & Build CLI Assets
-        run: |
-          cd cli
-          bun install --ignore-scripts
-          bun run build
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -150,8 +126,7 @@ jobs:
 
       - name: Run Rust Test Suite
         run: |
-          cd daemon
-          uv run cargo test
+          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --workspace
 
       - name: Run Python Test Suite
         run: |
@@ -160,5 +135,5 @@ jobs:
 
       - name: Verify Benchmark Compilation
         run: |
-          cd daemon
-          uv run cargo bench --no-run
+          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo bench --workspace --no-run
+
