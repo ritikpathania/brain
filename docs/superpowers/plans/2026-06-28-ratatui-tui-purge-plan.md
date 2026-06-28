@@ -29,8 +29,8 @@ We will measure and log the following before/after metrics inside the final repo
 The purge will be executed atomically following this sequence:
 1. **Pre-Purge Audits**: Verify default TUI runtime paths and document dead references.
 2. **Atomic Deletion Commit**: Delete `cli/` and config files in a single, dedicated git commit.
-3. **Post-Purge Scan & Verification**: Run repository-wide search for retired identifiers, verify clean compilation and fresh-clone onboarding checks.
-4. **Sign-off**: Author and commit the final Purge Report detailing the post-purge snapshot.
+3. **Post-Purge Scan & Negative Verification**: Run repository-wide search for retired identifiers, confirm absence of Node/JS-related configuration and CI steps, verify clean compilation and fresh-clone onboarding checks.
+4. **Sign-off**: Author and commit the final Purge Report detailing the post-purge snapshot and repository state summary.
 
 ---
 
@@ -64,11 +64,12 @@ The purge will be executed atomically following this sequence:
   Run `cargo clean && PYO3_PYTHON=... cargo build` to verify clean compilation from scratch.
 - [ ] **Step 3.2: Verify fresh-clone onboarding experience**
   Perform verification simulating a fresh clone. Confirm a contributor can clone, read the updated documentation, and run the native build successfully without needing Bun, Node, or Ink.
-- [ ] **Step 3.3: Post-Purge Repository Scan**
-  Perform a final search across all code, comments, scripts, and documentation for retired terms (`cli/`, `Ink`, `React`, `bun`, `npm`, `yoga`) to ensure no dead references remain.
+- [ ] **Step 3.3: Post-Purge Repository Scan & Negative Verification**
+  Perform a final search across all code, comments, scripts, and documentation for retired terms (`cli/`, `Ink`, `React`, `bun`, `npm`, `yoga`) to ensure no dead references remain. Confirm that no required `package.json` exists for build, and no CI jobs/onboarding paths expect Bun/Node.js tooling.
 - [ ] **Step 3.4: Create Purge Report**
   Create `docs/migration/purge_report.md` detailing:
   - Commit Hash & Date immediately after completion.
+  - **Repository State Summary**: Active frontend technology (Ratatui TUI), supported build toolchain (Rust Cargo), supported package manager (Cargo), primary application entry point (`apps/brain-v2`), supported contributor workflow.
   - Cargo workspace status and number of remaining workspace crates (13 crates).
   - Confirmation of clean checkout builds.
   - Scope of legacy files and directories removed.
