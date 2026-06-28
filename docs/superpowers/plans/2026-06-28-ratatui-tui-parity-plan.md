@@ -35,7 +35,7 @@ We will measure and log the following baseline statistics inside our final repor
   - **Render Latency**: Frame redraw commit time (measured via profiler/logs).
   - **Streaming Latency**: Input token delivery and typewriter queue pacing latency.
   - **Session Switch Latency**: Database query and history reload completion time.
-  *(Note: The report will explicitly split metrics into "Measured Observation" and "Target Threshold" fields to cleanly accommodate future regression rules.)*
+  *(Note: The report will explicitly split metrics into "Measured Observation" and "Target Threshold" fields. Each measured value will state the aggregation methodology: once, average, or median.)*
 
 ---
 
@@ -106,9 +106,10 @@ Any discrepancy or bug identified during validation will be logged in the audit 
   - Final Native Architecture overview
   - Detailed Parity Verification checklist results
   - Known Limitations section (intentional platform differences, OS limitations)
-  - Performance Metrics table (separating Target Thresholds from Measured Observations, paired with env parameters)
+  - Performance Metrics table (separating Target Thresholds from Measured Observations, indicating methodology e.g. "average over 5 runs", paired with env parameters)
   - Legacy Removal results & dependency audit checklist
   - Future Work section (non-blocking enhancements, subsequent extensions)
+  - **Evidence Index** (links/paths to automated test outputs, benchmark results, parity audit, dependency audit, clippy logs, and docs updates)
   - Explicit exit checklist status
 - [ ] **Step 2: Commit**
   Commit Task 3: `git add . && git commit -m "docs(tui): produce canonical native ratatui migration report and final sign-off"`
