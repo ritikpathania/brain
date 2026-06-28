@@ -279,43 +279,14 @@ fn print_config() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn launch_embedded_tui() -> Result<(), Box<dyn std::error::Error>> {
-    let embedded_js = include_str!("../../cli/dist/cli.js");
-    let embedded_wasm = include_bytes!("../../cli/node_modules/yoga-wasm-web/dist/yoga.wasm");
+    println!("Launching native Ratatui TUI client...");
     let paths = config::resolve_paths();
 
-    let mut temp_dir = std::env::temp_dir();
-    temp_dir.push(format!("brain_tui_{}", std::process::id()));
-    fs::create_dir_all(&temp_dir)?;
-
-    let js_path = temp_dir.join("cli.js");
-    let wasm_path = temp_dir.join("yoga.wasm");
-
-    fs::write(&js_path, embedded_js)?;
-    fs::write(&wasm_path, embedded_wasm)?;
-
-    println!("Launching brain interactive TUI...");
-
-    let mut child = match std::process::Command::new("bun")
-        .arg(&js_path)
+    let mut child = std::process::Command::new("brain-v2")
         .env("BRAIN_SOCKET_PATH", &paths.socket_path)
-        .spawn()
-    {
-        Ok(c) => c,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            let _ = fs::remove_dir_all(temp_dir);
-            eprintln!("Error: 'bun' runtime was not found on your system PATH.");
-            eprintln!("Please install Bun (https://bun.sh) to use the interactive terminal UI.");
-            std::process::exit(1);
-        }
-        Err(e) => {
-            let _ = fs::remove_dir_all(temp_dir);
-            return Err(e.into());
-        }
-    };
+        .spawn()?;
 
     let _ = child.wait();
-
-    let _ = fs::remove_dir_all(temp_dir);
     Ok(())
 }
 
