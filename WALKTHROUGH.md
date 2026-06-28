@@ -152,15 +152,13 @@ PyO3 provides direct, in-process CPython FFI bindings. Instead of running Python
 
 The codebase is organized in a monorepo structure, cleanly isolating the client, daemon, storage, and Python layers.
 
-```
+```text
 brain/
-├── cli/                        # React/Ink TypeScript TUI Client
-│   ├── src/
-│   │   ├── components/         # TUI UI components (PromptInput)
-│   │   │   └── design-system/  # Token-based TUI design system (ThemeProvider, themes, hooks)
-│   │   ├── screens/            # REPL split-screen layout
-│   │   ├── services/           # SocketClient (UDS JSON-IPC wrapper)
-│   │   └── main.tsx            # CLI entry point
+├── INSTALL.md                  # Installation guide
+├── UPGRADE.md                  # Upgrade guide
+├── WALKTHROUGH.md              # Unified architecture & developer guide (This document)
+├── CONTRIBUTING.md             # Contribution guidelines, standards, and PR workflows
+├── README.md                   # Repository landing page with Documentation Map
 ├── apps/
 │   └── brain-v2/               # Binary application composition entrypoint
 │       └── src/main.rs         # ApplicationRuntime startup/shutdown bootstrapper
@@ -169,7 +167,7 @@ brain/
 │   ├── brain-core/             # Shared extensibility, repository interfaces, and error structures
 │   ├── brain-domain/           # Strongly-typed IDs, non-exhaustive entities, and DTOs
 │   ├── brain-events/           # Command & event envelope schemas and bus traits
-│   ├── brain-observability/     # Metrics exporters (Prometheus) and tracing subscriber logs
+│   ├── brain-observability/    # Metrics exporters (Prometheus) and tracing subscriber logs
 │   ├── brain-plugins/          # Dynamic plugin scanners, registries, and RCU managers
 │   ├── brain-python/           # PyO3 embedded interpreter runtime, loaders, and agent adapters
 │   ├── brain-services/         # ApplicationRuntime composition root, facades, and retrieval
@@ -177,7 +175,12 @@ brain/
 │   ├── brain-storage/          # SQLite connection pooling, migrations, and CRUD operations
 │   ├── brain-tools/            # Tool registry, executor engine, and cancellation/timeout wrappers
 │   └── brain-tui/              # Terminal layout primitives and UI managers
-└── docs/                       # Specifications and Architecture Decision Records
+└── docs/                       # Structured documentation folder
+    ├── README.md               # Main documentation catalog index
+    ├── architecture/           # In-depth architectural designs, overview, ADRs, and RFCs
+    ├── migration/              # Historical migration audits, parity reports, and cleanups
+    ├── reference/              # Protocol specifications, API models, schemas, and benchmarks
+    └── superpowers/            # AI-generated plans, detailed designs, and verification reports
 ```
 
 ---
