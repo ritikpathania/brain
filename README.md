@@ -2,6 +2,27 @@
 
 A stateful, terminal-based AI assistant interface that acts as a dedicated Relational Memory Engine for external autonomous agents.
 
+## 🗺️ Documentation Map
+
+Explore the repository documentation using the structure below:
+
+```text
+README.md (You are here)
+├── Installation ──────────► INSTALL.md
+├── Architecture ──────────► docs/architecture/
+├── Reference ─────────────► docs/reference/
+├── Contributing ──────────► CONTRIBUTING.md
+└── Documentation Index ──► docs/README.md
+```
+
+*   **[Installation](file:///Users/ritikpathania/Developer/PyCharm/brain/INSTALL.md)**: Guidelines for setting up, building, and running the system.
+*   **[Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/)**: In-depth explanations of system layout, architectural diagrams, ADRs, and RFCs.
+*   **[Reference](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/)**: Technical specifications covering Unix Domain Socket streaming protocol, storage design, and plugins.
+*   **[Contributing](file:///Users/ritikpathania/Developer/PyCharm/brain/CONTRIBUTING.md)**: Codebase standards, pull request flows, and RFC/ADR policies.
+*   **[Documentation Index](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/README.md)**: The central catalog linking all architectural, spec, design, and migration reports.
+
+---
+
 ## Architecture Overview
 
 ```
