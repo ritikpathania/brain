@@ -94,9 +94,11 @@ Any discrepancy or bug identified during validation will be logged in the audit 
 
 - [ ] **Step 1: Write Canonical Migration Report**
   Create a unified sign-off document summarizing:
+  - Report Version & Release snapshot details (Migration Date, Commit Hash, Report Version)
   - Migration scope and context
   - Final Native Architecture overview
   - Detailed Parity Verification checklist results
+  - Known Limitations section (intentional deferrals, platform differences, future work)
   - Performance Metrics table (paired with env parameters)
   - Legacy Removal results & dependency audit checklist
   - Explicit exit checklist status
