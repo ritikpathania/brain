@@ -109,6 +109,7 @@ Any discrepancy or bug identified during validation will be logged in the audit 
   - Performance Metrics table (separating Target Thresholds from Measured Observations, indicating methodology e.g. "average over 5 runs", paired with env parameters)
   - Legacy Removal results & dependency audit checklist
   - Future Work section (non-blocking enhancements, subsequent extensions)
+  - **Artifact Manifest** (list of every architectural artifact and report file produced by the migration deliverables)
   - **Evidence Index** (links/paths to automated test outputs, benchmark results, parity audit, dependency audit, clippy logs, and docs updates)
   - Explicit exit checklist status
 - [ ] **Step 2: Commit**
