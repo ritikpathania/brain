@@ -810,6 +810,7 @@ impl StartupPhase for ServicesReadyPhase {
                 )),
                 retrieval_service.clone(),
                 Arc::new(crate::conversation::DummyChatAgent),
+                None,
             ));
         let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(
             Arc::new(crate::agent::streaming::DefaultStreamEventMapper),

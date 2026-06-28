@@ -321,6 +321,9 @@ pub trait ConversationManager: Send + Sync {
 
     /// Prunes low-weight decayed edges/nodes from long-term memory.
     fn prune_memories(&self, session_id: &SessionId) -> Result<usize, BrainError>;
+
+    /// Archives the conversation, preventing further modifications and publishing event.
+    fn archive_conversation(&self, session_id: &SessionId) -> Result<(), BrainError>;
 }
 
 /// Helper component compiling deterministic prompt assemblies.
@@ -906,6 +909,7 @@ pub struct ConversationManagerImpl {
     checkpoint_store: Arc<dyn CheckpointStore>,
     retrieval_service: Arc<dyn RetrievalService>,
     chat_agent: Arc<dyn brain_core::agents::ChatAgent>,
+    event_publisher: Option<Arc<dyn brain_events::EventPublisher>>,
 }
 
 impl ConversationManagerImpl {
@@ -922,6 +926,7 @@ impl ConversationManagerImpl {
         checkpoint_store: Arc<dyn CheckpointStore>,
         retrieval_service: Arc<dyn RetrievalService>,
         chat_agent: Arc<dyn brain_core::agents::ChatAgent>,
+        event_publisher: Option<Arc<dyn brain_events::EventPublisher>>,
     ) -> Self {
         Self {
             repos,
@@ -934,6 +939,7 @@ impl ConversationManagerImpl {
             checkpoint_store,
             retrieval_service,
             chat_agent,
+            event_publisher,
         }
     }
 
@@ -1058,8 +1064,8 @@ impl ConversationManager for ConversationManagerImpl {
                 response.to_string(),
             );
 
-            conversation.messages.push(user_msg);
-            conversation.messages.push(assistant_msg);
+            conversation.add_message(user_msg)?;
+            conversation.add_message(assistant_msg)?;
 
             repos.sessions().save_session(session_id, &conversation)?;
             Ok(())
@@ -1317,6 +1323,30 @@ impl ConversationManager for ConversationManagerImpl {
         })?;
 
         Ok(rows)
+    }
+
+    fn archive_conversation(&self, session_id: &SessionId) -> Result<(), BrainError> {
+        self.storage.run_transaction(|tx| {
+            let repos = tx.repositories();
+            let mut conversation = repos
+                .sessions()
+                .load_session(session_id)?
+                .unwrap_or_else(Conversation::new_empty);
+
+            let _event = conversation.archive()?;
+            repos.sessions().save_session(session_id, &conversation)?;
+
+            // Publish event
+            if let Some(publ) = &self.event_publisher {
+                let wrapped_event = brain_events::DomainEvent::Session(
+                    brain_events::SessionEvent::ConversationArchived(conversation.id)
+                );
+                publ.publish(brain_events::EventEnvelope::new("conversation_service".to_string(), wrapped_event));
+            }
+
+            Ok(())
+        })?;
+        Ok(())
     }
 }
 

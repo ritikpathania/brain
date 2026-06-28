@@ -226,6 +226,10 @@ impl brain_services::conversation::ConversationManager for MockConversationManag
     fn prune_memories(&self, _session_id: &SessionId) -> Result<usize, BrainError> {
         Ok(0)
     }
+
+    fn archive_conversation(&self, _session_id: &SessionId) -> Result<(), BrainError> {
+        Ok(())
+    }
 }
 
 // --- Test Cases ---

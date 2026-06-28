@@ -32,7 +32,8 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
 14. [Adaptive Memory Policy Engine](#14-adaptive-memory-policy-engine)
 15. [Workflow Graphs & DAG Execution](#15-workflow-graphs--dag-execution)
 16. [Native Ratatui TUI Client](#16-native-ratatui-tui-client)
-17. [Appendix](#17-appendix)
+17. [Domain-Driven Design (DDD) Model](#17-domain-driven-design-ddd-model)
+18. [Appendix](#18-appendix)
 
 ---
 
@@ -738,10 +739,33 @@ To manage database-backed conversation threads, selection browser widgets, and l
 - **Flicker-Free Transitions**: When a session is activated, the messages from the previous conversation remain fully rendered on screen alongside a loading block status, replacing the view ONLY when the new messages are successfully loaded.
 - **Safe Deletion Invariant**: Permanent thread deletions update database repositories and invalidate pending load references. If the active session is deleted, the TUI automatically selects the nearest remaining row and initiates a replacement query.
 
+## 17. Domain-Driven Design (DDD) Model
+
+We have evolved the architecture toward a richer Domain-Driven Design (DDD) model while maintaining full backward compatibility. The `brain-domain` crate contains pure domain entities, specifications, errors, and events, keeping them completely decoupled from database, execution, or FFI concerns.
+
+### Pure Domain Errors (`DomainError`)
+To enforce business invariants within the domain boundary, we defined `DomainError` in `brain-domain::errors`. Infrastructure and service layers convert these validation errors using the `From<DomainError> for BrainError` implementation in `brain-core`.
+
+### Encapsulated Invariants & Aggregate Roots
+Entities protect their own internal invariants:
+* **`Edge`**: Manages weight adjustment invariants (`strengthen`, exponential `decay`).
+* **`Conversation`**: Exposes explicit state transitions (`archive`, `add_message`) preventing modifications once archived.
+* **`KnowledgeGraph` (Aggregate Root)**: Protects structural and referential integrity of in-memory graph operations (e.g. validating source and target nodes exist before establishing an edge).
+* **`Session` (Aggregate Root)**: Orchestrates goal-tracking invariants, preventing empty or duplicate goals.
+
+### Domain Specifications & Services
+* **`Specification` Trait**: A generic specification pattern implementation supporting logical operators (`And`, `Or`, `Not`). Includes predefined specifications:
+  - `IsPinned`: Asserts whether a node's properties maps `"pinned": true`.
+  - `IsExpired`: Asserts whether an edge's age exceeds a configurable time-to-live threshold.
+* **`MemoryMergePolicy` (Domain Service)**: Encapsulates rules for merging two nodes of the same type, deep-merging properties recursively, and resolving conflicts towards the newer node.
+
+### Pure Domain Events
+State changes on entities and aggregate roots return pure `DomainEvent` signals (e.g., `RelationshipStrengthened`, `MemoryMerged`, `ConversationArchived`). Application services (e.g., `ConversationManager`) intercept these events, wrap them in metadata-rich `EventEnvelope` structures, and publish them to the system-wide event bus.
+
 ---
 
 
-## 17. Appendix
+## 18. Appendix
 
 ### Standard Paths Reference
 * **Main Directory**: `~/.brain/`

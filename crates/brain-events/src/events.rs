@@ -1,4 +1,4 @@
-use brain_domain::{NodeId, PluginId, PluginState, RunId, SessionId};
+use brain_domain::{ConversationId, NodeId, PluginId, PluginState, RunId, SessionId};
 use serde::{Deserialize, Serialize};
 
 /// Strongly-typed event topics identifying subscription streams.
@@ -93,6 +93,8 @@ pub enum SessionEvent {
     SessionCreated(SessionId),
     /// Session closed.
     SessionClosed(SessionId),
+    /// Conversation archived.
+    ConversationArchived(ConversationId),
 }
 
 /// Agent execution lifecycle signals.
@@ -144,6 +146,24 @@ pub enum StorageEvent {
     },
     /// High-dimensional vector embedding saved for a node.
     EmbeddingStored(NodeId),
+    /// Relationship strengthened.
+    RelationshipStrengthened {
+        /// Source node.
+        source: NodeId,
+        /// Target node.
+        target: NodeId,
+        /// Relationship label.
+        relation: String,
+        /// New weight value.
+        weight: f64,
+    },
+    /// Memory nodes merged.
+    NodesMerged {
+        /// The target node ID that remains.
+        target: NodeId,
+        /// The node ID that was absorbed/merged.
+        merged: NodeId,
+    },
 }
 
 /// Dynamic extension plugin lifecycle signals.

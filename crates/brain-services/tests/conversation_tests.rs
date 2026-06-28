@@ -182,6 +182,7 @@ async fn test_promotion_idempotency_and_transactional_rollback() {
         checkpoint_store,
         retrieval_service,
         chat_agent,
+        None,
     );
 
     let session_id = SessionId::new();
@@ -246,6 +247,7 @@ async fn test_summarization_versioning() {
         Arc::new(MockChatAgent {
             response: "Segment Summary".to_string(),
         }),
+        None,
     );
 
     let session_id = SessionId::new();
@@ -294,6 +296,7 @@ async fn test_pruning_pinned_memories_safety() {
         Arc::new(MockChatAgent {
             response: "".to_string(),
         }),
+        None,
     );
 
     let session_id = SessionId::new();
@@ -324,3 +327,69 @@ async fn test_pruning_pinned_memories_safety() {
     let remaining_edges = EdgeRepository::get_connections(repos.as_ref(), &node_pinned.id).unwrap();
     assert!(!remaining_edges.is_empty());
 }
+
+struct MockEventPublisher {
+    published: Arc<std::sync::Mutex<Vec<brain_events::EventEnvelope>>>,
+}
+
+impl brain_events::EventPublisher for MockEventPublisher {
+    fn publish(&self, envelope: brain_events::EventEnvelope) {
+        self.published.lock().unwrap().push(envelope);
+    }
+}
+
+#[test]
+fn test_archive_conversation_and_event_publishing() {
+    let test_store = TestStorage::new();
+    let storage = test_store.store();
+    let repos = test_store.store();
+    let cache_manager = Arc::new(SessionCacheManager::new());
+    
+    let published_events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let publisher = Arc::new(MockEventPublisher {
+        published: published_events.clone(),
+    });
+
+    let manager = ConversationManagerImpl::new(
+        repos.clone(),
+        storage.clone(),
+        cache_manager.clone(),
+        Arc::new(WordSpaceTokenCounter),
+        Arc::new(MockMemoryExtractor {
+            should_fail: Arc::new(AtomicBool::new(false)),
+        }),
+        Arc::new(PromotionEngineImpl::new(CountThresholdPromotionPolicy::new(10))),
+        Arc::new(CountThresholdSummaryPolicy::new(10)),
+        Arc::new(SqliteCheckpointStore::new(storage.clone())),
+        Arc::new(MockRetrieval { nodes: vec![] }),
+        Arc::new(MockChatAgent {
+            response: "".to_string(),
+        }),
+        Some(publisher),
+    );
+
+    let session_id = SessionId::new();
+    let policy = IngestionPolicy { stm_only: false };
+
+    // Ingest works when conversation is active
+    assert!(manager.ingest_interaction(&session_id, "hello", "hi", policy).is_ok());
+
+    // Archive the conversation
+    assert!(manager.archive_conversation(&session_id).is_ok());
+
+    // Ingest should now fail because the conversation is archived
+    let err = manager.ingest_interaction(&session_id, "second prompt", "response", policy);
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("is archived"));
+
+    // Verify event was published
+    let events = published_events.lock().unwrap();
+    assert_eq!(events.len(), 1);
+    let envelope = &events[0];
+    assert_eq!(envelope.source, "conversation_service");
+    match &envelope.payload {
+        brain_events::DomainEvent::Session(brain_events::SessionEvent::ConversationArchived(_)) => {}
+        _ => panic!("Expected SessionEvent::ConversationArchived variant"),
+    }
+}
+

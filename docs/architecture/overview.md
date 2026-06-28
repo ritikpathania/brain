@@ -20,7 +20,8 @@ Welcome to the canonical technical reference and developer guide for **Brain** (
 12. [Future Roadmap](#12-future-roadmap)
 13. [Design Decisions](#13-design-decisions)
 14. [Development Guide](#14-development-guide)
-15. [Appendix](#15-appendix)
+15. [Domain-Driven Design (DDD) Model](#15-domain-driven-design-ddd-model)
+16. [Appendix](#16-appendix)
 
 ---
 
@@ -710,9 +711,33 @@ To register a custom CLI command dynamically using a Python plugin:
 2. Register it in `register_plugins()` under `"cli_plugins"`.
 3. You can now execute it directly: `brain hello world`.
 
+## 15. Domain-Driven Design (DDD) Model
+
+We have evolved the architecture toward a richer Domain-Driven Design (DDD) model while maintaining full backward compatibility. The `brain-domain` crate contains pure domain entities, specifications, errors, and events, keeping them completely decoupled from database, execution, or FFI concerns.
+
+### Pure Domain Errors (`DomainError`)
+To enforce business invariants within the domain boundary, we defined `DomainError` in `brain-domain::errors`. Infrastructure and service layers convert these validation errors using the `From<DomainError> for BrainError` implementation in `brain-core`.
+
+### Encapsulated Invariants & Aggregate Roots
+Entities protect their own internal invariants:
+* **`Edge`**: Manages weight adjustment invariants (`strengthen`, exponential `decay`).
+* **`Conversation`**: Exposes explicit state transitions (`archive`, `add_message`) preventing modifications once archived.
+* **`KnowledgeGraph` (Aggregate Root)**: Protects structural and referential integrity of in-memory graph operations (e.g. validating source and target nodes exist before establishing an edge).
+* **`Session` (Aggregate Root)**: Orchestrates goal-tracking invariants, preventing empty or duplicate goals.
+
+### Domain Specifications & Services
+* **`Specification` Trait**: A generic specification pattern implementation supporting logical operators (`And`, `Or`, `Not`). Includes predefined specifications:
+  - `IsPinned`: Asserts whether a node's properties maps `"pinned": true`.
+  - `IsExpired`: Asserts whether an edge's age exceeds a configurable time-to-live threshold.
+* **`MemoryMergePolicy` (Domain Service)**: Encapsulates rules for merging two nodes of the same type, deep-merging properties recursively, and resolving conflicts towards the newer node.
+
+### Pure Domain Events
+State changes on entities and aggregate roots return pure `DomainEvent` signals (e.g., `RelationshipStrengthened`, `MemoryMerged`, `ConversationArchived`). Application services (e.g., `ConversationManager`) intercept these events, wrap them in metadata-rich `EventEnvelope` structures, and publish them to the system-wide event bus.
+
 ---
 
-## 15. Appendix
+
+## 16. Appendix
 
 ### Standard Paths Reference
 * **Main Directory**: `~/.brain/`

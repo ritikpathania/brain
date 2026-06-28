@@ -77,3 +77,20 @@ When claiming work is complete, performing walkthroughs, or explaining architect
 - Update the local walkthrough artifact (in the system-generated `<appDataDir>/brain/<conversation-id>/walkthrough.md` artifacts directory) to match the work done.
 - Always update the unified, project-level documentation at [WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md) directly.
 
+## Domain-Driven Design (DDD) Invariants
+
+When modifying or adding models, specifications, or operations to the `crates/brain-domain/` directory:
+
+1. **Zero External Subsystem Dependencies**:
+   - `brain-domain` must stay at the bottom of the dependency tree. It cannot depend on any async runtimes, logger setups, database engines, or FFI modules.
+
+2. **Invariants Protected by Entities and Aggregates**:
+   - Encapsulate validation rules and business logic directly within entities (e.g., `Edge::strengthen`, `Conversation::archive`) and aggregate roots (e.g., `KnowledgeGraph`, `Session`) rather than orchestrating workflows inside application services.
+
+3. **Pure Domain Events**:
+   - State-changing mutations on domain models must return pure, side-effect-free events (e.g. `RelationshipStrengthened`, `MemoryMerged`, `ConversationArchived`) instead of calling event publishers directly. Let calling services intercept and publish them.
+
+4. **Pure Evaluation Specifications**:
+   - Specifications (`Specification` implementations) must only handle in-memory domain validations (e.g., checking if a node is pinned or if an edge is expired) and must not be used for database query building or indexing.
+
+
