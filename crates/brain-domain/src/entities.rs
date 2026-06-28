@@ -364,11 +364,10 @@ impl KnowledgeGraph {
         source: NodeId,
         target: NodeId,
         relation: String,
-    ) -> Result<(), crate::errors::DomainError> {
+    ) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
         let edge_id = EdgeId::new(source, target, relation.clone());
         if let Some(edge) = self.edges.get_mut(&edge_id) {
-            edge.strengthen()?;
-            Ok(())
+            edge.strengthen()
         } else {
             Err(crate::errors::DomainError::MissingSourceNode(format!(
                 "Edge {} -> {} [{}] not found",
