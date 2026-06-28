@@ -107,7 +107,11 @@ fn test_memory_merge_policy() {
 
     let merged_result = MemoryMergePolicy::merge(&node_a, &node_b);
     assert!(merged_result.is_ok());
-    let merged = merged_result.unwrap();
+    let (merged, event) = merged_result.unwrap();
+
+    // Verify correct DomainEvent is returned
+    assert!(matches!(event, DomainEvent::MemoryMerged { ref target_id, ref merged_id }
+        if target_id == &id_a.to_string() && merged_id == &id_b.to_string()));
 
     // Verify ID remains node_a's ID
     assert_eq!(merged.id, id_a);
@@ -133,7 +137,9 @@ fn test_memory_merge_policy() {
     let node_b_newer = node_b.clone().with_updated_at(1000);
 
     let merged_result2 = MemoryMergePolicy::merge(&node_a_older, &node_b_newer);
-    let merged2 = merged_result2.unwrap();
+    let (merged2, event2) = merged_result2.unwrap();
+    assert!(matches!(event2, DomainEvent::MemoryMerged { ref target_id, ref merged_id }
+        if target_id == &id_a.to_string() && merged_id == &id_b.to_string()));
     assert_eq!(merged2.label, "Node B"); // B is newer
     assert_eq!(merged2.properties.get("importance").unwrap(), &json!(0.9)); // B's value
 
