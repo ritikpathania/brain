@@ -116,10 +116,12 @@ As the relational memory engine grows, maintain the following design disciplines
 4. **Domain Event Versioning**:
    - Treat `DomainEvent` variants as append-only or explicitly versioned to ensure forward-compatibility with plugins and downstream consumers.
 
-5. **Future Architectural Fitness Testing**:
+5. **Future Architectural Fitness Testing (Roadmap)**:
+   - *Note: Treat these additions as optional roadmap items to introduce incrementally if/when complexity increases, not as mandatory milestones.*
    - **AST-Based Enforcement**: As text-processing code grows complex, transition the fitness test suite to parse Rust code semantically using AST tools like `syn` or `ra_ap_syntax` rather than simple line-by-line text/regex scans.
    - **Positive Assertions**: Incorporate structural validation checks verifying that required standards (e.g. traits derived, expected placement directories) are successfully satisfied.
    - **Dependency DAG Verification**: Assert full workspace dependency layout invariants (e.g. verifying that `brain-domain` lacks outgoing dependencies and `brain-services` handles facade orchestrations) using `cargo_metadata` or cargo tree analysis.
+
 
 
 

@@ -744,7 +744,7 @@ As the relational memory engine grows, maintain the following disciplines:
   let events = entity.take_events();
   ```
 * **Domain Event Versioning**: Treat `DomainEvent` variants as append-only or explicitly versioned to ensure forward-compatibility with plugins and downstream consumers.
-* **Future Architectural Fitness Testing**: Establish programmatic constraints checking. Transition from regex-based files scanning to semantic AST parsing (using `syn` or `ra_ap_syntax`), write positive structure assertions (checking trait implementations or derives), and assert dependency DAG layout constraints using `cargo_metadata` or cargo tree analysis.
+* **Future Architectural Fitness Testing (Roadmap)**: Optional additions to be introduced incrementally as needed, rather than mandatory blockers. Transition from regex-based file scanning to semantic AST parsing (using `syn` or `ra_ap_syntax`), write positive structure assertions (checking trait implementations or derives), and assert dependency DAG layout constraints using `cargo_metadata` or cargo tree analysis.
 
 ---
 
