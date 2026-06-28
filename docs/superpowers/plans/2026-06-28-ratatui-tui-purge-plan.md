@@ -70,7 +70,11 @@ The purge will be executed atomically following this sequence:
   Verify that README.md, INSTALL.md, migration reports, purge report, and onboarding guides describe the exact same supported workflows and application entry points.
 - [ ] **Step 3.5: Create Purge Report**
   Create `docs/migration/purge_report.md` detailing:
-  - Commit Hash & Date immediately after completion.
+  - **Document Header Version Summary**:
+    - Purge Report Version: 1.0.0
+    - Repository Commit: Post-purge commit hash
+    - Migration Status: Migration Complete / Legacy Retired
+    - Report Date: 2026-06-28
   - **Repository State Summary**: Active frontend technology (Ratatui TUI), supported build toolchain (Rust Cargo), supported package manager (Cargo), primary application entry point (`apps/brain-v2`), supported contributor workflow.
   - **Repository Health Summary**: Objective counts of active items post-purge comparing design target (Expected) vs. actual (Observed):
     - Remaining Rust workspace crates (Expected: 13, Observed: 13)
