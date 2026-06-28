@@ -98,6 +98,18 @@ impl Node {
         self.properties = properties;
         self
     }
+
+    /// Builder method to specify updated_at timestamp.
+    pub fn with_updated_at(mut self, updated_at: u64) -> Self {
+        self.updated_at = updated_at;
+        self
+    }
+
+    /// Builder method to specify label on the node.
+    pub fn with_label(mut self, label: String) -> Self {
+        self.label = label;
+        self
+    }
 }
 
 /// Represents a directed relationship edge between two nodes in the knowledge graph.
@@ -126,6 +138,35 @@ impl Edge {
             weight,
             updated_at: current_unix_timestamp(),
         }
+    }
+
+    /// Strengthens the relationship weight by 0.1, capped at 1.0.
+    pub fn strengthen(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
+        if self.weight < 0.0 || self.weight > 1.0 {
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(self.weight.to_string()));
+        }
+        self.weight = (self.weight + 0.1).min(1.0);
+        self.updated_at = current_unix_timestamp();
+        Ok(crate::events::DomainEvent::RelationshipStrengthened {
+            source: self.source.to_string(),
+            target: self.target.to_string(),
+            relation: self.relation.clone(),
+            new_weight: self.weight,
+        })
+    }
+
+    /// Decays the relationship weight exponentially.
+    pub fn decay(&mut self, half_life_secs: f64, delta_t_secs: f64) -> Result<(), crate::errors::DomainError> {
+        if half_life_secs <= 0.0 {
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!("half_life_secs={}", half_life_secs)));
+        }
+        if delta_t_secs < 0.0 {
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!("delta_t_secs={}", delta_t_secs)));
+        }
+        let lambda = 2.0f64.ln() / half_life_secs;
+        self.weight = self.weight * (-lambda * delta_t_secs).exp();
+        self.updated_at = current_unix_timestamp();
+        Ok(())
     }
 }
 
@@ -217,6 +258,31 @@ impl Conversation {
         self.metadata = metadata;
         self
     }
+
+    /// Archives the conversation, preventing further modifications.
+    pub fn archive(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
+        if self.is_archived() {
+            return Err(crate::errors::DomainError::ConversationArchived(self.id.to_string()));
+        }
+        self.metadata.insert("status".to_string(), "archived".to_string());
+        Ok(crate::events::DomainEvent::ConversationArchived {
+            conversation_id: self.id.to_string(),
+        })
+    }
+
+    /// Checks if the conversation is archived.
+    pub fn is_archived(&self) -> bool {
+        self.metadata.get("status").map(|s| s == "archived").unwrap_or(false)
+    }
+
+    /// Adds a message to the conversation if not archived.
+    pub fn add_message(&mut self, message: Message) -> Result<(), crate::errors::DomainError> {
+        if self.is_archived() {
+            return Err(crate::errors::DomainError::ConversationArchived(self.id.to_string()));
+        }
+        self.messages.push(message);
+        Ok(())
+    }
 }
 
 /// Represents a planned tool invocation request formulated by a planning agent.
@@ -242,6 +308,131 @@ impl ToolCall {
             call_id,
             tool_name,
             arguments,
+        }
+    }
+}
+
+/// Represents a KnowledgeGraph boundary protecting structural and referential invariants.
+/// This acts as an aggregate root for in-memory graph operations.
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KnowledgeGraph {
+    /// In-memory map of node ID to Node.
+    pub nodes: HashMap<NodeId, Node>,
+    /// In-memory map of Edge ID to Edge.
+    pub edges: HashMap<EdgeId, Edge>,
+}
+
+impl KnowledgeGraph {
+    /// Creates a new empty `KnowledgeGraph`.
+    pub fn new() -> Self {
+        Self {
+            nodes: HashMap::new(),
+            edges: HashMap::new(),
+        }
+    }
+
+    /// Adds a node to the knowledge graph.
+    pub fn add_node(&mut self, node: Node) {
+        self.nodes.insert(node.id, node);
+    }
+
+    /// Adds a relationship edge to the knowledge graph.
+    /// Validates referential integrity: the source and target nodes must exist.
+    pub fn add_edge(&mut self, edge: Edge) -> Result<(), crate::errors::DomainError> {
+        if !self.nodes.contains_key(&edge.source) {
+            return Err(crate::errors::DomainError::MissingSourceNode(edge.source.to_string()));
+        }
+        if !self.nodes.contains_key(&edge.target) {
+            return Err(crate::errors::DomainError::MissingTargetNode(edge.target.to_string()));
+        }
+        let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.clone());
+        if self.edges.contains_key(&edge_id) {
+            return Err(crate::errors::DomainError::EdgeAlreadyExists {
+                source_node: edge.source.to_string(),
+                target_node: edge.target.to_string(),
+                relation: edge.relation.clone(),
+            });
+        }
+        self.edges.insert(edge_id, edge);
+        Ok(())
+    }
+
+    /// Strengthens an existing edge within the graph.
+    pub fn strengthen_relationship(
+        &mut self,
+        source: NodeId,
+        target: NodeId,
+        relation: String,
+    ) -> Result<(), crate::errors::DomainError> {
+        let edge_id = EdgeId::new(source, target, relation.clone());
+        if let Some(edge) = self.edges.get_mut(&edge_id) {
+            edge.strengthen()?;
+            Ok(())
+        } else {
+            Err(crate::errors::DomainError::MissingSourceNode(format!(
+                "Edge {} -> {} [{}] not found",
+                source, target, relation
+            )))
+        }
+    }
+}
+
+impl Default for KnowledgeGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Represents an active user session in the brain system.
+/// This acts as an aggregate root for session-related data and goal tracking.
+#[non_exhaustive]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    /// The unique identifier of the session.
+    pub id: SessionId,
+    /// The targets / goals tracked within this session.
+    pub goals: Vec<String>,
+    /// Optional metadata associated with the session.
+    pub metadata: HashMap<String, String>,
+    /// Unix timestamp when the session was last updated.
+    pub updated_at: u64,
+}
+
+impl Session {
+    /// Creates a new `Session`.
+    pub fn new(id: SessionId) -> Self {
+        Self {
+            id,
+            goals: Vec::new(),
+            metadata: HashMap::new(),
+            updated_at: current_unix_timestamp(),
+        }
+    }
+
+    /// Adds a goal to the session.
+    pub fn add_goal(&mut self, goal: String) -> Result<(), crate::errors::DomainError> {
+        let trimmed = goal.trim();
+        if trimmed.is_empty() {
+            return Err(crate::errors::DomainError::DuplicateGoal("Goal cannot be empty".to_string()));
+        }
+        if self.goals.iter().any(|g| g == trimmed) {
+            return Err(crate::errors::DomainError::DuplicateGoal(trimmed.to_string()));
+        }
+        self.goals.push(trimmed.to_string());
+        self.updated_at = current_unix_timestamp();
+        Ok(())
+    }
+
+    /// Removes a goal from the session.
+    pub fn remove_goal(&mut self, goal: &str) -> Result<(), crate::errors::DomainError> {
+        let trimmed = goal.trim();
+        if let Some(pos) = self.goals.iter().position(|g| g == trimmed) {
+            self.goals.remove(pos);
+            self.updated_at = current_unix_timestamp();
+            Ok(())
+        } else {
+            Err(crate::errors::DomainError::GoalNotFound(trimmed.to_string()))
         }
     }
 }
