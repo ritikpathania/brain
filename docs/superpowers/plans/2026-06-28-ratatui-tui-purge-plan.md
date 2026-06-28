@@ -83,8 +83,10 @@ The purge will be executed atomically following this sequence:
   - Justification of safety (what replaced it).
   - Quantitative impacts (before vs. after metrics table).
   - **Traceability Matrix**: Maps each exit checklist criterion to the specific evidence/file validating it.
-  - References pointing back to `parity_audit_report.md` and `native_ratatui_migration_report.md` for earlier test evidence and baseline results, avoiding content duplication.
+  - **Validation Evidence**: Artifacts generated during the purge (clean build logs, repository scan results, documentation consistency checks, fresh-clone verification).
+  - **Historical References**: Links pointing back to earlier artifacts (e.g. `parity_audit_report.md` and `native_ratatui_migration_report.md` for baseline results and validation tests), avoiding content duplication.
   - **Exit Checklist Verdict**: A concise table mapping each criterion and its final verdict status (e.g. ✅).
+  - **Project Status Verdict Line**: Concise plain-language summary: "Project Status: Migration complete. Native Ratatui is the sole supported frontend. Legacy React/Ink implementation has been retired."
   - **Repository Status Conclusion**: Concise plain-language summary confirming legacy React/Ink retirement, native Ratatui default integration, Cargo-only build workflows, and exit checklist execution.
 - [ ] **Step 3.6: Commit Report**
   Commit Task 3: `git add . && git commit -m "docs(tui): complete native ratatui purge report"`
