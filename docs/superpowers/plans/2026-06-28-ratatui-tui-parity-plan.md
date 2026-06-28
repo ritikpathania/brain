@@ -29,12 +29,13 @@ We will measure and log the following baseline statistics inside our final repor
   - Rust Toolchain Version
   - Build Profile (e.g. `release`)
   - Terminal Emulator used
-- **Performance Metrics**:
+- **Performance Metrics structure**:
   - **Cold Startup Time**: Time elapsed from binary execution to Alternate Screen rendering.
   - **Idle Memory Footprint**: RSS memory usage of the client process while idle.
   - **Render Latency**: Frame redraw commit time (measured via profiler/logs).
   - **Streaming Latency**: Input token delivery and typewriter queue pacing latency.
   - **Session Switch Latency**: Database query and history reload completion time.
+  *(Note: The report will explicitly split metrics into "Measured Observation" and "Target Threshold" fields to cleanly accommodate future regression rules.)*
 
 ---
 
@@ -95,11 +96,12 @@ Any discrepancy or bug identified during validation will be logged in the audit 
 - [ ] **Step 1: Write Canonical Migration Report**
   Create a unified sign-off document summarizing:
   - Report Version & Release snapshot details (Migration Date, Commit Hash, Report Version)
+  - Validation Scope (explicitly delineating interface verification boundaries vs. out-of-scope backend/LLM behaviors)
   - Migration scope and context
   - Final Native Architecture overview
   - Detailed Parity Verification checklist results
   - Known Limitations section (intentional deferrals, platform differences, future work)
-  - Performance Metrics table (paired with env parameters)
+  - Performance Metrics table (separating Target Thresholds from Measured Observations, paired with env parameters)
   - Legacy Removal results & dependency audit checklist
   - Explicit exit checklist status
 - [ ] **Step 2: Commit**
