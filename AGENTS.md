@@ -93,4 +93,34 @@ When modifying or adding models, specifications, or operations to the `crates/br
 4. **Pure Evaluation Specifications**:
    - Specifications (`Specification` implementations) must only handle in-memory domain validations (e.g., checking if a node is pinned or if an edge is expired) and must not be used for database query building or indexing.
 
+### Architectural Scaling Guidelines
+
+As the relational memory engine grows, maintain the following design disciplines:
+
+1. **Strict Event Separation**:
+   - **DomainEvent**: Captures immutable business facts.
+   - **EventEnvelope**: Serves as the metadata/transport wrapper.
+   - **StreamEvent**: Expresses TUI/UI/streaming concerns.
+   - *Translation Boundary*: The service layer must act as the sole translation boundary between these layers.
+
+2. **Collection-Free Aggregates**:
+   - Do not let aggregates (like `KnowledgeGraph` or `Session`) grow indefinitely. For massive graphs, transition to referencing entity identifiers/repositories rather than materializing full collection records in memory.
+
+3. **Internal Event Recording Pattern**:
+   - For complex, multi-event mutations, shift from returning single events to internal event recording:
+     ```rust
+     entity.archive();
+     let events = entity.take_events();
+     ```
+
+4. **Domain Event Versioning**:
+   - Treat `DomainEvent` variants as append-only or explicitly versioned to ensure forward-compatibility with plugins and downstream consumers.
+
+5. **Future Architectural Fitness Testing**:
+   - **AST-Based Enforcement**: As text-processing code grows complex, transition the fitness test suite to parse Rust code semantically using AST tools like `syn` or `ra_ap_syntax` rather than simple line-by-line text/regex scans.
+   - **Positive Assertions**: Incorporate structural validation checks verifying that required standards (e.g. traits derived, expected placement directories) are successfully satisfied.
+   - **Dependency DAG Verification**: Assert full workspace dependency layout invariants (e.g. verifying that `brain-domain` lacks outgoing dependencies and `brain-services` handles facade orchestrations) using `cargo_metadata` or cargo tree analysis.
+
+
+
 

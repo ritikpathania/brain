@@ -762,6 +762,18 @@ Entities protect their own internal invariants:
 ### Pure Domain Events
 State changes on entities and aggregate roots return pure `DomainEvent` signals (e.g., `RelationshipStrengthened`, `MemoryMerged`, `ConversationArchived`). Application services (e.g., `ConversationManager`) intercept these events, wrap them in metadata-rich `EventEnvelope` structures, and publish them to the system-wide event bus.
 
+### Architectural Scaling Guidelines
+As the relational memory engine grows, maintain the following disciplines:
+* **Strict Event Separation**: `DomainEvent` represents immutable business facts, `EventEnvelope` serves as the transport wrapper, and `StreamEvent` expresses UI/streaming concerns. The service layer acts as the sole translation boundary.
+* **Collection-Free Aggregates**: Do not let aggregates own full collections indefinitely. For massive graphs, transition to referencing entity identifiers/repositories instead of materializing full collection records in memory.
+* **Internal Event Recording Pattern**: For complex, multi-event mutations, shift from returning single events to internal event recording:
+  ```rust
+  entity.archive();
+  let events = entity.take_events();
+  ```
+* **Domain Event Versioning**: Treat `DomainEvent` variants as append-only or explicitly versioned to ensure forward-compatibility with plugins and downstream consumers.
+* **Future Architectural Fitness Testing**: Establish programmatic constraints checking. Transition from regex-based files scanning to semantic AST parsing (using `syn` or `ra_ap_syntax`), write positive structure assertions (checking trait implementations or derives), and assert dependency DAG layout constraints using `cargo_metadata` or cargo tree analysis.
+
 ---
 
 
