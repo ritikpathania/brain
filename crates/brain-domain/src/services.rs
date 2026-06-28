@@ -7,10 +7,10 @@ pub struct MemoryMergePolicy;
 
 impl MemoryMergePolicy {
     /// Merges two nodes into a single node using a defined conflict resolution strategy.
-    /// Returns the merged node, keeping `a.id` as the primary identifier.
+    /// Returns the merged node, keeping `a.id` as the primary identifier, along with a `MemoryMerged` domain event.
     ///
     /// Validates that both nodes have the same NodeType.
-    pub fn merge(a: &Node, b: &Node) -> Result<Node, DomainError> {
+    pub fn merge(a: &Node, b: &Node) -> Result<(Node, crate::events::DomainEvent), DomainError> {
         if a.node_type != b.node_type {
             return Err(DomainError::InvalidEdgeWeight(format!(
                 "Cannot merge nodes of different types: {:?} and {:?}",
@@ -50,12 +50,19 @@ impl MemoryMergePolicy {
 
         let updated_at = std::cmp::max(a.updated_at, b.updated_at);
 
-        Ok(Node {
+        let merged_node = Node {
             id: a.id, // Primary identifier remains `a.id`
             label: newer.label.clone(),
             node_type: a.node_type.clone(),
             properties: merged_properties,
             updated_at,
-        })
+        };
+
+        let event = crate::events::DomainEvent::MemoryMerged {
+            target_id: a.id.to_string(),
+            merged_id: b.id.to_string(),
+        };
+
+        Ok((merged_node, event))
     }
 }

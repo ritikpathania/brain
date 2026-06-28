@@ -7,7 +7,11 @@ fn test_edge_strengthen_and_decay() {
     let mut edge = Edge::new(source, target, "relates_to".to_string(), 0.5);
 
     // Test strengthening
-    assert!(edge.strengthen().is_ok());
+    let res = edge.strengthen();
+    assert!(res.is_ok());
+    let event = res.unwrap();
+    assert!(matches!(event, DomainEvent::RelationshipStrengthened { source: ref s, target: ref t, relation: ref r, new_weight } 
+        if s == &edge.source.to_string() && t == &edge.target.to_string() && r == "relates_to" && (new_weight - 0.6).abs() < 1e-9));
     assert!((edge.weight - 0.6).abs() < 1e-9);
 
     // Test strengthen capped at 1.0
@@ -44,7 +48,11 @@ fn test_conversation_archiving() {
     assert_eq!(conv.messages.len(), 1);
 
     // Archive it
-    assert!(conv.archive().is_ok());
+    let res = conv.archive();
+    assert!(res.is_ok());
+    let event = res.unwrap();
+    assert!(matches!(event, DomainEvent::ConversationArchived { ref conversation_id } 
+        if conversation_id == &conv.id.to_string()));
     assert!(conv.is_archived());
 
     // Archiving again should err
@@ -88,7 +96,12 @@ fn test_knowledge_graph_invariants() {
     assert!(matches!(result, Err(DomainError::EdgeAlreadyExists { .. })));
 
     // Strengthen existing relationship
-    assert!(kg.strengthen_relationship(node1.id, node2.id, "linked_to".to_string()).is_ok());
+    let res = kg.strengthen_relationship(node1.id, node2.id, "linked_to".to_string());
+    assert!(res.is_ok());
+    let event = res.unwrap();
+    assert!(matches!(event, DomainEvent::RelationshipStrengthened { ref source, ref target, ref relation, new_weight }
+        if source == &node1.id.to_string() && target == &node2.id.to_string() && relation == "linked_to" && (new_weight - 0.6).abs() < 1e-9));
+
     let edge_id = EdgeId::new(node1.id, node2.id, "linked_to".to_string());
     assert!((kg.edges.get(&edge_id).unwrap().weight - 0.6).abs() < 1e-9);
 
