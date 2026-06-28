@@ -198,15 +198,20 @@ The codebase is organized in a monorepo structure, cleanly isolating the client,
 
 ```
 brain/
-├── cli/                        # React/Ink TypeScript TUI Client
-│   ├── src/
-│   │   ├── components/         # TUI UI components (PromptInput)
-│   │   │   └── design-system/  # Token-based TUI design system (ThemeProvider, themes, hooks, components)
-│   │   ├── screens/            # REPL split-screen layout
-│   │   ├── services/           # SocketClient (UDS JSON-IPC wrapper)
-│   │   └── main.tsx            # Cli entry point
-│   ├── package.json            # Bun dependencies
-│   └── tsconfig.json           # TypeScript configuration
+├── apps/
+│   └── brain-v2/               # Main unified entrypoint app composition root
+├── crates/
+│   ├── brain-tui/              # Native Rust Ratatui TUI Client
+│   │   ├── src/
+│   │   │   ├── client.rs       # Client trait and execution states
+│   │   │   ├── state.rs        # Reducer state machines & typewriter pacing
+│   │   │   └── ui/             # Layout calculations and custom widgets
+│   │   └── tests/              # Parity and stress integration test suite
+│   ├── brain-domain/           # Core domain entity structures
+│   ├── brain-core/             # Shared trait signatures
+│   ├── brain-config/           # Dynamic YAML config loader
+│   ├── brain-services/         # Business logic layer (indexing, retrieval)
+│   └── brain-storage/          # Transactional and analytical storage layer
 ├── daemon/                     # Rust backend server & Python FFI package
 │   ├── Cargo.toml              # Rust crate config (bundled sqlite/duckdb)
 │   ├── pyproject.toml          # Maturin Python packaging config

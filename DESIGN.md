@@ -1,3 +1,8 @@
+# [DEPRECATED] Claude Code CLI React/Ink Design System
+
+> [!WARNING]
+> This document describes the legacy React/Ink/Yoga TUI system (formerly in `cli/`) which has been fully retired and replaced by the native Rust Ratatui TUI client. For the active design and theme implementation, see [theme.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/src/ui/theme.rs).
+
 ---
 version: beta
 name: Claude-Code-CLI-Design-System
