@@ -22,13 +22,28 @@
 
 ---
 
-## Baseline Performance Metrics
+## Baseline Performance & Execution Environment Metrics
 We will measure and log the following baseline statistics inside our final report:
-- **Cold Startup Time**: Time elapsed from binary execution to Alternate Screen rendering.
-- **Idle Memory Footprint**: RSS memory usage of the client process while idle.
-- **Render Latency**: Frame redraw commit time (measured via profiler/logs).
-- **Streaming Latency**: Input token delivery and typewriter queue pacing latency.
-- **Session Switch Latency**: Database query and history reload completion time.
+- **Execution Environment details**:
+  - OS Version & CPU Architecture
+  - Rust Toolchain Version
+  - Build Profile (e.g. `release`)
+  - Terminal Emulator used
+- **Performance Metrics**:
+  - **Cold Startup Time**: Time elapsed from binary execution to Alternate Screen rendering.
+  - **Idle Memory Footprint**: RSS memory usage of the client process while idle.
+  - **Render Latency**: Frame redraw commit time (measured via profiler/logs).
+  - **Streaming Latency**: Input token delivery and typewriter queue pacing latency.
+  - **Session Switch Latency**: Database query and history reload completion time.
+
+---
+
+## Parity Failure Severity Classification
+Any discrepancy or bug identified during validation will be logged in the audit report using the following taxonomy:
+- **Critical**: Blocks release (panics, crashes, data loss).
+- **Major**: Functional regression (missing features, incorrect keybindings, broken stream cycles).
+- **Minor**: UX difference (slightly differing typing cursor behavior, different color shades, scroll offset variations).
+- **Cosmetic**: Visual / documentation issue (spacing, layout margins, typos in help text).
 
 ---
 
@@ -69,3 +84,21 @@ We will measure and log the following baseline statistics inside our final repor
   Add walkthrough details and final migration notes.
 - [ ] **Step 4: Commit**
   Commit Task 2: `git add . && git commit -m "docs(tui): complete manual parity check list and legacy removal audit report"`
+
+---
+
+### Task 3: Canonical Native Ratatui Migration Report & Sign-off
+
+**Files:**
+- Create: `docs/migration/native_ratatui_migration_report.md`
+
+- [ ] **Step 1: Write Canonical Migration Report**
+  Create a unified sign-off document summarizing:
+  - Migration scope and context
+  - Final Native Architecture overview
+  - Detailed Parity Verification checklist results
+  - Performance Metrics table (paired with env parameters)
+  - Legacy Removal results & dependency audit checklist
+  - Explicit exit checklist status
+- [ ] **Step 2: Commit**
+  Commit Task 3: `git add . && git commit -m "docs(tui): produce canonical native ratatui migration report and final sign-off"`
