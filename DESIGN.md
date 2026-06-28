@@ -1,7 +1,64 @@
-# Ratatui TUI Design System Specification
+---
+version: beta
+name: Claude-Code-CLI-Design-System
+description: >
+  Design system specification for the Claude Code CLI Terminal User Interface
+  (TUI) retargeted for the native Rust Ratatui implementation.
+rounded:
+  sm: 0px
+  md: 0px
+  lg: 0px
+  full: 0px
 
-**Version**: 2.0 (Native Rust / Ratatui Edition)  
-**Status**: Active  
+spacing:
+  none: 0ch
+  tight: 1ch
+  normal: 2ch
+  relaxed: 3ch
+  section: 4ch
+
+colors:
+  primary:                             "rgb(240,100,45)"    # brand orange (Claude accent)
+  accent:                              "rgb(128,90,213)"    # purple
+  success:                             "rgb(0,255,0)"       # green
+  warning:                             "rgb(255,255,0)"     # yellow
+  error:                               "rgb(255,0,0)"       # red
+  border:                              "rgb(80,80,80)"      # dark gray
+  border_active:                       "rgb(240,100,45)"    # brand orange active border
+  inactive:                            "rgb(120,120,120)"   # gray
+  text:                                "rgb(255,255,255)"   # white
+  cursor:                              "rgb(255,255,255)"   # white bg
+
+typography:
+  body:
+    fontFamily: Monospace
+    fontSize: 12px
+    fontWeight: 400
+  header:
+    fontFamily: Monospace
+    fontSize: 12px
+    fontWeight: 700
+  status:
+    fontFamily: Monospace
+    fontSize: 12px
+    fontWeight: 400
+
+components:
+  header:
+    textColor: "{colors.text}"
+    typography: "{typography.header}"
+  chat-viewport:
+    textColor: "{colors.text}"
+    typography: "{typography.body}"
+  editor:
+    textColor: "{colors.text}"
+    typography: "{typography.body}"
+  status-line:
+    textColor: "{colors.inactive}"
+    typography: "{typography.status}"
+---
+
+# Ratatui TUI Design System Specification
 
 This document details the layout, styling, and design token rules for the native Rust **Ratatui TUI Client** (`crates/brain-tui`). 
 
