@@ -346,3 +346,106 @@ async fn test_sidebar_event_loop_orchestration() {
     let _ = handle.await.unwrap();
 }
 
+#[tokio::test]
+async fn test_sidebar_optimistic_state_updates() {
+    use std::sync::Arc;
+    use std::sync::Mutex as StdMutex;
+    use brain_tui::ui::interaction::{
+        Editor, ScrollState, ChatState, UiEvent
+    };
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
+    use brain_tui::ui::widgets::ChatScreen;
+    use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
+    use brain_tui::ui::state::AppState;
+    use brain_tui::ui::protocol::BackendCommand;
+    use brain_tui::ui::scheduler::MockRenderScheduler;
+    use brain_tui::ui::application::{Application, DaemonClient, ApplicationError};
+    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
+    use brain_tui::client::SessionSummary;
+
+    const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
+        session_title: "test",
+        connection: ConnectionState::Connected,
+        is_working: false,
+        message_count: 0,
+        input_buffer: "",
+        focus: FocusTarget::Prompt,
+    };
+
+    struct TestDaemonClient {
+        commands: Arc<StdMutex<Vec<BackendCommand>>>,
+    }
+    #[async_trait::async_trait]
+    impl DaemonClient for TestDaemonClient {
+        async fn send(&self, command: BackendCommand) -> Result<(), ApplicationError> {
+            self.commands.lock().unwrap().push(command);
+            Ok(())
+        }
+        async fn next_event(&self) -> Option<brain_tui::ui::protocol::BackendEvent> {
+            None
+        }
+    }
+
+    let chat = ChatState::new();
+    let editor = Editor::new();
+    let scroll = ScrollState::new();
+    let focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
+    let chat_screen = ChatScreen { view: &CHAT_VIEW };
+    let router = ScreenRouter::new(ActiveScreen::Chat(chat_screen));
+    let sidebar = SidebarInteraction::new();
+    let mut state = AppState::new(chat, editor, scroll, focus, sidebar, router);
+
+    // Seed state with mock sessions
+    let test_id1 = SessionId::new();
+    let test_id2 = SessionId::new();
+    state.set_sessions(vec![
+        SessionSummary {
+            id: test_id1,
+            title: "Original Title".to_string(),
+            updated_at: std::time::SystemTime::now(),
+            pinned: false,
+            archived: false,
+        },
+        SessionSummary {
+            id: test_id2,
+            title: "Second Session".to_string(),
+            updated_at: std::time::SystemTime::now(),
+            pinned: true,
+            archived: false,
+        },
+    ]);
+
+    let scheduler = MockRenderScheduler::new();
+    let commands = Arc::new(StdMutex::new(Vec::new()));
+    let client = TestDaemonClient {
+        commands: commands.clone(),
+    };
+
+    let mut app = Application::new(state, scheduler, client);
+
+    // 1. Test optimistic rename
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Rename(test_id1, Some("New Title".to_string())))).await.unwrap();
+
+    // 2. Test optimistic toggle pin
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::TogglePin(test_id2))).await.unwrap();
+
+    // 3. Test optimistic archive
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Archive(test_id1))).await.unwrap();
+
+    // 4. Test optimistic delete
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Delete(test_id2))).await.unwrap();
+
+    // Assert rename and archive was applied optimistically
+    let s1 = app.state().sessions().iter().find(|x| x.id == test_id1).unwrap();
+    assert_eq!(s1.title, "New Title");
+    assert!(s1.archived);
+
+    // Assert delete was applied (s2 should be missing)
+    assert!(app.state().sessions().iter().find(|x| x.id == test_id2).is_none());
+
+    // Verify commands were sent to client
+    let cmds = commands.lock().unwrap();
+    assert_eq!(cmds.len(), 4);
+}
+

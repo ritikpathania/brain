@@ -203,21 +203,47 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
             UiEvent::Sidebar(event) => {
                 let cmd = match event {
                     crate::ui::interaction::sidebar::SidebarEvent::Open(_id) => {
+                        self.state.chat_mut().clear();
                         None
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Rename(id, title) => {
+                        if let Some(ref t) = title {
+                            self.state.rename_session(id, t.clone());
+                        }
                         Some(BackendCommand::RenameSession { session_id: id, title })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::TogglePin(id) => {
+                        self.state.toggle_pin_session(id);
                         Some(BackendCommand::TogglePinSession { session_id: id })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Archive(id) => {
+                        self.state.archive_session(id);
+                        let visible_ids: Vec<brain_domain::SessionId> = self.state.sessions()
+                            .iter()
+                            .filter(|x| !x.archived)
+                            .map(|x| x.id)
+                            .collect();
+                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::ArchiveSession { session_id: id })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Delete(id) => {
+                        self.state.delete_session(id);
+                        let visible_ids: Vec<brain_domain::SessionId> = self.state.sessions()
+                            .iter()
+                            .filter(|x| !x.archived)
+                            .map(|x| x.id)
+                            .collect();
+                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::DeleteSession { session_id: id })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Restore(id) => {
+                        self.state.restore_session(id);
+                        let visible_ids: Vec<brain_domain::SessionId> = self.state.sessions()
+                            .iter()
+                            .filter(|x| x.archived)
+                            .map(|x| x.id)
+                            .collect();
+                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::RestoreSession { session_id: id })
                     }
                 };
