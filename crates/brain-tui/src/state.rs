@@ -118,6 +118,10 @@ pub struct SessionViewModel {
     pub active: bool,
     /// Optional text preview summary of the final thread messages.
     pub preview: Option<String>,
+    /// Whether the session is pinned.
+    pub pinned: bool,
+    /// Whether the session is archived.
+    pub archived: bool,
 }
 
 
@@ -478,6 +482,8 @@ pub struct UiState {
     pub sessions: Vec<SessionViewModel>,
     /// Selected index inside `sessions` list.
     pub selected_session_idx: usize,
+    /// Sidebar interaction state manager.
+    pub sidebar: crate::ui::interaction::sidebar::SidebarInteraction,
     /// Track pending activations atomically.
     pub pending_load: Option<PendingLoad>,
     /// Track active loading state.
@@ -597,6 +603,7 @@ impl UiState {
             focus: FocusRegion::Editor,
             sessions: Vec::new(),
             selected_session_idx: 0,
+            sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
             pending_load: None,
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
@@ -623,6 +630,7 @@ impl UiState {
             focus: FocusRegion::Editor,
             sessions: Vec::new(),
             selected_session_idx: 0,
+            sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
             pending_load: None,
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
@@ -637,6 +645,48 @@ impl UiState {
         if matches!(self.session_load_state, SessionLoadState::Loading) {
             self.session_load_state = SessionLoadState::NotLoaded;
         }
+    }
+
+    /// Returns the filtered and sorted list of sessions that are visible in the sidebar.
+    pub fn visible_sessions(&self) -> Vec<SessionViewModel> {
+        let mut filtered: Vec<SessionViewModel> = self.sessions
+            .iter()
+            .filter(|s| {
+                // Filter by active/archived state
+                let matches_filter = match self.sidebar.browse.filter {
+                    crate::ui::interaction::sidebar::SessionFilter::Active => !s.archived,
+                    crate::ui::interaction::sidebar::SessionFilter::Archived => s.archived,
+                };
+                if !matches_filter {
+                    return false;
+                }
+
+                // Filter by search terms
+                if self.sidebar.search.active && !self.sidebar.search.editor.buffer().is_empty() {
+                    self.sidebar.search.parsed.matches(&s.title)
+                } else {
+                    true
+                }
+            })
+            .cloned()
+            .collect();
+
+        // Sort:
+        // 1. Pinned sessions first (if filter is Active), sorted by updated_at descending
+        // 2. Unpinned sessions next, sorted by updated_at descending
+        filtered.sort_by(|a, b| {
+            if self.sidebar.browse.filter == crate::ui::interaction::sidebar::SessionFilter::Active {
+                match (a.pinned, b.pinned) {
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    _ => b.updated_at.cmp(&a.updated_at),
+                }
+            } else {
+                b.updated_at.cmp(&a.updated_at)
+            }
+        });
+
+        filtered
     }
 
     /// Returns true if the query response is actively generating.
@@ -819,6 +869,8 @@ impl UiState {
                             updated_at: s.updated_at,
                             active,
                             preview: None,
+                            pinned: s.pinned,
+                            archived: s.archived,
                         }
                     })
                     .collect();
@@ -1112,11 +1164,15 @@ mod tests {
                 id: session_a,
                 title: "Session A".to_string(),
                 updated_at: SystemTime::now(),
+                pinned: false,
+                archived: false,
             },
             crate::client::SessionSummary {
                 id: session_b,
                 title: "Session B".to_string(),
                 updated_at: SystemTime::now(),
+                pinned: false,
+                archived: false,
             },
         ];
 

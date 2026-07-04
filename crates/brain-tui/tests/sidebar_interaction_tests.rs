@@ -173,3 +173,60 @@ fn test_sidebar_key_events_emission() {
     assert_eq!(event, Some(SidebarEvent::Archive(session_id)));
 }
 
+#[test]
+fn test_sidebar_rendering_modes() {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use brain_tui::ui::widgets::sidebar::{self, SidebarView};
+    use brain_tui::ui::interaction::sidebar::{SidebarMode, SessionFilter};
+    use brain_tui::ui::theme::Theme;
+    use brain_tui::state::SessionViewModel;
+    use std::time::SystemTime;
+
+    let backend = TestBackend::new(40, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::default();
+
+    let sessions = vec![
+        SessionViewModel {
+            id: SessionId::new(),
+            title: "Active Session 1".to_string(),
+            updated_at: SystemTime::now(),
+            active: true,
+            preview: None,
+            pinned: true,
+            archived: false,
+        },
+        SessionViewModel {
+            id: SessionId::new(),
+            title: "Archived Session 2".to_string(),
+            updated_at: SystemTime::now(),
+            active: false,
+            preview: None,
+            pinned: false,
+            archived: true,
+        },
+    ];
+
+    let view = SidebarView {
+        sessions: &sessions,
+        selected_idx: Some(0),
+        has_focus: true,
+        filter: SessionFilter::Active,
+        mode: SidebarMode::Browse,
+        search_active: true,
+        search_query: "Active",
+        search_cursor: 6,
+        rename_query: "Renaming...",
+        rename_cursor: 11,
+    };
+
+    terminal.draw(|f| {
+        let area = f.size();
+        sidebar::draw(f, area, &view, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    assert!(buffer.area.width > 0);
+}
+

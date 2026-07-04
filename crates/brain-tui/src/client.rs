@@ -62,6 +62,10 @@ pub struct SessionSummary {
     pub title: String,
     /// Time when the session thread was last updated.
     pub updated_at: std::time::SystemTime,
+    /// Whether the session is pinned.
+    pub pinned: bool,
+    /// Whether the session is archived.
+    pub archived: bool,
 }
 
 /// Abstract contract decoupling presentation viewports from execution modes.

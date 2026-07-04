@@ -88,10 +88,20 @@ impl AppRenderer {
 
         // 2. Draw Sidebar if visible
         if sidebar_area.width > 0 {
+            let visible = state.visible_sessions();
+            let selected_pos = state.sidebar.browse.selected
+                .and_then(|sel_id| visible.iter().position(|s| s.id == sel_id));
             let sidebar_view = sidebar::SidebarView {
-                sessions: &state.sessions,
-                selected_idx: state.selected_session_idx,
+                sessions: &visible,
+                selected_idx: selected_pos,
                 has_focus: state.focus == FocusRegion::Sidebar,
+                filter: state.sidebar.browse.filter,
+                mode: state.sidebar.mode,
+                search_active: state.sidebar.search.active,
+                search_query: state.sidebar.search.editor.buffer(),
+                search_cursor: state.sidebar.search.editor.cursor().visual_col as usize,
+                rename_query: state.sidebar.rename.editor.buffer(),
+                rename_cursor: state.sidebar.rename.editor.cursor().visual_col as usize,
             };
             sidebar::draw(f, sidebar_area, &sidebar_view, theme);
         }
