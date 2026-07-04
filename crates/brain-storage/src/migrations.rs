@@ -98,6 +98,30 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE edges ADD COLUMN observed_at INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE edges ADD COLUMN validity TEXT NOT NULL DEFAULT '[]';
     "#,
+    // Version 6 Schema Setup (Learned Ranking & Feedback Events)
+    r#"
+    CREATE TABLE IF NOT EXISTS weight_snapshots (
+        version INTEGER PRIMARY KEY,
+        created_at INTEGER NOT NULL,
+        semantic_weight REAL NOT NULL,
+        graph_weight REAL NOT NULL,
+        recency_weight REAL NOT NULL,
+        temporal_weight REAL NOT NULL,
+        calibration_metadata TEXT NOT NULL
+    );
+    INSERT INTO weight_snapshots (version, created_at, semantic_weight, graph_weight, recency_weight, temporal_weight, calibration_metadata)
+    VALUES (1, strftime('%s','now'), 1.0, 1.0, 1.0, 1.0, '{"algorithm_used":"Default","validation_loss":null}');
+    CREATE TABLE IF NOT EXISTS feedback_events (
+        id TEXT PRIMARY KEY,
+        schema_version INTEGER NOT NULL,
+        query TEXT NOT NULL,
+        node_id TEXT NOT NULL,
+        selected INTEGER NOT NULL,
+        timestamp INTEGER NOT NULL,
+        ranking_position INTEGER NOT NULL,
+        context TEXT NOT NULL
+    );
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

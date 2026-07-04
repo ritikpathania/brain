@@ -240,6 +240,240 @@ impl SqliteStorage {
         Ok(temp_edges)
     }
 
+    /// Saves a single `WeightSnapshot` to the database.
+    pub fn save_weight_snapshot(&self, snapshot: &brain_domain::retrieval::models::WeightSnapshot) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection to save weight snapshot: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let metadata_json = serde_json::to_string(&snapshot.metadata.calibration_metadata).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize calibration metadata: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        conn.execute(
+            "INSERT OR REPLACE INTO weight_snapshots (version, created_at, semantic_weight, graph_weight, recency_weight, temporal_weight, calibration_metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                snapshot.metadata.version.value(),
+                snapshot.metadata.created_at.unix_seconds(),
+                snapshot.weights.semantic().value(),
+                snapshot.weights.graph().value(),
+                snapshot.weights.recency().value(),
+                snapshot.weights.temporal().value(),
+                metadata_json
+            ],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to execute save weight snapshot: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
+
+    /// Retrieves a single `WeightSnapshot` by version.
+    pub fn get_weight_snapshot(&self, version: brain_domain::retrieval::models::SnapshotVersion) -> Result<Option<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare(
+            "SELECT version, created_at, semantic_weight, graph_weight, recency_weight, temporal_weight, calibration_metadata FROM weight_snapshots WHERE version = ?"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare statement to get weight snapshot: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut rows = stmt.query(rusqlite::params![version.value()]).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query weight snapshot: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
+            message: format!("Failed to fetch next weight snapshot row: {}", e),
+            source: Some(Box::new(e)),
+        })? {
+            let version_val: u64 = row.get(0).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let created_at_val: u64 = row.get(1).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let sem_w: f64 = row.get(2).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let gr_w: f64 = row.get(3).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let rec_w: f64 = row.get(4).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let temp_w: f64 = row.get(5).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            let metadata_str: String = row.get(6).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+
+            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata = serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize calibration metadata: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+            let weights = brain_domain::retrieval::models::RankingWeights::new(
+                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+            );
+
+            Ok(Some(brain_domain::retrieval::models::WeightSnapshot {
+                metadata: brain_domain::retrieval::models::SnapshotMetadata {
+                    version: brain_domain::retrieval::models::SnapshotVersion::new(version_val),
+                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(created_at_val),
+                    calibration_metadata: cal_meta,
+                },
+                weights,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Lists all stored `WeightSnapshot` records in ascending order of version.
+    pub fn list_all_weight_snapshots(&self) -> Result<Vec<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare(
+            "SELECT version, created_at, semantic_weight, graph_weight, recency_weight, temporal_weight, calibration_metadata FROM weight_snapshots ORDER BY version ASC"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare list snapshots statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let rows = stmt.query_map([], |row| {
+            let version_val: u64 = row.get(0)?;
+            let created_at_val: u64 = row.get(1)?;
+            let sem_w: f64 = row.get(2)?;
+            let gr_w: f64 = row.get(3)?;
+            let rec_w: f64 = row.get(4)?;
+            let temp_w: f64 = row.get(5)?;
+            let metadata_str: String = row.get(6)?;
+            Ok((version_val, created_at_val, sem_w, gr_w, rec_w, temp_w, metadata_str))
+        }).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query snapshots: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            let (version_val, created_at_val, sem_w, gr_w, rec_w, temp_w, metadata_str) = r.map_err(|e| BrainError::Storage {
+                message: format!("Failed to read snapshot row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata = serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize metadata: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+            let weights = brain_domain::retrieval::models::RankingWeights::new(
+                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+            );
+
+            results.push(brain_domain::retrieval::models::WeightSnapshot {
+                metadata: brain_domain::retrieval::models::SnapshotMetadata {
+                    version: brain_domain::retrieval::models::SnapshotVersion::new(version_val),
+                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(created_at_val),
+                    calibration_metadata: cal_meta,
+                },
+                weights,
+            });
+        }
+
+        Ok(results)
+    }
+
+    /// Saves a single `FeedbackEvent` to the database.
+    pub fn save_feedback_event(&self, event: &brain_domain::retrieval::models::FeedbackEvent) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection to save feedback event: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        conn.execute(
+            "INSERT OR REPLACE INTO feedback_events (id, schema_version, query, node_id, selected, timestamp, ranking_position, context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                event.id,
+                event.schema_version,
+                event.query,
+                event.node_id.to_string(),
+                if event.selected { 1 } else { 0 },
+                event.timestamp,
+                event.ranking_position,
+                event.context
+            ],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to execute save feedback event: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
+
+    /// Lists all feedback events from the database.
+    pub fn list_all_feedback_events(&self) -> Result<Vec<brain_domain::retrieval::models::FeedbackEvent>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare(
+            "SELECT id, schema_version, query, node_id, selected, timestamp, ranking_position, context FROM feedback_events"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare select feedback statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let rows = stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let schema_version: u32 = row.get(1)?;
+            let query: String = row.get(2)?;
+            let node_id_str: String = row.get(3)?;
+            let selected_val: i32 = row.get(4)?;
+            let timestamp: u64 = row.get(5)?;
+            let ranking_position: usize = row.get(6)?;
+            let context: String = row.get(7)?;
+
+            let u = uuid::Uuid::parse_str(&node_id_str).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    3,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+
+            Ok(brain_domain::retrieval::models::FeedbackEvent {
+                id,
+                schema_version,
+                query,
+                node_id: NodeId(u),
+                selected: selected_val != 0,
+                timestamp,
+                ranking_position,
+                context,
+            })
+        }).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query feedback events: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r.map_err(|e| BrainError::Storage {
+                message: format!("Failed to read feedback row: {}", e),
+                source: Some(Box::new(e)),
+            })?);
+        }
+
+        Ok(results)
+    }
+
     /// Evaluates and applies memory consolidation rules inside a single database transaction.
     /// Returns the list of actions executed.
     pub fn consolidate_memories(&self, policy: brain_domain::ConsolidationPolicy) -> Result<Vec<brain_domain::ConsolidationAction>, BrainError> {

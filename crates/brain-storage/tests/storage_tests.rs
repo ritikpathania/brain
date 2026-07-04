@@ -386,3 +386,82 @@ fn test_sqlite_edge_id_round_trip() {
     test_store.assert_clean();
 }
 
+#[test]
+fn test_sqlite_learned_ranking_serialization() {
+    let test_store = TestStorage::new();
+    let store = test_store.storage();
+
+    use brain_domain::retrieval::models::{
+        WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata,
+        RankingWeights, RankingWeight, FeedbackEvent
+    };
+    use brain_domain::temporal::TimePoint;
+    use brain_domain::identifiers::NodeId;
+
+    // 1. Create and save a WeightSnapshot
+    let metadata = SnapshotMetadata {
+        version: SnapshotVersion::new(10),
+        created_at: TimePoint::from_unix_seconds(1620000000),
+        calibration_metadata: CalibrationMetadata::new("LinearAdjustment".to_string(), Some(0.005)),
+    };
+    let weights = RankingWeights::new(
+        RankingWeight::new(0.5).unwrap(),
+        RankingWeight::new(1.2).unwrap(),
+        RankingWeight::new(2.1).unwrap(),
+        RankingWeight::new(0.0).unwrap(),
+    );
+    let snapshot = WeightSnapshot {
+        metadata,
+        weights,
+    };
+
+    store.save_weight_snapshot(&snapshot).unwrap();
+
+    // 2. Fetch and assert
+    let loaded = store.get_weight_snapshot(SnapshotVersion::new(10)).unwrap().expect("Snapshot not found");
+    assert_eq!(loaded.metadata.version.value(), 10);
+    assert_eq!(loaded.metadata.created_at.unix_seconds(), 1620000000);
+    assert_eq!(loaded.metadata.calibration_metadata.algorithm_used(), "LinearAdjustment");
+    assert_eq!(loaded.metadata.calibration_metadata.validation_loss(), Some(0.005));
+    assert_eq!(loaded.weights.semantic().value(), 0.5);
+    assert_eq!(loaded.weights.graph().value(), 1.2);
+    assert_eq!(loaded.weights.recency().value(), 2.1);
+    assert_eq!(loaded.weights.temporal().value(), 0.0);
+
+    // List all
+    let all_snapshots = store.list_all_weight_snapshots().unwrap();
+    // Default version 1 exists from migration + our version 10
+    assert_eq!(all_snapshots.len(), 2);
+    assert_eq!(all_snapshots[0].metadata.version.value(), 1);
+    assert_eq!(all_snapshots[1].metadata.version.value(), 10);
+
+    // 3. Create and save a FeedbackEvent
+    let event = FeedbackEvent {
+        id: "evt-999".to_string(),
+        schema_version: 1,
+        query: "rust memory".to_string(),
+        node_id: NodeId::new(),
+        selected: true,
+        timestamp: 1620000005,
+        ranking_position: 3,
+        context: "{\"session\":\"abc\"}".to_string(),
+    };
+
+    store.save_feedback_event(&event).unwrap();
+
+    let all_events = store.list_all_feedback_events().unwrap();
+    assert_eq!(all_events.len(), 1);
+    let loaded_evt = &all_events[0];
+    assert_eq!(loaded_evt.id, "evt-999");
+    assert_eq!(loaded_evt.schema_version, 1);
+    assert_eq!(loaded_evt.query, "rust memory");
+    assert_eq!(loaded_evt.node_id, event.node_id);
+    assert!(loaded_evt.selected);
+    assert_eq!(loaded_evt.timestamp, 1620000005);
+    assert_eq!(loaded_evt.ranking_position, 3);
+    assert_eq!(loaded_evt.context, "{\"session\":\"abc\"}");
+
+    test_store.assert_clean();
+}
+
+
