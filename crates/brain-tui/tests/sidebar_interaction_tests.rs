@@ -230,3 +230,26 @@ fn test_sidebar_rendering_modes() {
     assert!(buffer.area.width > 0);
 }
 
+#[test]
+fn test_sidebar_cursor_formatting_and_slicing() {
+    use brain_tui::ui::widgets::sidebar::{format_with_cursor, slice_text_viewport};
+
+    // Test format_with_cursor
+    assert_eq!(format_with_cursor("abc", 0, "|"), "|abc");
+    assert_eq!(format_with_cursor("abc", 1, "|"), "a|bc");
+    assert_eq!(format_with_cursor("abc", 3, "|"), "abc|");
+    assert_eq!(format_with_cursor("abc", 10, "|"), "abc|"); // clamp safe
+
+    // Test slice_text_viewport when width fits
+    let (sliced, new_cursor) = slice_text_viewport("hello", 3, 10);
+    assert_eq!(sliced, "hello");
+    assert_eq!(new_cursor, 3);
+
+    // Test slice_text_viewport when width is exceeded
+    // text: "abcdef", cursor at 5 ('f'), max_width: 3.
+    // should slide viewport to only show "def" and place cursor at 2
+    let (sliced, new_cursor) = slice_text_viewport("abcdef", 5, 3);
+    assert_eq!(sliced, "def");
+    assert_eq!(new_cursor, 2);
+}
+

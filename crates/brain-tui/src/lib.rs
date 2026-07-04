@@ -520,6 +520,8 @@ mod integration_tests {
                 updated_at: SystemTime::now(),
                 active: true,
                 preview: None,
+                pinned: false,
+                archived: false,
             },
             crate::state::SessionViewModel {
                 id: session_b,
@@ -527,6 +529,8 @@ mod integration_tests {
                 updated_at: SystemTime::now(),
                 active: false,
                 preview: None,
+                pinned: false,
+                archived: false,
             },
         ];
 
