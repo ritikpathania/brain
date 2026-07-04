@@ -1,0 +1,105 @@
+use brain_domain::SessionId;
+use brain_tui::ui::interaction::sidebar::{
+    SidebarInteraction, SidebarMode, SessionFilter, ParsedQuery, SessionLookup
+};
+
+struct MockLookup;
+impl SessionLookup for MockLookup {
+    fn title(&self, _id: SessionId) -> Option<&str> {
+        Some("Brain Architecture RFC")
+    }
+}
+
+#[test]
+fn test_search_and_rename_transitions() {
+    let mut interaction = SidebarInteraction::new();
+    assert_eq!(interaction.mode, SidebarMode::Browse);
+    assert_eq!(interaction.browse.filter, SessionFilter::Active);
+    assert!(!interaction.search.active);
+
+    interaction.enter_search();
+    assert!(interaction.search.active);
+
+    interaction.leave_search(true);
+    assert!(!interaction.search.active);
+}
+
+#[test]
+fn test_parsed_query_matching() {
+    let mut query = ParsedQuery::default();
+    assert!(query.is_empty());
+    
+    // Empty query matches anything
+    assert!(query.matches("Brain Architecture RFC"));
+
+    // Update query with terms
+    query.update("Brain RFC");
+    assert!(!query.is_empty());
+    assert_eq!(query.terms, vec!["brain".to_string(), "rfc".to_string()]);
+
+    // Matches case-insensitively and allows terms in any order / substring
+    assert!(query.matches("Brain Architecture RFC"));
+    assert!(query.matches("rfc for brain"));
+    assert!(!query.matches("Brain Architecture")); // missing "rfc"
+
+    // Clear query
+    query.clear();
+    assert!(query.is_empty());
+    assert!(query.matches("Brain Architecture"));
+}
+
+#[test]
+fn test_rename_flow_initialization_and_leaving() {
+    let mut interaction = SidebarInteraction::new();
+    assert_eq!(interaction.mode, SidebarMode::Browse);
+
+    // Enter rename mode with a title
+    interaction.enter_rename("My Session");
+    assert_eq!(interaction.mode, SidebarMode::Rename);
+    assert_eq!(interaction.rename.editor.text(), "My Session");
+    assert_eq!(interaction.rename.editor.cursor().visual_col, 10);
+
+    // Leave rename mode
+    interaction.leave_rename();
+    assert_eq!(interaction.mode, SidebarMode::Browse);
+    assert_eq!(interaction.rename.editor.text(), "");
+}
+
+#[test]
+fn test_search_clearing() {
+    let mut interaction = SidebarInteraction::new();
+    
+    interaction.enter_search();
+    interaction.search.editor.insert_char('f');
+    interaction.search.editor.insert_char('o');
+    interaction.search.editor.insert_char('o');
+    interaction.search.parsed.update(interaction.search.editor.text());
+
+    assert_eq!(interaction.search.editor.text(), "foo");
+    assert!(!interaction.search.parsed.is_empty());
+
+    // Leave search with clear = true
+    interaction.leave_search(true);
+    assert!(!interaction.search.active);
+    assert_eq!(interaction.search.editor.text(), "");
+    assert!(interaction.search.parsed.is_empty());
+
+    // Leave search with clear = false
+    interaction.enter_search();
+    interaction.search.editor.insert_char('b');
+    interaction.search.editor.insert_char('a');
+    interaction.search.editor.insert_char('r');
+    interaction.search.parsed.update(interaction.search.editor.text());
+    
+    interaction.leave_search(false);
+    assert!(!interaction.search.active);
+    assert_eq!(interaction.search.editor.text(), "bar");
+    assert!(!interaction.search.parsed.is_empty());
+}
+
+#[test]
+fn test_mock_lookup() {
+    let lookup = MockLookup;
+    let id = SessionId::new();
+    assert_eq!(lookup.title(id), Some("Brain Architecture RFC"));
+}
