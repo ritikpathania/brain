@@ -331,15 +331,15 @@ impl SidebarInteraction {
             }
             KeyCode::Enter => {
                 let active_id = self.browse.selected;
-                // Transition the sidebar state immediately to Browse mode
+                let title_raw = self.rename.editor.buffer().trim().to_string();
+                let title_opt = if title_raw.is_empty() {
+                    None
+                } else {
+                    Some(title_raw)
+                };
+                // Transition the sidebar state immediately to Browse mode (clears the editor)
                 self.leave_rename();
                 if let Some(id) = active_id {
-                    let title_raw = self.rename.editor.buffer().trim();
-                    let title_opt = if title_raw.is_empty() {
-                        None
-                    } else {
-                        Some(title_raw.to_string())
-                    };
                     (true, Some(SidebarEvent::Rename(id, title_opt)))
                 } else {
                     (true, None)
