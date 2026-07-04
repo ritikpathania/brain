@@ -253,3 +253,96 @@ fn test_sidebar_cursor_formatting_and_slicing() {
     assert_eq!(new_cursor, 2);
 }
 
+#[tokio::test]
+async fn test_sidebar_event_loop_orchestration() {
+    use std::sync::Arc;
+    use std::sync::Mutex as StdMutex;
+    use tokio::sync::mpsc;
+    use brain_tui::ui::interaction::{
+        Editor, ScrollState, ChatState, UiEvent
+    };
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
+    use brain_tui::ui::widgets::ChatScreen;
+    use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
+    use brain_tui::ui::state::AppState;
+    use brain_tui::ui::protocol::{BackendCommand, BackendEvent};
+    use brain_tui::ui::scheduler::MockRenderScheduler;
+    use brain_tui::ui::application::{Application, UiEventSource, DaemonClient, ApplicationError};
+    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
+
+    const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
+        session_title: "test",
+        connection: ConnectionState::Connected,
+        is_working: false,
+        message_count: 0,
+        input_buffer: "",
+        focus: FocusTarget::Prompt,
+    };
+
+    struct TestUiSource {
+        rx: mpsc::Receiver<UiEvent>,
+    }
+    #[async_trait::async_trait]
+    impl UiEventSource for TestUiSource {
+        async fn next_event(&mut self) -> Option<UiEvent> {
+            self.rx.recv().await
+        }
+    }
+
+    struct TestDaemonClient {
+        commands: Arc<StdMutex<Vec<BackendCommand>>>,
+    }
+    #[async_trait::async_trait]
+    impl DaemonClient for TestDaemonClient {
+        async fn send(&self, command: BackendCommand) -> Result<(), ApplicationError> {
+            self.commands.lock().unwrap().push(command);
+            Ok(())
+        }
+        async fn next_event(&self) -> Option<BackendEvent> {
+            std::future::pending::<()>().await;
+            None
+        }
+    }
+
+    let chat = ChatState::new();
+    let editor = Editor::new();
+    let scroll = ScrollState::new();
+    let focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
+    let chat_screen = ChatScreen { view: &CHAT_VIEW };
+    let router = ScreenRouter::new(ActiveScreen::Chat(chat_screen));
+    let sidebar = SidebarInteraction::new();
+    let state = AppState::new(chat, editor, scroll, focus, sidebar, router);
+
+    let scheduler = MockRenderScheduler::new();
+    let commands = Arc::new(StdMutex::new(Vec::new()));
+    let client = TestDaemonClient {
+        commands: commands.clone(),
+    };
+
+    let mut app = Application::new(state, scheduler, client);
+
+    let (ui_tx, ui_rx) = mpsc::channel(10);
+    let ui_source = TestUiSource { rx: ui_rx };
+
+    let cancellation = app.cancellation().clone();
+    let handle = tokio::spawn(async move {
+        app.run(ui_source).await
+    });
+
+    // Send a SidebarEvent::Rename via TUI channel
+    let test_id = SessionId::new();
+    ui_tx.send(UiEvent::Sidebar(SidebarEvent::Rename(test_id, Some("New Title".to_string())))).await.unwrap();
+
+    // Give it a moment to process
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Verify command was sent to client
+    let cmds = commands.lock().unwrap();
+    assert_eq!(cmds.len(), 1);
+    assert_eq!(cmds[0], BackendCommand::RenameSession { session_id: test_id, title: Some("New Title".to_string()) });
+
+    cancellation.cancel();
+    let _ = handle.await.unwrap();
+}
+

@@ -200,7 +200,32 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
-            UiEvent::Sidebar(_event) => {
+            UiEvent::Sidebar(event) => {
+                let cmd = match event {
+                    crate::ui::interaction::sidebar::SidebarEvent::Open(_id) => {
+                        None
+                    }
+                    crate::ui::interaction::sidebar::SidebarEvent::Rename(id, title) => {
+                        Some(BackendCommand::RenameSession { session_id: id, title })
+                    }
+                    crate::ui::interaction::sidebar::SidebarEvent::TogglePin(id) => {
+                        Some(BackendCommand::TogglePinSession { session_id: id })
+                    }
+                    crate::ui::interaction::sidebar::SidebarEvent::Archive(id) => {
+                        Some(BackendCommand::ArchiveSession { session_id: id })
+                    }
+                    crate::ui::interaction::sidebar::SidebarEvent::Delete(id) => {
+                        Some(BackendCommand::DeleteSession { session_id: id })
+                    }
+                    crate::ui::interaction::sidebar::SidebarEvent::Restore(id) => {
+                        Some(BackendCommand::RestoreSession { session_id: id })
+                    }
+                };
+
+                if let Some(cmd_val) = cmd {
+                    self.client.send(cmd_val).await?;
+                }
+
                 Ok(Some(RenderRequest {
                     reason: RenderReason::Input,
                     invalidation: RenderInvalidation::EverythingStale,

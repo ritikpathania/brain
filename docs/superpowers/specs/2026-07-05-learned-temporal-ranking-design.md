@@ -37,7 +37,7 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
 1. **`WeightSnapshot`**:
    * An immutable domain value object divided cleanly into metadata and weights.
    * `SnapshotMetadata` tracks model lineage, version, and training contexts.
-   * `RankingWeights` encapsulates active scoring multipliers, immutable by construction with explicit getters.
+   * `RankingWeights` encapsulates active scoring multipliers, immutable by construction.
 
 2. **`FeedbackEvent`**:
    * Represents a single record of user interaction / relevance feedback. Used as batch inputs for training and calibrating weights. Consists of a version tag to support schema updates.
@@ -46,11 +46,16 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
    * `RankingModel` is a polymorphic interface for evaluating candidate signals, tracking its `RankingModelVersion`.
    * `LinearRankingModel` implements `RankingModel` by performing a weighted sum of normalized ranking features.
 
-4. **`ActiveWeightProvider`**:
-   * An abstraction trait defined in the **services layer** (`brain-services`) that provides the active immutable `WeightSnapshot` snapshot. The scorer remains unaware of the backing storage mechanism.
+4. **`CalibrationAlgorithm` & `LinearAdjustmentAlgorithm`**:
+   * `CalibrationAlgorithm` is a trait that defines the strategy to optimize weights based on feedback events.
+   * `LinearAdjustmentAlgorithm` implements `CalibrationAlgorithm` to make deterministic adjustments using a moving average heuristic.
 
-5. **`WeightCalibrationService`**:
-   * Orchestrates the ingestion of feedback events, trains/calibrates parameter weights using a defined `CalibrationPolicy` (returning a candidate snapshot and `CalibrationReport`), and publishes snapshots atomically.
+5. **`ActiveWeightProvider`**:
+   * An abstraction trait defined in the **services layer** (`brain-services`) that provides the active immutable `WeightSnapshot` snapshot. The scorer remains unaware of the backing storage/synchronization mechanism.
+
+6. **`WeightCalibrationService`**:
+   * Orchestrates the ingestion of feedback events, trains/calibrates parameter weights using a defined `CalibrationPolicy` (returning a candidate snapshot and `CalibrationReport`), performs publication validation checks, and publishes snapshots atomically.
+   * Supports explicit rollbacks using a target version number.
 
 ---
 
@@ -64,14 +69,18 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
    * Replaying a query against a fixed graph and snapshot version produces identical rankings.
 4. **Calibration Reproducibility**:
    * Given identical input feedback events, calibration policy, and starting snapshot, the calibration process must generate a byte-for-byte identical candidate snapshot.
-5. **Calibration Isolation**:
+5. **Calibration Idempotence**:
+   * Running calibration when no new feedback events exist must not produce a new candidate snapshot version (or returns a no-op / identical snapshot).
+6. **Calibration Isolation**:
    * Calibration sweeps must not mutate graphs, temporal visibility projection sets, query evidence, or the volatile caches. Only ranking output weights change.
-6. **Weight Snapshot Completeness & Atomic Replacement**:
+7. **Weight Snapshot Completeness & Atomic Replacement**:
    * Every published snapshot must define all ranking weights. Partial weight updates or live weight mutations are rejected; publication always atomically replaces the entire active snapshot (e.g. `v7 -> v8`).
-7. **Model Transparency**:
+8. **Model Transparency**:
    * Changing the ranking model implementation while keeping identical model version, weights, and signals must not change ranking outputs.
-8. **A/B Ready & Rollback Safe**:
-   * Snapshot history is preserved in the database to allow rolling back to previous weight versions.
+9. **Snapshot Monotonicity**:
+   * Published snapshot versions must satisfy `v1 < v2 < v3 < ...`.
+10. **A/B Ready & Rollback Safe**:
+    * Snapshot history is preserved in the database to allow rolling back to previous weight versions.
 
 ---
 
@@ -268,9 +277,16 @@ pub struct RankingSignals {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CalibrationPolicyVersion(u32);
 
+/// Enumeration of calibration algorithms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum CalibrationAlgorithmType {
+    LinearAdjustment,
+}
+
 /// Parameter knobs configuring calibration loops.
 pub struct CalibrationPolicy {
     pub version: CalibrationPolicyVersion,
+    pub algorithm: CalibrationAlgorithmType,
     pub learning_rate: f64,
     pub regularization: f64,
     pub min_feedback_events: usize,
@@ -325,6 +341,30 @@ impl RankingModel for LinearRankingModel {
             + self.weights.temporal().value() * signals.temporal.value()
     }
 }
+
+/// Algorithm optimizer interface for calibration computations.
+pub trait CalibrationAlgorithm: Send + Sync {
+    fn calibrate(
+        &self,
+        current: &WeightSnapshot,
+        events: &[FeedbackEvent],
+        policy: &CalibrationPolicy,
+    ) -> Result<RankingWeights, crate::errors::BrainError>;
+}
+
+pub struct LinearAdjustmentAlgorithm;
+
+impl CalibrationAlgorithm for LinearAdjustmentAlgorithm {
+    fn calibrate(
+        &self,
+        current: &WeightSnapshot,
+        events: &[FeedbackEvent],
+        policy: &CalibrationPolicy,
+    ) -> Result<RankingWeights, crate::errors::BrainError> {
+        // Implement simple moving average adjustment logic
+        Ok(current.weights.clone())
+    }
+}
 ```
 
 ### Services Abstractions (`brain-services`)
@@ -345,5 +385,6 @@ pub struct LearnedTemporalScorer {
 
 * Exposes:
   * `ingest_feedback(&self, event: FeedbackEvent) -> Result<(), BrainError>`: Persists events.
-  * `calibrate_weights(&self, policy: &CalibrationPolicy) -> Result<(WeightSnapshot, CalibrationReport), BrainError>`: Computes a candidate snapshot and generates its corresponding report, without publishing.
-  * `publish_snapshot(&self, snapshot: WeightSnapshot) -> Result<(), BrainError>`: Atomically swaps the active snapshot version in storage/memory.
+  * `calibrate_weights(&self, policy: &CalibrationPolicy) -> Result<(WeightSnapshot, CalibrationReport), BrainError>`: Computes a candidate snapshot and generates its corresponding report, without publishing. Uses a resolved `CalibrationAlgorithm`.
+  * `publish_snapshot(&self, snapshot: WeightSnapshot) -> Result<(), BrainError>`: Validates invariants (monotonicity, completeness) and atomically swaps the active snapshot version in storage/memory.
+  * `rollback_to(&self, version: SnapshotVersion) -> Result<(), BrainError>`: Reverts active snapshot to a previously stored version.
