@@ -13,6 +13,15 @@
 - Custom test module: `crates/brain-tui/tests/compatibility_tests.rs` or new suite files.
 - Design theme tokens must be resolved only via `Theme` semantic styles. No hardcoded colors.
 
+## Definition of Done
+- All workspace tests pass successfully.
+- All new interaction logic has dedicated unit tests.
+- Golden snapshots are updated only where visual behavior intentionally changed.
+- No new compiler warnings from `cargo check`.
+- No memory allocations are introduced in rendering/draw paths.
+- Existing keyboard shortcuts remain unchanged outside the Sessions feature scope.
+- All new public APIs are documented.
+
 ---
 
 ### Task 1: Sidebar Interaction Core & ParsedQuery
