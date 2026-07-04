@@ -35,22 +35,19 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
 ### Components
 
 1. **`WeightSnapshot`**:
-   * An immutable domain value object containing adaptive weight multipliers for ranking signals:
-     * `semantic_weight`
-     * `graph_weight`
-     * `recency_weight`
-     * `temporal_weight` (based on temporal span/interaction signals)
-   * Includes metadata (version, creation time, calibration details) to guarantee complete version reproducibility.
+   * An immutable domain value object divided cleanly into metadata and weights.
+   * `SnapshotMetadata` tracks model lineage, version, and training contexts.
+   * `RankingWeights` encapsulates active scoring multipliers.
 
 2. **`FeedbackEvent`**:
-   * Represents a single record of user interaction / relevance feedback. Used as batch inputs for training and calibrating weights.
+   * Represents a single record of user interaction / relevance feedback. Used as batch inputs for training and calibrating weights. Consists of a version tag to support schema updates.
 
 3. **`LearnedTemporalScorer`**:
    * A pure, deterministic `RankingStrategy` component.
-   * Reads from an immutable `WeightSnapshot` snapshot. It never mutates state or updates weights itself.
+   * Computes fused ranking scores purely based on a `RankingSignals` input and active `RankingWeights` weights.
 
 4. **`WeightCalibrationService`**:
-   * Orchestrates the ingestion of feedback events, trains/calibrates parameter weights, validates target invariants (e.g. weight boundaries), and performs an atomic publish swap of the active snapshot.
+   * Orchestrates the ingestion of feedback events, trains/calibrates parameter weights using a defined `CalibrationPolicy`, validates target invariants, and publishes new `WeightSnapshot` versions alongside a `CalibrationReport`.
 
 ---
 
@@ -64,8 +61,10 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
    * Replaying a query against a fixed graph and snapshot version produces identical rankings.
 4. **Calibration Isolation**:
    * Calibration sweeps must not mutate graphs, temporal visibility projection sets, query evidence, or the volatile caches. Only ranking output weights change.
-5. **A/B Ready & Rollback Safe**:
-   * Snapshot history is preserved in the database to allow rolling back to previous weight sets.
+5. **Weight Snapshot Completeness**:
+   * Every published snapshot must define all ranking weights. Partial weight updates are rejected.
+6. **A/B Ready & Rollback Safe**:
+   * Snapshot history is preserved in the database to allow rolling back to previous weight versions.
 
 ---
 
@@ -80,7 +79,7 @@ CREATE TABLE weight_snapshots (
     graph_weight REAL NOT NULL,
     recency_weight REAL NOT NULL,
     temporal_weight REAL NOT NULL,
-    calibration_metadata TEXT NOT NULL  -- JSON payload with training details
+    calibration_metadata TEXT NOT NULL  -- JSON representation of CalibrationMetadata
 );
 
 -- Insert initial default weights as version 1
@@ -92,6 +91,7 @@ VALUES (1, strftime('%s','now'), 1.0, 1.0, 1.0, 1.0, '{}');
 ```sql
 CREATE TABLE feedback_events (
     id TEXT PRIMARY KEY,
+    schema_version INTEGER NOT NULL,
     query TEXT NOT NULL,
     node_id TEXT NOT NULL,
     selected INTEGER NOT NULL, -- 0 or 1
@@ -105,21 +105,73 @@ CREATE TABLE feedback_events (
 
 ## 4. Domain & Service Details
 
-### Domain Entities
+### Value Objects & Core Domain Types
 
 ```rust
+/// Non-negative, finite ranking multiplier value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct RankingWeight(f64);
+
+impl RankingWeight {
+    pub fn new(val: f64) -> Result<Self, MetricConstructionError> {
+        if !val.is_finite() {
+            return Err(MetricConstructionError::NotFinite { val });
+        }
+        if val < 0.0 {
+            return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: f64::MAX });
+        }
+        Ok(Self(val))
+    }
+
+    pub fn value(&self) -> f64 {
+        self.0
+    }
+}
+
+/// Monotonically incrementing snapshot identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SnapshotVersion(u64);
+
+impl SnapshotVersion {
+    pub fn new(val: u64) -> Self {
+        Self(val)
+    }
+
+    pub fn value(&self) -> u64 {
+        self.0
+    }
+}
+
+/// Extensible structured calibration details.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CalibrationMetadata {
+    pub algorithm_used: String,
+    pub validation_loss: Option<f64>,
+}
+
+/// Metadata tracking weight lineage.
+pub struct SnapshotMetadata {
+    pub version: SnapshotVersion,
+    pub created_at: crate::temporal::TimePoint,
+    pub calibration_metadata: CalibrationMetadata,
+}
+
+/// Scoring multipliers.
+pub struct RankingWeights {
+    pub semantic: RankingWeight,
+    pub graph: RankingWeight,
+    pub recency: RankingWeight,
+    pub temporal: RankingWeight,
+}
+
 pub struct WeightSnapshot {
-    pub version: u64,
-    pub created_at: u64,
-    pub semantic_weight: f64,
-    pub graph_weight: f64,
-    pub recency_weight: f64,
-    pub temporal_weight: f64,
-    pub calibration_metadata: String,
+    pub metadata: SnapshotMetadata,
+    pub weights: RankingWeights,
 }
 
 pub struct FeedbackEvent {
     pub id: String,
+    pub schema_version: u32,
     pub query: String,
     pub node_id: NodeId,
     pub selected: bool,
@@ -127,21 +179,50 @@ pub struct FeedbackEvent {
     pub ranking_position: usize,
     pub context: String,
 }
+
+/// Feature scores representing candidate properties.
+pub struct RankingSignals {
+    pub semantic: f64,
+    pub graph: f64,
+    pub recency: f64,
+    pub temporal: f64,
+}
+
+/// Immutable calibration result parameters.
+pub struct CalibrationReport {
+    pub snapshot_version: SnapshotVersion,
+    pub feedback_processed: usize,
+    pub validation_loss: f64,
+    pub convergence_information: String,
+    pub publication_decision: bool,
+}
+
+/// Parameter knobs configuring calibration loops.
+pub struct CalibrationPolicy {
+    pub learning_rate: f64,
+    pub regularization: f64,
+    pub min_feedback_events: usize,
+}
 ```
 
 ### LearnedTemporalScorer
 
-* Combines node signals:
-  $$\text{LearnedScore}_i = w_{sem} \cdot S_{sem} + w_{graph} \cdot S_{graph} + w_{rec} \cdot S_{rec} + w_{temp} \cdot S_{temp}$$
-  where:
-  - $S_{sem}$: Normalized semantic vector or keyword similarity.
-  - $S_{graph}$: Structural graph pagerank / degree centrality centrality.
-  - $S_{rec}$: Decay recency preference score.
-  - $S_{temp}$: Interaction density score (number of temporal edge observations involving node $i$).
+* Evaluates candidate signals:
+  ```rust
+  pub struct LearnedTemporalScorer;
+  
+  impl LearnedTemporalScorer {
+      pub fn score(signals: &RankingSignals, weights: &RankingWeights) -> f64 {
+          weights.semantic.value() * signals.semantic
+              + weights.graph.value() * signals.graph
+              + weights.recency.value() * signals.recency
+              + weights.temporal.value() * signals.temporal
+      }
+  }
+  ```
 
 ### WeightCalibrationService
 
 * Exposes:
-  * `ingest_feedback(event: FeedbackEvent)`: Persists user actions.
-  * `calibrate_weights(alpha: f64)`: Evaluates accumulated feedback and performs an optimization step (e.g. gradient adjustment or moving average update towards selected feature densities), generating and validating a new `WeightSnapshot`.
-  * `publish_snapshot(snapshot: WeightSnapshot)`: Atomically swaps the active snapshot version.
+  * `ingest_feedback(&self, event: FeedbackEvent) -> Result<(), BrainError>`: Persists events.
+  * `calibrate_weights(&self, policy: &CalibrationPolicy) -> Result<CalibrationReport, BrainError>`: Evaluates events, calculates optimized weights, performs safety checks, and swaps the active snapshot version.
