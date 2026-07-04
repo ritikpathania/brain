@@ -113,34 +113,42 @@ impl Editor {
     /// Removes the character behind the active cursor position (backspace).
     pub fn backspace(&mut self) {
         if self.cursor.byte_index > 0 {
-            // Find preceding character index (assuming ASCII/simple chars for now)
-            let prev_idx = self.cursor.byte_index - 1;
-            let _ = self.buffer.remove(prev_idx);
-            self.cursor.byte_index = prev_idx;
-            self.cursor.visual_col = self.cursor.visual_col.saturating_sub(1);
+            let prefix = &self.buffer.as_str()[..self.cursor.byte_index];
+            if let Some((idx, _c)) = prefix.char_indices().next_back() {
+                let _ = self.buffer.remove(idx);
+                self.cursor.byte_index = idx;
+                self.cursor.visual_col = self.cursor.visual_col.saturating_sub(1);
+            }
         }
     }
 
     /// Removes the character in front of the active cursor position (delete).
     pub fn delete(&mut self) {
-        if self.cursor.byte_index < self.buffer.len() {
-            let _ = self.buffer.remove(self.cursor.byte_index);
+        if let Some(tail) = self.buffer.as_str().get(self.cursor.byte_index..) {
+            if tail.chars().next().is_some() {
+                let _ = self.buffer.remove(self.cursor.byte_index);
+            }
         }
     }
 
     /// Moves the cursor left by 1 column if bounds allow.
     pub fn move_cursor_left(&mut self) {
         if self.cursor.byte_index > 0 {
-            self.cursor.byte_index -= 1;
-            self.cursor.visual_col = self.cursor.visual_col.saturating_sub(1);
+            let prefix = &self.buffer.as_str()[..self.cursor.byte_index];
+            if let Some((idx, _c)) = prefix.char_indices().next_back() {
+                self.cursor.byte_index = idx;
+                self.cursor.visual_col = self.cursor.visual_col.saturating_sub(1);
+            }
         }
     }
 
     /// Moves the cursor right by 1 column if bounds allow.
     pub fn move_cursor_right(&mut self) {
-        if self.cursor.byte_index < self.buffer.len() {
-            self.cursor.byte_index += 1;
-            self.cursor.visual_col += 1;
+        if let Some(tail) = self.buffer.as_str().get(self.cursor.byte_index..) {
+            if let Some(c) = tail.chars().next() {
+                self.cursor.byte_index += c.len_utf8();
+                self.cursor.visual_col += 1;
+            }
         }
     }
 }

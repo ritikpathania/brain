@@ -103,3 +103,46 @@ fn test_mock_lookup() {
     let id = SessionId::new();
     assert_eq!(lookup.title(id), Some("Brain Architecture RFC"));
 }
+
+#[test]
+fn test_editor_utf8_interactions() {
+    use brain_tui::ui::interaction::editor::Editor;
+    let mut editor = Editor::new();
+    
+    // Insert multi-byte characters
+    editor.insert_char('あ');
+    editor.insert_char('い');
+    editor.insert_char('う');
+    
+    assert_eq!(editor.text(), "あいう");
+    assert_eq!(editor.cursor().visual_col, 3);
+    assert_eq!(editor.cursor().byte_index, 9); // 'あ', 'い', 'う' each take 3 bytes
+    
+    // Move left
+    editor.move_cursor_left();
+    assert_eq!(editor.cursor().visual_col, 2);
+    assert_eq!(editor.cursor().byte_index, 6);
+    
+    // Move left again
+    editor.move_cursor_left();
+    assert_eq!(editor.cursor().visual_col, 1);
+    assert_eq!(editor.cursor().byte_index, 3);
+    
+    // Move right
+    editor.move_cursor_right();
+    assert_eq!(editor.cursor().visual_col, 2);
+    assert_eq!(editor.cursor().byte_index, 6);
+    
+    // Backspace
+    editor.backspace();
+    assert_eq!(editor.text(), "あう");
+    assert_eq!(editor.cursor().visual_col, 1);
+    assert_eq!(editor.cursor().byte_index, 3);
+    
+    // Delete (removes 'う')
+    editor.delete();
+    assert_eq!(editor.text(), "あ");
+    assert_eq!(editor.cursor().visual_col, 1);
+    assert_eq!(editor.cursor().byte_index, 3);
+}
+
