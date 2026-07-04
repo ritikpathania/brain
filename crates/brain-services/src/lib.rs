@@ -11,7 +11,7 @@ mod session;
 mod stub;
 
 pub use retrieval::RetrievalServiceImpl;
-pub use retrieval::{pipeline, source, cache, calibration};
+pub use retrieval::{pipeline, source, cache, calibration, active_weights};
 pub use session::SessionServiceImpl;
 pub use stub::{StubRetrievalService, StubSessionService};
 

@@ -14,6 +14,8 @@ pub mod calibration;
 pub mod sqlite_store;
 /// Temporal retrieval integration, projection views, and ranking.
 pub mod temporal;
+/// Active weights snapshot provider abstractions.
+pub mod active_weights;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
