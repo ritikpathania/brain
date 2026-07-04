@@ -65,7 +65,7 @@ pub struct BrowseState {
 #[derive(Debug, Clone, Default)]
 pub struct ParsedQuery {
     /// Normalized terms derived from the search buffer.
-    pub terms: Vec<String>,
+    terms: Vec<String>,
 }
 
 /// State for session searching overlay.
@@ -132,7 +132,7 @@ impl SidebarInteraction {
         self.search.active = false;
         if clear {
             self.search.editor.clear();
-            self.search.parsed.terms.clear();
+            self.search.parsed.clear();
         }
     }
 
@@ -150,17 +150,6 @@ impl SidebarInteraction {
     pub fn leave_rename(&mut self) {
         self.mode = SidebarMode::Browse;
         self.rename.editor.clear();
-    }
-
-    /// Returns a mutable reference to the currently active editor if one exists.
-    pub fn active_editor(&mut self) -> Option<&mut Editor> {
-        if self.mode == SidebarMode::Rename {
-            Some(&mut self.rename.editor)
-        } else if self.search.active {
-            Some(&mut self.search.editor)
-        } else {
-            None
-        }
     }
 }
 ```
@@ -180,20 +169,30 @@ impl ParsedQuery {
             .map(|s| s.to_lowercase())
             .collect();
     }
-}
 
-/// Matches a session title against parsed query terms case-insensitively and allocation-free.
-pub fn fuzzy_match(title: &str, query: &ParsedQuery) -> bool {
-    if query.terms.is_empty() {
-        return true;
+    /// Clears the parsed terms query.
+    pub fn clear(&mut self) {
+        self.terms.clear();
     }
-    let title_lower = title.to_lowercase();
-    for term in &query.terms {
-        if !title_lower.contains(term) {
-            return false;
+
+    /// Checks if the query is empty.
+    pub fn is_empty(&self) -> bool {
+        self.terms.is_empty()
+    }
+
+    /// Matches a session title against parsed query terms case-insensitively and allocation-free.
+    pub fn matches(&self, title: &str) -> bool {
+        if self.terms.is_empty() {
+            return true;
         }
+        let title_lower = title.to_lowercase();
+        for term in &self.terms {
+            if !title_lower.contains(term) {
+                return false;
+            }
+        }
+        true
     }
-    true
 }
 ```
 
@@ -238,59 +237,13 @@ impl SidebarInteraction {
     ) -> (bool, Option<SidebarEvent>) {
         use crossterm::event::KeyCode;
 
-        // If there's an active editor (Rename or Search), let it intercept text editing keys first
-        if let Some(editor) = self.active_editor() {
-            match key.code {
-                KeyCode::Esc => {
-                    if self.mode == SidebarMode::Rename {
-                        self.leave_rename();
-                    } else if self.search.active {
-                        self.leave_search(true);
-                    }
-                    return (true, None);
-                }
-                KeyCode::Enter => {
-                    if self.mode == SidebarMode::Rename {
-                        let active_id = self.browse.selected;
-                        self.leave_rename();
-                        if let Some(id) = active_id {
-                            let title_raw = self.rename.editor.buffer().trim();
-                            let title_opt = if title_raw.is_empty() {
-                                None
-                            } else {
-                                Some(title_raw.to_string())
-                            };
-                            return (true, Some(SidebarEvent::Rename(id, title_opt)));
-                        }
-                    } else if self.search.active {
-                        // Exit search on Enter
-                        self.leave_search(false);
-                        if let Some(id) = self.browse.selected {
-                            if visible_ids.contains(&id) {
-                                return (true, Some(SidebarEvent::Open(id)));
-                            }
-                        }
-                    }
-                    return (true, None);
-                }
-                // Maintain list arrow navigation even during search overlay
-                KeyCode::Up if self.search.active => {
-                    self.navigate_selection(visible_ids, -1);
-                    return (true, None);
-                }
-                KeyCode::Down if self.search.active => {
-                    self.navigate_selection(visible_ids, 1);
-                    return (true, None);
-                }
-                _ => {
-                    let handled = editor.handle_key(key);
-                    if handled && self.search.active {
-                        self.search.parsed.update(self.search.editor.buffer());
-                        self.restore_selection_fallback(visible_ids);
-                    }
-                    return (handled, None);
-                }
-            }
+        // Route inputs based on active mode/overlay to avoid borrow conflicts
+        if self.mode == SidebarMode::Rename {
+            return self.handle_rename_key(key, visible_ids);
+        }
+
+        if self.search.active {
+            return self.handle_search_key(key, visible_ids);
         }
 
         // Default Browse Mode keys
@@ -365,6 +318,79 @@ impl SidebarInteraction {
         }
     }
 
+    fn handle_rename_key(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        visible_ids: &[SessionId],
+    ) -> (bool, Option<SidebarEvent>) {
+        use crossterm::event::KeyCode;
+        match key.code {
+            KeyCode::Esc => {
+                self.leave_rename();
+                (true, None)
+            }
+            KeyCode::Enter => {
+                let active_id = self.browse.selected;
+                // Transition the sidebar state immediately to Browse mode
+                self.leave_rename();
+                if let Some(id) = active_id {
+                    let title_raw = self.rename.editor.buffer().trim();
+                    let title_opt = if title_raw.is_empty() {
+                        None
+                    } else {
+                        Some(title_raw.to_string())
+                    };
+                    (true, Some(SidebarEvent::Rename(id, title_opt)))
+                } else {
+                    (true, None)
+                }
+            }
+            _ => {
+                let handled = self.rename.editor.handle_key(key);
+                (handled, None)
+            }
+        }
+    }
+
+    fn handle_search_key(
+        &mut self,
+        key: crossterm::event::KeyEvent,
+        visible_ids: &[SessionId],
+    ) -> (bool, Option<SidebarEvent>) {
+        use crossterm::event::KeyCode;
+        match key.code {
+            KeyCode::Esc => {
+                self.leave_search(true);
+                (true, None)
+            }
+            KeyCode::Enter => {
+                self.leave_search(false);
+                if let Some(id) = self.browse.selected {
+                    if visible_ids.contains(&id) {
+                        return (true, Some(SidebarEvent::Open(id)));
+                    }
+                }
+                (true, None)
+            }
+            KeyCode::Up => {
+                self.navigate_selection(visible_ids, -1);
+                (true, None)
+            }
+            KeyCode::Down => {
+                self.navigate_selection(visible_ids, 1);
+                (true, None)
+            }
+            _ => {
+                let handled = self.search.editor.handle_key(key);
+                if handled {
+                    self.search.parsed.update(self.search.editor.buffer());
+                    self.restore_selection_fallback(visible_ids);
+                }
+                (handled, None)
+            }
+        }
+    }
+
     fn navigate_selection(&mut self, visible_ids: &[SessionId], delta: i32) {
         if visible_ids.is_empty() {
             self.browse.selected = None;
@@ -390,11 +416,9 @@ impl SidebarInteraction {
             if visible_ids.contains(&selected_id) {
                 return;
             }
-            // 2. Select the nearest visible neighbor
-            // (We approximate this by selecting the first available visible item)
         }
         
-        // 3. Fall back to the first visible session
+        // 2. If the selected session is no longer visible, select the first visible session
         self.browse.selected = visible_ids.first().copied();
     }
 }
