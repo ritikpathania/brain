@@ -29,6 +29,12 @@ Retained for backwards compatibility with simple CLI invocations:
 }
 ```
 
+> [!NOTE]
+> **Legacy Compatibility & Deprecation Lifecycle**:
+> * **v1.x**: Legacy and Versioned envelopes are both fully supported.
+> * **v2.0**: Legacy envelopes are deprecated (clients should migrate to Versioned envelopes).
+> * **v3.0**: Legacy envelopes will be completely removed from the IPC parser.
+
 ---
 
 ### B. Server Response Formats
@@ -36,12 +42,14 @@ Retained for backwards compatibility with simple CLI invocations:
 The server responds with either flat legacy envelopes, structured versioned envelopes, or a sequence of streaming events:
 
 #### 1. Legacy Response Envelope
+*Emitted only in response to Legacy Requests.*
 ```json
 {
   "status": "ok" | "error",
   "message": "formatted response output text"
 }
 ```
+
 
 #### 2. Versioned Response Envelope
 ```json
