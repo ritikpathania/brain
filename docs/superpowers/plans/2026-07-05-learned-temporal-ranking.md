@@ -4,7 +4,7 @@
 
 **Goal:** Implement learned and adaptive temporal ranking to dynamically calibrate feature weights based on user relevance feedback without mutating projection visibility states.
 
-**Architecture:** Introduces immutable, versioned `WeightSnapshot` configurations read by `LearnedTemporalScorer` (via a polymorphic `RankingModel`). Ingested feedback events are processed offline by `CalibrationEngine` to output candidate snapshots, which are atomically swapped by `WeightCalibrationService`.
+**Architecture:** Introduces immutable, versioned `WeightSnapshot` configurations read by `LearnedTemporalScorer` (via a polymorphic `RankingModel`). Ingested feedback events are processed by `CalibrationEngine` using a pluggable `CalibrationAlgorithm` (such as the initial v1 `LinearAdjustmentAlgorithm`). Active snapshots are atomically swapped by `WeightCalibrationService`.
 
 **Tech Stack:** Rust, SQLite, Serde (JSON serialization).
 
@@ -14,14 +14,16 @@
 - **Atomic Publication**: Query context observes exactly one snapshot version; publication atomically replaces the entire active snapshot.
 - **Version Reproducibility**: Replaying a query against a fixed graph and snapshot version produces identical rankings.
 - **Calibration Reproducibility**: Given identical input feedback, policy, and starting snapshot, calibration generates a byte-for-byte identical candidate snapshot.
+- **Calibration Idempotence**: Calibrating with no new feedback events yields the current active snapshot without generating a new candidate snapshot version.
 - **Calibration Isolation**: Calibration runs never mutate graphs, visibility projection sets, query evidence, or volatile caches.
 - **Weight Snapshot Completeness**: Every published snapshot defines all ranking weights.
 - **Model Transparency**: Under identical version, weights, and signals, model scoring must be identical.
 - **Snapshot Monotonicity**: Published snapshot versions must satisfy `v1 < v2 < v3 < ...`.
+- **A/B Ready & Rollback Safe**: Active weight snapshots can be reverted/rolled back cleanly to any valid historical version.
 
 ---
 
-### Task 1: Core Value Objects & Models
+### Task 1: Domain Value Objects & Models
 
 **Files:**
 - Create: `crates/brain-domain/tests/ranking_value_objects_tests.rs`
@@ -57,7 +59,7 @@
   Expected: FAIL with compilation error (types not found)
 
 - [ ] **Step 3: Write minimal implementation**
-  Add definition to `crates/brain-domain/src/retrieval/models.rs`:
+  Add definitions to `crates/brain-domain/src/retrieval/models.rs`:
   ```rust
   use crate::consolidation::MetricConstructionError;
 
@@ -83,7 +85,8 @@
 
   impl std::hash::Hash for RankingWeight {
       fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-          hash_f64(self.0, state);
+          let bits = self.0.to_bits();
+          state.write_u64(bits);
       }
   }
 
@@ -111,7 +114,8 @@
 
   impl std::hash::Hash for NormalizedSignal {
       fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-          hash_f64(self.0, state);
+          let bits = self.0.to_bits();
+          state.write_u64(bits);
       }
   }
 
@@ -204,7 +208,7 @@
       }
   }
 
-  #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+  #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
   pub struct WeightSnapshot {
       pub metadata: SnapshotMetadata,
       pub weights: RankingWeights,
@@ -235,10 +239,17 @@
   #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
   pub struct CalibrationPolicyVersion(pub u32);
 
+  /// Enumeration of calibration algorithms.
+  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+  pub enum CalibrationAlgorithmType {
+      LinearAdjustment,
+  }
+
   /// Parameter knobs configuring calibration loops.
   #[derive(Debug, Clone, Copy, PartialEq)]
   pub struct CalibrationPolicy {
       pub version: CalibrationPolicyVersion,
+      pub algorithm: CalibrationAlgorithmType,
       pub learning_rate: f64,
       pub regularization: f64,
       pub min_feedback_events: usize,
@@ -313,12 +324,27 @@
 
 - [ ] **Step 1: Write migration Version 6**
   In `crates/brain-storage/src/migrations.rs`, update `MIGRATIONS` or `apply_migrations` to add Version 6:
-  ```rust
-  // Inside crates/brain-storage/src/migrations.rs
-  // Find where migrations are defined and append version 6:
+  ```sql
+  CREATE TABLE weight_snapshots (
+      version INTEGER PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      semantic_weight REAL NOT NULL,
+      graph_weight REAL NOT NULL,
+      recency_weight REAL NOT NULL,
+      temporal_weight REAL NOT NULL,
+      calibration_metadata TEXT NOT NULL
+  );
+  CREATE TABLE feedback_events (
+      id TEXT PRIMARY KEY,
+      schema_version INTEGER NOT NULL,
+      query TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      selected INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL,
+      ranking_position INTEGER NOT NULL,
+      context TEXT NOT NULL
+  );
   ```
-  Let's verify the exact migration structure. In Phase 10 we altered the migrations, let's view it first.
-  Let's do this step once the implementation begins.
 
 - [ ] **Step 2: Run tests to verify migration completes successfully**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test -p brain-storage`
@@ -367,17 +393,13 @@
 - [ ] **Step 1: Define `ActiveWeightProvider` and implement `DefaultActiveWeightProvider`**
   ```rust
   // crates/brain-services/src/retrieval/active_weights.rs
-  use std::sync::{Arc, RwLock};
+  use std::sync::Arc;
   use brain_core::errors::BrainError;
   use brain_domain::retrieval::models::WeightSnapshot;
 
   pub trait ActiveWeightProvider: Send + Sync {
       fn active_snapshot(&self) -> Result<Arc<WeightSnapshot>, BrainError>;
       fn swap_active(&self, new_snapshot: WeightSnapshot) -> Result<(), BrainError>;
-  }
-
-  pub struct DefaultActiveWeightProvider {
-      active: RwLock<Arc<WeightSnapshot>>,
   }
   ```
 
@@ -392,43 +414,47 @@
 
 ---
 
-### Task 5: CalibrationEngine & WeightCalibrationService
+### Task 5: Calibration Algorithm & CalibrationEngine
 
 **Files:**
-- Modify: `crates/brain-services/src/retrieval/calibration.rs`
-- Modify: `crates/brain-services/src/lib.rs`
+- Modify: `crates/brain-domain/src/retrieval/models.rs`
+- Create: `crates/brain-services/tests/calibration_engine_tests.rs`
 
 **Interfaces:**
 - Consumes: `FeedbackEvent`, `CalibrationPolicy`
-- Produces: `CalibrationEngine` (pure computation), `WeightCalibrationService` (orchestration, validation, atomic publication).
+- Produces: `CalibrationAlgorithm` trait, `LinearAdjustmentAlgorithm` implementation, `CalibrationEngine`.
 
-- [ ] **Step 1: Write `CalibrationEngine`**
-  Implement the optimization loop:
-  Given feedback events and the current snapshot, adjust weights using gradient-descent rules (shifting weight towards features of selected nodes and away from unselected nodes), outputting a candidate `WeightSnapshot` and `CalibrationReport`.
+- [ ] **Step 1: Write `CalibrationAlgorithm` and `LinearAdjustmentAlgorithm`**
+  Implement linear moving-average heuristics that deterministically adjust weights:
+  - If a feedback event has `selected = true`, increase the weights corresponding to its active signals slightly.
+  - If `selected = false`, decrease weights slightly.
+  - Perform validation bounds checking to keep weights finite, non-negative, and fully populated.
 
-- [ ] **Step 2: Write `WeightCalibrationService`**
-  Coordinate storage transactions: load events, call `CalibrationEngine`, validate invariants (completeness, non-negativity), write candidate snapshot to DB, and perform atomic swap using `ActiveWeightProvider`.
+- [ ] **Step 2: Implement `CalibrationEngine`**
+  Pure orchestrator to select `CalibrationAlgorithm` and run optimization, producing a candidate `WeightSnapshot` and `CalibrationReport` without publication.
 
-- [ ] **Step 3: Write tests for calibration loop**
-  Create integration tests validating convergence, determinism, and reproducibility.
+- [ ] **Step 3: Write validation and idempotence tests**
+  Verify that when 0 events are processed, `LinearAdjustmentAlgorithm` returns the current active snapshot with zero validation loss.
 
 - [ ] **Step 4: Commit**
-  Run: `git commit -m "feat: implement CalibrationEngine and WeightCalibrationService"`
+  Run: `git commit -m "feat: implement pluggable CalibrationAlgorithm and CalibrationEngine"`
 
 ---
 
-### Task 6: Determinism & Invariant Tests
+### Task 6: WeightCalibrationService & Rollback Orchestration
 
 **Files:**
-- Create: `crates/brain-services/tests/learned_ranking_invariants_tests.rs`
+- Create/Modify: `crates/brain-services/src/retrieval/calibration.rs`
 
 **Interfaces:**
-- Consumes: Full ranking and calibration pipeline.
-- Produces: Invariant verification suite.
+- Consumes: `CalibrationEngine`, `ActiveWeightProvider`, SQLite storage backend
+- Produces: `WeightCalibrationService` (`ingest_feedback`, `calibrate_weights`, `publish_snapshot`, `rollback_to`).
 
-- [ ] **Step 1: Write tests for Model Transparency, Calibration Reproducibility, Snapshot Monotonicity**
-- [ ] **Step 2: Run all tests to guarantee correctness**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test`
-  Expected: PASS
+- [ ] **Step 1: Implement `WeightCalibrationService`**
+  Coordinate database queries, snapshot monotonicity checking (`candidate_version > current_version`), atomic swap updating `ActiveWeightProvider`, and explicit `rollback_to(version)` to revert the active version.
+
+- [ ] **Step 2: Run verification and tests**
+  Write `publication_tests.rs` and `reproducibility_tests.rs` to verify safe publishing, idempotence, rollbacks, and monotonicity limits.
+
 - [ ] **Step 3: Commit**
-  Run: `git add crates/brain-services/tests/learned_ranking_invariants_tests.rs && git commit -m "test: verify Phase 12 invariants"`
+  Run: `git commit -m "feat: implement WeightCalibrationService with publication and rollback safety"`
