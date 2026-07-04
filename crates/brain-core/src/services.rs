@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Conversation, MemoryDTO, Node, SessionId};
+use brain_domain::{Conversation, MemoryDTO, Node, Edge, GraphProvenance, GraphVersion, SessionId};
 
 /// Service managing chat session lifecycle, history persistence, and volatile cache synchronization.
 pub trait SessionService: Send + Sync {
@@ -31,4 +31,35 @@ pub trait RetrievalService: Send + Sync {
         query: &str,
         limit: usize,
     ) -> Result<Vec<MemoryDTO>, BrainError>;
+}
+
+/// Request parameters for the semantic memory extraction process.
+#[derive(Debug, Clone)]
+pub struct ExtractionRequest {
+    /// The raw text sequence to extract memory structures from.
+    pub raw_content: String,
+    /// Extensible metadata about the context (e.g. conversation, message).
+    pub context_metadata: std::collections::HashMap<String, String>,
+}
+
+/// Consolidated result of a semantic memory extraction run.
+#[derive(Debug, Clone)]
+pub struct ExtractionResult {
+    /// Extracted entities/nodes.
+    pub nodes: Vec<Node>,
+    /// Extracted relationships/edges.
+    pub edges: Vec<Edge>,
+    /// Common provenance indicating the source context.
+    pub provenance: GraphProvenance,
+    /// Active version of the graph protocol at extraction time.
+    pub graph_version: GraphVersion,
+}
+
+/// Persistence-agnostic boundary contract for memory extraction.
+///
+/// Invariants:
+/// - Implementations must be purely read-oriented (perform no direct repository mutations).
+pub trait MemoryExtractor: Send + Sync {
+    /// Parses an extraction request into structured nodes and edges.
+    fn extract(&self, request: ExtractionRequest) -> Result<ExtractionResult, BrainError>;
 }

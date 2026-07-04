@@ -31,4 +31,7 @@ pub enum DomainError {
     /// Invalid edge weight specified.
     #[error("Invalid edge weight: {0}")]
     InvalidEdgeWeight(String),
+    /// Invalid relation type or unregistered relation ID.
+    #[error("Unregistered relation: {0}")]
+    UnregisteredRelation(String),
 }

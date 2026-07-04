@@ -22,20 +22,56 @@ impl LtmDatabase {
 
         // 1. Transactionally Upsert all Nodes first
         {
-            let mut stmt = tx.prepare(
+            let mut select_stmt = tx.prepare("SELECT type, properties FROM nodes WHERE id = ?1")?;
+            let mut update_stmt = tx.prepare(
+                "UPDATE nodes SET label = ?1, type = ?2, properties = ?3, updated_at = ?4 WHERE id = ?5"
+            )?;
+            let mut insert_stmt = tx.prepare(
                 "INSERT INTO nodes (id, label, type, properties, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
-                 ON CONFLICT(id) DO UPDATE SET
-                    label = excluded.label,
-                    type = excluded.type,
-                    properties = excluded.properties,
-                    updated_at = excluded.updated_at",
+                 VALUES (?1, ?2, ?3, ?4, ?5)"
             )?;
 
             for node in nodes {
-                let props_str =
-                    serde_json::to_string(&node.attributes).unwrap_or_else(|_| "{}".to_string());
-                stmt.execute(params![node.id, node.label, node.node_type, props_str, now])?;
+                let mut rows = select_stmt.query(params![node.id])?;
+                if let Some(row) = rows.next()? {
+                    let existing_type: String = row.get(0)?;
+                    let existing_properties_str: String = row.get(1)?;
+
+                    let mut merged_props = match serde_json::from_str::<serde_json::Value>(&existing_properties_str) {
+                        Ok(serde_json::Value::Object(map)) => map,
+                        _ => serde_json::Map::new(),
+                    };
+
+                    if let serde_json::Value::Object(incoming_map) = &node.attributes {
+                        for (k, v) in incoming_map {
+                            merged_props.insert(k.clone(), v.clone());
+                        }
+                    }
+
+                    let final_type = if existing_type == "stub" {
+                        &node.node_type
+                    } else {
+                        &existing_type
+                    };
+
+                    let props_str = serde_json::to_string(&merged_props).unwrap_or_else(|_| "{}".to_string());
+                    update_stmt.execute(params![
+                        node.label,
+                        final_type,
+                        props_str,
+                        now,
+                        node.id
+                    ])?;
+                } else {
+                    let props_str = serde_json::to_string(&node.attributes).unwrap_or_else(|_| "{}".to_string());
+                    insert_stmt.execute(params![
+                        node.id,
+                        node.label,
+                        node.node_type,
+                        props_str,
+                        now
+                    ])?;
+                }
             }
         }
 

@@ -51,10 +51,11 @@ impl MemoryMergePolicy {
         let updated_at = std::cmp::max(a.updated_at, b.updated_at);
 
         let merged_node = Node {
-            id: a.id, // Primary identifier remains `a.id`
+            id: a.id,
             label: newer.label.clone(),
             node_type: a.node_type.clone(),
             properties: merged_properties,
+            provenance: newer.provenance.clone(),
             updated_at,
         };
 

@@ -28,3 +28,43 @@ pub use identifiers::*;
 pub use services::*;
 pub use specification::*;
 
+/// Brain Knowledge Format (BKF) canonical representation.
+pub mod bkf;
+pub use bkf::*;
+
+/// Graph relation taxonomy registry.
+pub mod relations;
+pub use relations::*;
+
+/// Lexical normalization and entity canonicalization.
+pub mod canonical;
+pub use canonical::*;
+
+/// Rule-driven inference engine.
+pub mod inference;
+pub use inference::*;
+
+/// Conflict resolution engine for filtering relationships.
+pub mod suppression;
+pub use suppression::*;
+
+/// Integrity and invariant validation passes.
+pub mod validation;
+pub use validation::*;
+
+/// Graph query parameters and types.
+#[allow(missing_docs)]
+pub mod query;
+pub use query::*;
+
+/// Cognitive retrieval and reasoning engine.
+pub mod retrieval;
+pub use retrieval::*;
+
+/// First-class temporal domain models and abstractions.
+pub mod temporal;
+pub use temporal::*;
+
+/// First-class domain consolidation policies and decision engines.
+pub mod consolidation;
+pub use consolidation::*;

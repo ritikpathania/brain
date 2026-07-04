@@ -58,6 +58,46 @@ const MIGRATIONS: &[&str] = &[
         PRIMARY KEY (session_id, version)
     );
     "#,
+    // Version 3 Schema Setup (Ingestion Event Log / WAL)
+    r#"
+    CREATE TABLE IF NOT EXISTS event_log (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT UNIQUE NOT NULL,
+        adapter_id TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        conversation_id TEXT,
+        event_model_version TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        received_at TEXT NOT NULL,
+        processed INTEGER DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_event_log_adapter ON event_log(adapter_id);
+    CREATE INDEX IF NOT EXISTS idx_event_log_session ON event_log(session_id);
+    CREATE INDEX IF NOT EXISTS idx_event_log_type ON event_log(event_type);
+    "#,
+    // Version 4 Schema Setup (Memory Consolidation Archival)
+    r#"
+    CREATE TABLE IF NOT EXISTS archived_edges (
+        source TEXT NOT NULL,
+        target TEXT NOT NULL,
+        relation TEXT NOT NULL,
+        weight REAL NOT NULL,
+        updated_at INTEGER NOT NULL,
+        archived_at INTEGER NOT NULL,
+        PRIMARY KEY (source, target, relation)
+    );
+    CREATE INDEX IF NOT EXISTS idx_archived_edges_source ON archived_edges(source);
+    CREATE INDEX IF NOT EXISTS idx_archived_edges_target ON archived_edges(target);
+    "#,
+    // Version 5 Schema Setup (Temporal Retrieval Fields)
+    r#"
+    ALTER TABLE edges ADD COLUMN observed_at INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE edges ADD COLUMN validity TEXT NOT NULL DEFAULT '[]';
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

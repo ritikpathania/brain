@@ -161,12 +161,16 @@ impl HostContext for ApplicationRuntime {
                     message: "Session manager not initialized".to_string(),
                 })?;
 
+        let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
         let pipeline = crate::retrieval::pipeline::MemoryPipelineBuilder::new()
             .register_source(Arc::new(crate::retrieval::source::StmMemorySource::new(
                 session_manager.clone(),
+                storage.clone(),
+                registry.clone(),
             )))
             .register_source(Arc::new(crate::retrieval::source::LtmMemorySource::new(
                 storage.clone(),
+                registry,
             )))
             .with_policy(brain_core::retrieval::CacheHydrationPolicy::OnHit)
             .with_cache_manager(session_manager)
@@ -790,9 +794,11 @@ impl StartupPhase for ServicesReadyPhase {
                 message: "Storage dependency missing for ServicesReadyPhase".to_string(),
             })?;
         let session_manager = Arc::new(SessionCacheManager::new());
+        let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
         let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new(
             storage.clone(),
             session_manager.clone(),
+            registry.clone(),
         ));
         let conversation_manager: Arc<dyn crate::conversation::ConversationManager> =
             Arc::new(crate::conversation::ConversationManagerImpl::new(
@@ -811,6 +817,7 @@ impl StartupPhase for ServicesReadyPhase {
                 retrieval_service.clone(),
                 Arc::new(crate::conversation::DummyChatAgent),
                 None,
+                registry,
             ));
         let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(
             Arc::new(crate::agent::streaming::DefaultStreamEventMapper),

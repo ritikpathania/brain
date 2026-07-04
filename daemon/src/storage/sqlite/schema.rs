@@ -63,5 +63,38 @@ pub fn initialize_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
         [],
     )?;
 
+    // Ingestion write-ahead event log table
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS event_log (
+            sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT UNIQUE NOT NULL,
+            adapter_id TEXT NOT NULL,
+            client_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            workspace_id TEXT NOT NULL,
+            conversation_id TEXT,
+            event_model_version TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            received_at TEXT NOT NULL,
+            processed INTEGER DEFAULT 0
+        );",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_log_adapter ON event_log(adapter_id);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_log_session ON event_log(session_id);",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_log_type ON event_log(event_type);",
+        [],
+    )?;
+
     Ok(())
 }

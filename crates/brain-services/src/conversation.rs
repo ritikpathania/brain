@@ -4,8 +4,8 @@ use std::time::SystemTime;
 use brain_core::errors::BrainError;
 use brain_core::extensibility::DecisionEngine;
 use brain_core::repositories::RepositorySet;
-use brain_core::services::RetrievalService;
-use brain_domain::{Conversation, ConversationId, Edge, MemoryDTO, Message, Node, SessionId};
+use brain_core::services::{RetrievalService, MemoryExtractor, ExtractionRequest, ExtractionResult};
+use brain_domain::{Conversation, ConversationId, MemoryDTO, Message, Node, SessionId};
 use brain_session::SessionCacheManager;
 use brain_storage::SqliteStorage;
 
@@ -88,11 +88,7 @@ pub trait TokenCounter: Send + Sync {
     fn count_message_tokens(&self, messages: &[Message]) -> usize;
 }
 
-/// Decoupled interface for semantic extraction.
-pub trait MemoryExtractor: Send + Sync {
-    /// Extracts graph nodes and edges from a text sequence.
-    fn extract_graph(&self, text: &str) -> Result<(Vec<Node>, Vec<Edge>), BrainError>;
-}
+// Removed local MemoryExtractor trait (defined in brain-core)
 
 /// Contextual information provided to the promotion policies during evaluation.
 pub struct PromotionContext<'a> {
@@ -910,6 +906,7 @@ pub struct ConversationManagerImpl {
     retrieval_service: Arc<dyn RetrievalService>,
     chat_agent: Arc<dyn brain_core::agents::ChatAgent>,
     event_publisher: Option<Arc<dyn brain_events::EventPublisher>>,
+    registry: Arc<brain_domain::RelationRegistry>,
 }
 
 impl ConversationManagerImpl {
@@ -927,6 +924,7 @@ impl ConversationManagerImpl {
         retrieval_service: Arc<dyn RetrievalService>,
         chat_agent: Arc<dyn brain_core::agents::ChatAgent>,
         event_publisher: Option<Arc<dyn brain_events::EventPublisher>>,
+        registry: Arc<brain_domain::RelationRegistry>,
     ) -> Self {
         Self {
             repos,
@@ -940,6 +938,7 @@ impl ConversationManagerImpl {
             retrieval_service,
             chat_agent,
             event_publisher,
+            registry,
         }
     }
 
@@ -1074,12 +1073,20 @@ impl ConversationManager for ConversationManagerImpl {
         // 2. Perform volatile cache (STM) update if stm_only policy allows
         let nodes_to_ingest = if policy.stm_only {
             // Write only to STM cache
-            let extracted = self.memory_extractor.extract_graph(prompt)?;
-            extracted.0
+            let req = ExtractionRequest {
+                raw_content: prompt.to_string(),
+                context_metadata: std::collections::HashMap::new(),
+            };
+            let extracted = self.memory_extractor.extract(req)?;
+            extracted.nodes
         } else {
             // Write directly to SQLite LTM
-            let extracted = self.memory_extractor.extract_graph(prompt)?;
-            let (nodes, edges) = extracted;
+            let req = ExtractionRequest {
+                raw_content: prompt.to_string(),
+                context_metadata: std::collections::HashMap::new(),
+            };
+            let extracted = self.memory_extractor.extract(req)?;
+            let (nodes, edges) = (extracted.nodes, extracted.edges);
             self.storage.run_transaction(|tx| {
                 let repos = tx.repositories();
                 if !nodes.is_empty() {
@@ -1188,10 +1195,14 @@ impl ConversationManager for ConversationManagerImpl {
         let mut all_edges = Vec::new();
 
         for node in &nodes {
-            match self.memory_extractor.extract_graph(&node.label) {
-                Ok((extracted_nodes, extracted_edges)) => {
-                    all_nodes.extend(extracted_nodes);
-                    all_edges.extend(extracted_edges);
+            let req = ExtractionRequest {
+                raw_content: node.label.clone(),
+                context_metadata: std::collections::HashMap::new(),
+            };
+            match self.memory_extractor.extract(req) {
+                Ok(extracted) => {
+                    all_nodes.extend(extracted.nodes);
+                    all_edges.extend(extracted.edges);
                 }
                 Err(e) => {
                     // Atomically roll back if one fails
@@ -1200,6 +1211,23 @@ impl ConversationManager for ConversationManagerImpl {
             }
         }
 
+        // Validate and construct via GraphBuilder to enforce ontological constraints
+        let mut builder = brain_domain::GraphBuilder::new(&self.registry);
+        for node in &nodes {
+            builder = builder.add_node(node.clone());
+        }
+        for node in &all_nodes {
+            builder = builder.add_node(node.clone());
+        }
+        for edge in &all_edges {
+            builder = builder.add_edge(edge.source, edge.target, edge.relation, edge.weight)
+                .map_err(|e| BrainError::Validation {
+                    message: format!("Graph construction ontology violation: {}", e),
+                })?;
+        }
+        let validated_graph = builder.build();
+        let validated_edges: Vec<brain_domain::Edge> = validated_graph.edges.into_values().collect();
+
         // Save transactionally to LTM
         self.storage.run_transaction(|tx| {
             let repos = tx.repositories();
@@ -1207,8 +1235,8 @@ impl ConversationManager for ConversationManagerImpl {
             if !all_nodes.is_empty() {
                 repos.nodes().save_batch(&all_nodes)?;
             }
-            if !all_edges.is_empty() {
-                repos.edges().save_batch(&all_edges)?;
+            if !validated_edges.is_empty() {
+                repos.edges().save_batch(&validated_edges)?;
             }
             Ok(())
         })?;
@@ -1366,8 +1394,13 @@ impl TokenCounter for WordSpaceTokenCounter {
 pub struct DummyMemoryExtractor;
 
 impl MemoryExtractor for DummyMemoryExtractor {
-    fn extract_graph(&self, _text: &str) -> Result<(Vec<Node>, Vec<Edge>), BrainError> {
-        Ok((vec![], vec![]))
+    fn extract(&self, _request: ExtractionRequest) -> Result<ExtractionResult, BrainError> {
+        Ok(ExtractionResult {
+            nodes: vec![],
+            edges: vec![],
+            provenance: brain_domain::GraphProvenance::default(),
+            graph_version: brain_domain::GraphVersion::V1,
+        })
     }
 }
 

@@ -4,7 +4,7 @@ use brain_core::repositories::{
 };
 use brain_domain::{
     Conversation, ConversationId, Edge, EdgeId, Embedding, Message, MessageId, MessageRole, Node,
-    NodeId, NodeType, SessionId,
+    NodeId, NodeType, SessionId, RelationKind, RelationId
 };
 use brain_storage::{SqliteStorage, TestStorage};
 use std::panic;
@@ -53,13 +53,13 @@ fn test_sqlite_storage_cascade_deletes() {
     NodeRepository::save(store, &node_src).unwrap();
     NodeRepository::save(store, &node_tgt).unwrap();
 
-    let edge = Edge::new(src_id, tgt_id, "knows".to_string(), 1.0);
+    let edge = Edge::new(src_id, tgt_id, RelationKind::AssociatedWith, 1.0);
     EdgeRepository::save(store, &edge).unwrap();
 
     let embedding = Embedding::new(src_id, vec![0.1, 0.2, 0.3]);
     EmbeddingRepository::save(store, &embedding).unwrap();
 
-    let edge_id = EdgeId::new(src_id, tgt_id, "knows".to_string());
+    let edge_id = EdgeId::new(src_id, tgt_id, RelationId::new("associated_with"));
     assert!(EdgeRepository::find_by_id(store, &edge_id)
         .unwrap()
         .is_some());
@@ -89,7 +89,7 @@ fn test_sqlite_storage_transaction_rollback() {
     // Let's test that saving an edge without source/target nodes fails
     let src_id = NodeId::new();
     let tgt_id = NodeId::new();
-    let edge = Edge::new(src_id, tgt_id, "knows".to_string(), 1.0);
+    let edge = Edge::new(src_id, tgt_id, RelationKind::AssociatedWith, 1.0);
 
     let save_res = EdgeRepository::save(store, &edge);
     assert!(save_res.is_err());
@@ -108,14 +108,14 @@ fn test_sqlite_storage_transaction_rollback() {
     )
     .unwrap();
 
-    let valid_edge = Edge::new(valid_src, valid_tgt, "knows".to_string(), 1.0);
-    let invalid_edge = Edge::new(NodeId::new(), NodeId::new(), "knows".to_string(), 1.0);
+    let valid_edge = Edge::new(valid_src, valid_tgt, RelationKind::AssociatedWith, 1.0);
+    let invalid_edge = Edge::new(NodeId::new(), NodeId::new(), RelationKind::AssociatedWith, 1.0);
 
     let batch_res = EdgeRepository::save_batch(store, &[valid_edge.clone(), invalid_edge]);
     assert!(batch_res.is_err());
 
     // Confirm that the valid_edge was rolled back and does not exist in the database!
-    let edge_id = EdgeId::new(valid_src, valid_tgt, "knows".to_string());
+    let edge_id = EdgeId::new(valid_src, valid_tgt, RelationId::new("associated_with"));
     assert!(EdgeRepository::find_by_id(store, &edge_id)
         .unwrap()
         .is_none());
@@ -196,7 +196,7 @@ fn test_run_transaction_commit() {
         nodes.save(&n1)?;
         nodes.save(&n2)?;
 
-        let edge = Edge::new(node1_id, node2_id, "connects".to_string(), 1.0);
+        let edge = Edge::new(node1_id, node2_id, RelationKind::AssociatedWith, 1.0);
         edges.save(&edge)?;
 
         Ok("transaction success")
@@ -211,7 +211,7 @@ fn test_run_transaction_commit() {
     assert!(NodeRepository::find_by_id(store, &node2_id)
         .unwrap()
         .is_some());
-    let edge_id = EdgeId::new(node1_id, node2_id, "connects".to_string());
+    let edge_id = EdgeId::new(node1_id, node2_id, RelationId::new("associated_with"));
     assert!(EdgeRepository::find_by_id(store, &edge_id)
         .unwrap()
         .is_some());
@@ -236,7 +236,7 @@ fn test_run_transaction_rollback() {
         nodes.save(&n1)?;
 
         // Try to save an edge where target node does not exist, which violates foreign keys and fails
-        let edge = Edge::new(node1_id, node2_id, "connects".to_string(), 1.0);
+        let edge = Edge::new(node1_id, node2_id, RelationKind::AssociatedWith, 1.0);
         edges.save(&edge)?;
 
         Ok("should fail")
@@ -303,3 +303,86 @@ fn test_run_transaction_panic_safety() {
     // Assert that connection pool returned to clean state (no leaks)
     test_store.assert_clean();
 }
+
+#[test]
+fn test_sqlite_storage_node_conflict_merge() {
+    let test_store = TestStorage::new();
+    let store = test_store.storage();
+
+    let node_id = NodeId::new();
+
+    // 1. Create a node with "stub" type (represented as Unknown)
+    let node_stub = Node::new(node_id, "Test Node".to_string(), NodeType::Unknown)
+        .with_properties(std::collections::HashMap::from([
+            ("k1".to_string(), serde_json::json!("v1")),
+        ]));
+    NodeRepository::save(store, &node_stub).unwrap();
+
+    // 2. Overwrite it with a real "Concept" type and additional properties
+    let node_real = Node::new(node_id, "Test Node Real".to_string(), NodeType::Concept)
+        .with_properties(std::collections::HashMap::from([
+            ("k2".to_string(), serde_json::json!("v2")),
+            ("k1".to_string(), serde_json::json!("v1-updated")),
+        ]));
+    NodeRepository::save(store, &node_real).unwrap();
+
+    // 3. Fetch and verify:
+    // - node_type should resolve to Concept (updating from stub)
+    // - properties should merge (k1 updated, k2 added)
+    let fetched = NodeRepository::find_by_id(store, &node_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched.node_type, NodeType::Concept);
+    assert_eq!(fetched.label, "Test Node Real");
+    assert_eq!(fetched.properties.get("k1").unwrap(), "v1-updated");
+    assert_eq!(fetched.properties.get("k2").unwrap(), "v2");
+
+    // 4. Overwrite it with Tool type to verify non-stub node_type is preserved
+    let node_other = Node::new(node_id, "Test Node Other".to_string(), NodeType::Tool)
+        .with_properties(std::collections::HashMap::from([
+            ("k3".to_string(), serde_json::json!("v3")),
+        ]));
+    NodeRepository::save(store, &node_other).unwrap();
+
+    let fetched2 = NodeRepository::find_by_id(store, &node_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(fetched2.node_type, NodeType::Concept); // preserved
+    assert_eq!(fetched2.properties.get("k1").unwrap(), "v1-updated");
+    assert_eq!(fetched2.properties.get("k3").unwrap(), "v3");
+
+    test_store.assert_clean();
+}
+
+#[test]
+fn test_sqlite_edge_id_round_trip() {
+    let test_store = TestStorage::new();
+    let store = test_store.storage();
+
+    let node1_id = NodeId::new();
+    let node2_id = NodeId::new();
+
+    NodeRepository::save(store, &Node::new(node1_id, "Node 1".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(store, &Node::new(node2_id, "Node 2".to_string(), NodeType::Concept)).unwrap();
+
+    // 1. Create edge with a custom RelationId
+    let relation_id = RelationId::new("configures");
+    let edge_id = EdgeId::new(node1_id, node2_id, relation_id.clone());
+    let edge = Edge::new(node1_id, node2_id, RelationKind::Configures, 0.75);
+
+    // 2. Save edge to database
+    EdgeRepository::save(store, &edge).unwrap();
+
+    // 3. Find edge by EdgeId
+    let fetched_edge = EdgeRepository::find_by_id(store, &edge_id).unwrap().expect("Edge not found");
+    assert_eq!(fetched_edge.source, node1_id);
+    assert_eq!(fetched_edge.target, node2_id);
+    assert_eq!(fetched_edge.relation, RelationKind::Configures);
+
+    // Verify that the relation ID derived from RelationKind matches the query key exactly
+    assert_eq!(fetched_edge.relation.id(), relation_id);
+    assert_eq!(fetched_edge.relation.id().as_str(), "configures");
+
+    test_store.assert_clean();
+}
+

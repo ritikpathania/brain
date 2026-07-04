@@ -384,6 +384,328 @@ pub async fn handle_connection(
 
                 None
             }
+            "ingest_event" => {
+                metrics.total_ingests.fetch_add(1, Ordering::Relaxed);
+                let ingest_start = Instant::now();
+
+                // 1. Parse payload as IngestionEnvelope
+                let envelope: Result<brain_integrations::IngestionEnvelope, serde_json::Error> = serde_json::from_str(&payload);
+
+                let response = match envelope {
+                    Ok(env) => {
+                        // 2. Validate version
+                        if env.event_model_version != "1.0" {
+                            let msg = format!("Unsupported event model version: {}", env.event_model_version);
+                            if is_versioned {
+                                ServerResponse::Error(VersionedError {
+                                    version: "1.0".to_string(),
+                                    msg_type: "Error".to_string(),
+                                    id: req_id.unwrap_or(0),
+                                    status: "error".to_string(),
+                                    body: msg,
+                                })
+                            } else {
+                                ServerResponse::Legacy(LegacyResponse {
+                                    status: "error".to_string(),
+                                    message: msg,
+                                })
+                            }
+                        } else {
+                            // 3. Resolve active storage backend as SQLite
+                            let active_storage_res = plugin_registry.get_storage();
+                            match active_storage_res {
+                                Ok(active_storage) => {
+                                    let event_log = active_storage.event_log();
+                                    
+                                    match event_log {
+                                        Some(db) => {
+                                            // 4. Ingest and persist
+                                            match db.insert_event(&env) {
+                                                Ok(sequence) => {
+                                                    let ack_body = serde_json::json!({
+                                                        "sequence": sequence,
+                                                        "event_id": env.identity.event_id.to_string(),
+                                                    }).to_string();
+
+                                                    info!(
+                                                        sequence = sequence,
+                                                        event_id = %env.identity.event_id,
+                                                        "Event successfully written to write-ahead event log"
+                                                    );
+
+                                                    if is_versioned {
+                                                        ServerResponse::Response(VersionedResponse {
+                                                            version: "1.0".to_string(),
+                                                            msg_type: "Response".to_string(),
+                                                            id: req_id.unwrap_or(0),
+                                                            status: "success".to_string(),
+                                                            body: ack_body,
+                                                        })
+                                                    } else {
+                                                        ServerResponse::Legacy(LegacyResponse {
+                                                            status: "ok".to_string(),
+                                                            message: ack_body,
+                                                        })
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    let msg = format!("Failed to insert event into WAL: {}", e);
+                                                    if is_versioned {
+                                                        ServerResponse::Error(VersionedError {
+                                                            version: "1.0".to_string(),
+                                                            msg_type: "Error".to_string(),
+                                                            id: req_id.unwrap_or(0),
+                                                            status: "error".to_string(),
+                                                            body: msg,
+                                                        })
+                                                    } else {
+                                                        ServerResponse::Legacy(LegacyResponse {
+                                                            status: "error".to_string(),
+                                                            message: msg,
+                                                        })
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        None => {
+                                            let msg = "Active storage backend is not SQLite".to_string();
+                                            if is_versioned {
+                                                ServerResponse::Error(VersionedError {
+                                                    version: "1.0".to_string(),
+                                                    msg_type: "Error".to_string(),
+                                                    id: req_id.unwrap_or(0),
+                                                    status: "error".to_string(),
+                                                    body: msg,
+                                                })
+                                            } else {
+                                                ServerResponse::Legacy(LegacyResponse {
+                                                    status: "error".to_string(),
+                                                    message: msg,
+                                                })
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    let msg = format!("Storage backend not configured: {}", e);
+                                    if is_versioned {
+                                        ServerResponse::Error(VersionedError {
+                                            version: "1.0".to_string(),
+                                            msg_type: "Error".to_string(),
+                                            id: req_id.unwrap_or(0),
+                                            status: "error".to_string(),
+                                            body: msg,
+                                        })
+                                    } else {
+                                        ServerResponse::Legacy(LegacyResponse {
+                                            status: "error".to_string(),
+                                            message: msg,
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!("Invalid IngestionEnvelope JSON: {}", e);
+                        if is_versioned {
+                            ServerResponse::Error(VersionedError {
+                                version: "1.0".to_string(),
+                                msg_type: "Error".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "error".to_string(),
+                                body: msg,
+                            })
+                        } else {
+                            ServerResponse::Legacy(LegacyResponse {
+                                status: "error".to_string(),
+                                message: msg,
+                            })
+                        }
+                    }
+                };
+
+                let ingest_elapsed = ingest_start.elapsed().as_micros() as u64;
+                metrics
+                    .sum_ingest_latency_us
+                    .fetch_add(ingest_elapsed, Ordering::Relaxed);
+
+                Some(response)
+            }
+            "replay" => {
+                let sequence = if let Ok(pos) = serde_json::from_str::<brain_integrations::ReplayPosition>(&payload) {
+                    pos.sequence
+                } else if let Ok(seq) = payload.parse::<u64>() {
+                    seq
+                } else {
+                    0
+                };
+
+                let active_storage_res = plugin_registry.get_storage();
+                let response = match active_storage_res {
+                    Ok(active_storage) => {
+                        let event_log = active_storage.event_log();
+                        
+                        match event_log {
+                            Some(db) => {
+                                match db.get_events_after(sequence) {
+                                    Ok(events) => {
+                                        match serde_json::to_string(&events) {
+                                            Ok(body) => {
+                                                if is_versioned {
+                                                    ServerResponse::Response(VersionedResponse {
+                                                        version: "1.0".to_string(),
+                                                        msg_type: "Response".to_string(),
+                                                        id: req_id.unwrap_or(0),
+                                                        status: "success".to_string(),
+                                                        body,
+                                                    })
+                                                } else {
+                                                    ServerResponse::Legacy(LegacyResponse {
+                                                        status: "ok".to_string(),
+                                                        message: body,
+                                                    })
+                                                }
+                                            }
+                                            Err(e) => {
+                                                let msg = format!("Failed to serialize replayed events: {}", e);
+                                                if is_versioned {
+                                                    ServerResponse::Error(VersionedError {
+                                                        version: "1.0".to_string(),
+                                                        msg_type: "Error".to_string(),
+                                                        id: req_id.unwrap_or(0),
+                                                        status: "error".to_string(),
+                                                        body: msg,
+                                                    })
+                                                } else {
+                                                    ServerResponse::Legacy(LegacyResponse {
+                                                        status: "error".to_string(),
+                                                        message: msg,
+                                                    })
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let msg = format!("Failed to retrieve replayed events: {}", e);
+                                        if is_versioned {
+                                            ServerResponse::Error(VersionedError {
+                                                version: "1.0".to_string(),
+                                                msg_type: "Error".to_string(),
+                                                id: req_id.unwrap_or(0),
+                                                status: "error".to_string(),
+                                                body: msg,
+                                            })
+                                        } else {
+                                            ServerResponse::Legacy(LegacyResponse {
+                                                status: "error".to_string(),
+                                                message: msg,
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                            None => {
+                                let msg = "Active storage backend is not SQLite".to_string();
+                                if is_versioned {
+                                    ServerResponse::Error(VersionedError {
+                                        version: "1.0".to_string(),
+                                        msg_type: "Error".to_string(),
+                                        id: req_id.unwrap_or(0),
+                                        status: "error".to_string(),
+                                        body: msg,
+                                    })
+                                } else {
+                                    ServerResponse::Legacy(LegacyResponse {
+                                        status: "error".to_string(),
+                                        message: msg,
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!("Storage backend not configured: {}", e);
+                        if is_versioned {
+                            ServerResponse::Error(VersionedError {
+                                version: "1.0".to_string(),
+                                msg_type: "Error".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "error".to_string(),
+                                body: msg,
+                            })
+                        } else {
+                            ServerResponse::Legacy(LegacyResponse {
+                                status: "error".to_string(),
+                                message: msg,
+                            })
+                        }
+                    }
+                };
+
+                Some(response)
+            }
+            "handshake" => {
+                // Handshake capability & version negotiation
+                // Payload parses according to handshake.schema.json
+                let response = if is_versioned {
+                    ServerResponse::Response(VersionedResponse {
+                        version: "1.0".to_string(),
+                        msg_type: "Response".to_string(),
+                        id: req_id.unwrap_or(0),
+                        status: "success".to_string(),
+                        body: "handshake ok".to_string(),
+                    })
+                } else {
+                    ServerResponse::Legacy(LegacyResponse {
+                        status: "ok".to_string(),
+                        message: "handshake ok".to_string(),
+                    })
+                };
+                Some(response)
+            }
+            "heartbeat" => {
+                // Heartbeat diagnostic status update
+                // Payload parses according to heartbeat.schema.json
+                let response = if is_versioned {
+                    ServerResponse::Response(VersionedResponse {
+                        version: "1.0".to_string(),
+                        msg_type: "Response".to_string(),
+                        id: req_id.unwrap_or(0),
+                        status: "success".to_string(),
+                        body: "{\"uptime_ms\":1000}".to_string(),
+                    })
+                } else {
+                    ServerResponse::Legacy(LegacyResponse {
+                        status: "ok".to_string(),
+                        message: "{\"uptime_ms\":1000}".to_string(),
+                    })
+                };
+                Some(response)
+            }
+            "disconnect" => {
+                // Graceful client disconnect sequence
+                let response = if is_versioned {
+                    ServerResponse::Response(VersionedResponse {
+                        version: "1.0".to_string(),
+                        msg_type: "Response".to_string(),
+                        id: req_id.unwrap_or(0),
+                        status: "success".to_string(),
+                        body: "disconnected ok".to_string(),
+                    })
+                } else {
+                    ServerResponse::Legacy(LegacyResponse {
+                        status: "ok".to_string(),
+                        message: "disconnected ok".to_string(),
+                    })
+                };
+
+                let mut response_json = serde_json::to_string(&response)?;
+                response_json.push('\n');
+                writer.write_all(response_json.as_bytes()).await?;
+                writer.flush().await?;
+                return Ok(());
+            }
             _ => {
                 let msg = format!("Malformed request: unknown action '{}'", action);
                 if is_versioned {

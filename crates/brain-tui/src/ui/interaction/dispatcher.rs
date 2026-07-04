@@ -101,6 +101,16 @@ impl Dispatcher {
                     }
                 }
             }
+
+            // If the sidebar is focused, prevent general editing and scrolling actions from falling through to the prompt editor or history scroll
+            match action {
+                InputAction::Command(cmd) => match cmd {
+                    Command::Exit | Command::FocusNext | Command::FocusPrevious => {}
+                    _ => return DispatchResult::none(),
+                },
+                InputAction::Text(_) => return DispatchResult::none(),
+                InputAction::None => {}
+            }
         }
 
         match action {

@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use brain_core::extensibility::{ExecutionResult, HostContext};
-use brain_domain::{Conversation, Edge, MessageRole, Node, NodeType, SessionId, ToolCall};
+use brain_domain::{Conversation, Edge, MessageRole, Node, SessionId, ToolCall};
 
 /// Converts a PyObject representation of JSON-compatible values to a `serde_json::Value`.
 pub fn py_to_json(_py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<serde_json::Value> {
@@ -179,14 +179,7 @@ impl PyMemoryNode {
 
     #[getter]
     pub fn node_type(&self) -> String {
-        match &self.inner.node_type {
-            NodeType::Person => "person".to_string(),
-            NodeType::Project => "project".to_string(),
-            NodeType::File => "file".to_string(),
-            NodeType::Conversation => "conversation".to_string(),
-            NodeType::Concept => "concept".to_string(),
-            NodeType::Custom(s) => s.clone(),
-        }
+        self.inner.node_type.to_string()
     }
 
     #[getter]
@@ -236,7 +229,7 @@ impl PyEdge {
 
     #[getter]
     pub fn relation(&self) -> String {
-        self.inner.relation.clone()
+        self.inner.relation.to_string()
     }
 
     #[getter]

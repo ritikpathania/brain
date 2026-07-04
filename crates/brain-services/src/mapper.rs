@@ -12,7 +12,7 @@ pub fn to_memory_dto(node: &Node, connections: &[Edge]) -> Result<MemoryDTO, Bra
         let edge_dto = EdgeDTO::new(
             edge.source.to_string(),
             edge.target.to_string(),
-            edge.relation.clone(),
+            edge.relation.to_string(),
             edge.weight,
         );
         if edge.target == node.id {
@@ -22,14 +22,7 @@ pub fn to_memory_dto(node: &Node, connections: &[Edge]) -> Result<MemoryDTO, Bra
         }
     }
 
-    let node_type_str = match &node.node_type {
-        brain_domain::NodeType::Person => "person".to_string(),
-        brain_domain::NodeType::Project => "project".to_string(),
-        brain_domain::NodeType::File => "file".to_string(),
-        brain_domain::NodeType::Conversation => "conversation".to_string(),
-        brain_domain::NodeType::Concept => "concept".to_string(),
-        brain_domain::NodeType::Custom(s) => s.clone(),
-    };
+    let node_type_str = node.node_type.to_string();
 
     let node_dto = NodeDTO::new(
         node.id.to_string(),

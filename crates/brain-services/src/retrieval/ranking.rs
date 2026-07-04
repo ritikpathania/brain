@@ -53,6 +53,49 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     dot / (norm_a.sqrt() * norm_b.sqrt())
 }
 
+fn levenshtein_distance(s1: &str, s2: &str) -> usize {
+    let len1 = s1.chars().count();
+    let len2 = s2.chars().count();
+    if len1 == 0 { return len2; }
+    if len2 == 0 { return len1; }
+
+    let mut row: Vec<usize> = (0..=len2).collect();
+    for (i, c1) in s1.chars().enumerate() {
+        let mut prev = i + 1;
+        for (j, c2) in s2.chars().enumerate() {
+            let cost = if c1 == c2 { 0 } else { 1 };
+            let val = std::cmp::min(
+                row[j + 1] + 1,
+                std::cmp::min(prev + 1, row[j] + cost),
+            );
+            row[j] = prev;
+            prev = val;
+        }
+        row[len2] = prev;
+    }
+    row[len2]
+}
+
+fn word_similarity(q: &str, word: &str) -> f32 {
+    let q_lower = q.to_lowercase();
+    let w_lower = word.to_lowercase();
+    if q_lower == w_lower {
+        return 1.0;
+    }
+    if w_lower.contains(&q_lower) {
+        return q_lower.len() as f32 / w_lower.len() as f32;
+    }
+    let dist = levenshtein_distance(&q_lower, &w_lower);
+    let max_len = std::cmp::max(q_lower.len(), w_lower.len());
+    if max_len > 0 {
+        let sim = 1.0 - (dist as f32 / max_len as f32);
+        if sim >= 0.7 {
+            return sim;
+        }
+    }
+    0.0
+}
+
 /// Lexical ranking strategy based on the BM25 TF-IDF algorithm.
 #[derive(Debug, Clone)]
 pub struct Bm25Ranking {
@@ -109,12 +152,19 @@ impl RankingStrategy for Bm25Ranking {
         let avgdl = if n > 0.0 { total_length / n } else { 1.0 };
         let avgdl = if avgdl > 0.0 { avgdl } else { 1.0 };
 
-        // 2. Compute document frequency and IDF for each query term
+        // 2. Compute document frequency and IDF for each query term (with fuzzy support)
         let mut idf_map = HashMap::new();
         for token in &query_tokens {
             let mut count = 0.0;
             for tf_map in &doc_tokens {
-                if tf_map.contains_key(token) {
+                let mut matches = false;
+                for doc_tok in tf_map.keys() {
+                    if word_similarity(token, doc_tok) > 0.0 {
+                        matches = true;
+                        break;
+                    }
+                }
+                if matches {
                     count += 1.0;
                 }
             }
@@ -130,17 +180,36 @@ impl RankingStrategy for Bm25Ranking {
             let tf_map = &doc_tokens[idx];
 
             for token in &query_tokens {
-                let tf_val = *tf_map.get(token).unwrap_or(&0.0);
-                if tf_val == 0.0 {
+                let mut best_tf_val = 0.0;
+                for (doc_tok, &doc_tf) in tf_map {
+                    let sim = word_similarity(token, doc_tok);
+                    if sim > 0.0 {
+                        let tf_val = doc_tf * sim;
+                        if tf_val > best_tf_val {
+                            best_tf_val = tf_val;
+                        }
+                    }
+                }
+                if best_tf_val == 0.0 {
                     continue;
                 }
                 let idf = *idf_map.get(token).unwrap_or(&0.0);
 
-                let numerator = tf_val * (self.k1 + 1.0);
-                let denominator = tf_val + self.k1 * (1.0 - self.b + self.b * (doc_len / avgdl));
+                let numerator = best_tf_val * (self.k1 + 1.0);
+                let denominator = best_tf_val + self.k1 * (1.0 - self.b + self.b * (doc_len / avgdl));
 
                 score += idf * (numerator / denominator);
             }
+
+            // Phrase match boosting
+            let label_lower = node.label.to_lowercase();
+            let query_lower = request.query.to_lowercase();
+            if label_lower == query_lower {
+                score += 150.0;
+            } else if label_lower.contains(&query_lower) || query_lower.contains(&label_lower) {
+                score += 80.0;
+            }
+
             scored_nodes.push((node, score));
         }
 

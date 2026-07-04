@@ -11,7 +11,7 @@ mod session;
 mod stub;
 
 pub use retrieval::RetrievalServiceImpl;
-pub use retrieval::{pipeline, source};
+pub use retrieval::{pipeline, source, cache, calibration};
 pub use session::SessionServiceImpl;
 pub use stub::{StubRetrievalService, StubSessionService};
 
@@ -27,3 +27,7 @@ pub mod agent;
 
 /// Conversation and memory life cycle management.
 pub mod conversation;
+
+/// Memory consolidation services.
+pub mod consolidation;
+pub use consolidation::MemoryConsolidationService;

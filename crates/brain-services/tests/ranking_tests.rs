@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::{EmbeddingProvider, RankingStrategy, RetrievalRequest};
-use brain_domain::{Edge, Embedding, Node, NodeId, SessionId};
+use brain_domain::{Edge, Embedding, Node, NodeId, SessionId, RelationKind};
 use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, GraphRanking, RrfRanking};
 use brain_storage::TestStorage;
 
@@ -118,12 +118,12 @@ fn test_graph_ranking() {
     // node1 has total weight 5.0
     store
         .edges()
-        .save(&Edge::new(node1.id, node2.id, "rel".to_string(), 5.0))
+        .save(&Edge::new(node1.id, node2.id, RelationKind::AssociatedWith, 5.0))
         .unwrap();
     // node2 has total weight 7.0 (5.0 + 2.0)
     store
         .edges()
-        .save(&Edge::new(node2.id, node3.id, "rel".to_string(), 2.0))
+        .save(&Edge::new(node2.id, node3.id, RelationKind::AssociatedWith, 2.0))
         .unwrap();
 
     let request = RetrievalRequest {

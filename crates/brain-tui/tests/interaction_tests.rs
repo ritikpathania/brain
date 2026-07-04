@@ -146,6 +146,9 @@ fn test_dispatcher_exit_needs_render() {
         DispatchResult { needs_render: true, should_exit: false, ui_event: None }
     );
 
+    // Reset focus back to Prompt so the following text input is not ignored by the sidebar focus filter
+    focus.set_focus(FocusTarget::Prompt);
+
     // TextInput action sets needs_render = true
     let res = Dispatcher::dispatch(
         InputAction::Text(TextInput::Char('z')),

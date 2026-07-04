@@ -24,22 +24,219 @@ pub enum MessageRole {
 }
 
 /// The type classification of a knowledge graph node.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum NodeType {
+pub enum NodeKind {
     /// A person entity.
     Person,
     /// A project workspace entity.
     Project,
+    /// An organization entity.
+    Organization,
+    /// A technology or language entity.
+    Technology,
+    /// A database entity.
+    Database,
     /// A file path or source code entity.
     File,
-    /// A conversation log entity.
-    Conversation,
+    /// A credential entity.
+    Credential,
     /// An abstract concept or topic entity.
     Concept,
-    /// An extensible custom classification tag.
-    #[serde(untagged)]
-    Custom(String),
+    /// An agent-callable tool entity.
+    Tool,
+    /// A background service entity.
+    Service,
+    /// Fallback for unknown/unrecognized variants.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Type alias for backward compatibility.
+pub type NodeType = NodeKind;
+
+impl std::fmt::Display for NodeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Person => "person",
+            Self::Project => "project",
+            Self::Organization => "organization",
+            Self::Technology => "technology",
+            Self::Database => "database",
+            Self::File => "file",
+            Self::Credential => "credential",
+            Self::Concept => "concept",
+            Self::Tool => "tool",
+            Self::Service => "service",
+            Self::Unknown => "unknown",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl std::str::FromStr for NodeKind {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let kind = match s.to_lowercase().as_str() {
+            "person" => Self::Person,
+            "project" => Self::Project,
+            "organization" => Self::Organization,
+            "technology" => Self::Technology,
+            "database" => Self::Database,
+            "file" => Self::File,
+            "credential" => Self::Credential,
+            "concept" => Self::Concept,
+            "tool" => Self::Tool,
+            "service" => Self::Service,
+            _ => Self::Unknown,
+        };
+        Ok(kind)
+    }
+}
+
+/// The kind classification of a relationship edge.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RelationKind {
+    /// Indicates usage.
+    Uses,
+    /// Indicates dependency.
+    DependsOn,
+    /// Indicates platform execution.
+    RunsOn,
+    /// Indicates development ownership.
+    Develops,
+    /// Indicates storage location.
+    StoredIn,
+    /// Indicates configuration coupling.
+    Configures,
+    /// Indicates protocol/network communications channel.
+    CommunicatesVia,
+    /// Indicates generic association.
+    AssociatedWith,
+    /// Fallback for unknown/unrecognized variants.
+    #[serde(other)]
+    Unknown,
+}
+
+impl RelationKind {
+    /// Returns the canonical stable identifier for the relation type.
+    pub fn id(self) -> crate::identifiers::RelationId {
+        let s = match self {
+            Self::Uses => "uses",
+            Self::DependsOn => "depends_on",
+            Self::RunsOn => "runs_on",
+            Self::Develops => "develops",
+            Self::StoredIn => "stored_in",
+            Self::Configures => "configures",
+            Self::CommunicatesVia => "communicates_via",
+            Self::AssociatedWith => "associated_with",
+            Self::Unknown => "unknown",
+        };
+        crate::identifiers::RelationId::new(s)
+    }
+
+    /// Static slice containing all valid relation variants (excluding Unknown).
+    pub const ALL: &'static [Self] = &[
+        Self::Uses,
+        Self::DependsOn,
+        Self::RunsOn,
+        Self::Develops,
+        Self::StoredIn,
+        Self::Configures,
+        Self::CommunicatesVia,
+        Self::AssociatedWith,
+    ];
+}
+
+impl std::fmt::Display for RelationKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id())
+    }
+}
+
+impl std::str::FromStr for RelationKind {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let kind = match s.to_lowercase().replace("-", "_").as_str() {
+            "uses" => Self::Uses,
+            "depends_on" => Self::DependsOn,
+            "runs_on" => Self::RunsOn,
+            "develops" => Self::Develops,
+            "stored_in" => Self::StoredIn,
+            "configures" => Self::Configures,
+            "communicates_via" => Self::CommunicatesVia,
+            "associated_with" => Self::AssociatedWith,
+            _ => Self::Unknown,
+        };
+        Ok(kind)
+    }
+}
+
+/// Version wrapper for the knowledge graph protocol.
+/// Intended to enforce explicit migrations and serialization compatibility.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct GraphVersion(u32);
+
+impl GraphVersion {
+    /// Version 1 of the graph protocol.
+    pub const V1: Self = Self(1);
+    
+    /// Returns the raw u32 representation of the version.
+    pub fn value(self) -> u32 {
+        self.0
+    }
+}
+
+/// Classification of the semantic origin/source of a graph element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ProvenanceSource {
+    /// Extracted via NLP/Heuristics/LLM from user interactions.
+    #[default]
+    Extracted,
+    /// Inferred via rule-based or transitive deduction.
+    Inferred,
+    /// Imported from external static configurations or repositories.
+    Imported,
+    /// Manually authored or updated directly by the user.
+    UserAuthored,
+}
+
+/// Intrinsic provenance indicating the origin, author, and context of graph elements.
+/// Intrinsic fields are strictly immutable once persisted.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GraphProvenance {
+    /// The conversation ID from which this was extracted.
+    pub source_conversation: Option<String>,
+    /// The message ID from which this was extracted.
+    pub source_message: Option<String>,
+    /// Timestamp (Unix seconds) when the extraction occurred.
+    pub extracted_at: u64,
+    /// Version of the extractor that parsed this entity.
+    pub extractor_version: String,
+    /// Confidence score assigned by the extractor.
+    pub confidence: f32,
+    /// Exact text span from which the extraction was parsed.
+    pub text_span: Option<String>,
+    /// Classification of the origin of this graph element.
+    #[serde(default)]
+    pub source: ProvenanceSource,
+}
+
+impl Default for GraphProvenance {
+    fn default() -> Self {
+        Self {
+            source_conversation: None,
+            source_message: None,
+            extracted_at: current_unix_timestamp(),
+            extractor_version: "v1.0.0".to_string(),
+            confidence: 1.0,
+            text_span: None,
+            source: ProvenanceSource::Extracted,
+        }
+    }
 }
 
 /// The lifecycle states of a system extension plugin.
@@ -66,6 +263,10 @@ pub enum PluginState {
 }
 
 /// Represents a knowledge graph node containing semantic properties.
+///
+/// Invariants:
+/// - Node ID is strictly immutable once persisted.
+/// - Provenance information is intrinsic and immutable.
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
@@ -77,6 +278,8 @@ pub struct Node {
     pub node_type: NodeType,
     /// Extensible metadata and key-value properties.
     pub properties: HashMap<String, serde_json::Value>,
+    /// Intrinsic immutable provenance of the node.
+    pub provenance: GraphProvenance,
     /// Unix timestamp when the node was last updated.
     pub updated_at: u64,
 }
@@ -89,6 +292,7 @@ impl Node {
             label,
             node_type,
             properties: HashMap::new(),
+            provenance: GraphProvenance::default(),
             updated_at: current_unix_timestamp(),
         }
     }
@@ -110,9 +314,105 @@ impl Node {
         self.label = label;
         self
     }
+
+    /// Merges another node's properties and provenance into this node.
+    /// Follows the Provenance Monotonicity Rule: aggregates source context in an append-only format.
+    pub fn merge_with(&mut self, other: &Self) {
+        // 1. Merge properties
+        for (k, v) in &other.properties {
+            self.properties.entry(k.clone()).or_insert_with(|| v.clone());
+        }
+
+        // 2. Merge provenance monotonically
+        let mut convs = std::collections::BTreeSet::new();
+        if let Some(c) = &self.provenance.source_conversation {
+            for part in c.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                convs.insert(part.to_string());
+            }
+        }
+        if let Some(c) = &other.provenance.source_conversation {
+            for part in c.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                convs.insert(part.to_string());
+            }
+        }
+        self.provenance.source_conversation = if convs.is_empty() {
+            None
+        } else {
+            Some(convs.into_iter().collect::<Vec<_>>().join(", "))
+        };
+
+        let mut msgs = std::collections::BTreeSet::new();
+        if let Some(m) = &self.provenance.source_message {
+            for part in m.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                msgs.insert(part.to_string());
+            }
+        }
+        if let Some(m) = &other.provenance.source_message {
+            for part in m.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                msgs.insert(part.to_string());
+            }
+        }
+        self.provenance.source_message = if msgs.is_empty() {
+            None
+        } else {
+            Some(msgs.into_iter().collect::<Vec<_>>().join(", "))
+        };
+
+        // Combine text spans
+        let mut spans = Vec::new();
+        if let Some(s) = &self.provenance.text_span {
+            spans.push(s.clone());
+        }
+        if let Some(s) = &other.provenance.text_span {
+            if !spans.contains(s) {
+                spans.push(s.clone());
+            }
+        }
+        self.provenance.text_span = if spans.is_empty() {
+            None
+        } else {
+            Some(spans.join(" | "))
+        };
+
+        // Keep the oldest extraction timestamp to preserve historical provenance start time
+        self.provenance.extracted_at = self.provenance.extracted_at.min(other.provenance.extracted_at);
+
+        // Keep maximum confidence
+        self.provenance.confidence = self.provenance.confidence.max(other.provenance.confidence);
+
+        self.updated_at = current_unix_timestamp();
+    }
 }
 
 /// Represents a directed relationship edge between two nodes in the knowledge graph.
+///
+/// Invariants:
+/// - Edge ID (source, target, relation) is strictly immutable once persisted.
+/// - Provenance information is intrinsic and immutable.
+/// Typed identifier representing an inference rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleId {
+    /// Inverse relation rule (e.g. A develops B -> B stored_in A).
+    Inverse,
+    /// Transitive path closure rule (e.g. A uses B uses C -> A uses C).
+    Transitive,
+}
+
+/// Description of the reasoning/inference details that produced an edge.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Derivation {
+    /// Typed rule identifier.
+    pub rule: RuleId,
+    /// Identifiers of the supporting source/inferred edges that produced this edge.
+    pub supporting_edges: Vec<EdgeId>,
+}
+
+/// Represents a directed relationship edge between two nodes in the knowledge graph.
+///
+/// Invariants:
+/// - Edge ID (source, target, relation) is strictly immutable once persisted.
+/// - Provenance information is intrinsic and immutable.
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Edge {
@@ -120,22 +420,29 @@ pub struct Edge {
     pub source: NodeId,
     /// The target node identifier.
     pub target: NodeId,
-    /// The relation label (e.g. "authored", "part_of").
-    pub relation: String,
+    /// The relation label/kind.
+    pub relation: RelationKind,
     /// The weight or confidence score of the relationship.
     pub weight: f64,
+    /// Intrinsic immutable provenance of the edge.
+    pub provenance: GraphProvenance,
+    /// Optional explanation of how this edge was derived (None for extracted/imported/user-authored edges).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub derivation: Option<Derivation>,
     /// Unix timestamp when the edge was last updated.
     pub updated_at: u64,
 }
 
 impl Edge {
     /// Creates a new `Edge` with current timestamp.
-    pub fn new(source: NodeId, target: NodeId, relation: String, weight: f64) -> Self {
+    pub fn new(source: NodeId, target: NodeId, relation: RelationKind, weight: f64) -> Self {
         Self {
             source,
             target,
             relation,
             weight,
+            provenance: GraphProvenance::default(),
+            derivation: None,
             updated_at: current_unix_timestamp(),
         }
     }
@@ -150,7 +457,7 @@ impl Edge {
         Ok(crate::events::DomainEvent::RelationshipStrengthened {
             source: self.source.to_string(),
             target: self.target.to_string(),
-            relation: self.relation.clone(),
+            relation: self.relation.to_string(),
             new_weight: self.weight,
         })
     }
@@ -346,12 +653,12 @@ impl KnowledgeGraph {
         if !self.nodes.contains_key(&edge.target) {
             return Err(crate::errors::DomainError::MissingTargetNode(edge.target.to_string()));
         }
-        let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.clone());
+        let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
         if self.edges.contains_key(&edge_id) {
             return Err(crate::errors::DomainError::EdgeAlreadyExists {
                 source_node: edge.source.to_string(),
                 target_node: edge.target.to_string(),
-                relation: edge.relation.clone(),
+                relation: edge.relation.to_string(),
             });
         }
         self.edges.insert(edge_id, edge);
@@ -363,18 +670,67 @@ impl KnowledgeGraph {
         &mut self,
         source: NodeId,
         target: NodeId,
-        relation: String,
+        relation: crate::identifiers::RelationId,
     ) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
-        let edge_id = EdgeId::new(source, target, relation.clone());
+        let edge_id = EdgeId::new(source, target, relation);
         if let Some(edge) = self.edges.get_mut(&edge_id) {
             edge.strengthen()
         } else {
             Err(crate::errors::DomainError::MissingSourceNode(format!(
                 "Edge {} -> {} [{}] not found",
-                source, target, relation
+                source, target, edge_id.relation
             )))
         }
     }
+
+    /// Recursively builds the explanation chain (derivation tree) explaining why an edge exists.
+    pub fn explain_edge(&self, edge_id: &EdgeId) -> Option<ExplanationChain> {
+        self.explain_edge_recursive(edge_id, &mut std::collections::HashSet::new())
+    }
+
+    fn explain_edge_recursive(
+        &self,
+        edge_id: &EdgeId,
+        visited: &mut std::collections::HashSet<EdgeId>,
+    ) -> Option<ExplanationChain> {
+        if visited.contains(edge_id) {
+            return None; // Prevent cycles
+        }
+        visited.insert(edge_id.clone());
+
+        let edge = self.edges.get(edge_id)?.clone();
+        let mut supporting_chains = Vec::new();
+
+        let rule = if let Some(ref derivation) = edge.derivation {
+            for sub_id in &derivation.supporting_edges {
+                if let Some(sub_chain) = self.explain_edge_recursive(sub_id, visited) {
+                    supporting_chains.push(sub_chain);
+                }
+            }
+            Some(derivation.rule)
+        } else {
+            None
+        };
+
+        visited.remove(edge_id);
+
+        Some(ExplanationChain {
+            edge,
+            rule,
+            supporting_chains,
+        })
+    }
+}
+
+/// Recursive reasoning chain explaining why an edge exists in the knowledge graph.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExplanationChain {
+    /// The edge itself.
+    pub edge: Edge,
+    /// The rule that derived the edge, or None if it is a source edge (extracted, imported, or user-authored).
+    pub rule: Option<RuleId>,
+    /// Supporting reasoning chains for the edges that contributed to this derivation.
+    pub supporting_chains: Vec<ExplanationChain>,
 }
 
 impl Default for KnowledgeGraph {
@@ -435,3 +791,115 @@ impl Session {
         }
     }
 }
+
+/// A builder for constructing knowledge graphs while validating invariants against a RelationRegistry.
+pub struct GraphBuilder<'a> {
+    registry: &'a crate::relations::RelationRegistry,
+    graph: KnowledgeGraph,
+    canonicalizer: Option<crate::canonical::EntityCanonicalizer>,
+    node_redirection: HashMap<NodeId, NodeId>,
+    label_to_node: HashMap<String, NodeId>,
+}
+
+impl<'a> GraphBuilder<'a> {
+    /// Creates a new `GraphBuilder` with the specified registry.
+    pub fn new(registry: &'a crate::relations::RelationRegistry) -> Self {
+        Self {
+            registry,
+            graph: KnowledgeGraph::new(),
+            canonicalizer: None,
+            node_redirection: HashMap::new(),
+            label_to_node: HashMap::new(),
+        }
+    }
+
+    /// Sets an optional EntityCanonicalizer for this builder session.
+    pub fn with_canonicalizer(mut self, canonicalizer: crate::canonical::EntityCanonicalizer) -> Self {
+        self.canonicalizer = Some(canonicalizer);
+        self
+    }
+
+    /// Adds a node to the graph, applying lexical normalization and alias resolution.
+    pub fn add_node(mut self, mut node: Node) -> Self {
+        let normalized = crate::canonical::Normalizer::normalize(&node.label);
+        
+        let resolved_id = self.canonicalizer
+            .as_ref()
+            .and_then(|c| c.canonicalize(&node.label).1)
+            .unwrap_or(node.id);
+
+        let final_id = if let Some(&existing_id) = self.label_to_node.get(&normalized) {
+            existing_id
+        } else {
+            self.label_to_node.insert(normalized.clone(), resolved_id);
+            resolved_id
+        };
+
+        let orig_id = node.id;
+
+        if let Some(existing_node) = self.graph.nodes.get_mut(&final_id) {
+            let merge_policy = crate::canonical::MergePolicy::for_node_type(&node.node_type);
+            match merge_policy {
+                crate::canonical::MergePolicy::TakeFirst => {}
+                crate::canonical::MergePolicy::MergeProperties => {
+                    for (k, v) in node.properties {
+                        existing_node.properties.insert(k, v);
+                    }
+                }
+                crate::canonical::MergePolicy::SumWeight => {}
+            }
+        } else {
+            node.id = final_id;
+            node.label = normalized;
+            self.graph.add_node(node);
+        }
+
+        self.node_redirection.insert(orig_id, final_id);
+        self
+    }
+
+    /// Adds an edge to the graph after validating the relation against the registry.
+    pub fn add_edge(
+        mut self,
+        source: NodeId,
+        target: NodeId,
+        relation: RelationKind,
+        weight: f64,
+    ) -> Result<Self, crate::errors::DomainError> {
+        // Validate that relation exists in the registry (excluding Unknown)
+        if relation == RelationKind::Unknown || !self.registry.contains_kind(relation) {
+            return Err(crate::errors::DomainError::UnregisteredRelation(format!(
+                "RelationKind {:?} is not registered in the RelationRegistry",
+                relation
+            )));
+        }
+
+        let canon_source = self.node_redirection.get(&source).copied().unwrap_or(source);
+        let canon_target = self.node_redirection.get(&target).copied().unwrap_or(target);
+
+        // Skip self-loops
+        if canon_source == canon_target {
+            return Ok(self);
+        }
+
+        let edge_id = EdgeId::new(canon_source, canon_target, relation.id());
+        if self.graph.edges.contains_key(&edge_id) {
+            if let Some(existing_edge) = self.graph.edges.get_mut(&edge_id) {
+                if weight > existing_edge.weight {
+                    existing_edge.weight = weight;
+                }
+            }
+        } else {
+            let edge = Edge::new(canon_source, canon_target, relation, weight);
+            self.graph.add_edge(edge)?;
+        }
+
+        Ok(self)
+    }
+
+    /// Returns the built KnowledgeGraph.
+    pub fn build(self) -> KnowledgeGraph {
+        self.graph
+    }
+}
+

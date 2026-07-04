@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
+use chrono::Utc;
 
 use crate::plugins::StorageBackend;
 use crate::storage::{ExtractedEdge, ExtractedNode};
@@ -44,11 +45,96 @@ impl LtmDatabase {
         let conn_guard = self.conn.lock().unwrap();
         f(&conn_guard)
     }
+
+    /// Inserts an ingestion event into the SQLite event_log table.
+    /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
+    pub fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, rusqlite::Error> {
+        let conn_guard = self.conn.lock().unwrap();
+
+        // 1. Check for duplicates
+        let event_id_str = envelope.identity.event_id.to_string();
+        let mut check_stmt = conn_guard.prepare("SELECT sequence FROM event_log WHERE event_id = ?1")?;
+        let mut rows = check_stmt.query(params![event_id_str])?;
+        if let Some(row) = rows.next()? {
+            let seq: i64 = row.get(0)?;
+            return Ok(seq as u64);
+        }
+
+        // 2. Format columns
+        let adapter_id_str = envelope.identity.adapter_id.to_string();
+        let client_id_str = envelope.identity.client_id.to_string();
+        let session_id_str = envelope.identity.session_id.to_string();
+        let workspace_id_str = envelope.identity.workspace_id.to_string();
+        let conversation_id_str = envelope.identity.conversation_id.map(|id| id.to_string());
+        let event_model_version = envelope.event_model_version.clone();
+        let event_type = serde_json::to_value(&envelope.event.kind())
+            .map(|v| v.as_str().unwrap_or("unknown").to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+        let payload = brain_integrations::to_canonical_json(envelope)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        let timestamp_str = envelope.identity.timestamp.to_rfc3339();
+        let received_at_str = Utc::now().to_rfc3339();
+
+        // 3. Insert and retrieve auto-increment sequence ID
+        conn_guard.execute(
+            "INSERT INTO event_log (event_id, adapter_id, client_id, session_id, workspace_id, conversation_id, event_model_version, event_type, payload, timestamp, received_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                event_id_str,
+                adapter_id_str,
+                client_id_str,
+                session_id_str,
+                workspace_id_str,
+                conversation_id_str,
+                event_model_version,
+                event_type,
+                payload,
+                timestamp_str,
+                received_at_str
+            ],
+        )?;
+
+        let sequence = conn_guard.last_insert_rowid() as u64;
+        Ok(sequence)
+    }
+
+    /// Checks if the event_id already exists in the log.
+    pub fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, rusqlite::Error> {
+        let conn_guard = self.conn.lock().unwrap();
+        let mut stmt = conn_guard.prepare("SELECT 1 FROM event_log WHERE event_id = ?1")?;
+        let exists = stmt.exists(params![event_id.to_string()])?;
+        Ok(exists)
+    }
+
+    /// Replays events starting after the given sequence number.
+    pub fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, rusqlite::Error> {
+        let conn_guard = self.conn.lock().unwrap();
+        let mut stmt = conn_guard.prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC")?;
+        
+        let rows = stmt.query_map(params![sequence], |row| {
+            let payload_str: String = row.get(0)?;
+            Ok(payload_str)
+        })?;
+
+        let mut envelopes = Vec::new();
+        for row in rows {
+            let payload_str = row?;
+            let envelope: brain_integrations::IngestionEnvelope = serde_json::from_str(&payload_str)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            envelopes.push(envelope);
+        }
+
+        Ok(envelopes)
+    }
 }
 
 impl StorageBackend for LtmDatabase {
     fn name(&self) -> &str {
         "sqlite"
+    }
+
+    fn event_log(&self) -> Option<&dyn crate::plugins::traits::EventLogRepository> {
+        Some(self)
     }
 
     fn write_graph(&self, nodes: &[ExtractedNode], edges: &[ExtractedEdge]) -> Result<(), String> {
@@ -316,6 +402,18 @@ impl StorageBackend for LtmDatabase {
             nodes.push(node_res.map_err(|e| e.to_string())?);
         }
         Ok(nodes)
+    }
+}
+
+impl crate::plugins::traits::EventLogRepository for LtmDatabase {
+    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, String> {
+        self.insert_event(envelope).map_err(|e| e.to_string())
+    }
+    fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, String> {
+        self.is_duplicate_event(event_id).map_err(|e| e.to_string())
+    }
+    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, String> {
+        self.get_events_after(sequence).map_err(|e| e.to_string())
     }
 }
 
@@ -626,5 +724,58 @@ mod tests {
         let query = vec![1.0; 384];
         let neighbors = db.query_nearest_neighbors(&query, 5).unwrap();
         assert!(!neighbors.is_empty());
+    }
+
+    #[test]
+    fn test_ltm_node_merge_stub() {
+        let db = LtmDatabase::new_in_memory().unwrap();
+
+        // 1. Insert a stub node (as if created by insert OR ignore of edges)
+        db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO nodes (id, label, type, properties, updated_at) VALUES ('rust', 'rust', 'stub', '{\"initial\":true}', 100)",
+                [],
+            ).unwrap();
+        });
+
+        // 2. Upsert a real node over it
+        let real_node = ExtractedNode {
+            id: "rust".to_string(),
+            label: "Rust".to_string(),
+            node_type: "language".to_string(),
+            attributes: serde_json::json!({ "version": "1.78" }),
+        };
+        db.upsert_nodes_and_edges(&[real_node], &[]).unwrap();
+
+        let results = db.query_ltm("rust").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.node_type, "language"); // Should be updated from stub
+        assert_eq!(results[0].0.attributes["initial"], true); // Should be merged
+        assert_eq!(results[0].0.attributes["version"], "1.78");
+    }
+
+    #[test]
+    fn test_ltm_node_preserve_type() {
+        let db = LtmDatabase::new_in_memory().unwrap();
+
+        let node_v1 = ExtractedNode {
+            id: "rust".to_string(),
+            label: "Rust Lang".to_string(),
+            node_type: "language".to_string(),
+            attributes: serde_json::json!({}),
+        };
+        db.upsert_nodes_and_edges(&[node_v1], &[]).unwrap();
+
+        let node_v2 = ExtractedNode {
+            id: "rust".to_string(),
+            label: "Rust".to_string(),
+            node_type: "framework".to_string(),
+            attributes: serde_json::json!({}),
+        };
+        db.upsert_nodes_and_edges(&[node_v2], &[]).unwrap();
+
+        let results = db.query_ltm("rust").unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].0.node_type, "language"); // Should NOT be changed to framework
     }
 }

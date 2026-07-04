@@ -12,5 +12,7 @@ ratatui = "0.26"
 crossterm = "0.27"
 async-trait = "0.1"
 uuid.workspace = true
+thiserror.workspace = true
+brain-observability = { path = "../brain-observability", optional = true }
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }

@@ -1,5 +1,6 @@
 pub mod config;
 pub mod plugins;
+pub mod projection;
 pub mod retrieval;
 pub mod server;
 pub mod stm;

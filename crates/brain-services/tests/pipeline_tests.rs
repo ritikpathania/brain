@@ -254,7 +254,11 @@ fn test_stm_memory_source() {
         ctx.write().unwrap().ingest(node.clone());
     }
 
-    let source = StmMemorySource::new(cache_manager.clone());
+    use brain_storage::TestStorage;
+    let test_store = TestStorage::new();
+    let repos = Arc::new(test_store.storage().clone());
+    let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
+    let source = StmMemorySource::new(cache_manager.clone(), repos, registry);
 
     // 1. Basic match
     let req = RetrievalRequest {
@@ -291,7 +295,8 @@ fn test_ltm_memory_source() {
 
     let test_store = TestStorage::new();
     let repos = Arc::new(test_store.storage().clone());
-    let source = LtmMemorySource::new(repos.clone());
+    let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
+    let source = LtmMemorySource::new(repos.clone(), registry);
 
     let node1 = Node::new(
         NodeId::new(),

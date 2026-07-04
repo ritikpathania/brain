@@ -43,6 +43,23 @@ pub trait StorageBackend: Send + Sync {
     ) -> Result<Vec<(String, f32)>, String>;
     fn get_connections(&self, node_ids: &[String]) -> Result<Vec<ExtractedEdge>, String>;
     fn get_nodes_by_ids(&self, ids: &[String]) -> Result<Vec<ExtractedNode>, String>;
+    /// Returns the event log capability if supported by this storage backend.
+    fn event_log(&self) -> Option<&dyn EventLogRepository> {
+        None
+    }
+}
+
+/// Capability interface for write-ahead event logging and retrieval.
+pub trait EventLogRepository: Send + Sync {
+    /// Inserts an ingestion event into the SQLite event_log table.
+    /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
+    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, String>;
+
+    /// Checks if the event_id already exists in the log.
+    fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, String>;
+
+    /// Replays events starting after the given sequence number.
+    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, String>;
 }
 
 pub trait MemoryExtractor: Send + Sync {

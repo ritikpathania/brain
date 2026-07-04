@@ -253,4 +253,185 @@ mod tests {
         assert!(json_chunk.contains(r#""sequence":42"#));
         assert!(json_chunk.contains(r#""content":"hello world""#));
     }
+
+    #[test]
+    fn test_schema_conformance() {
+        use std::path::Path;
+        let schema_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../protocol/uds_ipc.schema.json");
+        let schema_content = std::fs::read_to_string(schema_path).expect("Failed to read schema file");
+        let schema_json: serde_json::Value = serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
+        let defs = schema_json.get("$defs").expect("Missing $defs in schema");
+
+        // Compile validators
+        let req_schema = serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$ref": "#/$defs/Request",
+            "$defs": defs
+        });
+        let req_validator = jsonschema::JSONSchema::compile(&req_schema).unwrap();
+
+        let resp_schema = serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$ref": "#/$defs/Response",
+            "$defs": defs
+        });
+        let resp_validator = jsonschema::JSONSchema::compile(&resp_schema).unwrap();
+
+        let stream_schema = serde_json::json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "$ref": "#/$defs/StreamEvent",
+            "$defs": defs
+        });
+        let stream_validator = jsonschema::JSONSchema::compile(&stream_schema).unwrap();
+
+        // 1. Positive Tests (Serialize -> Validate -> Deserialize -> Match)
+        
+        // A. Legacy Request
+        let legacy_req = ClientRequest::Legacy(LegacyRequest {
+            action: "query".to_string(),
+            payload: "sqlite".to_string(),
+        });
+        let json_legacy_req = serde_json::to_value(&legacy_req).unwrap();
+        assert!(req_validator.validate(&json_legacy_req).is_ok());
+        let roundtrip: ClientRequest = serde_json::from_value(json_legacy_req.clone()).unwrap();
+        assert_eq!(serde_json::to_string(&legacy_req).unwrap(), serde_json::to_string(&roundtrip).unwrap());
+
+        // B. Versioned Request
+        let versioned_req = ClientRequest::Versioned(VersionedRequest {
+            version: "1.0".to_string(),
+            msg_type: "Request".to_string(),
+            id: 101,
+            action: "ingest".to_string(),
+            body: "postgres config".to_string(),
+        });
+        let json_versioned_req = serde_json::to_value(&versioned_req).unwrap();
+        assert!(req_validator.validate(&json_versioned_req).is_ok());
+        let roundtrip: ClientRequest = serde_json::from_value(json_versioned_req.clone()).unwrap();
+        assert_eq!(serde_json::to_string(&versioned_req).unwrap(), serde_json::to_string(&roundtrip).unwrap());
+
+
+        // C. Legacy Response
+        let legacy_resp = ServerResponse::Legacy(LegacyResponse {
+            status: "ok".to_string(),
+            message: "Success".to_string(),
+        });
+        let json_legacy_resp = serde_json::to_value(&legacy_resp).unwrap();
+        assert!(resp_validator.validate(&json_legacy_resp).is_ok());
+
+        // D. Versioned Response
+        let versioned_resp = ServerResponse::Response(VersionedResponse {
+            version: "1.0".to_string(),
+            msg_type: "Response".to_string(),
+            id: 201,
+            status: "success".to_string(),
+            body: "Found 1 matches".to_string(),
+        });
+        let json_versioned_resp = serde_json::to_value(&versioned_resp).unwrap();
+        assert!(resp_validator.validate(&json_versioned_resp).is_ok());
+
+        // E. Versioned Error
+        let versioned_err = ServerResponse::Error(VersionedError {
+            version: "1.0".to_string(),
+            msg_type: "Error".to_string(),
+            id: 301,
+            status: "error".to_string(),
+            body: "Fatal error".to_string(),
+        });
+        let json_versioned_err = serde_json::to_value(&versioned_err).unwrap();
+        assert!(resp_validator.validate(&json_versioned_err).is_ok());
+
+        // F. Versioned Notification
+        let versioned_notif = ServerResponse::Notification(VersionedNotification {
+            version: "1.0".to_string(),
+            msg_type: "Notification".to_string(),
+            notification_type: "sync".to_string(),
+            message: "complete".to_string(),
+        });
+        let json_versioned_notif = serde_json::to_value(&versioned_notif).unwrap();
+        assert!(resp_validator.validate(&json_versioned_notif).is_ok());
+
+        // G. Versioned Event
+        let versioned_event = ServerResponse::Event(VersionedEvent {
+            version: "1.0".to_string(),
+            msg_type: "Event".to_string(),
+            event_name: "rotated".to_string(),
+            payload: serde_json::json!({"epoch": 4}),
+        });
+        let json_versioned_event = serde_json::to_value(&versioned_event).unwrap();
+        assert!(resp_validator.validate(&json_versioned_event).is_ok());
+
+        // H. Stream Event (Start)
+        let stream_start = StreamEvent::Start {
+            stream_id: "stream-99".to_string(),
+            metadata: serde_json::json!({"timing": 0.5}),
+        };
+        let json_stream_start = serde_json::to_value(&stream_start).unwrap();
+        assert!(stream_validator.validate(&json_stream_start).is_ok());
+
+        // I. Stream Event (Progress)
+        let stream_progress = StreamEvent::Progress {
+            stream_id: "stream-99".to_string(),
+            sequence: 1,
+            progress: 0.75,
+            message: "Syncing".to_string(),
+            metadata: serde_json::json!({}),
+        };
+        let json_stream_progress = serde_json::to_value(&stream_progress).unwrap();
+        assert!(stream_validator.validate(&json_stream_progress).is_ok());
+
+        // J. Stream Event (Chunk)
+        let stream_chunk = StreamEvent::Chunk {
+            stream_id: "stream-99".to_string(),
+            sequence: 2,
+            content: "payload".to_string(),
+            metadata: serde_json::json!({}),
+        };
+        let json_stream_chunk = serde_json::to_value(&stream_chunk).unwrap();
+        assert!(stream_validator.validate(&json_stream_chunk).is_ok());
+
+        // K. Stream Event (End)
+        let stream_end = StreamEvent::End {
+            stream_id: "stream-99".to_string(),
+            sequence: 3,
+            metadata: serde_json::json!({}),
+        };
+        let json_stream_end = serde_json::to_value(&stream_end).unwrap();
+        assert!(stream_validator.validate(&json_stream_end).is_ok());
+
+        // L. Stream Event (Cancelled)
+        let stream_cancelled = StreamEvent::Cancelled {
+            stream_id: "stream-99".to_string(),
+            sequence: 3,
+            metadata: serde_json::json!({}),
+        };
+        let json_stream_cancelled = serde_json::to_value(&stream_cancelled).unwrap();
+        assert!(stream_validator.validate(&json_stream_cancelled).is_ok());
+
+        // 2. Negative Validation Tests
+
+        // A. Missing required field (e.g. missing action on versioned request)
+        let mut bad_versioned_req = json_versioned_req.clone();
+        bad_versioned_req.as_object_mut().unwrap().remove("action");
+        assert!(req_validator.validate(&bad_versioned_req).is_err());
+
+        // B. Incorrect field type (e.g. sequence number as string instead of integer)
+        let mut bad_stream_progress = json_stream_progress.clone();
+        bad_stream_progress.as_object_mut().unwrap().insert("sequence".to_string(), serde_json::json!("1"));
+        assert!(stream_validator.validate(&bad_stream_progress).is_err());
+
+        // C. Out-of-bounds float progress (> 1.0)
+        let mut bad_stream_progress_val = json_stream_progress.clone();
+        bad_stream_progress_val.as_object_mut().unwrap().insert("progress".to_string(), serde_json::json!(1.5));
+        assert!(stream_validator.validate(&bad_stream_progress_val).is_err());
+
+        // D. Extraneous property (additionalProperties: false)
+        let mut bad_versioned_resp = json_versioned_resp.clone();
+        bad_versioned_resp.as_object_mut().unwrap().insert("unexpected_field".to_string(), serde_json::json!("not-allowed"));
+        assert!(resp_validator.validate(&bad_versioned_resp).is_err());
+
+        // E. Version is not "1.0"
+        let mut bad_versioned_err = json_versioned_err.clone();
+        bad_versioned_err.as_object_mut().unwrap().insert("version".to_string(), serde_json::json!("2.0"));
+        assert!(resp_validator.validate(&bad_versioned_err).is_err());
+    }
 }

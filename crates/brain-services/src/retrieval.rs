@@ -4,6 +4,16 @@ pub mod pipeline;
 pub mod ranking;
 /// Concrete memory source implementations (STM, LTM, etc).
 pub mod source;
+/// Graph traversal, budgeting, and analysis services.
+pub mod graph_service;
+/// Cache layers and snapshot execution management.
+pub mod cache;
+/// Cost calibration and feedback engine.
+pub mod calibration;
+/// Durable SQLite cache store backend.
+pub mod sqlite_store;
+/// Temporal retrieval integration, projection views, and ranking.
+pub mod temporal;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
@@ -22,12 +32,18 @@ pub struct RetrievalServiceImpl {
 
 impl RetrievalServiceImpl {
     /// Creates a new RetrievalServiceImpl.
-    pub fn new(repos: Arc<dyn RepositorySet>, cache_manager: Arc<SessionCacheManager>) -> Self {
+    pub fn new(
+        repos: Arc<dyn RepositorySet>,
+        cache_manager: Arc<SessionCacheManager>,
+        registry: Arc<brain_domain::RelationRegistry>,
+    ) -> Self {
         let pipeline = pipeline::MemoryPipelineBuilder::new()
             .register_source(Arc::new(source::StmMemorySource::new(
                 cache_manager.clone(),
+                repos.clone(),
+                registry.clone(),
             )))
-            .register_source(Arc::new(source::LtmMemorySource::new(repos.clone())))
+            .register_source(Arc::new(source::LtmMemorySource::new(repos.clone(), registry)))
             .with_policy(CacheHydrationPolicy::OnHit)
             .with_cache_manager(cache_manager)
             .build();

@@ -17,6 +17,9 @@ pub mod state;
 /// Rendering views and layout widget constraints.
 pub mod ui;
 
+/// Clipboard abstractions and platform implementations.
+pub mod clipboard;
+
 use crate::client::ExecutionClient;
 use crate::event::{Event, AppEvent, EventHandler};
 use crate::state::{UiState, Action, UpdateResult};

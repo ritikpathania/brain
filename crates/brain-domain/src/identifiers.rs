@@ -53,7 +53,7 @@ impl fmt::Display for RunId {
 
 /// Strongly-typed identifier for a knowledge graph node.
 /// Wraps a standard `uuid::Uuid`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub Uuid);
 
 impl NodeId {
@@ -77,19 +77,19 @@ impl fmt::Display for NodeId {
 
 /// Strongly-typed identifier for a knowledge graph edge.
 /// Uniquely identified by its `source` node, `target` node, and the name of the `relation`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EdgeId {
     /// The source node identifier.
     pub source: NodeId,
     /// The target node identifier.
     pub target: NodeId,
-    /// The relation label (e.g. "knows", "authored").
-    pub relation: String,
+    /// The relation label.
+    pub relation: RelationId,
 }
 
 impl EdgeId {
-    /// Creates a new `EdgeId` from source, target, and relation string.
-    pub fn new(source: NodeId, target: NodeId, relation: String) -> Self {
+    /// Creates a new `EdgeId` from source, target, and relation identifier.
+    pub fn new(source: NodeId, target: NodeId, relation: RelationId) -> Self {
         Self {
             source,
             target,
@@ -305,3 +305,190 @@ impl<'de> serde::Deserialize<'de> for PluginId {
         }
     }
 }
+
+/// Strongly-typed identifier for a graph relationship kind.
+/// Wraps a stable string key.
+///
+/// Does not implement `Default` to prevent constructing invalid empty identifiers.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct RelationId(std::borrow::Cow<'static, str>);
+
+impl RelationId {
+    /// Creates a new `RelationId` from a static string slice or owned string.
+    pub fn new<S: Into<std::borrow::Cow<'static, str>>>(id: S) -> Self {
+        Self(id.into())
+    }
+
+    /// Accesses the underlying string identifier as a slice.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::ops::Deref for RelationId {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<str> for RelationId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::borrow::Borrow<str> for RelationId {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for RelationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<&'static str> for RelationId {
+    fn from(s: &'static str) -> Self {
+        Self(std::borrow::Cow::Borrowed(s))
+    }
+}
+
+impl From<String> for RelationId {
+    fn from(s: String) -> Self {
+        Self(std::borrow::Cow::Owned(s))
+    }
+}
+
+impl From<RelationId> for String {
+    fn from(id: RelationId) -> Self {
+        id.0.into_owned()
+    }
+}
+
+/// Strongly-typed identifier for an ingestion event.
+/// Wraps a standard `uuid::Uuid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct EventId(pub uuid::Uuid);
+
+impl EventId {
+    /// Generates a new random unique `EventId` (UUID v4).
+    pub fn new() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
+
+impl Default for EventId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for EventId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for EventId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+/// Strongly-typed identifier for a workspace.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct WorkspaceId(pub String);
+
+impl WorkspaceId {
+    /// Creates a new `WorkspaceId` from a string representation.
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+
+    /// Accesses the underlying string slice of the WorkspaceId.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for WorkspaceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for WorkspaceId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+/// Strongly-typed identifier for a client application.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ClientId(pub String);
+
+impl ClientId {
+    /// Creates a new `ClientId` from a string representation.
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+
+    /// Accesses the underlying string slice of the ClientId.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for ClientId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for ClientId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+/// Strongly-typed identifier for an integration adapter.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct AdapterId(pub String);
+
+impl AdapterId {
+    /// Creates a new `AdapterId` from a string representation.
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+
+    /// Accesses the underlying string slice of the AdapterId.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for AdapterId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for AdapterId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+
+

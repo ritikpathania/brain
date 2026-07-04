@@ -21,7 +21,9 @@ dev = [
     "pyrefly",
     "pytest",
     "hypothesis",
+    "jsonschema",
 ]
+
 
 [tool.maturin]
 features = ["pyo3/extension-module"]

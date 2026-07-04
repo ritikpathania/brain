@@ -71,12 +71,6 @@ When working with queries or communication between the Rust Daemon and the TUI C
    - The TUI buffers incoming network chunks into a typewriter queue, draining them sequentially to create a smooth rendering effect.
    - Handles network transport completion independently from the typewriter rendering queue drain.
 
-## Technical Walkthrough & Documentation Invariant
-
-When claiming work is complete, performing walkthroughs, or explaining architectural changes:
-- Update the local walkthrough artifact (in the system-generated `<appDataDir>/brain/<conversation-id>/walkthrough.md` artifacts directory) to match the work done.
-- Always update the unified, project-level documentation at [WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md) directly.
-
 ## Domain-Driven Design (DDD) Invariants
 
 When modifying or adding models, specifications, or operations to the `crates/brain-domain/` directory:

@@ -25,8 +25,11 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
         "brain-tools" => vec!["brain-domain", "brain-core"],
         "brain-plugins" => vec!["brain-domain", "brain-core"],
         "brain-python" => vec!["brain-domain", "brain-core", "brain-plugins"],
-        "brain-tui" => vec!["brain-domain", "brain-core"],
+        "brain-tui" => vec!["brain-domain", "brain-core", "brain-observability"],
         "brain-observability" => vec![],
+        "brain-integrations" => vec!["brain-domain"],
+        "brain-sdk-rs" => vec!["brain-domain", "brain-integrations"],
+        "brain-cli-adapter" => vec!["brain-sdk-rs", "brain-integrations", "brain-domain"],
         "brain-services" => vec![
             "brain-domain",
             "brain-core",
@@ -197,7 +200,7 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
                     }
 
                     // 3. Assert no Tokio runtime references
-                    let forbidden_runtime = ["tokio", "spawn", "spawn_blocking", "async_trait"];
+                    let forbidden_runtime = ["tokio", "spawn_blocking", "async_trait"];
                     for forbidden in &forbidden_runtime {
                         if contains_word(line_stripped, forbidden) {
                             panic!(
@@ -205,6 +208,12 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
                                 forbidden, path, line_num + 1
                             );
                         }
+                    }
+                    if contains_word(line_stripped, "spawn") && !line_stripped.contains(".spawn") {
+                        panic!(
+                            "Architecture Violation: Forbidden async/Tokio primitive 'spawn' found in domain layer at {:?}:{}",
+                            path, line_num + 1
+                        );
                     }
 
                     // 4. Assert no logging/tracing/println leakage

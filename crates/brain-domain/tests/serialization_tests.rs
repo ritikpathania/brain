@@ -34,8 +34,8 @@ fn test_identifier_copy_clone() {
     let doc_id2 = doc_id1; // Copy
     assert_eq!(doc_id1, doc_id2);
 
-    // Assert Clone trait for EdgeId (non-Copy due to relation String)
-    let edge_id1 = EdgeId::new(node_id1, NodeId::new(), "knows".to_string());
+    // Assert Clone trait for EdgeId (non-Copy due to relation identifier)
+    let edge_id1 = EdgeId::new(node_id1, NodeId::new(), RelationId::new("knows"));
     #[allow(clippy::clone_on_copy)]
     let edge_id2 = edge_id1.clone();
     assert_eq!(edge_id1, edge_id2);
@@ -90,7 +90,7 @@ fn test_json_roundtrip_identifiers() {
     let deserialized_node: NodeId = serde_json::from_str(&serialized_node).unwrap();
     assert_eq!(node_id, deserialized_node);
 
-    let edge_id = EdgeId::new(node_id, NodeId::new(), "related_to".to_string());
+    let edge_id = EdgeId::new(node_id, NodeId::new(), RelationId::new("related_to"));
     let serialized_edge = serde_json::to_string(&edge_id).unwrap();
     let deserialized_edge: EdgeId = serde_json::from_str(&serialized_edge).unwrap();
     assert_eq!(edge_id, deserialized_edge);
@@ -121,7 +121,7 @@ fn test_json_roundtrip_entities() {
     // 2. Edge Roundtrip
     let source_id = NodeId::new();
     let target_id = NodeId::new();
-    let original_edge = Edge::new(source_id, target_id, "influences".to_string(), 0.85);
+    let original_edge = Edge::new(source_id, target_id, RelationKind::AssociatedWith, 0.85);
 
     let serialized_edge = serde_json::to_string(&original_edge).unwrap();
     let deserialized_edge: Edge = serde_json::from_str(&serialized_edge).unwrap();
@@ -208,12 +208,9 @@ fn test_json_roundtrip_dtos() {
 
 #[test]
 fn test_custom_node_type_serialization() {
-    let custom_type = NodeType::Custom("custom_type".to_string());
-    let serialized = serde_json::to_string(&custom_type).unwrap();
-    assert_eq!(serialized, "\"custom_type\"");
-
-    let deserialized: NodeType = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(custom_type, deserialized);
+    let serialized = "\"custom_type\"";
+    let deserialized: NodeType = serde_json::from_str(serialized).unwrap();
+    assert_eq!(NodeType::Unknown, deserialized);
 }
 
 #[test]
@@ -226,3 +223,232 @@ fn test_conversation_new_empty() {
     // Verify unique non-zero ConversationId was generated
     assert_ne!(conv.id, ConversationId(ulid::Ulid::nil()));
 }
+
+#[test]
+fn test_bkf_document_roundtrip() {
+    use brain_domain::bkf::*;
+    use std::collections::HashMap;
+
+    let mut builder = BKFDocumentBuilder::new(
+        BkfDocumentId::new(),
+        "bkf".to_string(),
+        "1.0.0".to_string(),
+    ).with_metadata(Metadata {
+        title: Some("Integration Spec".to_string()),
+        author: Some("Agent".to_string()),
+        checksum: Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()),
+        fingerprint: Some("fingerprint-123".to_string()),
+        language: Some("en".to_string()),
+        mime: Some("text/markdown".to_string()),
+        size: Some(1024),
+        created: Some(1700000000),
+        modified: Some(1700001000),
+        license: Some("MIT".to_string()),
+        extra: HashMap::new(),
+    });
+
+    let block_id = BkfBlockId::new();
+    builder.add_block(Block {
+        id: block_id,
+        content: BlockContent::Paragraph("Hello BKF".to_string()),
+        provenance: vec![Provenance::MarkdownFile {
+            path: "README.md".to_string(),
+            repository: None,
+            commit: None,
+            author: None,
+            timestamp: 1700000000,
+        }],
+        tags: vec!["intro".to_string()],
+    });
+
+    let entity_id = BkfEntityId::new();
+    builder.add_entity(Entity {
+        id: entity_id,
+        entity_type: "Concept".to_string(),
+        name: "BKF".to_string(),
+        aliases: vec![],
+        attributes: HashMap::new(),
+        confidence: 0.95,
+    });
+
+    builder.add_relationship(Relationship {
+        id: BkfRelationshipId::new(),
+        source: BKFTargetRef::Block(block_id),
+        target: BKFTargetRef::Entity(entity_id),
+        relationship_type: RelationshipType::REFERENCES,
+        confidence: 0.9,
+        provenance: vec![],
+    });
+
+    let doc = builder.build().unwrap();
+
+    let serialized = serde_json::to_string(&doc).unwrap();
+    let deserialized: BKFDocument = serde_json::from_str(&serialized).unwrap();
+    
+    assert_eq!(doc.id(), deserialized.id());
+    assert_eq!(deserialized.metadata().title.as_deref(), Some("Integration Spec"));
+    assert!(deserialized.capabilities().has_blocks);
+    assert!(deserialized.capabilities().has_entities);
+    assert!(deserialized.capabilities().has_relationships);
+    assert!(!deserialized.capabilities().has_facts);
+}
+
+#[test]
+fn test_bkf_builder_validations() {
+    use brain_domain::bkf::*;
+    use std::collections::HashMap;
+
+    let meta = Metadata {
+        title: Some("V".to_string()),
+        author: None,
+        checksum: None,
+        fingerprint: None,
+        language: None,
+        mime: None,
+        size: None,
+        created: None,
+        modified: None,
+        license: None,
+        extra: HashMap::new(),
+    };
+
+    // 1. Referential integrity validation failure (missing source/target)
+    let mut builder = BKFDocumentBuilder::new(
+        BkfDocumentId::new(),
+        "bkf".to_string(),
+        "1.0.0".to_string(),
+    ).with_metadata(meta.clone());
+
+    builder.add_relationship(Relationship {
+        id: BkfRelationshipId::new(),
+        source: BKFTargetRef::Entity(BkfEntityId::new()),
+        target: BKFTargetRef::Block(BkfBlockId::new()),
+        relationship_type: RelationshipType::CALLS,
+        confidence: 0.8,
+        provenance: vec![],
+    });
+    assert!(matches!(builder.build(), Err(BkfError::MissingReference { .. })));
+
+    // 2. Duplicate ID validation failure
+    let dup_id = BkfBlockId::new();
+    let mut builder2 = BKFDocumentBuilder::new(
+        BkfDocumentId::new(),
+        "bkf".to_string(),
+        "1.0.0".to_string(),
+    ).with_metadata(meta.clone());
+
+    builder2.add_block(Block {
+        id: dup_id,
+        content: BlockContent::Paragraph("A".to_string()),
+        provenance: vec![],
+        tags: vec![],
+    });
+    builder2.add_block(Block {
+        id: dup_id,
+        content: BlockContent::Paragraph("B".to_string()),
+        provenance: vec![],
+        tags: vec![],
+    });
+    assert!(matches!(builder2.build(), Err(BkfError::DuplicateId(..))));
+
+    // 3. Cyclic section hierarchy failure
+    let sec1_id = BkfSectionId::new();
+    let sec2_id = BkfSectionId::new();
+    let mut builder3 = BKFDocumentBuilder::new(
+        BkfDocumentId::new(),
+        "bkf".to_string(),
+        "1.0.0".to_string(),
+    ).with_metadata(meta.clone());
+
+    builder3.add_section(Section {
+        id: sec1_id,
+        title: "S1".to_string(),
+        level: 1,
+        parent_id: Some(sec2_id),
+        block_ids: vec![],
+    });
+    builder3.add_section(Section {
+        id: sec2_id,
+        title: "S2".to_string(),
+        level: 2,
+        parent_id: Some(sec1_id),
+        block_ids: vec![],
+    });
+    assert!(matches!(builder3.build(), Err(BkfError::CycleDetected { .. })));
+
+    // 4. Self-referencing relationship validation failure
+    let ent_id = BkfEntityId::new();
+    let mut builder4 = BKFDocumentBuilder::new(
+        BkfDocumentId::new(),
+        "bkf".to_string(),
+        "1.0.0".to_string(),
+    ).with_metadata(meta);
+
+    builder4.add_entity(Entity {
+        id: ent_id,
+        entity_type: "concept".to_string(),
+        name: "E1".to_string(),
+        aliases: vec![],
+        attributes: HashMap::new(),
+        confidence: 0.9,
+    });
+    builder4.add_relationship(Relationship {
+        id: BkfRelationshipId::new(),
+        source: BKFTargetRef::Entity(ent_id),
+        target: BKFTargetRef::Entity(ent_id),
+        relationship_type: RelationshipType::DEPENDS_ON,
+        confidence: 0.9,
+        provenance: vec![],
+    });
+    assert!(matches!(builder4.build(), Err(BkfError::SelfReferencing { .. })));
+}
+
+#[test]
+fn test_bkf_schema_evolution() {
+    // JSON representation of an older schema version (v0.1.0)
+    let old_json = r#"{
+        "id": "01H2N2Z8D992Y1Z75V0C2RQXWP",
+        "schema_name": "bkf",
+        "schema_version": "0.1.0",
+        "capabilities": {
+            "has_sections": false,
+            "has_blocks": false,
+            "has_entities": false,
+            "has_relationships": false,
+            "has_facts": false,
+            "has_citations": false,
+            "has_attachments": false,
+            "has_embeddings": false
+        },
+        "metadata": {
+            "title": "Old Doc",
+            "author": null,
+            "checksum": null,
+            "fingerprint": null,
+            "language": null,
+            "mime": null,
+            "size": null,
+            "created": null,
+            "modified": null,
+            "license": null,
+            "extra": {}
+        },
+        "sections": [],
+        "blocks": [],
+        "entities": [],
+        "relationships": [],
+        "facts": [],
+        "citations": [],
+        "attachments": [],
+        "provenance": [],
+        "embeddings": [],
+        "chunk_refs": [],
+        "tags": [],
+        "custom_metadata": {}
+    }"#;
+
+    let doc: brain_domain::bkf::BKFDocument = serde_json::from_str(old_json).unwrap();
+    assert_eq!(doc.schema_version(), "0.1.0");
+    assert_eq!(doc.metadata().title.as_deref(), Some("Old Doc"));
+}
+

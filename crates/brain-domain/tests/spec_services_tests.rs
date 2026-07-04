@@ -22,7 +22,7 @@ fn test_is_pinned_specification() {
 fn test_is_expired_specification() {
     let source = NodeId::new();
     let target = NodeId::new();
-    let mut edge = Edge::new(source, target, "connects".to_string(), 0.5);
+    let mut edge = Edge::new(source, target, RelationKind::AssociatedWith, 0.5);
 
     // Set updated_at to 1000 seconds ago
     edge.updated_at = 1000;

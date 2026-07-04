@@ -5,7 +5,7 @@ use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, RepositorySet,
     SessionRepository, StorageTransaction,
 };
-use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId};
+use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId, RelationKind, NodeKind};
 use std::collections::HashMap;
 
 thread_local! {
@@ -100,6 +100,251 @@ impl SqliteStorage {
             }
         }
     }
+
+    /// Inserts an edge into the archived_edges partition.
+    pub fn archive_edge(&self, source: &str, target: &str, relation: &str, weight: f64, updated_at: u64) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection for archival: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let archived_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        conn.execute(
+            "INSERT OR REPLACE INTO archived_edges (source, target, relation, weight, updated_at, archived_at) VALUES (?, ?, ?, ?, ?, ?)",
+            rusqlite::params![source, target, relation, weight, updated_at, archived_at],
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert into archived_edges: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    /// Checks if an edge exists in the archived_edges partition.
+    pub fn is_edge_archived(&self, source: &str, target: &str, relation: &str) -> Result<bool, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let count: u32 = conn.query_row(
+            "SELECT COUNT(*) FROM archived_edges WHERE source = ? AND target = ? AND relation = ?",
+            rusqlite::params![source, target, relation],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        Ok(count > 0)
+    }
+
+    /// Saves a single `TemporalEdge` including its temporal metadata (validity and observed_at).
+    pub fn save_temporal_edge(&self, temp_edge: &brain_domain::TemporalEdge) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection to save temporal edge: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        // Serialize validity (TemporalValidity) as JSON string
+        let validity_json = serde_json::to_string(&temp_edge.validity).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize validity: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        conn.execute(
+            "INSERT OR REPLACE INTO edges (source, target, relation, weight, updated_at, observed_at, validity) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                temp_edge.edge.source.to_string(),
+                temp_edge.edge.target.to_string(),
+                temp_edge.edge.relation.id().as_str(),
+                temp_edge.edge.weight,
+                temp_edge.edge.updated_at,
+                temp_edge.observed_at.unix_seconds(),
+                validity_json
+            ],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to execute save temporal edge: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
+
+    /// Lists all edges from the database, reconstructed as `TemporalEdge` with their metadata.
+    pub fn list_all_temporal_edges(&self) -> Result<Vec<brain_domain::TemporalEdge>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare(
+            "SELECT source, target, relation, weight, updated_at, observed_at, validity FROM edges"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare query: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let rows = stmt.query_map([], |row| {
+            let source_str: String = row.get(0)?;
+            let target_str: String = row.get(1)?;
+            let relation_str: String = row.get(2)?;
+            let weight: f64 = row.get(3)?;
+            let updated_at: u64 = row.get(4)?;
+            let observed_at_sec: u64 = row.get(5)?;
+            let validity_json: String = row.get(6)?;
+
+            Ok((source_str, target_str, relation_str, weight, updated_at, observed_at_sec, validity_json))
+        }).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query temporal edges: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut temp_edges = Vec::new();
+        for r in rows {
+            let (source_str, target_str, relation_str, weight, updated_at, observed_at_sec, validity_json) = r.map_err(|e| BrainError::Storage {
+                message: format!("Failed to read database row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+            let source = uuid::Uuid::parse_str(&source_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to parse source NodeId: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let target = uuid::Uuid::parse_str(&target_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to parse target NodeId: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let relation: brain_domain::RelationKind = std::str::FromStr::from_str(&relation_str).unwrap();
+
+            let mut edge = brain_domain::Edge::new(
+                brain_domain::NodeId(source),
+                brain_domain::NodeId(target),
+                relation,
+                weight,
+            );
+            edge.updated_at = updated_at;
+
+            let validity: brain_domain::TemporalValidity = if validity_json.is_empty() || validity_json == "[]" {
+                brain_domain::TemporalValidity::new(Vec::new())
+            } else {
+                serde_json::from_str(&validity_json).unwrap_or_else(|_| brain_domain::TemporalValidity::new(Vec::new()))
+            };
+
+            let observed_at = brain_domain::TimePoint::from_unix_seconds(observed_at_sec);
+
+            temp_edges.push(brain_domain::TemporalEdge {
+                edge,
+                validity,
+                observed_at,
+            });
+        }
+
+        Ok(temp_edges)
+    }
+
+    /// Evaluates and applies memory consolidation rules inside a single database transaction.
+    /// Returns the list of actions executed.
+    pub fn consolidate_memories(&self, policy: brain_domain::ConsolidationPolicy) -> Result<Vec<brain_domain::ConsolidationAction>, BrainError> {
+        let mut conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection for consolidation: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let tx = conn.transaction().map_err(|e| BrainError::Storage {
+            message: format!("Failed to begin consolidation transaction: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let active = ActiveConnection::new(&tx);
+
+        // 1. Load active nodes and edges
+        let nodes = active.nodes().list_all()?;
+        let edges = active.edges().list_all()?;
+
+        let mut graph = brain_domain::KnowledgeGraph::new();
+        for n in nodes {
+            graph.nodes.insert(n.id, n);
+        }
+        for e in edges {
+            let edge_id = brain_domain::EdgeId::new(e.source, e.target, e.relation.id());
+            graph.edges.insert(edge_id, e);
+        }
+
+        // 2. Analyze and plan
+        let consolidator = brain_domain::Consolidator::new(policy);
+        let analysis = consolidator.analyze(&graph);
+        let actions = consolidator.plan(analysis);
+
+        // 3. Apply actions transactionally
+        for action in &actions {
+            match &action.action {
+                brain_domain::ConsolidationActionType::PromoteToSemantic { edge_id } => {
+                    if let Some(mut edge) = active.edges().find_by_id(edge_id)? {
+                        edge.weight = 1.0;
+                        edge.updated_at = current_time;
+                        active.edges().save(&edge)?;
+                    }
+                }
+                brain_domain::ConsolidationActionType::MergeNodes {
+                    canonical_node_id,
+                    redundant_node_ids,
+                    merged_label: _,
+                } => {
+                    if let Some(mut canonical) = active.nodes().find_by_id(canonical_node_id)? {
+                        for red_id in redundant_node_ids {
+                            if let Some(red_node) = active.nodes().find_by_id(red_id)? {
+                                canonical.merge_with(&red_node);
+                                active.nodes().delete(red_id)?;
+
+                                // Redirect all edges connected to red_id
+                                let connections = active.edges().get_connections(red_id)?;
+                                for mut edge in connections {
+                                    let old_id = brain_domain::EdgeId::new(edge.source, edge.target, edge.relation.id());
+                                    active.edges().delete(&old_id)?;
+                                    if edge.source == *red_id {
+                                        edge.source = *canonical_node_id;
+                                    }
+                                    if edge.target == *red_id {
+                                        edge.target = *canonical_node_id;
+                                    }
+                                    active.edges().save(&edge)?;
+                                }
+                            }
+                        }
+                        active.nodes().save(&canonical)?;
+                    }
+                }
+                brain_domain::ConsolidationActionType::ArchiveEdge { edge_id } => {
+                    if let Some(edge) = active.edges().find_by_id(edge_id)? {
+                        active.edges().delete(edge_id)?;
+                        let relation_str = edge.relation.to_string();
+                        let source_str = edge.source.to_string();
+                        let target_str = edge.target.to_string();
+                        tx.execute(
+                            "INSERT OR REPLACE INTO archived_edges (source, target, relation, weight, updated_at, archived_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            rusqlite::params![source_str, target_str, relation_str, edge.weight, edge.updated_at, current_time],
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to insert archived edge: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                }
+                brain_domain::ConsolidationActionType::PruneEdge { edge_id } => {
+                    active.edges().delete(edge_id)?;
+                }
+            }
+        }
+
+        tx.commit().map_err(|e| BrainError::Storage {
+            message: format!("Failed to commit consolidation transaction: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(actions)
+    }
 }
 
 /// Sealed wrapper around a SQLite connection reference to restrict raw DB access.
@@ -192,32 +437,96 @@ impl RepositorySet for SqliteStorage {
 // Node Repository implementations and helpers
 // =========================================================================
 
+fn is_stub(node_type: &NodeType) -> bool {
+    matches!(node_type, NodeKind::Unknown)
+}
+
 fn save_node_conn(db: &ActiveConnection<'_>, node: &Node) -> Result<(), BrainError> {
-    let node_type_str =
-        serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+    let existing: Option<(NodeType, HashMap<String, serde_json::Value>)> = {
+        let mut stmt = db.prepare("SELECT node_type, properties FROM nodes WHERE id = ?").map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare select statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let res = stmt.query_row([node.id.to_string()], |row| {
+            let t: String = row.get(0)?;
+            let p: String = row.get(1)?;
+            Ok((t, p))
+        });
+        match res {
+            Ok((t_str, p_str)) => {
+                let t: NodeType = serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize node type: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+                let p: HashMap<String, serde_json::Value> = serde_json::from_str(&p_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize properties: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+                Some((t, p))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(e) => return Err(BrainError::Storage {
+                message: format!("Failed to query node for check: {}", e),
+                source: Some(Box::new(e)),
+            }),
+        }
+    };
+
+    if let Some((existing_type, mut existing_props)) = existing {
+        let final_type = if is_stub(&existing_type) {
+            node.node_type.clone()
+        } else {
+            existing_type
+        };
+        for (k, v) in &node.properties {
+            existing_props.insert(k.clone(), v.clone());
+        }
+        let node_type_str = serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
             message: format!("Failed to serialize node type: {}", e),
             source: Some(Box::new(e)),
         })?;
-    let properties_str =
-        serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+        let properties_str = serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
             message: format!("Failed to serialize properties: {}", e),
             source: Some(Box::new(e)),
         })?;
-
-    db.execute(
-        "INSERT OR REPLACE INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)",
-        (
-            node.id.to_string(),
-            &node.label,
-            node_type_str,
-            properties_str,
-            node.updated_at,
-        ),
-    )
-    .map_err(|e| BrainError::Storage {
-        message: format!("Failed to save node {}: {}", node.id, e),
-        source: Some(Box::new(e)),
-    })?;
+        db.execute(
+            "UPDATE nodes SET label = ?, node_type = ?, properties = ?, updated_at = ? WHERE id = ?",
+            (
+                &node.label,
+                node_type_str,
+                properties_str,
+                node.updated_at,
+                node.id.to_string(),
+            ),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to update node {}: {}", node.id, e),
+            source: Some(Box::new(e)),
+        })?;
+    } else {
+        let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize node type: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize properties: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        db.execute(
+            "INSERT INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (
+                node.id.to_string(),
+                &node.label,
+                node_type_str,
+                properties_str,
+                node.updated_at,
+            ),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert node {}: {}", node.id, e),
+            source: Some(Box::new(e)),
+        })?;
+    }
     Ok(())
 }
 
@@ -232,35 +541,99 @@ fn save_nodes_batch_conn(db: &ActiveConnection<'_>, nodes: &[Node]) -> Result<()
     }
 
     let result = (|| {
-        let mut stmt = db.prepare(
-            "INSERT OR REPLACE INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)"
+        let mut select_stmt = db.prepare("SELECT node_type, properties FROM nodes WHERE id = ?").map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare select statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut update_stmt = db.prepare(
+            "UPDATE nodes SET label = ?, node_type = ?, properties = ?, updated_at = ? WHERE id = ?"
         ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare statement: {}", e),
+            message: format!("Failed to prepare update statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut insert_stmt = db.prepare(
+            "INSERT INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare insert statement: {}", e),
             source: Some(Box::new(e)),
         })?;
 
         for node in nodes {
-            let node_type_str =
-                serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+            let existing: Option<(NodeType, HashMap<String, serde_json::Value>)> = {
+                let res = select_stmt.query_row([node.id.to_string()], |row| {
+                    let t: String = row.get(0)?;
+                    let p: String = row.get(1)?;
+                    Ok((t, p))
+                });
+                match res {
+                    Ok((t_str, p_str)) => {
+                        let t: NodeType = serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to deserialize node type: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                        let p: HashMap<String, serde_json::Value> = serde_json::from_str(&p_str).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to deserialize properties: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                        Some((t, p))
+                    }
+                    Err(rusqlite::Error::QueryReturnedNoRows) => None,
+                    Err(e) => return Err(BrainError::Storage {
+                        message: format!("Failed to query node for check: {}", e),
+                        source: Some(Box::new(e)),
+                    }),
+                }
+            };
+
+            if let Some((existing_type, mut existing_props)) = existing {
+                let final_type = if is_stub(&existing_type) {
+                    node.node_type.clone()
+                } else {
+                    existing_type
+                };
+                for (k, v) in &node.properties {
+                    existing_props.insert(k.clone(), v.clone());
+                }
+                let node_type_str = serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
                     message: format!("Failed to serialize node type: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-            let properties_str =
-                serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                let properties_str = serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
                     message: format!("Failed to serialize properties: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-            stmt.execute((
-                node.id.to_string(),
-                &node.label,
-                node_type_str,
-                properties_str,
-                node.updated_at,
-            ))
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to execute save node: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+                update_stmt.execute((
+                    &node.label,
+                    node_type_str,
+                    properties_str,
+                    node.updated_at,
+                    node.id.to_string(),
+                ))
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to execute update node: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            } else {
+                let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to serialize node type: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+                let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to serialize properties: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+                insert_stmt.execute((
+                    node.id.to_string(),
+                    &node.label,
+                    node_type_str,
+                    properties_str,
+                    node.updated_at,
+                ))
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to execute insert node: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            }
         }
         Ok(())
     })();
@@ -467,7 +840,7 @@ fn save_edge_conn(db: &ActiveConnection<'_>, edge: &Edge) -> Result<(), BrainErr
         (
             edge.source.to_string(),
             edge.target.to_string(),
-            &edge.relation,
+            edge.relation.to_string(),
             edge.weight,
             edge.updated_at,
         ),
@@ -501,7 +874,7 @@ fn save_edges_batch_conn(db: &ActiveConnection<'_>, edges: &[Edge]) -> Result<()
             stmt.execute((
                 edge.source.to_string(),
                 edge.target.to_string(),
-                &edge.relation,
+                edge.relation.to_string(),
                 edge.weight,
                 edge.updated_at,
             ))
@@ -545,7 +918,7 @@ fn find_edge_by_id_conn(
         })?;
 
     let res = stmt.query_row(
-        (id.source.to_string(), id.target.to_string(), &id.relation),
+        (id.source.to_string(), id.target.to_string(), id.relation.as_str()),
         |row| {
             let weight: f64 = row.get(0)?;
             let updated_at: u64 = row.get(1)?;
@@ -555,7 +928,8 @@ fn find_edge_by_id_conn(
 
     match res {
         Ok((weight, updated_at)) => {
-            let mut edge = Edge::new(id.source, id.target, id.relation.clone(), weight);
+            let rel = id.relation.as_str().parse().unwrap_or(RelationKind::Unknown);
+            let mut edge = Edge::new(id.source, id.target, rel, weight);
             edge.updated_at = updated_at;
             Ok(Some(edge))
         }
@@ -570,7 +944,7 @@ fn find_edge_by_id_conn(
 fn delete_edge_conn(db: &ActiveConnection<'_>, id: &EdgeId) -> Result<(), BrainError> {
     db.execute(
         "DELETE FROM edges WHERE source = ? AND target = ? AND relation = ?",
-        (id.source.to_string(), id.target.to_string(), &id.relation),
+        (id.source.to_string(), id.target.to_string(), id.relation.as_str()),
     )
     .map_err(|e| BrainError::Storage {
         message: format!("Failed to delete edge: {}", e),
@@ -625,7 +999,8 @@ fn get_edge_connections_conn(
                     message: format!("Invalid UUID in storage: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-        let mut edge = Edge::new(source, target, relation, weight);
+        let rel = relation.parse().unwrap_or(RelationKind::Unknown);
+        let mut edge = Edge::new(source, target, rel, weight);
         edge.updated_at = updated_at;
         edges.push(edge);
     }
@@ -675,7 +1050,8 @@ fn list_all_edges_conn(db: &ActiveConnection<'_>) -> Result<Vec<Edge>, BrainErro
                     message: format!("Invalid UUID in storage: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-        let mut edge = Edge::new(source, target, relation, weight);
+        let rel = relation.parse().unwrap_or(RelationKind::Unknown);
+        let mut edge = Edge::new(source, target, rel, weight);
         edge.updated_at = updated_at;
         edges.push(edge);
     }

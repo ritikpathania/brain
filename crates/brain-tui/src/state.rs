@@ -484,6 +484,10 @@ pub struct UiState {
     pub session_load_state: SessionLoadState,
     /// List of historical messages for the active session.
     pub active_messages: Vec<brain_domain::Message>,
+    /// Monotonic revision sequence values per message content.
+    pub message_revisions: std::collections::HashMap<brain_domain::MessageId, u64>,
+    /// Monotonic revision value of the active typewriter response text.
+    pub active_response_revision: u64,
 }
 
 /// Structured user action triggering pure state transitions.
@@ -596,6 +600,8 @@ impl UiState {
             pending_load: None,
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
+            message_revisions: std::collections::HashMap::new(),
+            active_response_revision: 0,
         }
     }
 
@@ -620,6 +626,8 @@ impl UiState {
             pending_load: None,
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
+            message_revisions: std::collections::HashMap::new(),
+            active_response_revision: 0,
         }
     }
 
@@ -641,6 +649,28 @@ impl UiState {
 
     /// Pure reducer transitioning state based on Action.
     pub fn update(&mut self, action: Action) -> UpdateResult {
+        let prev_messages = self.active_messages.clone();
+        let res = self.update_internal(action);
+        self.update_message_revisions(&prev_messages);
+        res
+    }
+
+    fn update_message_revisions(&mut self, prev_messages: &[brain_domain::Message]) {
+        for msg in &self.active_messages {
+            let mut changed = true;
+            if let Some(prev) = prev_messages.iter().find(|m| m.id == msg.id) {
+                if prev.content == msg.content {
+                    changed = false;
+                }
+            }
+            if changed {
+                let entry = self.message_revisions.entry(msg.id).or_insert(0);
+                *entry += 1;
+            }
+        }
+    }
+
+    fn update_internal(&mut self, action: Action) -> UpdateResult {
         match action {
             Action::InsertChar(c) => {
                 if self.focus == FocusRegion::Editor {
@@ -706,6 +736,7 @@ impl UiState {
                     self.editor.submit();
                     self.generation_state = GenerationState::Starting;
                     self.active_response = String::new();
+                    self.active_response_revision += 1;
                     self.typewriter.clear();
                     UpdateResult::PromptSubmitted(prompt)
                 } else {
@@ -731,6 +762,7 @@ impl UiState {
             Action::StartStream => {
                 self.typewriter.clear();
                 self.active_response.clear();
+                self.active_response_revision += 1;
                 self.generation_state = GenerationState::Starting;
                 UpdateResult::Changed
             }
@@ -745,11 +777,14 @@ impl UiState {
             }
             Action::TypewriterTick(now) => {
                 let res = self.typewriter.drain_for_tick(now);
-                for tok in res.emitted {
-                    match tok {
-                        RenderToken::Text(t) => self.active_response.push_str(&t),
-                        RenderToken::Code(c) => self.active_response.push_str(&c),
+                if !res.emitted.is_empty() {
+                    for tok in res.emitted {
+                        match tok {
+                            RenderToken::Text(t) => self.active_response.push_str(&t),
+                            RenderToken::Code(c) => self.active_response.push_str(&c),
+                        }
                     }
+                    self.active_response_revision += 1;
                 }
                 if res.finished {
                     self.generation_state = GenerationState::Finished;

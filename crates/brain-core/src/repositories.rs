@@ -2,6 +2,13 @@ use crate::errors::BrainError;
 use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, SessionId};
 
 /// Trait defining atomic CRUD operations for graph Nodes in the database.
+///
+/// **Invariants & Safety Rules**:
+/// - **ID Immutability**: Node IDs are strictly immutable once persisted. Updates must never modify a node's ID.
+/// - **No Silent Deletions**: Repository methods must never silently delete metadata or properties on conflicts.
+/// - **Provenance Preservation**: Provenance is intrinsic and immutable. Save operations must never modify the existing provenance record on conflict.
+/// - **Deterministic Merge**: Conflict resolution (e.g. merging properties) must be completely deterministic.
+/// - **Idempotency**: Duplicate writes must be idempotent and perform no additional side effects.
 pub trait NodeRepository: Send + Sync {
     /// Saves a single node to the database (insert or update).
     fn save(&self, node: &Node) -> Result<(), BrainError>;
@@ -16,6 +23,12 @@ pub trait NodeRepository: Send + Sync {
 }
 
 /// Trait defining atomic CRUD operations for graph Edges in the database.
+///
+/// **Invariants & Safety Rules**:
+/// - **ID Immutability**: Edge IDs (source, target, relation) are strictly immutable once persisted.
+/// - **No Silent Deletions**: Repository methods must never silently delete metadata or properties.
+/// - **Provenance Preservation**: Edge provenance is intrinsic and immutable. Save operations must never modify existing provenance.
+/// - **Idempotency**: Duplicate writes must be idempotent.
 pub trait EdgeRepository: Send + Sync {
     /// Saves a single edge to the database (insert or update).
     fn save(&self, edge: &Edge) -> Result<(), BrainError>;

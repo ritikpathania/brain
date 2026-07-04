@@ -1,22 +1,40 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
 use crate::state::{UiState, ConnectionMode, FocusRegion};
 use crate::ui::theme::Theme;
 use crate::ui::widgets::{
     header::{self, HeaderView},
-    chat::{self, ChatView, ChatMessageViewModel},
+    chat::{self, ChatView, VisibleChatLine},
     prompt::{self, PromptView},
     status::{self, StatusView},
     sidebar,
 };
+use crate::ui::interaction::markdown::{
+    SelectionState, CachedMessageLayout, MessageRevision, ViewportIndex,
+    MarkdownParser, MarkdownLayout, KeywordSyntaxHighlighter,
+    VisualLine, VisualLineKind
+};
+
+struct RenderingMessage {
+    sender: String,
+    content: String,
+    id_str: String,
+    revision: u64,
+}
 
 /// Layout grid organizer dividing the screen cells and assembling widget view models.
-pub struct AppRenderer;
+pub struct AppRenderer {
+    layout_cache: RefCell<HashMap<String, CachedMessageLayout>>,
+}
 
 impl AppRenderer {
     /// Creates a new `AppRenderer`.
     pub fn new() -> Self {
-        Self
+        Self {
+            layout_cache: RefCell::new(HashMap::new()),
+        }
     }
 
     /// Computes constraints and returns partitioned area Rects for widgets.
@@ -78,12 +96,17 @@ impl AppRenderer {
             sidebar::draw(f, sidebar_area, &sidebar_view, theme);
         }
 
-        // 3. Build Chat ViewModel
-        let mut chat_messages = Vec::new();
+        // 3. Build Chat View with Virtualization & Cache checks
+        let width = chat_area.width.saturating_sub(4) as usize;
+        let highlighter = KeywordSyntaxHighlighter::new();
+
+        let mut rendering_messages = Vec::new();
         if state.active_messages.is_empty() && !state.is_generating() {
-            chat_messages.push(ChatMessageViewModel {
+            rendering_messages.push(RenderingMessage {
                 sender: "System".to_string(),
                 content: "No messages in this conversation.".to_string(),
+                id_str: "system_empty".to_string(),
+                revision: 0,
             });
         } else {
             for msg in &state.active_messages {
@@ -92,16 +115,107 @@ impl AppRenderer {
                     brain_domain::MessageRole::Assistant => "Assistant".to_string(),
                     brain_domain::MessageRole::System => "System".to_string(),
                 };
-                chat_messages.push(ChatMessageViewModel {
+                let rev = *state.message_revisions.get(&msg.id).unwrap_or(&0);
+                rendering_messages.push(RenderingMessage {
                     sender,
                     content: msg.content.clone(),
+                    id_str: format!("msg_{}", msg.id.0),
+                    revision: rev,
                 });
             }
             if !state.active_response.is_empty() || state.is_generating() {
-                chat_messages.push(ChatMessageViewModel {
+                rendering_messages.push(RenderingMessage {
                     sender: "Assistant".to_string(),
                     content: state.active_response.clone(),
+                    id_str: "active_response".to_string(),
+                    revision: state.active_response_revision,
                 });
+            }
+        }
+
+        // Retrieve or calculate CachedMessageLayouts
+        let mut cached_layouts = Vec::with_capacity(rendering_messages.len());
+        let mut cache = self.layout_cache.borrow_mut();
+
+        for msg in &rendering_messages {
+            let key = format!("{}_w{}", msg.id_str, width);
+            let revision = MessageRevision(msg.revision);
+
+            let layout = if let Some(cached) = cache.get(&key) {
+                if cached.revision == revision {
+                    cached.clone()
+                } else {
+                    let ast = MarkdownParser::parse(&msg.content);
+                    let lines = MarkdownLayout::layout(&ast, width, &highlighter);
+                    let height = lines.len();
+                    let new_layout = CachedMessageLayout {
+                        revision,
+                        visual_lines: lines,
+                        height,
+                    };
+                    cache.insert(key.clone(), new_layout.clone());
+                    new_layout
+                }
+            } else {
+                let ast = MarkdownParser::parse(&msg.content);
+                let lines = MarkdownLayout::layout(&ast, width, &highlighter);
+                let height = lines.len();
+                let new_layout = CachedMessageLayout {
+                    revision,
+                    visual_lines: lines,
+                    height,
+                };
+                cache.insert(key.clone(), new_layout.clone());
+                new_layout
+            };
+            cached_layouts.push(layout);
+        }
+
+        // Build heights list and Cumulative heights index
+        let mut heights = Vec::with_capacity(rendering_messages.len());
+        for layout in &cached_layouts {
+            heights.push(1 + layout.height + 1); // 1 (header) + layout.height + 1 (spacer)
+        }
+        let index = ViewportIndex::rebuild(&heights);
+
+        // Binary search viewport boundaries for virtualization
+        let start_offset = state.viewport.scroll_offset as u32;
+        let viewport_height = chat_area.height.saturating_sub(2) as u32; // border lines subtracted
+
+        let mut visible_lines = Vec::new();
+        if let Some((mut msg_idx, mut local_line)) = index.find_offset(start_offset) {
+            let mut lines_collected = 0u32;
+            while msg_idx < rendering_messages.len() && lines_collected < viewport_height {
+                let msg = &rendering_messages[msg_idx];
+                let layout = &cached_layouts[msg_idx];
+                let block_height = heights[msg_idx] as u32;
+
+                while local_line < block_height && lines_collected < viewport_height {
+                    if local_line == 0 {
+                        // Sender title header line
+                        visible_lines.push(VisibleChatLine {
+                            line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                            sender_header: Some(msg.sender.clone()),
+                        });
+                    } else if local_line <= layout.height as u32 {
+                        // Styled layout line from cache
+                        let line_idx = (local_line - 1) as usize;
+                        visible_lines.push(VisibleChatLine {
+                            line: layout.visual_lines[line_idx].clone(),
+                            sender_header: None,
+                        });
+                    } else {
+                        // Empty separator line
+                        visible_lines.push(VisibleChatLine {
+                            line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                            sender_header: None,
+                        });
+                    }
+                    local_line += 1;
+                    lines_collected += 1;
+                }
+                msg_idx += 1;
+                local_line = 0;
             }
         }
 
@@ -113,8 +227,9 @@ impl AppRenderer {
 
         let chat_view = ChatView {
             title,
-            messages: chat_messages,
+            visible_lines,
             scroll_offset: state.viewport.scroll_offset,
+            selection: SelectionState::new(),
         };
 
         // 4. Build Prompt ViewModel
@@ -129,7 +244,7 @@ impl AppRenderer {
             message: " Tab: Switch Focus | Esc: Exit | Ctrl+C: Cancel | Enter: Submit ".to_string(),
         };
 
-        // 6. Draw stateless widgets
+        // 6. Draw TUI widgets
         header::draw(f, header_area, &header_view, theme);
         chat::draw(f, chat_area, &chat_view, theme);
         prompt::draw(f, prompt_area, &prompt_view, theme);
@@ -142,4 +257,3 @@ impl Default for AppRenderer {
         Self::new()
     }
 }
-

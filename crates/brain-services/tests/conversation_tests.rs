@@ -3,16 +3,17 @@ use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::{EdgeRepository, NodeRepository};
+use brain_core::services::{MemoryExtractor, ExtractionRequest, ExtractionResult};
 use brain_domain::{
     Conversation, ConversationId, Edge, Message, MessageId, MessageRole, Node, NodeId, NodeType,
-    SessionId,
+    SessionId, RelationKind
 };
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
 
 use brain_services::conversation::{
     CheckpointStore, ContextBudget, ContextBuilder, ConversationManager, ConversationManagerImpl,
-    CountThresholdPromotionPolicy, CountThresholdSummaryPolicy, IngestionPolicy, MemoryExtractor,
+    CountThresholdPromotionPolicy, CountThresholdSummaryPolicy, IngestionPolicy,
     SqliteCheckpointStore, WordSpaceTokenCounter, PromotionEngineImpl,
 };
 
@@ -23,7 +24,7 @@ struct MockMemoryExtractor {
 }
 
 impl MemoryExtractor for MockMemoryExtractor {
-    fn extract_graph(&self, text: &str) -> Result<(Vec<Node>, Vec<Edge>), BrainError> {
+    fn extract(&self, request: ExtractionRequest) -> Result<ExtractionResult, BrainError> {
         if self.should_fail.load(Ordering::SeqCst) {
             return Err(BrainError::Storage {
                 message: "Extractor failed intentionally".to_string(),
@@ -32,8 +33,13 @@ impl MemoryExtractor for MockMemoryExtractor {
         }
         // Extract simple node based on prompt text
         let node_id = NodeId::new();
-        let node = Node::new(node_id, text.to_string(), NodeType::Concept);
-        Ok((vec![node], vec![]))
+        let node = Node::new(node_id, request.raw_content, NodeType::Concept);
+        Ok(ExtractionResult {
+            nodes: vec![node],
+            edges: vec![],
+            provenance: brain_domain::GraphProvenance::default(),
+            graph_version: brain_domain::GraphVersion::V1,
+        })
     }
 }
 
@@ -183,6 +189,7 @@ async fn test_promotion_idempotency_and_transactional_rollback() {
         retrieval_service,
         chat_agent,
         None,
+        Arc::new(brain_domain::RelationRegistry::default_embedded()),
     );
 
     let session_id = SessionId::new();
@@ -248,6 +255,7 @@ async fn test_summarization_versioning() {
             response: "Segment Summary".to_string(),
         }),
         None,
+        Arc::new(brain_domain::RelationRegistry::default_embedded()),
     );
 
     let session_id = SessionId::new();
@@ -297,6 +305,7 @@ async fn test_pruning_pinned_memories_safety() {
             response: "".to_string(),
         }),
         None,
+        Arc::new(brain_domain::RelationRegistry::default_embedded()),
     );
 
     let session_id = SessionId::new();
@@ -313,8 +322,8 @@ async fn test_pruning_pinned_memories_safety() {
     NodeRepository::save(repos.as_ref(), &node_pinned).unwrap();
 
     // Edges with low weights (decayed below 0.1)
-    let edge_unpinned = Edge::new(node_unpinned.id, node_pinned.id, "rel1".to_string(), 0.05);
-    let edge_pinned = Edge::new(node_pinned.id, node_unpinned.id, "rel2".to_string(), 0.05);
+    let edge_unpinned = Edge::new(node_unpinned.id, node_pinned.id, RelationKind::AssociatedWith, 0.05);
+    let edge_pinned = Edge::new(node_pinned.id, node_unpinned.id, RelationKind::AssociatedWith, 0.05);
 
     EdgeRepository::save(repos.as_ref(), &edge_unpinned).unwrap();
     EdgeRepository::save(repos.as_ref(), &edge_pinned).unwrap();
@@ -366,6 +375,7 @@ fn test_archive_conversation_and_event_publishing() {
             response: "".to_string(),
         }),
         Some(publisher),
+        Arc::new(brain_domain::RelationRegistry::default_embedded()),
     );
 
     let session_id = SessionId::new();
