@@ -151,6 +151,39 @@ impl Editor {
             }
         }
     }
+
+    /// Access the raw buffer text.
+    pub fn buffer(&self) -> &str {
+        self.buffer.as_str()
+    }
+
+    /// Handles a key event by mutating the editor state. Returns true if handled.
+    pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> bool {
+        use crossterm::event::KeyCode;
+        match key.code {
+            KeyCode::Char(c) => {
+                self.insert(c);
+                true
+            }
+            KeyCode::Backspace => {
+                self.backspace();
+                true
+            }
+            KeyCode::Delete => {
+                self.delete();
+                true
+            }
+            KeyCode::Left => {
+                self.move_cursor_left();
+                true
+            }
+            KeyCode::Right => {
+                self.move_cursor_right();
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Default for Editor {

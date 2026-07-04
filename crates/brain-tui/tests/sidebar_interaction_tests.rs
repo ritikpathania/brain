@@ -1,6 +1,6 @@
 use brain_domain::SessionId;
 use brain_tui::ui::interaction::sidebar::{
-    SidebarInteraction, SidebarMode, SessionFilter, ParsedQuery, SessionLookup
+    SidebarInteraction, SidebarMode, SessionFilter, ParsedQuery, SessionLookup, SidebarEvent
 };
 
 struct MockLookup;
@@ -144,5 +144,32 @@ fn test_editor_utf8_interactions() {
     assert_eq!(editor.text(), "あ");
     assert_eq!(editor.cursor().visual_col, 1);
     assert_eq!(editor.cursor().byte_index, 3);
+}
+
+#[test]
+fn test_sidebar_key_events_emission() {
+    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState};
+
+    let mut interaction = SidebarInteraction::new();
+    let session_id = SessionId::new();
+    let visible_ids = vec![session_id];
+    interaction.browse.selected = Some(session_id);
+
+    struct Lookup;
+    impl SessionLookup for Lookup {
+        fn title(&self, _id: SessionId) -> Option<&str> { Some("Test Session") }
+    }
+    let lookup = Lookup;
+
+    // Press 'c' to archive
+    let key_c = KeyEvent {
+        code: KeyCode::Char('c'),
+        modifiers: KeyModifiers::empty(),
+        kind: KeyEventKind::Press,
+        state: KeyEventState::empty(),
+    };
+    let (handled, event) = interaction.handle_key(key_c, &visible_ids, &lookup);
+    assert!(handled);
+    assert_eq!(event, Some(SidebarEvent::Archive(session_id)));
 }
 
