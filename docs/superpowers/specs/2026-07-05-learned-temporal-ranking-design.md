@@ -37,17 +37,17 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
 1. **`WeightSnapshot`**:
    * An immutable domain value object divided cleanly into metadata and weights.
    * `SnapshotMetadata` tracks model lineage, version, and training contexts.
-   * `RankingWeights` encapsulates active scoring multipliers.
+   * `RankingWeights` encapsulates active scoring multipliers, immutable by construction with explicit getters.
 
 2. **`FeedbackEvent`**:
    * Represents a single record of user interaction / relevance feedback. Used as batch inputs for training and calibrating weights. Consists of a version tag to support schema updates.
 
 3. **`RankingModel` & `LinearRankingModel`**:
-   * `RankingModel` is a polymorphic interface for evaluating candidate signals.
+   * `RankingModel` is a polymorphic interface for evaluating candidate signals, tracking its `RankingModelVersion`.
    * `LinearRankingModel` implements `RankingModel` by performing a weighted sum of normalized ranking features.
 
 4. **`ActiveWeightProvider`**:
-   * An abstraction trait that provides the active immutable `WeightSnapshot` snapshot. The scorer remains unaware of the backing storage mechanism.
+   * An abstraction trait defined in the **services layer** (`brain-services`) that provides the active immutable `WeightSnapshot` snapshot. The scorer remains unaware of the backing storage mechanism.
 
 5. **`WeightCalibrationService`**:
    * Orchestrates the ingestion of feedback events, trains/calibrates parameter weights using a defined `CalibrationPolicy` (returning a candidate snapshot and `CalibrationReport`), and publishes snapshots atomically.
@@ -66,9 +66,11 @@ Online Retrieval Pipeline                        Calibration / Learning Loop (Of
    * Given identical input feedback events, calibration policy, and starting snapshot, the calibration process must generate a byte-for-byte identical candidate snapshot.
 5. **Calibration Isolation**:
    * Calibration sweeps must not mutate graphs, temporal visibility projection sets, query evidence, or the volatile caches. Only ranking output weights change.
-6. **Weight Snapshot Completeness**:
-   * Every published snapshot must define all ranking weights. Partial weight updates are rejected.
-7. **A/B Ready & Rollback Safe**:
+6. **Weight Snapshot Completeness & Atomic Replacement**:
+   * Every published snapshot must define all ranking weights. Partial weight updates or live weight mutations are rejected; publication always atomically replaces the entire active snapshot (e.g. `v7 -> v8`).
+7. **Model Transparency**:
+   * Changing the ranking model implementation while keeping identical model version, weights, and signals must not change ranking outputs.
+8. **A/B Ready & Rollback Safe**:
    * Snapshot history is preserved in the database to allow rolling back to previous weight versions.
 
 ---
@@ -198,12 +200,44 @@ pub struct SnapshotMetadata {
     pub calibration_metadata: CalibrationMetadata,
 }
 
-/// Scoring multipliers.
+/// Scoring multipliers, immutable by construction.
 pub struct RankingWeights {
-    pub semantic: RankingWeight,
-    pub graph: RankingWeight,
-    pub recency: RankingWeight,
-    pub temporal: RankingWeight,
+    semantic: RankingWeight,
+    graph: RankingWeight,
+    recency: RankingWeight,
+    temporal: RankingWeight,
+}
+
+impl RankingWeights {
+    pub fn new(
+        semantic: RankingWeight,
+        graph: RankingWeight,
+        recency: RankingWeight,
+        temporal: RankingWeight,
+    ) -> Self {
+        Self {
+            semantic,
+            graph,
+            recency,
+            temporal,
+        }
+    }
+
+    pub fn semantic(&self) -> RankingWeight {
+        self.semantic
+    }
+
+    pub fn graph(&self) -> RankingWeight {
+        self.graph
+    }
+
+    pub fn recency(&self) -> RankingWeight {
+        self.recency
+    }
+
+    pub fn temporal(&self) -> RankingWeight {
+        self.temporal
+    }
 }
 
 pub struct WeightSnapshot {
@@ -230,15 +264,6 @@ pub struct RankingSignals {
     pub temporal: NormalizedSignal,
 }
 
-/// Immutable calibration result parameters.
-pub struct CalibrationReport {
-    pub snapshot_version: SnapshotVersion,
-    pub feedback_processed: usize,
-    pub validation_loss: f64,
-    pub convergence_information: String,
-    pub publication_decision: bool,
-}
-
 /// Version tag for calibration policies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct CalibrationPolicyVersion(u32);
@@ -250,9 +275,59 @@ pub struct CalibrationPolicy {
     pub regularization: f64,
     pub min_feedback_events: usize,
 }
+
+/// Immutable calibration result parameters.
+pub struct CalibrationReport {
+    pub candidate_version: SnapshotVersion,
+    pub previous_version: SnapshotVersion,
+    pub policy_version: CalibrationPolicyVersion,
+    pub feedback_processed: usize,
+    pub validation_loss: f64,
+    pub convergence_information: String,
+    pub publication_decision: bool,
+}
 ```
 
 ### Abstractions & Models
+
+```rust
+/// Version identifier tracking the model implementation structure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum RankingModelVersion {
+    V1Linear,
+}
+
+/// Polymorphic interface for scoring candidate nodes.
+pub trait RankingModel: Send + Sync {
+    fn version(&self) -> RankingModelVersion;
+    fn score(&self, signals: &RankingSignals) -> f64;
+}
+
+pub struct LinearRankingModel {
+    weights: RankingWeights,
+}
+
+impl LinearRankingModel {
+    pub fn new(weights: RankingWeights) -> Self {
+        Self { weights }
+    }
+}
+
+impl RankingModel for LinearRankingModel {
+    fn version(&self) -> RankingModelVersion {
+        RankingModelVersion::V1Linear
+    }
+
+    fn score(&self, signals: &RankingSignals) -> f64 {
+        self.weights.semantic().value() * signals.semantic.value()
+            + self.weights.graph().value() * signals.graph.value()
+            + self.weights.recency().value() * signals.recency.value()
+            + self.weights.temporal().value() * signals.temporal.value()
+    }
+}
+```
+
+### Services Abstractions (`brain-services`)
 
 ```rust
 /// Abstraction providing the active immutable weight snapshot.
@@ -260,33 +335,11 @@ pub trait ActiveWeightProvider: Send + Sync {
     fn active_snapshot(&self) -> Result<std::sync::Arc<WeightSnapshot>, crate::errors::BrainError>;
 }
 
-/// Polymorphic interface for scoring candidate nodes.
-pub trait RankingModel: Send + Sync {
-    fn score(&self, signals: &RankingSignals) -> f64;
-}
-
-pub struct LinearRankingModel {
-    pub weights: RankingWeights,
-}
-
-impl RankingModel for LinearRankingModel {
-    fn score(&self, signals: &RankingSignals) -> f64 {
-        self.weights.semantic.value() * signals.semantic.value()
-            + self.weights.graph.value() * signals.graph.value()
-            + self.weights.recency.value() * signals.recency.value()
-            + self.weights.temporal.value() * signals.temporal.value()
-    }
+/// Scorer wrapper for candidate retrieval.
+pub struct LearnedTemporalScorer {
+    pub model: std::sync::Arc<dyn RankingModel>,
 }
 ```
-
-### LearnedTemporalScorer
-
-* Evaluates candidate signals:
-  ```rust
-  pub struct LearnedTemporalScorer {
-      pub model: std::sync::Arc<dyn RankingModel>,
-  }
-  ```
 
 ### WeightCalibrationService
 
