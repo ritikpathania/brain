@@ -4,6 +4,8 @@ pub mod models;
 pub mod features;
 /// Metric value objects, datasets, and report structures.
 pub mod evaluation;
+/// Experiment configurations and routing decision models.
+pub mod experiment;
 /// Planner and policies deciding Logical plans.
 pub mod planner;
 /// Optimizer generating Physical plans.
