@@ -484,8 +484,13 @@ pub struct UiState {
     pub selected_session_idx: usize,
     /// Sidebar interaction state manager.
     pub sidebar: crate::ui::interaction::sidebar::SidebarInteraction,
+    /// Slash completion state.
+    pub slash_completion: crate::ui::command::completion::SlashCompletionState,
+    /// Command palette state.
+    pub command_palette: crate::ui::command::palette::CommandPaletteState,
     /// Track pending activations atomically.
     pub pending_load: Option<PendingLoad>,
+
     /// Track active loading state.
     pub session_load_state: SessionLoadState,
     /// List of historical messages for the active session.
@@ -604,7 +609,10 @@ impl UiState {
             sessions: Vec::new(),
             selected_session_idx: 0,
             sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
+            slash_completion: crate::ui::command::completion::SlashCompletionState::new(),
+            command_palette: crate::ui::command::palette::CommandPaletteState::new(),
             pending_load: None,
+
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
             message_revisions: std::collections::HashMap::new(),
@@ -631,7 +639,10 @@ impl UiState {
             sessions: Vec::new(),
             selected_session_idx: 0,
             sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
+            slash_completion: crate::ui::command::completion::SlashCompletionState::new(),
+            command_palette: crate::ui::command::palette::CommandPaletteState::new(),
             pending_load: None,
+
             session_load_state: SessionLoadState::NotLoaded,
             active_messages: Vec::new(),
             message_revisions: std::collections::HashMap::new(),
@@ -646,6 +657,27 @@ impl UiState {
             self.session_load_state = SessionLoadState::NotLoaded;
         }
     }
+
+    /// Read-only accessor for CommandPaletteState.
+    pub fn command_palette(&self) -> &crate::ui::command::palette::CommandPaletteState {
+        &self.command_palette
+    }
+
+    /// Mutable accessor for CommandPaletteState.
+    pub fn command_palette_mut(&mut self) -> &mut crate::ui::command::palette::CommandPaletteState {
+        &mut self.command_palette
+    }
+
+    /// Read-only accessor for SlashCompletionState.
+    pub fn slash_completion(&self) -> &crate::ui::command::completion::SlashCompletionState {
+        &self.slash_completion
+    }
+
+    /// Mutable accessor for SlashCompletionState.
+    pub fn slash_completion_mut(&mut self) -> &mut crate::ui::command::completion::SlashCompletionState {
+        &mut self.slash_completion
+    }
+
 
     /// Returns the filtered and sorted list of sessions that are visible in the sidebar.
     pub fn visible_sessions(&self) -> Vec<SessionViewModel> {

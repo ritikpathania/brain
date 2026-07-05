@@ -82,6 +82,35 @@ fn test_slash_completion_matching() {
 }
 
 #[test]
+fn test_focus_restoration_cycle() {
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::widgets::view_models::FocusTarget;
+
+    let mut fm = FocusManager::new(FocusTarget::Sidebar, FocusProfile::Chat);
+    
+    // First cycle
+    let saved1 = fm.current();
+    fm.save_focus(saved1);
+    fm.set_focus(FocusTarget::CommandPalette);
+    assert_eq!(fm.current(), FocusTarget::CommandPalette);
+
+    let restored1 = fm.pop_saved_focus().expect("Should have saved focus");
+    fm.set_focus(restored1);
+    assert_eq!(fm.current(), FocusTarget::Sidebar);
+    assert!(fm.pop_saved_focus().is_none(), "Saved focus must be cleared after restoration");
+
+    // Second cycle
+    let saved2 = fm.current();
+    fm.save_focus(saved2);
+    fm.set_focus(FocusTarget::CommandPalette);
+    assert_eq!(fm.current(), FocusTarget::CommandPalette);
+
+    let restored2 = fm.pop_saved_focus().expect("Should have saved focus");
+    fm.set_focus(restored2);
+    assert_eq!(fm.current(), FocusTarget::Sidebar);
+}
+
+#[test]
 fn test_slash_completion_dispatch_trapping() {
     use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction};
     use brain_tui::ui::focus::{FocusManager, FocusProfile};
@@ -167,6 +196,41 @@ fn test_slash_completion_dispatch_trapping() {
     assert!(!slash_completion.visible);
     assert_eq!(editor.text(), "/model ");
 }
+
+#[test]
+fn test_command_palette_geometry_clamps() {
+    use ratatui::layout::Rect;
+    use brain_tui::ui::layout::CommandPaletteGeometry;
+
+    // Small terminal: should clamp width and height to their minimums
+    let small_term = Rect::new(0, 0, 20, 5);
+    let area_small = CommandPaletteGeometry::compute(small_term);
+    assert_eq!(area_small.width, 20); // clamped to terminal bounds (which are smaller than min width 40)
+    assert_eq!(area_small.height, 5); // clamped to terminal bounds (which are smaller than min height 8)
+
+    // Standard/Large terminal: should clamp width to [40, 80] and height to [8, 15]
+    let large_term = Rect::new(0, 0, 120, 40);
+    let area_large = CommandPaletteGeometry::compute(large_term);
+    assert_eq!(area_large.width, 80);  // max width clamp
+    assert_eq!(area_large.height, 15); // max height clamp
+    assert_eq!(area_large.x, (120 - 80) / 2);
+    assert_eq!(area_large.y, (40 - 15) / 2);
+}
+
+#[test]
+fn test_command_palette_filtering() {
+    use brain_tui::ui::command::palette::CommandPaletteState;
+
+    let mut state = CommandPaletteState::new();
+    state.editor.insert('t');
+    state.editor.insert('h');
+
+    // Searching 'th' should match Change Theme command
+    let matches: Vec<_> = state.matches().collect();
+    assert!(!matches.is_empty());
+    assert_eq!(matches[0].title, "Change Theme");
+}
+
 
 
 

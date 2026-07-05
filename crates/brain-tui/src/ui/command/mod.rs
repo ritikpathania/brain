@@ -319,3 +319,7 @@ impl CommandPolicy {
 /// Autocomplete module for inline slash commands.
 pub mod completion;
 
+/// Command Palette state and multi-step inputs.
+pub mod palette;
+
+

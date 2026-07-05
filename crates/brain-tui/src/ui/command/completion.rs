@@ -51,3 +51,16 @@ impl SlashCompletionEngine {
             })
     }
 }
+
+impl crate::ui::layout::Overlay for SlashCompletionState {
+    fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    fn geometry(&self, screen_area: ratatui::layout::Rect) -> ratatui::layout::Rect {
+        let geometry = crate::ui::layout::LayoutEngine::chat_screen(screen_area);
+        let count = SlashCompletionEngine::matches(&self.query).count();
+        crate::ui::layout::SlashCompletionGeometry::compute(screen_area, geometry.prompt_area, count)
+    }
+}
+

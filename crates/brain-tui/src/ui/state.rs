@@ -9,6 +9,8 @@ use crate::ui::protocol::FinishReason;
 
 use crate::ui::interaction::sidebar::SidebarInteraction;
 use crate::ui::command::completion::SlashCompletionState;
+use crate::ui::command::palette::CommandPaletteState;
+
 
 
 use crate::client::SessionSummary;
@@ -23,8 +25,10 @@ pub struct AppState<'a> {
     focus: FocusManager,
     sidebar: SidebarInteraction,
     slash_completion: SlashCompletionState,
+    command_palette: CommandPaletteState,
     sessions: Vec<SessionSummary>,
     router: ScreenRouter<'a>,
+
 
     cols: u16,
     rows: u16,
@@ -48,8 +52,10 @@ impl<'a> AppState<'a> {
             focus,
             sidebar,
             slash_completion: SlashCompletionState::new(),
+            command_palette: CommandPaletteState::new(),
             sessions: Vec::new(),
             router,
+
 
             cols: 80,
             rows: 24,
@@ -110,6 +116,17 @@ impl<'a> AppState<'a> {
     pub fn slash_completion_mut(&mut self) -> &mut SlashCompletionState {
         &mut self.slash_completion
     }
+
+    /// Read-only accessor for CommandPaletteState.
+    pub fn command_palette(&self) -> &CommandPaletteState {
+        &self.command_palette
+    }
+
+    /// Mutable accessor for CommandPaletteState.
+    pub fn command_palette_mut(&mut self) -> &mut CommandPaletteState {
+        &mut self.command_palette
+    }
+
 
 
     /// Read-only accessor for session summaries.

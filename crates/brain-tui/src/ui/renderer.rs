@@ -259,7 +259,18 @@ impl AppRenderer {
         chat::draw(f, chat_area, &chat_view, theme);
         prompt::draw(f, prompt_area, &prompt_view, theme);
         status::draw(f, status_area, &status_view, theme);
+
+        // 7. Draw active overlays (Command Palette modal takes precedence over Inline Slash completion)
+        use crate::ui::layout::Overlay;
+        if state.command_palette().is_visible() {
+            let palette_area = state.command_palette().geometry(area);
+            crate::ui::widgets::palette::draw(f, palette_area, state.command_palette(), theme);
+        } else if state.slash_completion().is_visible() {
+            let completion_area = state.slash_completion().geometry(area);
+            crate::ui::widgets::completion::draw(f, completion_area, state.slash_completion(), theme);
+        }
     }
+
 }
 
 impl Default for AppRenderer {

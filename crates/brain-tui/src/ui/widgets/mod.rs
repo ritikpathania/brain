@@ -48,3 +48,9 @@ pub use scroll_view::ScrollViewWidget;
 pub use command_hint::CommandHint;
 pub use empty_state::EmptyState;
 pub use chat_screen::ChatScreen;
+
+/// Autocomplete suggestions overlay widget.
+pub mod completion;
+/// Command Palette overlay widget.
+pub mod palette;
+
