@@ -42,3 +42,7 @@ pub mod scheduler;
 
 /// Application orchestrator service.
 pub mod application;
+
+/// Command Palette and Slash Commands pipeline.
+pub mod command;
+
