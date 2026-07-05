@@ -20,6 +20,8 @@ pub mod active_weights;
 pub mod feature_extractor;
 /// Offline evaluation pipeline.
 pub mod evaluator;
+/// Experiment routing and canary deployments.
+pub mod experiment;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
