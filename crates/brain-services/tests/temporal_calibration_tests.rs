@@ -5,6 +5,7 @@ use brain_domain::retrieval::models::{
 };
 use brain_domain::temporal::TimePoint;
 use brain_services::retrieval::active_weights::{ActiveWeightProvider, DefaultActiveWeightProvider};
+use brain_services::retrieval::experiment::DefaultExperimentRouter;
 
 fn make_dummy_snapshot(version: u64) -> WeightSnapshot {
     let metadata = SnapshotMetadata {
@@ -77,10 +78,11 @@ fn test_learned_temporal_scorer() {
     // 3. Initialize Scorer with 1.0 weights
     let initial = make_dummy_snapshot(1);
     let provider = std::sync::Arc::new(DefaultActiveWeightProvider::new(initial));
+    let router = std::sync::Arc::new(DefaultExperimentRouter::new(provider.clone()));
     let sqlite_arc = std::sync::Arc::new((*sqlite).clone());
 
     let scorer = LearnedTemporalScorer::new(
-        provider.clone(),
+        router,
         sqlite_arc.clone(),
         TimePoint::from_unix_seconds(1620000020),
         RecencyPolicy::Linear { horizon_secs: 100.0 },

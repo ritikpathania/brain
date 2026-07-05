@@ -4,6 +4,7 @@ use brain_domain::retrieval::models::{
 };
 use brain_domain::temporal::TimePoint;
 use brain_services::retrieval::active_weights::{ActiveWeightProvider, DefaultActiveWeightProvider};
+use brain_services::retrieval::experiment::DefaultExperimentRouter;
 use brain_services::retrieval::calibration::WeightCalibrationService;
 use brain_services::retrieval::temporal::LearnedTemporalScorer;
 use brain_core::retrieval::{RankingStrategy, RetrievalRequest};
@@ -76,10 +77,11 @@ fn test_invariant_model_transparency() {
     // Setup active provider
     let initial = make_snapshot(1, 1.5, 2.0, 0.5, 1.0);
     let provider = Arc::new(DefaultActiveWeightProvider::new(initial));
+    let router = Arc::new(DefaultExperimentRouter::new(provider.clone()));
     let sqlite_arc = Arc::new((*sqlite).clone());
 
     let scorer = LearnedTemporalScorer::new(
-        provider.clone(),
+        router,
         sqlite_arc.clone(),
         TimePoint::from_unix_seconds(1620000000),
         brain_domain::temporal::RecencyPolicy::None,

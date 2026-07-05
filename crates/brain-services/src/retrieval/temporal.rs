@@ -351,7 +351,7 @@ impl TemporalRetrievalService {
 
 /// A deterministic, model-based temporal ranking strategy that weights multiple features.
 pub struct LearnedTemporalScorer {
-    weight_provider: Arc<dyn crate::retrieval::active_weights::ActiveWeightProvider>,
+    weight_provider: Arc<dyn crate::retrieval::experiment::ExperimentRouter>,
     storage: Arc<SqliteStorage>,
     reference_time: TimePoint,
     recency_policy: RecencyPolicy,
@@ -360,7 +360,7 @@ pub struct LearnedTemporalScorer {
 impl LearnedTemporalScorer {
     /// Creates a new `LearnedTemporalScorer` using the active weight provider.
     pub fn new(
-        weight_provider: Arc<dyn crate::retrieval::active_weights::ActiveWeightProvider>,
+        weight_provider: Arc<dyn crate::retrieval::experiment::ExperimentRouter>,
         storage: Arc<SqliteStorage>,
         reference_time: TimePoint,
         recency_policy: RecencyPolicy,
@@ -410,8 +410,8 @@ impl RankingStrategy for LearnedTemporalScorer {
             .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
 
         // 4. Load active weights model and score nodes
-        let active_snapshot = self.weight_provider.active_snapshot()?;
-        let model = LinearRankingModel::new(active_snapshot.weights.clone());
+        let routing_decision = self.weight_provider.route_decision(request)?;
+        let model = LinearRankingModel::new(routing_decision.snapshot.weights.clone());
 
         let mut scored_nodes = Vec::with_capacity(nodes.len());
         for (idx, node) in nodes.into_iter().enumerate() {
