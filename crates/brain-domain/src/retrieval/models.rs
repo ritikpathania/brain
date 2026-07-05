@@ -1198,7 +1198,7 @@ pub enum FeatureId {
     /// Semantic similarity signal.
     Semantic,
     /// Graph-based connectivity signal.
-    Graph,
+    GraphCentrality,
     /// Recency/decay signal.
     Recency,
     /// Projected temporal edge score.
@@ -1308,7 +1308,7 @@ impl CompiledDecisionTree {
             DecisionTreeNode::Split { feature, threshold, left, right } => {
                 let val = match feature {
                     FeatureId::Semantic => signals.semantic.value(),
-                    FeatureId::Graph => signals.graph.value(),
+                    FeatureId::GraphCentrality => signals.graph.value(),
                     FeatureId::Recency => signals.recency.value(),
                     FeatureId::Temporal => signals.temporal.value(),
                 };
@@ -1328,7 +1328,7 @@ impl CompiledDecisionTree {
                 path.push(*feature);
                 let val = match feature {
                     FeatureId::Semantic => signals.semantic.value(),
-                    FeatureId::Graph => signals.graph.value(),
+                    FeatureId::GraphCentrality => signals.graph.value(),
                     FeatureId::Recency => signals.recency.value(),
                     FeatureId::Temporal => signals.temporal.value(),
                 };
