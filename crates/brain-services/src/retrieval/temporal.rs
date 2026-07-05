@@ -380,100 +380,52 @@ impl RankingStrategy for LearnedTemporalScorer {
             return Ok(nodes);
         }
 
-        use brain_domain::retrieval::models::{
-            LinearRankingModel, NormalizedSignal, RankingModel, RankingSignals
-        };
+        use brain_domain::retrieval::models::{LinearRankingModel, RankingModel};
+        use brain_domain::retrieval::features::{MinMaxNormalizer, FeatureNormalizer, NormalizationContext};
+        use crate::retrieval::feature_extractor::{FeatureExtractor, DefaultFeatureExtractor};
 
-        // 1. Fetch active WeightSnapshot from provider
+        // 1. Fetch temporal edges and project snapshot
+        let temp_edges = self.storage.list_all_temporal_edges()?;
+        let snapshot = brain_domain::temporal::TemporalProjector::project(&temp_edges, &brain_domain::temporal::TemporalQuery {
+            reference_time: self.reference_time,
+            visibility: brain_domain::temporal::TemporalVisibility::Historical,
+            recency_policy: self.recency_policy.clone(),
+        });
+        let projected_repos = ProjectedRepositoryView::new(
+            self.storage.clone() as Arc<dyn RepositorySet>,
+            snapshot,
+        );
+
+        // 2. Extract raw features using FeatureExtractor
+        let extractor = DefaultFeatureExtractor::new(
+            self.reference_time,
+            self.recency_policy.clone(),
+        );
+        let raw_features = extractor.extract(request, &nodes, &temp_edges, &projected_repos)?;
+
+        // 3. Normalize features using FeatureNormalizer & NormalizationContext
+        let normalizer = MinMaxNormalizer;
+        let context = NormalizationContext::BatchMinMax;
+        let normalized_signals = normalizer.normalize(&raw_features, &context)
+            .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+
+        // 4. Load active weights model and score nodes
         let active_snapshot = self.weight_provider.active_snapshot()?;
         let model = LinearRankingModel::new(active_snapshot.weights.clone());
 
-        // 2. Fetch all temporal edges to build node recency and temporal observation counts
-        let temp_edges = self.storage.list_all_temporal_edges()?;
-        
-        let mut node_recency: std::collections::HashMap<NodeId, u64> = std::collections::HashMap::new();
-        let mut node_temp_count: std::collections::HashMap<NodeId, usize> = std::collections::HashMap::new();
-
-        for te in &temp_edges {
-            let t = te.observed_at.unix_seconds();
-            node_recency.entry(te.edge.source)
-                .and_modify(|existing| *existing = std::cmp::max(*existing, t))
-                .or_insert(t);
-            node_recency.entry(te.edge.target)
-                .and_modify(|existing| *existing = std::cmp::max(*existing, t))
-                .or_insert(t);
-
-            *node_temp_count.entry(te.edge.source).or_insert(0) += 1;
-            *node_temp_count.entry(te.edge.target).or_insert(0) += 1;
-        }
-
-        // 3. Compute raw features for each node
-        let mut raw_semantics = Vec::new();
-        let mut raw_graphs = Vec::new();
-        let mut raw_recencies = Vec::new();
-        let mut raw_temporals = Vec::new();
-
-        for node in &nodes {
-            let sem = crate::retrieval::source::calculate_node_match_score(node, &request.query) as f64;
-            raw_semantics.push(sem);
-
-            let graph_deg = temp_edges.iter().filter(|te| te.edge.source == node.id || te.edge.target == node.id).count() as f64;
-            raw_graphs.push(graph_deg);
-
-            let obs_time = node_recency.get(&node.id).cloned().unwrap_or(0);
-            let rec = self.recency_policy.compute_weight(
-                1.0,
-                TimePoint::from_unix_seconds(obs_time),
-                self.reference_time,
-            );
-            raw_recencies.push(rec);
-
-            let temp_cnt = node_temp_count.get(&node.id).cloned().unwrap_or(0) as f64;
-            raw_temporals.push(temp_cnt);
-        }
-
-        // 4. Compute min and max for normalization
-        let min_sem = raw_semantics.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_sem = raw_semantics.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-
-        let min_graph = raw_graphs.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_graph = raw_graphs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-
-        let min_rec = raw_recencies.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_rec = raw_recencies.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-
-        let min_temp = raw_temporals.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_temp = raw_temporals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-
-        let normalize = |val: f64, min: f64, max: f64| -> f64 {
-            if max == min || val.is_nan() {
-                1.0
-            } else {
-                ((val - min) / (max - min)).clamp(0.0, 1.0)
-            }
-        };
-
-        // 5. Score each node using the model
-        let mut scored_nodes = Vec::new();
+        let mut scored_nodes = Vec::with_capacity(nodes.len());
         for (idx, node) in nodes.into_iter().enumerate() {
-            let norm_sem = NormalizedSignal::new(normalize(raw_semantics[idx], min_sem, max_sem)).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
-            let norm_graph = NormalizedSignal::new(normalize(raw_graphs[idx], min_graph, max_graph)).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
-            let norm_rec = NormalizedSignal::new(normalize(raw_recencies[idx], min_rec, max_rec)).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
-            let norm_temp = NormalizedSignal::new(normalize(raw_temporals[idx], min_temp, max_temp)).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
-
-            let signals = RankingSignals::new(norm_sem, norm_graph, norm_rec, norm_temp);
-            let score = model.score(&signals);
+            let score = model.score(&normalized_signals[idx]);
             scored_nodes.push((node, score));
         }
 
-        // 6. Sort descending by score, deterministic fallback to ID
+        // 5. Sort descending, fallback to ID
         scored_nodes.sort_by(|a, b| {
             b.1.partial_cmp(&a.1)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.0.id.0.cmp(&b.0.id.0))
         });
 
-        let final_nodes = scored_nodes.into_iter().map(|(n, _)| n).collect();
-        Ok(final_nodes)
+        Ok(scored_nodes.into_iter().map(|(n, _)| n).collect())
     }
 }
