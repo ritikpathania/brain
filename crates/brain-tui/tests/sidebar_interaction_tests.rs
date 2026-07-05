@@ -449,3 +449,204 @@ async fn test_sidebar_optimistic_state_updates() {
     assert_eq!(cmds.len(), 4);
 }
 
+struct SimpleRng(u64);
+impl SimpleRng {
+    fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(1664525).wrapping_add(1013904223);
+        self.0
+    }
+    fn gen_range(&mut self, low: usize, high: usize) -> usize {
+        assert!(high > low);
+        let range = (high - low) as u64;
+        low + (self.next_u64() % range) as usize
+    }
+    fn gen_bool(&mut self, prob: f64) -> bool {
+        let val = (self.next_u64() % 1000) as f64 / 1000.0;
+        val < prob
+    }
+}
+
+#[tokio::test]
+async fn test_selection_stability_property() {
+    let mut rng = SimpleRng::new(42);
+
+    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SessionFilter};
+    use brain_tui::ui::interaction::sidebar::SessionLookup;
+    use brain_tui::client::SessionSummary;
+
+    // 1. Generate 50 sessions
+    let mut sessions = Vec::new();
+    for i in 0..50 {
+        sessions.push(SessionSummary {
+            id: SessionId::new(),
+            title: format!("Session {}", i),
+            updated_at: std::time::SystemTime::now(),
+            pinned: rng.gen_bool(0.2),
+            archived: rng.gen_bool(0.1),
+        });
+    }
+
+    let mut sidebar = SidebarInteraction::new();
+    // Initially select the first active session if any
+    let active_ids: Vec<SessionId> = sessions.iter().filter(|x| !x.archived).map(|x| x.id).collect();
+    sidebar.browse.selected = active_ids.first().copied();
+
+    struct MockLookup<'a> {
+        sessions: &'a [SessionSummary],
+    }
+    impl<'a> SessionLookup for MockLookup<'a> {
+        fn title(&self, id: SessionId) -> Option<&str> {
+            self.sessions.iter().find(|x| x.id == id).map(|x| x.title.as_str())
+        }
+    }
+
+    for _ in 0..100 {
+        // Randomly choose an action:
+        // 0: Toggle filter (active vs archived)
+        // 1: Perform random search
+        // 2: Archive selected session
+        // 3: Restore selected session
+        // 4: Toggle pin on selected session
+        // 5: Navigate Up/Down
+        let action = rng.gen_range(0, 6);
+
+        // Get current visible IDs based on current filter & search query
+        let current_filter = sidebar.browse.filter;
+        let mut visible_ids = Vec::new();
+        for s in &sessions {
+            let matches_filter = match current_filter {
+                SessionFilter::Active => !s.archived,
+                SessionFilter::Archived => s.archived,
+            };
+            if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                visible_ids.push(s.id);
+            }
+        }
+
+        match action {
+            0 => {
+                // Switch filter
+                sidebar.browse.filter = match sidebar.browse.filter {
+                    SessionFilter::Active => SessionFilter::Archived,
+                    SessionFilter::Archived => SessionFilter::Active,
+                };
+                // Calculate new visible IDs after filter switch
+                let new_filter = sidebar.browse.filter;
+                let mut new_visible = Vec::new();
+                for s in &sessions {
+                    let matches_filter = match new_filter {
+                        SessionFilter::Active => !s.archived,
+                        SessionFilter::Archived => s.archived,
+                    };
+                    if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                        new_visible.push(s.id);
+                    }
+                }
+                sidebar.restore_selection_fallback(&new_visible);
+            }
+            1 => {
+                // Perform random search query (e.g. "Session 1", "Session 2", or empty)
+                let term = if rng.gen_bool(0.2) {
+                    "".to_string()
+                } else {
+                    format!("Session {}", rng.gen_range(0, 10))
+                };
+                sidebar.search.parsed.update(&term);
+                // Calculate new visible IDs after search
+                let mut new_visible = Vec::new();
+                for s in &sessions {
+                    let matches_filter = match sidebar.browse.filter {
+                        SessionFilter::Active => !s.archived,
+                        SessionFilter::Archived => s.archived,
+                    };
+                    if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                        new_visible.push(s.id);
+                    }
+                }
+                sidebar.restore_selection_fallback(&new_visible);
+            }
+            2 => {
+                // Archive selected
+                if let Some(selected_id) = sidebar.browse.selected {
+                    if let Some(s) = sessions.iter_mut().find(|x| x.id == selected_id) {
+                        s.archived = true;
+                    }
+                    // Calculate visible IDs
+                    let mut new_visible = Vec::new();
+                    for s in &sessions {
+                        let matches_filter = match sidebar.browse.filter {
+                            SessionFilter::Active => !s.archived,
+                            SessionFilter::Archived => s.archived,
+                        };
+                        if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                            new_visible.push(s.id);
+                        }
+                    }
+                    sidebar.restore_selection_fallback(&new_visible);
+                }
+            }
+            3 => {
+                // Restore selected
+                if let Some(selected_id) = sidebar.browse.selected {
+                    if let Some(s) = sessions.iter_mut().find(|x| x.id == selected_id) {
+                        s.archived = false;
+                    }
+                    // Calculate visible IDs
+                    let mut new_visible = Vec::new();
+                    for s in &sessions {
+                        let matches_filter = match sidebar.browse.filter {
+                            SessionFilter::Active => !s.archived,
+                            SessionFilter::Archived => s.archived,
+                        };
+                        if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                            new_visible.push(s.id);
+                        }
+                    }
+                    sidebar.restore_selection_fallback(&new_visible);
+                }
+            }
+            4 => {
+                // Toggle pin
+                if let Some(selected_id) = sidebar.browse.selected {
+                    if let Some(s) = sessions.iter_mut().find(|x| x.id == selected_id) {
+                        s.pinned = !s.pinned;
+                    }
+                }
+            }
+            _ => {
+                // Navigate selection
+                let key = if rng.gen_bool(0.5) {
+                    crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Down, crossterm::event::KeyModifiers::empty())
+                } else {
+                    crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Up, crossterm::event::KeyModifiers::empty())
+                };
+                sidebar.handle_key(key, &visible_ids, &MockLookup { sessions: &sessions });
+            }
+        }
+
+        // Recalculate visible IDs for invariant check
+        let final_filter = sidebar.browse.filter;
+        let mut final_visible = Vec::new();
+        for s in &sessions {
+            let matches_filter = match final_filter {
+                SessionFilter::Active => !s.archived,
+                SessionFilter::Archived => s.archived,
+            };
+            if matches_filter && sidebar.search.parsed.matches(&s.title) {
+                final_visible.push(s.id);
+            }
+        }
+
+        // Assert invariant: selected is Some(id) in visible_ids, or None if visible_ids is empty
+        if final_visible.is_empty() {
+            assert!(sidebar.browse.selected.is_none(), "Expected selection to be None when visible set is empty");
+        } else {
+            let sel = sidebar.browse.selected.expect("Expected a selected session when visible set is non-empty");
+            assert!(final_visible.contains(&sel), "Expected selected session {:?} to be in visible set {:?}", sel, final_visible);
+        }
+    }
+}
+
