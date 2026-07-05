@@ -3,6 +3,8 @@ use brain_tui::ui::interaction::{
     ChatState, MessageRole, UiEvent, MessageId, AutoFollowPolicy,
     SidebarInteraction, SessionLookup
 };
+use brain_tui::ui::command::completion::SlashCompletionState;
+
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
 use brain_tui::ui::widgets::view_models::FocusTarget;
 use brain_tui::ui::input::{InputAction, Command};
@@ -41,6 +43,7 @@ fn test_transactional_submission() {
     editor.insert('i');
 
     let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -51,10 +54,12 @@ fn test_transactional_submission() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     // Transactional Submit event returned
     assert_eq!(
@@ -86,6 +91,7 @@ fn test_empty_whitespace_submissions() {
     let mut focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
 
     let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -97,10 +103,12 @@ fn test_empty_whitespace_submissions() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(res.ui_event, None);
 
     // Case 2: Whitespace only
@@ -113,10 +121,12 @@ fn test_empty_whitespace_submissions() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(res.ui_event, None);
     assert_eq!(editor.text(), "  "); // editor buffer preserved
 }

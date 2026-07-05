@@ -2,7 +2,9 @@ use brain_tui::ui::interaction::{
     Editor, ScrollState, Dispatcher, InteractionContext, DispatchResult,
     SidebarInteraction, SessionLookup
 };
+use brain_tui::ui::command::completion::SlashCompletionState;
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
+
 use brain_tui::ui::widgets::view_models::FocusTarget;
 use brain_tui::ui::input::{InputAction, Command, TextInput};
 use brain_domain::SessionId;
@@ -109,6 +111,7 @@ fn test_dispatcher_exit_needs_render() {
     let mut focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
 
     let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -120,10 +123,12 @@ fn test_dispatcher_exit_needs_render() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(
         res,
         DispatchResult { needs_render: false, should_exit: true, ui_event: None }
@@ -137,10 +142,12 @@ fn test_dispatcher_exit_needs_render() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(
         res,
         DispatchResult { needs_render: true, should_exit: false, ui_event: None }
@@ -157,10 +164,12 @@ fn test_dispatcher_exit_needs_render() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(
         res,
         DispatchResult { needs_render: true, should_exit: false, ui_event: None }
@@ -180,6 +189,7 @@ fn test_separation_of_concerns() {
     editor.insert('i');
 
     let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -194,10 +204,12 @@ fn test_separation_of_concerns() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(scroll.offset(), 1);
     assert_eq!(editor.text(), original_text);
     assert_eq!(editor.cursor(), original_cursor);
@@ -211,10 +223,12 @@ fn test_separation_of_concerns() {
             scroll: &mut scroll,
             focus: &mut focus,
             sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert_eq!(editor.cursor().byte_index, 1);
     assert_eq!(scroll.offset(), original_offset);
 }

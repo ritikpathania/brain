@@ -8,6 +8,8 @@ use crate::ui::widgets::view_models::FocusTarget;
 use crate::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent, SessionLookup};
 use brain_domain::SessionId;
 use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
+use crate::ui::command::completion::SlashCompletionState;
+
 
 /// Collection of interaction sub-systems.
 pub struct InteractionContext<'a> {
@@ -19,10 +21,13 @@ pub struct InteractionContext<'a> {
     pub focus: &'a mut FocusManager,
     /// Reference to the mutable SidebarInteraction.
     pub sidebar: &'a mut SidebarInteraction,
+    /// Reference to the mutable SlashCompletionState.
+    pub slash_completion: &'a mut SlashCompletionState,
     /// The visible session IDs in the sidebar.
     pub visible_ids: &'a [SessionId],
     /// The session lookup service.
     pub lookup: &'a dyn SessionLookup,
+
 }
 
 /// Abstract user interface intent events.
@@ -113,7 +118,50 @@ impl Dispatcher {
             }
         }
 
-        match action {
+        // If Prompt is focused and slash completion is visible, Arrow keys and Tab interact with suggestions.
+        if ctx.focus.current() == FocusTarget::Prompt && ctx.slash_completion.visible {
+            let count = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query).count();
+            if count > 0 {
+                match action {
+                    InputAction::Command(cmd) => match cmd {
+                        Command::ScrollUp => {
+                            if ctx.slash_completion.selected_index == 0 {
+                                ctx.slash_completion.selected_index = count - 1;
+                            } else {
+                                ctx.slash_completion.selected_index -= 1;
+                            }
+                            return DispatchResult::render();
+                        }
+                        Command::ScrollDown => {
+                            ctx.slash_completion.selected_index = (ctx.slash_completion.selected_index + 1) % count;
+                            return DispatchResult::render();
+                        }
+                        Command::FocusNext => {
+                            let matched_cmd = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query)
+                                .nth(ctx.slash_completion.selected_index);
+                            if let Some(cmd_desc) = matched_cmd {
+                                ctx.editor.clear();
+                                let mut alias_text = format!("/{}", cmd_desc.aliases.first().unwrap_or(&""));
+                                if !cmd_desc.parameters.is_empty() {
+                                    alias_text.push(' ');
+                                }
+                                for c in alias_text.chars() {
+                                    ctx.editor.insert(c);
+                                }
+                                ctx.editor.move_to_end();
+                            }
+                            ctx.slash_completion.visible = false;
+                            return DispatchResult::render();
+                        }
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        }
+
+        let res = match action {
+
             InputAction::Command(cmd) => match cmd {
                 Command::Exit => DispatchResult::exit(),
                 Command::FocusNext => {
@@ -164,6 +212,26 @@ impl Dispatcher {
                 }
             },
             InputAction::None => DispatchResult::none(),
+        };
+
+        // Post-processing for prompt edit to toggle/update slash completion
+        if ctx.focus.current() == FocusTarget::Prompt {
+            let text = ctx.editor.text();
+            if text.starts_with('/') && !text.contains(' ') {
+                ctx.slash_completion.visible = true;
+                ctx.slash_completion.query = text.to_string();
+                let count = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query).count();
+                if count == 0 {
+                    ctx.slash_completion.visible = false;
+                } else if ctx.slash_completion.selected_index >= count {
+                    ctx.slash_completion.selected_index = 0;
+                }
+            } else {
+                ctx.slash_completion.visible = false;
+            }
         }
+
+        res
+
     }
 }

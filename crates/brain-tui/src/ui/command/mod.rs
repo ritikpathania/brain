@@ -315,3 +315,7 @@ impl CommandPolicy {
         }
     }
 }
+
+/// Autocomplete module for inline slash commands.
+pub mod completion;
+
