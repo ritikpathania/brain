@@ -3,11 +3,14 @@ use brain_tui::ui::interaction::{
     SidebarInteraction, SessionLookup
 };
 use brain_tui::ui::command::completion::SlashCompletionState;
+use brain_tui::ui::command::palette::CommandPaletteState;
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
+
 
 use brain_tui::ui::widgets::view_models::FocusTarget;
 use brain_tui::ui::input::{InputAction, Command, TextInput};
 use brain_domain::SessionId;
+
 
 struct DummyLookup;
 impl SessionLookup for DummyLookup {
@@ -112,6 +115,7 @@ fn test_dispatcher_exit_needs_render() {
 
     let mut sidebar = SidebarInteraction::new();
     let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -124,10 +128,14 @@ fn test_dispatcher_exit_needs_render() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(
         res,
@@ -143,10 +151,14 @@ fn test_dispatcher_exit_needs_render() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(
         res,
@@ -165,10 +177,14 @@ fn test_dispatcher_exit_needs_render() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(
         res,
@@ -190,6 +206,7 @@ fn test_separation_of_concerns() {
 
     let mut sidebar = SidebarInteraction::new();
     let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -205,10 +222,14 @@ fn test_separation_of_concerns() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(scroll.offset(), 1);
     assert_eq!(editor.text(), original_text);
@@ -224,10 +245,14 @@ fn test_separation_of_concerns() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(editor.cursor().byte_index, 1);
     assert_eq!(scroll.offset(), original_offset);

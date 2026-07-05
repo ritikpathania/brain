@@ -117,7 +117,9 @@ fn test_slash_completion_dispatch_trapping() {
     use brain_tui::ui::widgets::view_models::FocusTarget;
     use brain_tui::ui::input::{InputAction, Command, TextInput};
     use brain_tui::ui::command::completion::SlashCompletionState;
+    use brain_tui::ui::command::palette::CommandPaletteState;
     use brain_domain::SessionId;
+
 
     struct DummyLookup;
     impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
@@ -130,8 +132,10 @@ fn test_slash_completion_dispatch_trapping() {
     let mut focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
     let mut sidebar = SidebarInteraction::new();
     let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
+
 
     // 1. Type '/' -> Should show autocomplete
     let _ = Dispatcher::dispatch(
@@ -142,10 +146,14 @@ fn test_slash_completion_dispatch_trapping() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert!(slash_completion.visible);
     assert_eq!(slash_completion.query, "/");
     assert_eq!(slash_completion.selected_index, 0);
@@ -159,10 +167,14 @@ fn test_slash_completion_dispatch_trapping() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert!(slash_completion.visible);
     assert_eq!(slash_completion.query, "/t");
 
@@ -175,10 +187,14 @@ fn test_slash_completion_dispatch_trapping() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     // 4. Tab key -> should autocomplete to "/model " because we scrolled down
     let _ = Dispatcher::dispatch(
@@ -189,10 +205,14 @@ fn test_slash_completion_dispatch_trapping() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
     assert!(!slash_completion.visible);
     assert_eq!(editor.text(), "/model ");
 }
@@ -230,6 +250,143 @@ fn test_command_palette_filtering() {
     assert!(!matches.is_empty());
     assert_eq!(matches[0].title, "Change Theme");
 }
+
+#[test]
+fn test_palette_parameter_collection_transitions() {
+    use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction};
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::widgets::view_models::FocusTarget;
+    use brain_tui::ui::input::{InputAction, Command, TextInput};
+    use brain_tui::ui::command::completion::SlashCompletionState;
+    use brain_tui::ui::command::palette::{CommandPaletteState, PaletteStage};
+    use brain_domain::SessionId;
+
+    struct DummyLookup;
+    impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
+        fn title(&self, _id: SessionId) -> Option<&str> { None }
+    }
+
+    let mut editor = Editor::new();
+    let mut scroll = ScrollState::new();
+    let mut focus = FocusManager::new(FocusTarget::Prompt, FocusProfile::Chat);
+    let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
+    let visible_ids = vec![];
+    let lookup = DummyLookup;
+
+    // 1. Toggle command palette open via shortcut
+    let _ = Dispatcher::dispatch(
+        InputAction::Command(Command::ToggleCommandPalette),
+        &mut InteractionContext {
+            editor: &mut editor,
+            scroll: &mut scroll,
+            focus: &mut focus,
+            sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
+            visible_ids: &visible_ids,
+            lookup: &lookup,
+        }
+    );
+    assert!(command_palette.open);
+    assert_eq!(focus.current(), FocusTarget::CommandPalette);
+    assert!(matches!(command_palette.stage, PaletteStage::Search));
+
+    // 2. Search for 'theme' by typing chars into command palette editor
+    for c in "theme".chars() {
+        let _ = Dispatcher::dispatch(
+            InputAction::Text(TextInput::Char(c)),
+            &mut InteractionContext {
+                editor: &mut editor,
+                scroll: &mut scroll,
+                focus: &mut focus,
+                sidebar: &mut sidebar,
+                slash_completion: &mut slash_completion,
+                command_palette: &mut command_palette,
+                is_generating: false,
+                is_connected: true,
+                visible_ids: &visible_ids,
+                lookup: &lookup,
+            }
+        );
+    }
+    assert_eq!(command_palette.editor.text(), "theme");
+    
+    // Check first match is Change Theme
+    let matches: Vec<_> = command_palette.matches().collect();
+    assert!(!matches.is_empty());
+    assert_eq!(matches[0].title, "Change Theme");
+
+    // 3. Press Enter to select/commit "Change Theme".
+    // Since "Change Theme" has parameters, it should transition to CollectParameter!
+    let _ = Dispatcher::dispatch(
+        InputAction::Command(Command::Submit),
+        &mut InteractionContext {
+            editor: &mut editor,
+            scroll: &mut scroll,
+            focus: &mut focus,
+            sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
+            visible_ids: &visible_ids,
+            lookup: &lookup,
+        }
+    );
+    assert!(command_palette.open);
+    if let PaletteStage::CollectParameter(state) = &command_palette.stage {
+        assert_eq!(state.command_id, brain_tui::ui::command::CHANGE_THEME);
+        assert_eq!(state.collected.len(), 0);
+    } else {
+        panic!("Should have transitioned to CollectParameter stage");
+    }
+    assert_eq!(command_palette.editor.text(), ""); // Editor is cleared to collect theme parameter
+
+    // 4. Type the parameter value 'dark' and press Enter to commit parameter
+    for c in "dark".chars() {
+        let _ = Dispatcher::dispatch(
+            InputAction::Text(TextInput::Char(c)),
+            &mut InteractionContext {
+                editor: &mut editor,
+                scroll: &mut scroll,
+                focus: &mut focus,
+                sidebar: &mut sidebar,
+                slash_completion: &mut slash_completion,
+                command_palette: &mut command_palette,
+                is_generating: false,
+                is_connected: true,
+                visible_ids: &visible_ids,
+                lookup: &lookup,
+            }
+        );
+    }
+    assert_eq!(command_palette.editor.text(), "dark");
+
+    let _ = Dispatcher::dispatch(
+        InputAction::Command(Command::Submit),
+        &mut InteractionContext {
+            editor: &mut editor,
+            scroll: &mut scroll,
+            focus: &mut focus,
+            sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
+            visible_ids: &visible_ids,
+            lookup: &lookup,
+        }
+    );
+
+    // After all parameters are collected, command palette closes and focus is restored to Prompt!
+    assert!(!command_palette.open);
+    assert_eq!(focus.current(), FocusTarget::Prompt);
+}
+
 
 
 

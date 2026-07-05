@@ -9,6 +9,10 @@ use crate::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent, SessionL
 use brain_domain::SessionId;
 use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
 use crate::ui::command::completion::SlashCompletionState;
+use crate::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState, CollectedParameter, ParameterValue};
+use crate::ui::command::{CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability};
+
+
 
 
 /// Collection of interaction sub-systems.
@@ -23,10 +27,17 @@ pub struct InteractionContext<'a> {
     pub sidebar: &'a mut SidebarInteraction,
     /// Reference to the mutable SlashCompletionState.
     pub slash_completion: &'a mut SlashCompletionState,
+    /// Reference to the mutable CommandPaletteState.
+    pub command_palette: &'a mut CommandPaletteState,
+    /// Whether the client is currently generating a response.
+    pub is_generating: bool,
+    /// Whether the client is currently connected.
+    pub is_connected: bool,
     /// The visible session IDs in the sidebar.
     pub visible_ids: &'a [SessionId],
     /// The session lookup service.
     pub lookup: &'a dyn SessionLookup,
+
 
 }
 
@@ -118,8 +129,157 @@ impl Dispatcher {
             }
         }
 
+        // Handle Command Palette toggle/opening globally
+        if let InputAction::Command(Command::ToggleCommandPalette) = action {
+            if ctx.command_palette.open {
+                ctx.command_palette.reset();
+                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                    ctx.focus.set_focus(saved);
+                }
+            } else {
+                ctx.focus.save_focus(ctx.focus.current());
+                ctx.focus.set_focus(FocusTarget::CommandPalette);
+                ctx.command_palette.reset();
+                ctx.command_palette.open = true;
+            }
+            return DispatchResult::render();
+        }
+
+        // If Command Palette is focused, intercept all keys
+        if ctx.focus.current() == FocusTarget::CommandPalette {
+            let avail_ctx = CommandAvailabilityContext {
+                has_selected_session: ctx.sidebar.browse.selected.is_some(),
+                is_connected: ctx.is_connected,
+                is_generating: ctx.is_generating,
+            };
+
+            match action {
+                InputAction::Command(cmd) => match cmd {
+                    Command::Exit | Command::Escape => {
+                        ctx.command_palette.reset();
+                        if let Some(saved) = ctx.focus.pop_saved_focus() {
+                            ctx.focus.set_focus(saved);
+                        }
+                        return DispatchResult::render();
+                    }
+                    Command::ScrollUp => {
+                        match &ctx.command_palette.stage {
+                            PaletteStage::Search => {
+                                let count = ctx.command_palette.matches().count();
+                                if count > 0 {
+                                    if ctx.command_palette.selected_index == 0 {
+                                        ctx.command_palette.selected_index = count - 1;
+                                    } else {
+                                        ctx.command_palette.selected_index -= 1;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        return DispatchResult::render();
+                    }
+                    Command::ScrollDown => {
+                        match &ctx.command_palette.stage {
+                            PaletteStage::Search => {
+                                let count = ctx.command_palette.matches().count();
+                                if count > 0 {
+                                    ctx.command_palette.selected_index = (ctx.command_palette.selected_index + 1) % count;
+                                }
+                            }
+                            _ => {}
+                        }
+                        return DispatchResult::render();
+                    }
+                    Command::Submit => {
+                        match &mut ctx.command_palette.stage {
+                            PaletteStage::Search => {
+                                let matched_cmd = ctx.command_palette.matches().nth(ctx.command_palette.selected_index);
+                                if let Some(cmd) = matched_cmd {
+                                    if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
+                                        if !cmd.parameters.is_empty() {
+                                            ctx.command_palette.stage = PaletteStage::CollectParameter(
+                                                ParameterCollectionState::new(cmd.id)
+                                            );
+                                            ctx.command_palette.editor.clear();
+                                            ctx.command_palette.selected_index = 0;
+                                        } else {
+                                            // Trigger execution event
+                                            ctx.command_palette.reset();
+                                            if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                ctx.focus.set_focus(saved);
+                                            }
+                                            // We will handle command events in Task 5.
+                                        }
+                                    }
+                                }
+                            }
+                            PaletteStage::CollectParameter(state) => {
+                                let descriptor = CommandRegistry::find_by_id(state.command_id);
+                                if let Some(desc) = descriptor {
+                                    if let Some(param_desc) = state.current_parameter(desc) {
+                                        let text = ctx.command_palette.editor.text().trim().to_string();
+                                        if !text.is_empty() {
+                                            let val = match param_desc.kind {
+                                                crate::ui::command::ParameterKind::String => Some(ParameterValue::String(text)),
+                                                crate::ui::command::ParameterKind::Theme => Some(ParameterValue::Theme(crate::ui::command::ThemeId("dark"))), // Stub validation
+                                                _ => Some(ParameterValue::String(text)),
+                                            };
+                                            if let Some(param_val) = val {
+                                                state.collected.push(CollectedParameter {
+                                                    id: param_desc.id,
+                                                    value: param_val,
+                                                });
+                                                ctx.command_palette.editor.clear();
+                                                if state.collected.len() == desc.parameters.len() {
+                                                    ctx.command_palette.reset();
+                                                    if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                        ctx.focus.set_focus(saved);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            PaletteStage::Confirm { .. } => {
+                                ctx.command_palette.reset();
+                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                    ctx.focus.set_focus(saved);
+                                }
+                            }
+                        }
+                        return DispatchResult::render();
+                    }
+                    Command::Backspace => {
+                        ctx.command_palette.editor.backspace();
+                        return DispatchResult::render();
+                    }
+                    Command::Delete => {
+                        ctx.command_palette.editor.delete();
+                        return DispatchResult::render();
+                    }
+                    Command::MoveLeft => {
+                        ctx.command_palette.editor.move_cursor_left();
+                        return DispatchResult::render();
+                    }
+                    Command::MoveRight => {
+                        ctx.command_palette.editor.move_cursor_right();
+                        return DispatchResult::render();
+                    }
+                    _ => {}
+                },
+                InputAction::Text(TextInput::Char(c)) => {
+                    ctx.command_palette.editor.insert(c);
+                    return DispatchResult::render();
+                }
+                _ => {}
+            }
+            return DispatchResult::none();
+        }
+
         // If Prompt is focused and slash completion is visible, Arrow keys and Tab interact with suggestions.
         if ctx.focus.current() == FocusTarget::Prompt && ctx.slash_completion.visible {
+
             let count = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query).count();
             if count > 0 {
                 match action {
@@ -204,7 +364,10 @@ impl Dispatcher {
                         DispatchResult::event(UiEvent::SubmitPrompt(text))
                     }
                 }
+                Command::ToggleCommandPalette => DispatchResult::render(),
+                Command::Escape => DispatchResult::none(),
             },
+
             InputAction::Text(text_input) => match text_input {
                 TextInput::Char(c) => {
                     ctx.editor.insert(c);

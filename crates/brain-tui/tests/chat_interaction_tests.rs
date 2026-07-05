@@ -4,6 +4,8 @@ use brain_tui::ui::interaction::{
     SidebarInteraction, SessionLookup
 };
 use brain_tui::ui::command::completion::SlashCompletionState;
+use brain_tui::ui::command::palette::CommandPaletteState;
+
 
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
 use brain_tui::ui::widgets::view_models::FocusTarget;
@@ -44,6 +46,7 @@ fn test_transactional_submission() {
 
     let mut sidebar = SidebarInteraction::new();
     let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -55,10 +58,14 @@ fn test_transactional_submission() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
 
     // Transactional Submit event returned
@@ -92,6 +99,7 @@ fn test_empty_whitespace_submissions() {
 
     let mut sidebar = SidebarInteraction::new();
     let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
@@ -104,10 +112,14 @@ fn test_empty_whitespace_submissions() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(res.ui_event, None);
 
@@ -122,10 +134,14 @@ fn test_empty_whitespace_submissions() {
             focus: &mut focus,
             sidebar: &mut sidebar,
             slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
         }
     );
+
 
     assert_eq!(res.ui_event, None);
     assert_eq!(editor.text(), "  "); // editor buffer preserved
