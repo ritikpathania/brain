@@ -411,7 +411,7 @@ impl RankingStrategy for LearnedTemporalScorer {
 
         // 4. Load active weights model and score nodes
         let routing_decision = self.weight_provider.route_decision(request)?;
-        let model = LinearRankingModel::new(routing_decision.snapshot.weights.clone());
+        let model = crate::retrieval::model_resolver::ModelDeserializer::resolve(&routing_decision.snapshot)?;
 
         let mut scored_nodes = Vec::with_capacity(nodes.len());
         for (idx, node) in nodes.into_iter().enumerate() {

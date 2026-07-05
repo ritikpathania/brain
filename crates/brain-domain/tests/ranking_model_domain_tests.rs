@@ -47,7 +47,7 @@ fn test_decision_path_determinism_and_immutability() {
     let right_leaf = Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.9).unwrap() });
     
     let root = DecisionTreeNode::Split {
-        feature: FeatureId::Graph,
+        feature: FeatureId::GraphCentrality,
         threshold: SplitThreshold::new(0.7).unwrap(),
         left: left_leaf,
         right: right_leaf,
@@ -68,10 +68,10 @@ fn test_decision_path_determinism_and_immutability() {
     let (score_a2, path_a2) = model.compiled().evaluate_with_path(&signals_left);
     assert_eq!(score_a1, 0.1);
     assert_eq!(score_a1, score_a2);
-    assert_eq!(path_a1, vec![FeatureId::Graph]);
+    assert_eq!(path_a1, vec![FeatureId::GraphCentrality]);
     assert_eq!(path_a1, path_a2);
 
     let (score_b1, path_b1) = model.compiled().evaluate_with_path(&signals_right);
     assert_eq!(score_b1, 0.9);
-    assert_eq!(path_b1, vec![FeatureId::Graph]);
+    assert_eq!(path_b1, vec![FeatureId::GraphCentrality]);
 }
