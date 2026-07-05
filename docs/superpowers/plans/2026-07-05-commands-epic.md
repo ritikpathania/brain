@@ -14,15 +14,31 @@
 - Non-blocking input: Command overlay inputs must not leak into background prompt or history scrolling.
 - Authoritative reconciliation: Every optimistic state mutation must be reconcilable by subsequent backend events.
 
+## Milestone Completion Criteria (Exit Criteria)
+Every task in this plan must satisfy the following criteria before being considered complete:
+1. `cargo test` compiles and passes successfully without any failures.
+2. `cargo check` and `cargo clippy` report zero warnings.
+3. Unit tests cover all pure business logic changes.
+4. Property-based tests are added for complex state transitions.
+5. Golden visual snapshots are updated only for intentional visual changes.
+6. Public APIs are verified to be stable and frozen where indicated.
+
+## Verification Strategy
+- **Unit Tests**: Pure registry logic, completions matching, and `CommandExecutor` plan mappings.
+- **Property-based Tests**: Testing state machine transitions under randomized key events.
+- **Golden Snapshots**: Overlay modal alignment and popup rendering.
+- **Integration Tests**: Focus transitions, input isolation, and `Application` event orchestration.
+- **Replay/Determinism Tests**: Verification of event execution order.
+
 ---
 
-### Task 1: Infrastructure
+### Task 1: Infrastructure (Public API Freeze Point)
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/command/mod.rs`
 - Test: `crates/brain-tui/tests/command_palette_tests.rs` (new test suite file)
 
-**Interfaces:**
+**Interfaces (Frozen for Phase 2):**
 - Consumes: None
 - Produces: `CommandId`, `ThemeId`, `ModelId`, `SessionTitle`, `ParameterId`, `ParameterKind`, `ParameterDescriptor`, `CommandDescriptor`, `COMMANDS`, `CommandRegistry`, `AvailabilityReason`, `Availability`, `CommandAvailabilityContext`, `CommandPolicy`
 
@@ -307,7 +323,7 @@
 
 ---
 
-### Task 3: Command Palette
+### Task 3: Command Palette UI
 
 **Files:**
 - Modify: `crates/brain-tui/src/ui/focus.rs`
