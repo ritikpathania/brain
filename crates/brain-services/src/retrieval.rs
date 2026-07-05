@@ -18,6 +18,8 @@ pub mod temporal;
 pub mod active_weights;
 /// Feature extraction pipeline for learned ranking.
 pub mod feature_extractor;
+/// Offline evaluation pipeline.
+pub mod evaluator;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
