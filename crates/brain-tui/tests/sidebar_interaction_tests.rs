@@ -650,3 +650,93 @@ async fn test_selection_stability_property() {
     }
 }
 
+#[tokio::test]
+async fn test_rename_non_matching_search_regression() {
+    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
+    use brain_tui::ui::interaction::sidebar::SessionLookup;
+    use brain_tui::client::SessionSummary;
+
+    // Setup sessions
+    let id_rust = SessionId::new();
+    let id_python = SessionId::new();
+    let mut sessions = vec![
+        SessionSummary {
+            id: id_rust,
+            title: "Rust Core".to_string(),
+            updated_at: std::time::SystemTime::now(),
+            pinned: false,
+            archived: false,
+        },
+        SessionSummary {
+            id: id_python,
+            title: "Python Data".to_string(),
+            updated_at: std::time::SystemTime::now(),
+            pinned: false,
+            archived: false,
+        },
+    ];
+
+    let mut sidebar = SidebarInteraction::new();
+    sidebar.browse.selected = Some(id_rust);
+
+    // 1. Activate search and type "Rust"
+    sidebar.search.parsed.update("Rust");
+
+    struct MockLookup<'a> {
+        sessions: &'a [SessionSummary],
+    }
+    impl<'a> SessionLookup for MockLookup<'a> {
+        fn title(&self, id: SessionId) -> Option<&str> {
+            self.sessions.iter().find(|x| x.id == id).map(|x| x.title.as_str())
+        }
+    }
+    let lookup = MockLookup { sessions: &sessions };
+
+    // Visible set should only contain Rust session
+    let visible_ids = vec![id_rust];
+
+    // 2. Enter Rename mode
+    let key_rename = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('e'), crossterm::event::KeyModifiers::empty());
+    let (_, ev) = sidebar.handle_key(key_rename, &visible_ids, &lookup);
+    assert!(ev.is_none());
+
+    // Clear the editor so we type a brand new title
+    sidebar.rename.editor.clear();
+
+    // 3. Rename to "Go Lang" (which doesn't match "Rust")
+    for c in "Go Lang".chars() {
+        let key_char = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty());
+        sidebar.handle_key(key_char, &visible_ids, &lookup);
+    }
+
+    // 4. Commit rename
+    let key_enter = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::empty());
+    let (_, ev) = sidebar.handle_key(key_enter, &visible_ids, &lookup);
+
+    // Assert that SidebarEvent::Rename is emitted
+    if let Some(SidebarEvent::Rename(id, Some(new_title))) = ev {
+        assert_eq!(id, id_rust);
+        assert_eq!(new_title, "Go Lang");
+        // Simulate application layer handling
+        sessions[0].title = new_title;
+    } else {
+        panic!("Expected SidebarEvent::Rename");
+    }
+
+    // Recalculate visible IDs based on current filter & search query ("Rust")
+    let new_visible_ids: Vec<SessionId> = sessions
+        .iter()
+        .filter(|s| !s.archived && sidebar.search.parsed.matches(&s.title))
+        .map(|s| s.id)
+        .collect();
+
+    // The renamed session "Go Lang" should no longer match search query "Rust", so new_visible_ids should be empty
+    assert!(new_visible_ids.is_empty());
+
+    // Apply selection fallback
+    sidebar.restore_selection_fallback(&new_visible_ids);
+
+    // Selected session should be None
+    assert!(sidebar.browse.selected.is_none(), "Expected selection to fall back to None when visible set is empty");
+}
+
