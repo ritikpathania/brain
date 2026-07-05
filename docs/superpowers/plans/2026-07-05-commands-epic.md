@@ -32,301 +32,11 @@ Every task in this plan must satisfy the following criteria before being conside
 
 ---
 
-### Task 1: Infrastructure (Public API Freeze Point)
-
-**Files:**
-- Create: `crates/brain-tui/src/ui/command/mod.rs`
-- Test: `crates/brain-tui/tests/command_palette_tests.rs` (new test suite file)
-
-**Interfaces (Frozen for Phase 2):**
-- Consumes: None
-- Produces: `CommandId`, `ThemeId`, `ModelId`, `SessionTitle`, `ParameterId`, `ParameterKind`, `ParameterDescriptor`, `CommandDescriptor`, `COMMANDS`, `CommandRegistry`, `AvailabilityReason`, `Availability`, `CommandAvailabilityContext`, `CommandPolicy`
-
-- [ ] **Step 1: Write the failing test for lookup**
-  Write a test that verifies `CommandRegistry::find_by_id` and `CommandRegistry::find_by_name_or_alias` resolve static descriptors correctly.
-  
-  ```rust
-  // crates/brain-tui/tests/command_palette_tests.rs
-  use brain_tui::ui::command::{CommandRegistry, CHANGE_THEME, RENAME_SESSION};
-
-  #[test]
-  fn test_command_registry_lookups() {
-      let change_theme = CommandRegistry::find_by_id(CHANGE_THEME).unwrap();
-      assert_eq!(change_theme.title, "Change Theme");
-
-      let rename_session = CommandRegistry::find_by_name_or_alias("rename").unwrap();
-      assert_eq!(rename_session.id, RENAME_SESSION);
-  }
-  ```
-
-- [ ] **Step 2: Run test to verify it fails**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL with compilation error (module command doesn't exist).
-
-- [ ] **Step 3: Write minimal implementation**
-  Create `crates/brain-tui/src/ui/command/mod.rs` and add it to `crates/brain-tui/src/lib.rs` (as `pub mod command` under `pub mod ui`).
-  
-  ```rust
-  // crates/brain-tui/src/ui/command/mod.rs
-  use brain_domain::SessionId;
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-  pub struct CommandId(pub &'static str);
-
-  pub const CHANGE_THEME: CommandId = CommandId("theme.change");
-  pub const RENAME_SESSION: CommandId = CommandId("session.rename");
-  pub const ARCHIVE_SESSION: CommandId = CommandId("session.archive");
-  pub const DELETE_SESSION: CommandId = CommandId("session.delete");
-  pub const RESTORE_SESSION: CommandId = CommandId("session.restore");
-  pub const SWITCH_MODEL: CommandId = CommandId("model.switch");
-  pub const CLEAR_CHAT: CommandId = CommandId("chat.clear");
-  pub const SHOW_HELP: CommandId = CommandId("help.show");
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-  pub struct ThemeId(pub &'static str);
-
-  pub const THEME_DARK: ThemeId = ThemeId("dark");
-  pub const THEME_HIGH_CONTRAST: ThemeId = ThemeId("high_contrast");
-
-  #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-  pub struct ModelId(pub String);
-
-  #[derive(Debug, Clone, PartialEq, Eq)]
-  pub struct SessionTitle(pub String);
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-  pub struct ParameterId(pub &'static str);
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum ParameterKind {
-      String,
-      Boolean,
-      Theme,
-      Session,
-      Model,
-      File,
-  }
-
-  pub struct ParameterDescriptor {
-      pub id: ParameterId,
-      pub name: &'static str,
-      pub description: &'static str,
-      pub kind: ParameterKind,
-      pub required: bool,
-  }
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum CommandCategory {
-      Settings,
-      Sessions,
-      Models,
-      Navigation,
-      Developer,
-  }
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum CommandVisibility {
-      SlashOnly,
-      PaletteOnly,
-      Both,
-  }
-
-  pub struct CommandDescriptor {
-      pub id: CommandId,
-      pub title: &'static str,
-      pub description: &'static str,
-      pub category: CommandCategory,
-      pub visibility: CommandVisibility,
-      pub priority: u16,
-      pub aliases: &'static [&'static str],
-      pub keywords: &'static [&'static str],
-      pub parameters: &'static [ParameterDescriptor],
-  }
-
-  pub static COMMANDS: &[CommandDescriptor] = &[
-      CommandDescriptor {
-          id: CHANGE_THEME,
-          title: "Change Theme",
-          description: "Switch the TUI appearance mode",
-          category: CommandCategory::Settings,
-          visibility: CommandVisibility::Both,
-          priority: 50,
-          aliases: &["theme"],
-          keywords: &["appearance", "dark", "light", "color", "style"],
-          parameters: &[
-              ParameterDescriptor {
-                  id: ParameterId("theme"),
-                  name: "theme",
-                  description: "Theme name to apply",
-                  kind: ParameterKind::Theme,
-                  required: true,
-              }
-          ],
-      },
-      CommandDescriptor {
-          id: RENAME_SESSION,
-          title: "Rename Session",
-          description: "Change the title of the current session",
-          category: CommandCategory::Sessions,
-          visibility: CommandVisibility::PaletteOnly,
-          priority: 100,
-          aliases: &["rename"],
-          keywords: &["session", "title", "name", "edit"],
-          parameters: &[
-              ParameterDescriptor {
-                  id: ParameterId("title"),
-                  name: "title",
-                  description: "New session title",
-                  kind: ParameterKind::String,
-                  required: true,
-              }
-          ],
-      },
-  ];
-
-  pub struct CommandRegistry;
-
-  impl CommandRegistry {
-      pub fn iter() -> impl Iterator<Item = &'static CommandDescriptor> {
-          COMMANDS.iter()
-      }
-
-      pub fn find_by_id(id: CommandId) -> Option<&'static CommandDescriptor> {
-          Self::iter().find(|cmd| cmd.id == id)
-      }
-
-      pub fn find_by_name_or_alias(name: &str) -> Option<&'static CommandDescriptor> {
-          let name_lower = name.to_lowercase();
-          // NOTE: A future performance optimization would be to store pre-lowercased keys
-          // to avoid repeated string allocations during search queries.
-          Self::iter().find(|cmd| {
-              cmd.title.to_lowercase() == name_lower
-                  || cmd.aliases.iter().any(|&alias| alias.to_lowercase() == name_lower)
-          })
-      }
-  }
-
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum AvailabilityReason {
-      NoSessionSelected,
-      BackendDisconnected,
-      StreamingInProgress,
-  }
-
-  pub enum Availability {
-      Enabled,
-      Disabled(AvailabilityReason),
-  }
-
-  pub struct CommandAvailabilityContext {
-      pub has_selected_session: bool,
-      pub is_connected: bool,
-      pub is_generating: bool,
-  }
-
-  pub struct CommandPolicy;
-
-  impl CommandPolicy {
-      pub fn availability(descriptor: &CommandDescriptor, ctx: &CommandAvailabilityContext) -> Availability {
-          match descriptor.id {
-              RENAME_SESSION => {
-                  if !ctx.has_selected_session {
-                      Availability::Disabled(AvailabilityReason::NoSessionSelected)
-                  } else {
-                      Availability::Enabled
-                  }
-              }
-              _ => Availability::Enabled,
-          }
-      }
-  }
-  ```
-
-- [ ] **Step 4: Run test to verify it passes**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: PASS
-
-- [ ] **Step 5: Commit**
-  ```bash
-  git add crates/brain-tui/src/ui/command/mod.rs crates/brain-tui/tests/command_palette_tests.rs
-  git commit -m "feat(tui): add static Command Registry and availability policy"
-  ```
+### Task 1: Infrastructure (Public API Freeze Point) [COMPLETED]
 
 ---
 
-### Task 2: Slash Commands
-
-**Files:**
-- Create: `crates/brain-tui/src/ui/command/completion.rs` (SlashCompletionState, SlashCompletionEngine)
-- Modify: `crates/brain-tui/src/ui/state.rs` (reference SlashCompletionState inside AppState)
-- Modify: `crates/brain-tui/src/ui/widgets/chat_screen.rs` (render the popup box)
-
-**Interfaces:**
-- Consumes: `COMMANDS`, `CommandRegistry`
-- Produces: `SlashCompletionState`, `SlashCompletionEngine`
-
-- [ ] **Step 1: Write the failing test for completion matching**
-  Write a test in `command_palette_tests.rs` showing that `SlashCompletionEngine::matches("/th")` matches `/theme`.
-  
-  ```rust
-  // crates/brain-tui/tests/command_palette_tests.rs
-  use brain_tui::ui::command::completion::SlashCompletionEngine;
-
-  #[test]
-  fn test_slash_completion_matching() {
-      let matches: Vec<_> = SlashCompletionEngine::matches("/th").collect();
-      assert!(!matches.is_empty());
-      assert_eq!(matches[0].title, "Change Theme");
-  }
-  ```
-
-- [ ] **Step 2: Run test to verify it fails**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL (compilation errors, completion engine not defined).
-
-- [ ] **Step 3: Write minimal implementation**
-  Create `crates/brain-tui/src/ui/command/completion.rs` defining `SlashCompletionState` and `SlashCompletionEngine`.
-  
-  ```rust
-  // crates/brain-tui/src/ui/command/completion.rs
-  use crate::ui::command::{COMMANDS, CommandDescriptor, CommandVisibility};
-
-  /// UI state tracker for active inline slash completion popup.
-  pub struct SlashCompletionState {
-      pub visible: bool,
-      pub selected_index: usize,
-      pub query: String,
-  }
-
-  pub struct SlashCompletionEngine;
-
-  impl SlashCompletionEngine {
-      pub fn matches(query: &str) -> impl Iterator<Item = &'static CommandDescriptor> {
-          if !query.starts_with('/') {
-              return [].iter().copied().take(0);
-          }
-          let term = query[1..].to_lowercase();
-          COMMANDS.iter()
-              .filter(move |cmd| {
-                  cmd.visibility != CommandVisibility::PaletteOnly
-                      && (cmd.title.to_lowercase().contains(&term)
-                          || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term)))
-              })
-      }
-  }
-  ```
-  
-  Integrate `SlashCompletionState` into `AppState` in `crates/brain-tui/src/ui/state.rs`. Update the renderer to draw this completion window above the input box.
-
-- [ ] **Step 4: Run test to verify it passes**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: PASS
-
-- [ ] **Step 5: Commit**
-  ```bash
-  git add crates/brain-tui/src/ui/command/completion.rs
-  git commit -am "feat(tui): implement slash completion engine and state structure"
-  ```
+### Task 2: Slash Commands [COMPLETED]
 
 ---
 
@@ -335,35 +45,45 @@ Every task in this plan must satisfy the following criteria before being conside
 **Files:**
 - Create: `crates/brain-tui/src/ui/command/palette.rs` (CommandPaletteState definition)
 - Modify: `crates/brain-tui/src/ui/state.rs` (reference CommandPaletteState inside AppState)
-- Modify: `crates/brain-tui/src/ui/focus.rs` (FocusTarget, FocusManager updates)
-- Modify: `crates/brain-tui/src/ui/layout/mod.rs` (defining overlay bounds)
-- Modify: `crates/brain-tui/src/ui/renderer.rs` (overlay rendering)
+- Modify: `crates/brain-tui/src/ui/focus.rs` (FocusTarget, FocusManager updates - use simple `Option<FocusTarget>` for `saved_focus`)
+- Modify: `crates/brain-tui/src/ui/layout/mod.rs` (defining overlay bounds and `CommandPaletteGeometry::compute` clamping logic)
+- Modify: `crates/brain-tui/src/ui/renderer.rs` (overlay rendering using the shared layout bounds)
+- Test: `crates/brain-tui/tests/command_palette_tests.rs` (add overlay tests and double focus restoration test)
 
 **Interfaces:**
 - Consumes: `FocusManager`
 - Produces: `FocusTarget::CommandPalette`, `saved_focus` state, `CommandPaletteGeometry` layout calculation
 
-- [ ] **Step 1: Write the failing test for focus switching**
-  Write a test showing that saving and popping focus operates correctly on `FocusManager`.
+- [ ] **Step 1: Write the failing test for focus switching & double restoration**
+  Write a test showing that saving and popping focus operates correctly on `FocusManager` multiple times without retaining stale saved focus.
   
   ```rust
   // crates/brain-tui/tests/command_palette_tests.rs
-  use brain_tui::ui::focus::{FocusManager, FocusTarget};
+  use brain_tui::ui::focus::{FocusManager, FocusTarget, FocusProfile};
 
   #[test]
-  fn test_focus_restoration() {
-      let mut fm = FocusManager::new();
-      fm.set_current(FocusTarget::Sidebar);
+  fn test_focus_restoration_cycle() {
+      let mut fm = FocusManager::new(FocusTarget::Sidebar, FocusProfile::Chat);
       
-      let saved = fm.current();
-      fm.save_focus(saved);
+      // First cycle
+      let saved1 = fm.current();
+      fm.save_focus(saved1);
       fm.set_current(FocusTarget::CommandPalette);
-
       assert_eq!(fm.current(), FocusTarget::CommandPalette);
 
-      if let Some(target) = fm.pop_saved_focus() {
-          fm.set_current(target);
-      }
+      let restored1 = fm.pop_saved_focus().expect("Should have saved focus");
+      fm.set_current(restored1);
+      assert_eq!(fm.current(), FocusTarget::Sidebar);
+      assert!(fm.pop_saved_focus().is_none(), "Saved focus must be cleared after restoration");
+
+      // Second cycle
+      let saved2 = fm.current();
+      fm.save_focus(saved2);
+      fm.set_current(FocusTarget::CommandPalette);
+      assert_eq!(fm.current(), FocusTarget::CommandPalette);
+
+      let restored2 = fm.pop_saved_focus().expect("Should have saved focus");
+      fm.set_current(restored2);
       assert_eq!(fm.current(), FocusTarget::Sidebar);
   }
   ```
@@ -375,7 +95,8 @@ Every task in this plan must satisfy the following criteria before being conside
 - [ ] **Step 3: Write minimal implementation**
   Create `crates/brain-tui/src/ui/command/palette.rs` containing `CommandPaletteState` and the stage/arguments enums.
   Add `FocusTarget::CommandPalette` and `save_focus`/`pop_saved_focus` methods on `FocusManager` inside `crates/brain-tui/src/ui/focus.rs`.
-  Define `CommandPaletteGeometry` in the layout files and update `crates/brain-tui/src/ui/renderer.rs` to render a centered bordered box when the palette is open.
+  Define `CommandPaletteGeometry::compute(terminal: Rect) -> Rect` in the layout files (clamping width: min 40, max 80; height: min 8, max 15).
+  Update `crates/brain-tui/src/ui/renderer.rs` to render a centered bordered box when the palette is open.
 
 - [ ] **Step 4: Run test to verify it passes**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
