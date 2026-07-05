@@ -6,6 +6,9 @@ use crate::ui::state::AppState;
 use crate::ui::protocol::{BackendCommand, BackendEvent, RequestAllocator};
 use crate::ui::scheduler::{RenderScheduler, RenderRequest, RenderReason, RenderInvalidation};
 use crate::ui::interaction::UiEvent;
+use crate::ui::command::{CommandExecutor, LocalStateMutation};
+
+
 
 /// Typed error classifications for the Application service loop.
 #[derive(Debug, thiserror::Error)]
@@ -247,7 +250,50 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
+            UiEvent::Command(invocation) => {
+                let plan = CommandExecutor::plan(invocation);
+                for mutation in plan.mutations {
+                    match mutation {
+                        LocalStateMutation::ApplyTheme(_theme_id) => {
+                            // Theme application stub
+                        }
+                        LocalStateMutation::ClearChat => {
+                            self.state.chat_mut().clear();
+                        }
+                        LocalStateMutation::RenameSession(id, title) => {
+                            self.state.rename_session(id, title);
+                            let visible_ids = self.state.visible_session_ids();
+                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        }
+                        LocalStateMutation::ArchiveSession(id) => {
+                            self.state.archive_session(id);
+                            let visible_ids = self.state.visible_session_ids();
+                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        }
+                        LocalStateMutation::DeleteSession(id) => {
+                            self.state.delete_session(id);
+                            let visible_ids = self.state.visible_session_ids();
+                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        }
+                        LocalStateMutation::RestoreSession(id) => {
+                            self.state.restore_session(id);
+                            let visible_ids = self.state.visible_session_ids();
+                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        }
+                    }
+                }
+
+                for cmd in plan.backend_commands {
+                    self.client.send(cmd).await?;
+                }
+
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::Input,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
         }
+
     }
 
     /// Handles events returned asynchronously from Daemon Client.

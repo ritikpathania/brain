@@ -10,7 +10,8 @@ use brain_domain::SessionId;
 use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
 use crate::ui::command::completion::SlashCompletionState;
 use crate::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState, CollectedParameter, ParameterValue};
-use crate::ui::command::{CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability};
+use crate::ui::command::{CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability, CommandInvocation};
+
 
 
 
@@ -50,7 +51,10 @@ pub enum UiEvent {
     Resize(u16, u16),
     /// Intent from sidebar action.
     Sidebar(SidebarEvent),
+    /// Intent to execute command invocation.
+    Command(CommandInvocation),
 }
+
 
 /// Dispatcher result codes representing TUI state changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -204,15 +208,19 @@ impl Dispatcher {
                                             ctx.command_palette.selected_index = 0;
                                         } else {
                                             // Trigger execution event
+                                            let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
                                             ctx.command_palette.reset();
                                             if let Some(saved) = ctx.focus.pop_saved_focus() {
                                                 ctx.focus.set_focus(saved);
                                             }
-                                            // We will handle command events in Task 5.
+                                            if let Some(inv) = inv_opt {
+                                                return DispatchResult::event(UiEvent::Command(inv));
+                                            }
                                         }
                                     }
                                 }
                             }
+
                             PaletteStage::CollectParameter(state) => {
                                 let descriptor = CommandRegistry::find_by_id(state.command_id);
                                 if let Some(desc) = descriptor {
@@ -231,9 +239,13 @@ impl Dispatcher {
                                                 });
                                                 ctx.command_palette.editor.clear();
                                                 if state.collected.len() == desc.parameters.len() {
+                                                    let inv_opt = CommandInvocation::build(state.command_id, &state.collected, ctx.sidebar.browse.selected);
                                                     ctx.command_palette.reset();
                                                     if let Some(saved) = ctx.focus.pop_saved_focus() {
                                                         ctx.focus.set_focus(saved);
+                                                    }
+                                                    if let Some(inv) = inv_opt {
+                                                        return DispatchResult::event(UiEvent::Command(inv));
                                                     }
                                                 }
                                             }
@@ -241,6 +253,7 @@ impl Dispatcher {
                                     }
                                 }
                             }
+
                             PaletteStage::Confirm { .. } => {
                                 ctx.command_palette.reset();
                                 if let Some(saved) = ctx.focus.pop_saved_focus() {

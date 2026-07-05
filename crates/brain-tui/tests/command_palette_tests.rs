@@ -387,6 +387,97 @@ fn test_palette_parameter_collection_transitions() {
     assert_eq!(focus.current(), FocusTarget::Prompt);
 }
 
+#[test]
+fn test_command_execution_pipeline() {
+    use brain_tui::ui::command::{
+        CommandExecutor, CommandInvocation, LocalStateMutation, ThemeId,
+    };
+    use brain_tui::ui::command::palette::CommandPaletteState;
+
+    use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction, UiEvent};
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::widgets::view_models::FocusTarget;
+    use brain_tui::ui::input::{InputAction, Command, TextInput};
+    use brain_tui::ui::command::completion::SlashCompletionState;
+    use brain_domain::SessionId;
+
+    // 1. Verify CommandExecutor::plan outputs
+    let theme_inv = CommandInvocation::ChangeTheme { theme: ThemeId("dark") };
+    let plan = CommandExecutor::plan(theme_inv);
+    assert_eq!(plan.mutations, vec![LocalStateMutation::ApplyTheme(ThemeId("dark"))]);
+    assert!(plan.backend_commands.is_empty());
+
+    let session_id = SessionId::new();
+    let rename_inv = CommandInvocation::RenameSession {
+        session_id,
+        title: brain_tui::ui::command::SessionTitle("New Name".to_string()),
+    };
+    let plan_rename = CommandExecutor::plan(rename_inv);
+    assert_eq!(plan_rename.mutations, vec![LocalStateMutation::RenameSession(session_id, "New Name".to_string())]);
+    assert_eq!(
+        plan_rename.backend_commands,
+        vec![brain_tui::ui::protocol::BackendCommand::RenameSession {
+            session_id,
+            title: Some("New Name".to_string()),
+        }]
+    );
+
+    // 2. Verify Dispatcher emits UiEvent::Command for no-parameter commands immediately
+    struct DummyLookup;
+    impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
+        fn title(&self, _id: SessionId) -> Option<&str> { None }
+    }
+
+    let mut editor = Editor::new();
+    let mut scroll = ScrollState::new();
+    let mut focus = FocusManager::new(FocusTarget::CommandPalette, FocusProfile::Chat);
+    let mut sidebar = SidebarInteraction::new();
+    let mut slash_completion = SlashCompletionState::new();
+    let mut command_palette = CommandPaletteState::new();
+    let visible_ids = vec![];
+    let lookup = DummyLookup;
+
+    // Input "clear" to select Clear Chat
+    for c in "clear".chars() {
+        let _ = Dispatcher::dispatch(
+            InputAction::Text(TextInput::Char(c)),
+            &mut InteractionContext {
+                editor: &mut editor,
+                scroll: &mut scroll,
+                focus: &mut focus,
+                sidebar: &mut sidebar,
+                slash_completion: &mut slash_completion,
+                command_palette: &mut command_palette,
+                is_generating: false,
+                is_connected: true,
+                visible_ids: &visible_ids,
+                lookup: &lookup,
+            }
+        );
+    }
+
+    let res = Dispatcher::dispatch(
+        InputAction::Command(Command::Submit),
+        &mut InteractionContext {
+            editor: &mut editor,
+            scroll: &mut scroll,
+            focus: &mut focus,
+            sidebar: &mut sidebar,
+            slash_completion: &mut slash_completion,
+            command_palette: &mut command_palette,
+            is_generating: false,
+            is_connected: true,
+            visible_ids: &visible_ids,
+            lookup: &lookup,
+        }
+    );
+
+    // Should close palette and emit ClearChat command event!
+    assert!(!command_palette.open);
+    assert_eq!(res.ui_event, Some(UiEvent::Command(CommandInvocation::ClearChat)));
+}
+
+
 
 
 

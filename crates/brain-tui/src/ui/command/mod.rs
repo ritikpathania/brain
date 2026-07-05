@@ -322,4 +322,10 @@ pub mod completion;
 /// Command Palette state and multi-step inputs.
 pub mod palette;
 
+/// Pure command execution module.
+pub mod executor;
+
+pub use executor::{CommandInvocation, LocalStateMutation, ExecutionPlan, CommandExecutor};
+
+
 
