@@ -926,6 +926,10 @@ pub struct CalibrationMetadata {
     algorithm_used: String,
     /// The calculated validation loss.
     validation_loss: Option<f64>,
+    /// Model version identifier.
+    model_version: Option<RankingModelVersion>,
+    /// Serialized parameters (e.g. JSON representation of decision tree splits)
+    parameters: Option<String>,
 }
 
 impl CalibrationMetadata {
@@ -934,7 +938,20 @@ impl CalibrationMetadata {
         Self {
             algorithm_used,
             validation_loss,
+            model_version: None,
+            parameters: None,
         }
+    }
+
+    /// Builder method to append model details.
+    pub fn with_model_details(
+        mut self,
+        model_version: Option<RankingModelVersion>,
+        parameters: Option<String>,
+    ) -> Self {
+        self.model_version = model_version;
+        self.parameters = parameters;
+        self
     }
 
     /// Get the algorithm used.
@@ -945,6 +962,16 @@ impl CalibrationMetadata {
     /// Get the validation loss.
     pub fn validation_loss(&self) -> Option<f64> {
         self.validation_loss
+    }
+
+    /// Get the model version.
+    pub fn model_version(&self) -> Option<RankingModelVersion> {
+        self.model_version
+    }
+
+    /// Get the serialized parameters.
+    pub fn parameters(&self) -> Option<&str> {
+        self.parameters.as_deref()
     }
 }
 
@@ -1127,6 +1154,8 @@ pub struct CalibrationReport {
 pub enum RankingModelVersion {
     /// Linear combination model version 1.
     V1Linear,
+    /// Decision tree model version 2.
+    V2DecisionTree,
 }
 
 /// Polymorphic interface for scoring candidate nodes.
@@ -1160,6 +1189,191 @@ impl RankingModel for LinearRankingModel {
             + self.weights.graph().value() * signals.graph.value()
             + self.weights.recency().value() * signals.recency.value()
             + self.weights.temporal().value() * signals.temporal.value()
+    }
+}
+
+/// Identifier for ranking signals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum FeatureId {
+    /// Semantic similarity signal.
+    Semantic,
+    /// Graph-based connectivity signal.
+    Graph,
+    /// Recency/decay signal.
+    Recency,
+    /// Projected temporal edge score.
+    Temporal,
+}
+
+/// Holds a validated split threshold value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+pub struct SplitThreshold(f64);
+
+impl SplitThreshold {
+    /// Creates a new validated `SplitThreshold`.
+    pub fn new(val: f64) -> Result<Self, crate::consolidation::MetricConstructionError> {
+        if !val.is_finite() {
+            return Err(crate::consolidation::MetricConstructionError::NotFinite { val });
+        }
+        Ok(Self(val))
+    }
+
+    /// Accesses the underlying threshold value.
+    pub fn value(&self) -> f64 {
+        self.0
+    }
+}
+
+/// Holds a validated leaf score value.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+pub struct LeafScore(f64);
+
+impl LeafScore {
+    /// Creates a new validated `LeafScore`.
+    pub fn new(val: f64) -> Result<Self, crate::consolidation::MetricConstructionError> {
+        if !val.is_finite() {
+            return Err(crate::consolidation::MetricConstructionError::NotFinite { val });
+        }
+        Ok(Self(val))
+    }
+
+    /// Accesses the underlying score value.
+    pub fn value(&self) -> f64 {
+        self.0
+    }
+}
+
+/// Serializable decision tree node definition.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum DecisionTreeNode {
+    /// Internal split node.
+    Split {
+        /// Feature dimension to split on.
+        feature: FeatureId,
+        /// Split threshold.
+        threshold: SplitThreshold,
+        /// Left branch (val < threshold).
+        left: Box<DecisionTreeNode>,
+        /// Right branch (val >= threshold).
+        right: Box<DecisionTreeNode>,
+    },
+    /// Terminal leaf node.
+    Leaf {
+        /// Return score.
+        score: LeafScore,
+    },
+}
+
+/// Serializable package for decision tree configs.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct DecisionTreeDefinition {
+    /// Root node of the tree.
+    pub root: DecisionTreeNode,
+}
+
+/// A compiler that compiles tree definitions into executable trees.
+pub struct DecisionTreeCompiler;
+
+impl DecisionTreeCompiler {
+    /// Compiles a `DecisionTreeDefinition` into a `CompiledDecisionTree`.
+    pub fn compile(definition: &DecisionTreeDefinition) -> CompiledDecisionTree {
+        CompiledDecisionTree {
+            root: definition.root.clone(),
+        }
+    }
+}
+
+/// Compiled representation of a decision tree.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompiledDecisionTree {
+    root: DecisionTreeNode,
+}
+
+impl CompiledDecisionTree {
+    /// Evaluates the compiled tree recursively.
+    pub fn evaluate(&self, signals: &RankingSignals) -> f64 {
+        Self::evaluate_node(&self.root, signals)
+    }
+
+    /// Evaluates the compiled tree recursively while tracking the decision path.
+    pub fn evaluate_with_path(&self, signals: &RankingSignals) -> (f64, Vec<FeatureId>) {
+        let mut path = Vec::new();
+        let score = Self::evaluate_node_with_path(&self.root, signals, &mut path);
+        (score, path)
+    }
+
+    fn evaluate_node(node: &DecisionTreeNode, signals: &RankingSignals) -> f64 {
+        match node {
+            DecisionTreeNode::Leaf { score } => score.value(),
+            DecisionTreeNode::Split { feature, threshold, left, right } => {
+                let val = match feature {
+                    FeatureId::Semantic => signals.semantic.value(),
+                    FeatureId::Graph => signals.graph.value(),
+                    FeatureId::Recency => signals.recency.value(),
+                    FeatureId::Temporal => signals.temporal.value(),
+                };
+                if val < threshold.value() {
+                    Self::evaluate_node(left, signals)
+                } else {
+                    Self::evaluate_node(right, signals)
+                }
+            }
+        }
+    }
+
+    fn evaluate_node_with_path(node: &DecisionTreeNode, signals: &RankingSignals, path: &mut Vec<FeatureId>) -> f64 {
+        match node {
+            DecisionTreeNode::Leaf { score } => score.value(),
+            DecisionTreeNode::Split { feature, threshold, left, right } => {
+                path.push(*feature);
+                let val = match feature {
+                    FeatureId::Semantic => signals.semantic.value(),
+                    FeatureId::Graph => signals.graph.value(),
+                    FeatureId::Recency => signals.recency.value(),
+                    FeatureId::Temporal => signals.temporal.value(),
+                };
+                if val < threshold.value() {
+                    Self::evaluate_node_with_path(left, signals, path)
+                } else {
+                    Self::evaluate_node_with_path(right, signals, path)
+                }
+            }
+        }
+    }
+}
+
+/// Executable model evaluating decision tree definitions over ranking signals.
+#[derive(Debug, Clone)]
+pub struct DecisionTreeRankingModel {
+    definition: DecisionTreeDefinition,
+    compiled: CompiledDecisionTree,
+}
+
+impl DecisionTreeRankingModel {
+    /// Creates a new `DecisionTreeRankingModel`.
+    pub fn new(definition: DecisionTreeDefinition) -> Self {
+        let compiled = DecisionTreeCompiler::compile(&definition);
+        Self { definition, compiled }
+    }
+
+    /// Access the underlying immutable definition.
+    pub fn definition(&self) -> &DecisionTreeDefinition {
+        &self.definition
+    }
+
+    /// Access the compiled representation.
+    pub fn compiled(&self) -> &CompiledDecisionTree {
+        &self.compiled
+    }
+}
+
+impl RankingModel for DecisionTreeRankingModel {
+    fn version(&self) -> RankingModelVersion {
+        RankingModelVersion::V2DecisionTree
+    }
+
+    fn score(&self, signals: &RankingSignals) -> f64 {
+        self.compiled.evaluate(signals)
     }
 }
 
