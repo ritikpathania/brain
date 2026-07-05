@@ -16,7 +16,7 @@
 
 ---
 
-### Task 1: Core Registry & Parameter Models
+### Task 1: Infrastructure
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/command/mod.rs`
@@ -181,6 +181,8 @@
 
       pub fn find_by_name_or_alias(name: &str) -> Option<&'static CommandDescriptor> {
           let name_lower = name.to_lowercase();
+          // NOTE: A future performance optimization would be to store pre-lowercased keys
+          // to avoid repeated string allocations during search queries.
           Self::iter().find(|cmd| {
               cmd.title.to_lowercase() == name_lower
                   || cmd.aliases.iter().any(|&alias| alias.to_lowercase() == name_lower)
@@ -231,24 +233,93 @@
 - [ ] **Step 5: Commit**
   ```bash
   git add crates/brain-tui/src/ui/command/mod.rs crates/brain-tui/tests/command_palette_tests.rs
-  git commit -m "feat(tui): add core Command Registry and policy checks"
+  git commit -m "feat(tui): add static Command Registry and availability policy"
   ```
 
 ---
 
-### Task 2: Focus Target & State Structures
+### Task 2: Slash Commands
+
+**Files:**
+- Modify: `crates/brain-tui/src/ui/state.rs`
+- Create: `crates/brain-tui/src/ui/command/completion.rs`
+- Modify: `crates/brain-tui/src/ui/widgets/chat_screen.rs` (render the popup box)
+
+**Interfaces:**
+- Consumes: `COMMANDS`, `CommandRegistry`
+- Produces: `SlashCompletionState`, `SlashCompletionEngine`
+
+- [ ] **Step 1: Write the failing test for completion matching**
+  Write a test in `command_palette_tests.rs` showing that `SlashCompletionEngine::matches("/th")` matches `/theme`.
+  
+  ```rust
+  // crates/brain-tui/tests/command_palette_tests.rs
+  use brain_tui::ui::command::completion::SlashCompletionEngine;
+
+  #[test]
+  fn test_slash_completion_matching() {
+      let matches: Vec<_> = SlashCompletionEngine::matches("/th").collect();
+      assert!(!matches.is_empty());
+      assert_eq!(matches[0].title, "Change Theme");
+  }
+  ```
+
+- [ ] **Step 2: Run test to verify it fails**
+  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
+  Expected: FAIL (compilation errors, completion engine not defined).
+
+- [ ] **Step 3: Write minimal implementation**
+  Create `crates/brain-tui/src/ui/command/completion.rs`.
+  
+  ```rust
+  // crates/brain-tui/src/ui/command/completion.rs
+  use crate::ui::command::{COMMANDS, CommandDescriptor, CommandVisibility};
+
+  pub struct SlashCompletionEngine;
+
+  impl SlashCompletionEngine {
+      pub fn matches(query: &str) -> impl Iterator<Item = &'static CommandDescriptor> {
+          if !query.starts_with('/') {
+              return [].iter().copied().take(0);
+          }
+          let term = query[1..].to_lowercase();
+          COMMANDS.iter()
+              .filter(move |cmd| {
+                  cmd.visibility != CommandVisibility::PaletteOnly
+                      && (cmd.title.to_lowercase().contains(&term)
+                          || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term)))
+              })
+      }
+  }
+  ```
+  
+  Integrate `SlashCompletionState` into `AppState` in `crates/brain-tui/src/ui/state.rs`. Update the renderer to draw this completion window above the input box.
+
+- [ ] **Step 4: Run test to verify it passes**
+  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
+  Expected: PASS
+
+- [ ] **Step 5: Commit**
+  ```bash
+  git add crates/brain-tui/src/ui/command/completion.rs
+  git commit -am "feat(tui): implement slash completion engine and state structure"
+  ```
+
+---
+
+### Task 3: Command Palette
 
 **Files:**
 - Modify: `crates/brain-tui/src/ui/focus.rs`
-- Modify: `crates/brain-tui/src/ui/state.rs`
-- Test: `crates/brain-tui/tests/command_palette_tests.rs`
+- Modify: `crates/brain-tui/src/ui/layout/mod.rs` (defining overlay bounds)
+- Modify: `crates/brain-tui/src/ui/renderer.rs` (overlay rendering)
 
 **Interfaces:**
-- Consumes: `CommandId`, `ThemeId`, `ModelId`
-- Produces: `FocusTarget::CommandPalette`, `saved_focus` storage, `CommandPaletteState`, `SlashCompletionState`
+- Consumes: `FocusManager`
+- Produces: `FocusTarget::CommandPalette`, `saved_focus` state, `CommandPaletteGeometry` layout calculation
 
-- [ ] **Step 1: Write the failing test for focus restoration**
-  Write a test in `command_palette_tests.rs` showing that moving focus to the palette saves the previous target, and restoring focus retrieves it correctly.
+- [ ] **Step 1: Write the failing test for focus switching**
+  Write a test showing that saving and popping focus operates correctly on `FocusManager`.
   
   ```rust
   // crates/brain-tui/tests/command_palette_tests.rs
@@ -259,14 +330,12 @@
       let mut fm = FocusManager::new();
       fm.set_current(FocusTarget::Sidebar);
       
-      // Save current focus and switch to CommandPalette
       let saved = fm.current();
       fm.save_focus(saved);
       fm.set_current(FocusTarget::CommandPalette);
 
       assert_eq!(fm.current(), FocusTarget::CommandPalette);
 
-      // Restore saved focus
       if let Some(target) = fm.pop_saved_focus() {
           fm.set_current(target);
       }
@@ -276,38 +345,11 @@
 
 - [ ] **Step 2: Run test to verify it fails**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL with compilation error (no `save_focus`, `pop_saved_focus`, or `FocusTarget::CommandPalette`).
+  Expected: FAIL
 
 - [ ] **Step 3: Write minimal implementation**
-  Modify `FocusTarget` in `crates/brain-tui/src/ui/focus.rs` or `view_models.rs` and add `saved_focus: Option<FocusTarget>` with helpers on `FocusManager`.
-  
-  ```rust
-  // in crates/brain-tui/src/ui/focus.rs (or relevant file)
-  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-  pub enum FocusTarget {
-      Conversation,
-      Prompt,
-      Sidebar,
-      CommandPalette,
-  }
-
-  // inside FocusManager struct:
-  pub struct FocusManager {
-      current: FocusTarget,
-      saved_focus: Option<FocusTarget>,
-  }
-
-  impl FocusManager {
-      pub fn save_focus(&mut self, target: FocusTarget) {
-          self.saved_focus = Some(target);
-      }
-      pub fn pop_saved_focus(&mut self) -> Option<FocusTarget> {
-          self.saved_focus.take()
-      }
-  }
-  ```
-  
-  Also define `CommandPaletteState` and `SlashCompletionState` in `crates/brain-tui/src/ui/state.rs` and add them to `AppState`.
+  Add `FocusTarget::CommandPalette` and `save_focus`/`pop_saved_focus` methods on `FocusManager` inside `crates/brain-tui/src/ui/focus.rs`.
+  Define `CommandPaletteGeometry` in the layout files and update `crates/brain-tui/src/ui/renderer.rs` to render a centered bordered box when the palette is open.
 
 - [ ] **Step 4: Run test to verify it passes**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
@@ -315,23 +357,60 @@
 
 - [ ] **Step 5: Commit**
   ```bash
-  git commit -am "feat(tui): add CommandPalette focus target and state structures"
+  git commit -am "feat(tui): add Command Palette overlay bounds, rendering, and focus targets"
   ```
 
 ---
 
-### Task 3: Command Executor & Execution Plan
+### Task 4: Parameter Collection
+
+**Files:**
+- Modify: `crates/brain-tui/src/ui/state.rs`
+- Modify: `crates/brain-tui/src/ui/interaction/dispatcher.rs`
+
+**Interfaces:**
+- Consumes: `CollectedParameter`, `ParameterCollectionState`, `PaletteStage`
+- Produces: State transition from `Search` -> `CollectParameter` -> `Confirm`
+
+- [ ] **Step 1: Write the failing test for collection transitions**
+  Write a test showing that committing a command transitions `PaletteStage` to `CollectParameter`.
+  
+  ```rust
+  // crates/brain-tui/tests/command_palette_tests.rs
+  // Setup CommandPaletteState, select CHANGE_THEME, press Enter, assert stage is CollectParameter.
+  ```
+
+- [ ] **Step 2: Run test to verify it fails**
+  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
+  Expected: FAIL
+
+- [ ] **Step 3: Write minimal implementation**
+  Define `ParameterValue`, `CollectedParameter`, `ParameterCollectionState`, and `PaletteStage` inside `crates/brain-tui/src/ui/state.rs`.
+  Implement key bindings for navigation and collection inside the dispatcher so pressing `Enter` moves the stage state forward or updates the query.
+
+- [ ] **Step 4: Run test to verify it passes**
+  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
+  Expected: PASS
+
+- [ ] **Step 5: Commit**
+  ```bash
+  git commit -am "feat(tui): implement multi-step parameter collection state transitions"
+  ```
+
+---
+
+### Task 5: Execution Pipeline
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/command/executor.rs`
-- Test: `crates/brain-tui/tests/command_palette_tests.rs`
+- Modify: `crates/brain-tui/src/ui/application.rs`
 
 **Interfaces:**
-- Consumes: `CommandId`, `ThemeId`, `ModelId`
-- Produces: `CommandInvocation`, `ParameterValue`, `LocalStateMutation`, `ExecutionPlan`, `CommandExecutor`
+- Consumes: `CommandInvocation`
+- Produces: `ExecutionPlan` mapping to optimistic state updates and `BackendCommand` transport events
 
-- [ ] **Step 1: Write the failing test for execution planning**
-  Write a test verifying that `CommandExecutor::plan` maps a `ChangeTheme` invocation to the correct mutations and config save commands.
+- [ ] **Step 1: Write the failing test for execution plan mappings**
+  Write a test showing that `CommandExecutor` generates the correct `ExecutionPlan` with a backend command and a local theme mutation.
   
   ```rust
   // crates/brain-tui/tests/command_palette_tests.rs
@@ -339,97 +418,26 @@
   use brain_tui::ui::command::ThemeId;
 
   #[test]
-  fn test_change_theme_execution_plan() {
+  fn test_executor_theme_plan() {
       let invocation = CommandInvocation::ChangeTheme { theme: ThemeId("dark") };
       let plan = CommandExecutor::plan(invocation);
       
       assert_eq!(plan.mutations.len(), 1);
       assert!(matches!(plan.mutations[0], LocalStateMutation::ApplyTheme(ThemeId("dark"))));
+      assert_eq!(plan.backend_commands.len(), 1);
   }
   ```
 
 - [ ] **Step 2: Run test to verify it fails**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL (compilation errors, executor module not found).
+  Expected: FAIL
 
 - [ ] **Step 3: Write minimal implementation**
-  Create `crates/brain-tui/src/ui/command/executor.rs` and register it in `crates/brain-tui/src/ui/command/mod.rs`.
+  Create `crates/brain-tui/src/ui/command/executor.rs` implementing `CommandInvocation`, `LocalStateMutation`, `ExecutionPlan`, and `CommandExecutor`.
+  Update `crates/brain-tui/src/ui/application.rs` to parse invocations into plans, apply mutations to `AppState` optimistically, and push commands to the client.
   
-  ```rust
-  // crates/brain-tui/src/ui/command/executor.rs
-  use crate::ui::command::{ThemeId, ModelId, SessionTitle};
-  use crate::ui::protocol::BackendCommand;
-  use crate::ui::scheduler::{RenderReason, RenderInvalidation, RenderRequest};
-  use brain_domain::SessionId;
-
-  #[derive(Debug, Clone, PartialEq, Eq)]
-  pub enum CommandInvocation {
-      ChangeTheme { theme: ThemeId },
-      RenameSession { id: SessionId, title: SessionTitle },
-      ArchiveSession { id: SessionId },
-      DeleteSession { id: SessionId },
-      RestoreSession { id: SessionId },
-      SwitchModel { model: ModelId },
-      ClearChat,
-      ShowHelp,
-  }
-
-  #[derive(Debug, Clone, PartialEq, Eq)]
-  pub enum LocalStateMutation {
-      ApplyTheme(ThemeId),
-      RenameSession(SessionId, String),
-      ArchiveSession(SessionId),
-      DeleteSession(SessionId),
-      RestoreSession(SessionId),
-      ClearChat,
-  }
-
-  pub struct ExecutionPlan {
-      pub mutations: Vec<LocalStateMutation>,
-      pub backend_commands: Vec<BackendCommand>,
-      pub invalidation: RenderRequest,
-  }
-
-  pub struct CommandExecutor;
-
-  impl CommandExecutor {
-      pub fn plan(invocation: CommandInvocation) -> ExecutionPlan {
-          match invocation {
-              CommandInvocation::ChangeTheme { theme } => ExecutionPlan {
-                  mutations: vec![LocalStateMutation::ApplyTheme(theme)],
-                  backend_commands: vec![BackendCommand::SaveConfig {
-                      key: "theme".to_string(),
-                      val: theme.0.to_string(),
-                  }],
-                  invalidation: RenderRequest {
-                      reason: RenderReason::ThemeChanged,
-                      invalidation: RenderInvalidation::EverythingStale,
-                  },
-              },
-              CommandInvocation::RenameSession { id, title } => ExecutionPlan {
-                  mutations: vec![LocalStateMutation::RenameSession(id, title.0.clone())],
-                  backend_commands: vec![BackendCommand::RenameSession {
-                      session_id: id,
-                      title: Some(title.0),
-                  }],
-                  invalidation: RenderRequest {
-                      reason: RenderReason::Input,
-                      invalidation: RenderInvalidation::EverythingStale,
-                  },
-              },
-              // ... map remaining variants to empty or basic vectors for initial completeness
-              _ => ExecutionPlan {
-                  mutations: vec![],
-                  backend_commands: vec![],
-                  invalidation: RenderRequest {
-                      reason: RenderReason::Input,
-                      invalidation: RenderInvalidation::EverythingStale,
-                  },
-              }
-          }
-      }
-  }
-  ```
+  > **Reconciliation Invariant Note**: Ensure all optimistic updates (such as renaming or deleting sessions) correspond directly to downstream event handlers for reconciliation.
+  > **Transport Invariant Note**: `ExecutionPlan` is kept transport-agnostic; it simply declares abstract backend effects to keep clean architectural boundaries.
 
 - [ ] **Step 4: Run test to verify it passes**
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
@@ -438,71 +446,28 @@
 - [ ] **Step 5: Commit**
   ```bash
   git add crates/brain-tui/src/ui/command/executor.rs
-  git commit -m "feat(tui): implement CommandExecutor and ExecutionPlan plan mapping"
+  git commit -am "feat(tui): implement pure CommandExecutor and Application execution loops"
   ```
 
 ---
 
-### Task 4: Dispatcher & Application Integration
+### Task 6: Verification & Integration Tests
 
 **Files:**
-- Modify: `crates/brain-tui/src/ui/interaction/dispatcher.rs`
-- Modify: `crates/brain-tui/src/ui/application.rs`
-- Test: `crates/brain-tui/tests/command_palette_tests.rs`
+- Modify: `crates/brain-tui/tests/command_palette_tests.rs`
 
-**Interfaces:**
-- Consumes: `CommandPaletteState`, `CommandExecutor`
-- Produces: Routing of `Ctrl+K` key input, command execution in `Application`
-
-- [ ] **Step 1: Write the failing test for dispatch routing**
-  Write an integration test that simulates pressing `Ctrl+K` in Prompt focus, verifying that the Command Palette opens and grabs focus.
+- [ ] **Step 1: Write detailed integration tests**
+  Write tests covering keyboard navigation (`Up`/`Down`), fuzzy matching, and replay loops.
   
-  ```rust
-  // crates/brain-tui/tests/command_palette_tests.rs
-  // Setup dispatcher and AppState context, send Ctrl+K, verify fm.current() becomes CommandPalette
-  ```
-
-- [ ] **Step 2: Run test to verify it fails**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL
-
-- [ ] **Step 3: Write minimal implementation**
-  Add keybinding check in `InputRouter` and dispatcher key routing inside `crates/brain-tui/src/ui/interaction/dispatcher.rs`.
-  Then implement `execute_plan` execution flow inside `crates/brain-tui/src/ui/application.rs` to process mutations on `AppState` and push backend commands.
-
-- [ ] **Step 4: Run test to verify it passes**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
+- [ ] **Step 2: Run all tests in the workspace**
+  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test`
   Expected: PASS
+  
+- [ ] **Step 3: Update snapshots**
+  Run: `UPDATE_EXPECT=1 PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test`
+  Expected: PASS with golden snapshot updates.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
   ```bash
-  git commit -am "feat(tui): integrate Command Palette input routing and application execution"
-  ```
-
----
-
-### Task 5: UI Rendering (Palette Overlay & Completion Box)
-
-**Files:**
-- Modify: `crates/brain-tui/src/ui/renderer.rs`
-- Modify: `crates/brain-tui/src/ui/layout/` (geometry computation files)
-- Test: `crates/brain-tui/tests/command_palette_tests.rs`
-
-- [ ] **Step 1: Write the failing test for rendering overlay**
-  Verify that when `CommandPaletteState::open` is true, layout calculations yield a valid centered Rect.
-
-- [ ] **Step 2: Run test to verify it fails**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: FAIL
-
-- [ ] **Step 3: Write minimal implementation**
-  Implement `CommandPaletteGeometry` layout calculation and render functions inside `crates/brain-tui/src/ui/renderer.rs` to draw the bordered overlay modal, query prompt line, and suggestion results list when open.
-
-- [ ] **Step 4: Run test to verify it passes**
-  Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
-  Expected: PASS
-
-- [ ] **Step 5: Commit**
-  ```bash
-  git commit -am "feat(tui): implement Command Palette centered modal overlay rendering"
+  git commit -am "test(tui): verify Command Palette and Slash Commands with integration tests"
   ```
