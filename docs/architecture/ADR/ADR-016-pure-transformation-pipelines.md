@@ -17,7 +17,15 @@ Immutable Input ──► Pure Transformation ──► Immutable Output
 4. **Calibration**: `CalibrationEngine` reads immutable `FeedbackEvent` records to optimize and output `WeightSnapshot`.
 5. **Evaluation**: `OfflineEvaluator` scores snapshots against an `EvaluationDataset` to yield `EvaluationReport`.
 
-## Consequences
-* **Side-Effect-Free**: Pipelines calculate outputs in-memory without mutating external databases or modifying runtime states.
-* **Composability**: Subsystems can be chained together easily because outputs of one pipeline serve as inputs to the next.
-* **Zero Bias**: Isolating mutations guarantees that processing can be re-run indefinitely without causing drift or introducing execution bias.
+## Alternatives Considered
+* **Stateful Orchestrators**: In-place mutation of caches and repositories during calculation runs. Rejected because of synchronization overhead and race conditions.
+
+## Related ADRs
+* [ADR-010 (Domain Boundaries)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)
+* [ADR-012 (Value Objects)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-012-value-objects.md)
+
+## Consequences & Tradeoffs
+* **Allocations**: Increases short-lived heap allocations and intermediate copy creation overhead during calculations, though mitigated by Rust's efficient memory management.
+
+## Expected Stability
+Long-term.

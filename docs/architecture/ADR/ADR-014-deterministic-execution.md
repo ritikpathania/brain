@@ -12,7 +12,13 @@ We enforce absolute determinism throughout serving and routing pipelines:
 2. Hashing for sticky session routing must use a stable, explicit algorithm (64-bit `FNV-1a`) that produces identical values regardless of runtime environment, compiler version, or hardware layout.
 3. Fallback strategies (such as missing session IDs) must yield deterministic defaults (routing to the baseline variant) rather than falling back to non-deterministic random splits.
 
-## Consequences
-* **Reproducibility**: Run logs and evaluation metadata can be replayed byte-for-byte in test environments.
-* **Auditability**: Experiment telemetry guarantees that the same user session always experiences consistent model weights.
-* **Refactoring**: Changing compilation configurations or Rust versions will not alter system routing tables.
+## Alternatives Considered
+* **Standard Library Hasher**: Using `std::collections::hash_map::DefaultHasher`. Rejected because it does not guarantee stability across platforms or compiler version upgrades.
+* **Random Splitting**: Falling back to random number generators. Rejected because it destroys consistency across query evaluations.
+
+## Related ADRs
+* [ADR-011 (Immutable Snapshots)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-011-immutable-snapshots.md)
+* [ADR-013 (Behavioral Invariants)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-013-behavioral-invariants.md)
+
+## Expected Stability
+Long-term.

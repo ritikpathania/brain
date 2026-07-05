@@ -13,7 +13,14 @@ We enforce a value-object-first design pattern. Raw primitives are wrapped in do
 3. `SplitThreshold` and `LeafScore` validate that inputs are finite.
 4. Constructors return explicit validation errors instead of silently masking invalid bounds.
 
-## Consequences
-* **Incorrect States Excluded**: It is mathematically impossible to instantiate a ranking model or evaluation metrics containing NaNs or out-of-range floats.
-* **Self-Documenting Code**: Types describe their mathematical limits (e.g. passing `NdcgScore` instead of a naked `f64`).
-* **Ergonomics**: Code requires calling `.value()` to extract the inner primitive, and handling `Result` packages during construction.
+## Alternatives Considered
+* **Primitive Floats**: Storing naked `f64` across all equations. Rejected because of risks of silent math overflows or floating-point anomalies.
+* **Type Aliases**: Declaring `type NormalizedSignal = f64`. Rejected because aliases do not provide compile-time safety or runtime validation checking.
+
+## Related ADRs
+* [ADR-010 (Domain Boundaries)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)
+* [ADR-016 (Pure Transformation Pipelines)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-016-pure-transformation-pipelines.md)
+
+## Expected Stability
+Long-term.
+* **Review Trigger**: Extreme performance bottlenecks where CPU profiling shows object allocation/validation checking in tight mathematical loops is a blocker.

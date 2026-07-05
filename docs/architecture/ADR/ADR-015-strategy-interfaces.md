@@ -13,7 +13,14 @@ We decouple system operations behind strategy traits:
 3. `PublicationPolicy`: Abstracts snapshot publication logic (`NoRegressionPolicy`).
 4. `ExperimentRouter`: Abstracts retrieval request routing models (`DefaultExperimentRouter`, `CanaryExperimentRouter`).
 
-## Consequences
-* **Extensibility**: Adding a new ranking model (e.g. ensemble models) or a geo-based experiment router is done by implementing the trait. Serving orchestrators remain unchanged.
-* **Test Isolation**: Individual strategy implementations can be validated in isolation using unit tests.
-* **Indirection**: Minor performance overhead due to virtual dispatch, though typically optimized out by compiler monomorphization.
+## Alternatives Considered
+* **Enums/Conditional Matches**: Representing all routing/ranking models as a single enum and matching on them. Rejected due to high code churn whenever new models or experiment variants are added.
+* **Macros**: Using Rust macros for compile-time generation. Rejected because it complicates debugging and decreases IDE navigation usability.
+
+## Related ADRs
+* [ADR-010 (Domain Boundaries)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)
+* [ADR-017 (Model Compilation)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-017-model-compilation.md)
+
+## Expected Stability
+Long-term.
+* **Review Trigger**: Supporting distributed model serving or dynamic Rust plugin loadings (e.g. `wasm` modules).

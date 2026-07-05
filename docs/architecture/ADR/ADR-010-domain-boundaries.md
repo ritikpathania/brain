@@ -12,7 +12,15 @@ We enforce a strict boundary between the core domain layer (`crates/brain-domain
 2. Business invariants, validations, and mathematical scoring computations must be encapsulated directly within domain aggregates and entities (e.g. `Edge`, `Conversation`, `DecisionTreeDefinition`).
 3. External integrations (SQLite storage, Python FFI, IPC streaming, TUI layouts) are orchestrations owned exclusively by `brain-services`.
 
-## Consequences
-* **Testability**: Domain models can be tested instantly in-memory without starting transaction suites or mocking database connections.
-* **Architecture Integrity**: Clean separation prevents circular dependency issues and ensures new developer additions do not accidentally leak service details into the core domain.
-* **Overhead**: Minor translation boundary overhead between domain value objects and database/network DTO models.
+## Alternatives Considered
+* **Anemic Domain**: Storing raw data structs in `brain-domain` and placing all business logic and validations in service layers. Rejected because it fragments logic and duplicates validations.
+* **Layered Architecture**: Allowing domain packages to call services/repositories directly. Rejected because it introduces circular dependencies and complicates isolated testing.
+
+## Related ADRs
+* [ADR-004 (DDD Core Invariants)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-004.md)
+* [ADR-012 (Value Objects)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-012-value-objects.md)
+* [ADR-016 (Pure Transformation Pipelines)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-016-pure-transformation-pipelines.md)
+
+## Expected Stability
+Long-term. 
+* **Review Trigger**: Moving from single-repository deployment to a distributed microservices ecosystem.

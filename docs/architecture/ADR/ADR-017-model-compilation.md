@@ -13,7 +13,17 @@ We decouple model representation into serializable definitions and compiled layo
 3. `CompiledDecisionTree` executes inference runs on compiled, optimized memory structures.
 4. `DecisionTreeRankingModel` wraps both to keep the original definition immutable while serving score calculations from the compiled structure.
 
-## Consequences
-* **Performance**: The compiler can flatten recursion, pre-allocate nodes sequentially, or precompute lookup arrays.
-* **Flexibility**: We can optimize compiled layouts for latency or memory without altering the serialized definition schema or breaking database backward compatibility.
-* **Initialization Cost**: Minor overhead at startup during compilation, which is offset by faster online evaluation speeds.
+## Alternatives Considered
+* **Direct Interpretation**: Scanning tree leaves recursively on raw definition JSON objects. Rejected because of high latency and runtime parsing costs.
+* **JIT Compilation**: Dynamic runtime code generation. Rejected due to security concerns, platform portability issues, and complex toolchain dependency.
+
+## Related ADRs
+* [ADR-015 (Strategy Interfaces)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)
+
+## Consequences & Tradeoffs
+* **Startup / Load Latency**: Introduces a compilation step when instantiating the scoring model.
+* **Pipeline Complexity**: Developers must maintain both the serialized definition models and the compiler paths.
+
+## Expected Stability
+Long-term.
+* **Review Trigger**: The dynamic model size scales past memory limitations, requiring cache compilation designs.

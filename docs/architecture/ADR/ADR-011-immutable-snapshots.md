@@ -13,7 +13,13 @@ We model all weights and experiments as versioned, immutable snapshot snapshots:
 3. Swaps to active structures (via `ActiveWeightProvider` or `ExperimentRouter`) are executed atomically by replacing references, never by mutating fields of an existing snapshot in-place.
 4. Old snapshots are preserved in the relational repository as read-only records.
 
-## Consequences
-* **Safety**: Active ranking calculations cannot experience race conditions since weight definitions are read-only and immutable.
-* **Audit Trail**: Every request can be traced back to a specific, immutable snapshot version, enabling complete historical auditing and replication.
-* **Storage**: Keeping old versions requires disk storage, though negligible given the small footprint of model weight parameters.
+## Alternatives Considered
+* **In-Place DB Updates**: Overwriting active weight records in SQLite directly. Rejected because active runs could query corrupted/in-transition weights, making rollback impossible.
+* **Mutable Cache**: Maintaining an in-memory mutable cache of weights. Rejected because of multi-threading race conditions and lock-contention overhead.
+
+## Related ADRs
+* [ADR-014 (Deterministic Execution)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-014-deterministic-execution.md)
+
+## Expected Stability
+Long-term.
+* **Review Trigger**: Requirements for streaming real-time weight deltas that exceed the latency threshold of snapshot replacement.
