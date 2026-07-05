@@ -16,6 +16,8 @@ pub mod sqlite_store;
 pub mod temporal;
 /// Active weights snapshot provider abstractions.
 pub mod active_weights;
+/// Feature extraction pipeline for learned ranking.
+pub mod feature_extractor;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
