@@ -108,3 +108,115 @@ fn test_learned_temporal_scorer() {
     test_store.assert_clean();
 }
 
+#[test]
+fn test_calibration_engine_idempotency_and_linear_math() {
+    use brain_domain::retrieval::models::{
+        CalibrationPolicy, CalibrationPolicyVersion, CalibrationAlgorithmType,
+        FeedbackEvent, NormalizedSignal, RankingSignals
+    };
+    use brain_domain::identifiers::NodeId;
+    use brain_services::retrieval::calibration::CalibrationEngine;
+
+    let engine = CalibrationEngine::new();
+    let initial = make_dummy_snapshot(1);
+
+    let policy = CalibrationPolicy {
+        version: CalibrationPolicyVersion::new(1),
+        algorithm: CalibrationAlgorithmType::LinearAdjustment,
+        learning_rate: 0.1,
+        regularization: 0.01,
+        min_feedback_events: 1,
+    };
+
+    // 1. Idempotency test (no events)
+    let (candidate, report) = engine.run_calibration(&initial, &[], &policy).unwrap();
+    assert_eq!(candidate.metadata.version.value(), 1);
+    assert!(!report.publication_decision);
+    assert_eq!(report.validation_loss, 0.0);
+
+    // 2. Linear math test
+    let sig_val = NormalizedSignal::new(0.9).unwrap();
+    let signals = RankingSignals::new(sig_val, sig_val, sig_val, sig_val);
+    let event = FeedbackEvent {
+        id: "evt-1".to_string(),
+        schema_version: 1,
+        query: "test".to_string(),
+        node_id: NodeId::new(),
+        selected: true,
+        timestamp: 1620000000,
+        ranking_position: 2,
+        context: serde_json::to_string(&signals).unwrap(),
+    };
+
+    let (candidate2, report2) = engine.run_calibration(&initial, &[event], &policy).unwrap();
+    assert_eq!(candidate2.metadata.version.value(), 2);
+    assert!(report2.publication_decision);
+    // Loss should be (rank - 1.0)^2 = (2.0 - 1.0)^2 = 1.0
+    assert_eq!(report2.validation_loss, 1.0);
+
+    // Initial weight was 1.0
+    // Delta = lr * (signal - 0.5) = 0.1 * (0.9 - 0.5) = 0.04
+    // Intermediate weight = 1.0 + 0.04 = 1.04
+    // Regularized weight = 1.04 * (1.0 - reg) = 1.04 * 0.99 = 1.0296
+    assert!((candidate2.weights.semantic().value() - 1.0296).abs() < 1e-6);
+}
+
+#[test]
+fn test_weight_calibration_service_lifecycle_and_rollback() {
+    use brain_domain::retrieval::models::{
+        CalibrationPolicy, CalibrationPolicyVersion, CalibrationAlgorithmType,
+        FeedbackEvent, NormalizedSignal, RankingSignals, SnapshotVersion
+    };
+    use brain_domain::identifiers::NodeId;
+    use brain_services::retrieval::calibration::WeightCalibrationService;
+
+    let test_store = brain_storage::TestStorage::new();
+    let sqlite = std::sync::Arc::new(test_store.storage().clone());
+    let initial = make_dummy_snapshot(1);
+    let provider = std::sync::Arc::new(DefaultActiveWeightProvider::new(initial));
+
+    let service = WeightCalibrationService::new(sqlite.clone(), provider.clone());
+
+    // Ingest event
+    let sig_val = NormalizedSignal::new(0.8).unwrap();
+    let signals = RankingSignals::new(sig_val, sig_val, sig_val, sig_val);
+    let event = FeedbackEvent {
+        id: "evt-2".to_string(),
+        schema_version: 1,
+        query: "test".to_string(),
+        node_id: NodeId::new(),
+        selected: true,
+        timestamp: 1620000000,
+        ranking_position: 1,
+        context: serde_json::to_string(&signals).unwrap(),
+    };
+    service.ingest_feedback(event).unwrap();
+
+    // Calibrate
+    let policy = CalibrationPolicy {
+        version: CalibrationPolicyVersion::new(1),
+        algorithm: CalibrationAlgorithmType::LinearAdjustment,
+        learning_rate: 0.1,
+        regularization: 0.01,
+        min_feedback_events: 1,
+    };
+    let (candidate, _report) = service.calibrate_weights(&policy).unwrap();
+    assert_eq!(candidate.metadata.version.value(), 2);
+
+    // Publish
+    service.publish_snapshot(candidate).unwrap();
+    assert_eq!(provider.active_snapshot().unwrap().metadata.version.value(), 2);
+
+    // Monotonicity check: publishing version 1 or 2 again must fail
+    let bad_snapshot = make_dummy_snapshot(1);
+    let res = service.publish_snapshot(bad_snapshot);
+    assert!(res.is_err());
+
+    // Rollback to version 1
+    service.rollback_to(SnapshotVersion::new(1)).unwrap();
+    assert_eq!(provider.active_snapshot().unwrap().metadata.version.value(), 1);
+
+    test_store.assert_clean();
+}
+
+
