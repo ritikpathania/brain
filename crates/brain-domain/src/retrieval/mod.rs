@@ -2,6 +2,8 @@
 pub mod models;
 /// Core models representing feature extraction and signal normalization.
 pub mod features;
+/// Metric value objects, datasets, and report structures.
+pub mod evaluation;
 /// Planner and policies deciding Logical plans.
 pub mod planner;
 /// Optimizer generating Physical plans.
