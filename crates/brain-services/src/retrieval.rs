@@ -22,6 +22,8 @@ pub mod feature_extractor;
 pub mod evaluator;
 /// Experiment routing and canary deployments.
 pub mod experiment;
+/// Deserializer and dynamic factory resolution for ranking models.
+pub mod model_resolver;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
