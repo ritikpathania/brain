@@ -30,10 +30,13 @@ pub const THEME_DARK: ThemeId = ThemeId("dark");
 pub const THEME_HIGH_CONTRAST: ThemeId = ThemeId("high_contrast");
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ModelId(pub &'static str);
+pub struct ModelId(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionTitle(pub String);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ParameterId(pub &'static str);
 ```
 
 ### 1.2 Declarative Parameter Descriptors
@@ -50,6 +53,7 @@ pub enum ParameterKind {
 }
 
 pub struct ParameterDescriptor {
+    pub id: ParameterId,
     pub name: &'static str,
     pub description: &'static str,
     pub kind: ParameterKind,
@@ -101,6 +105,7 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         keywords: &["appearance", "dark", "light", "color", "style"],
         parameters: &[
             ParameterDescriptor {
+                id: ParameterId("theme"),
                 name: "theme",
                 description: "Theme name to apply",
                 kind: ParameterKind::Theme,
@@ -119,6 +124,7 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         keywords: &["session", "title", "name", "edit"],
         parameters: &[
             ParameterDescriptor {
+                id: ParameterId("title"),
                 name: "title",
                 description: "New session title",
                 kind: ParameterKind::String,
@@ -131,15 +137,20 @@ pub static COMMANDS: &[CommandDescriptor] = &[
 pub struct CommandRegistry;
 
 impl CommandRegistry {
+    /// Expose an iterator over all registered static command descriptors.
+    pub fn iter() -> impl Iterator<Item = &'static CommandDescriptor> {
+        COMMANDS.iter()
+    }
+
     /// Look up a command by its unique ID.
     pub fn find_by_id(id: CommandId) -> Option<&'static CommandDescriptor> {
-        COMMANDS.iter().find(|cmd| cmd.id == id)
+        Self::iter().find(|cmd| cmd.id == id)
     }
 
     /// Look up a command by its name or alias.
     pub fn find_by_name_or_alias(name: &str) -> Option<&'static CommandDescriptor> {
         let name_lower = name.to_lowercase();
-        COMMANDS.iter().find(|cmd| {
+        Self::iter().find(|cmd| {
             cmd.title.to_lowercase() == name_lower
                 || cmd.aliases.iter().any(|&alias| alias.to_lowercase() == name_lower)
         })
@@ -239,9 +250,14 @@ The overlay is centered over the main application screen, ensuring consistent la
 The Command Palette operates as a multi-step parameter collection flow.
 
 ```rust
+pub struct CollectedParameter {
+    pub id: ParameterId,
+    pub value: ParameterValue,
+}
+
 pub struct ParameterCollectionState {
     pub command_id: CommandId,
-    pub collected: Vec<(String, ParameterValue)>,
+    pub collected: Vec<CollectedParameter>,
 }
 
 impl ParameterCollectionState {
@@ -256,7 +272,7 @@ pub enum PaletteStage {
     Search,
     /// Collecting parameter inputs.
     CollectParameter(ParameterCollectionState),
-    /// Confirming execution (e.g. for destructive actions).
+    /// Confirming execution (e.g. for destructive actions) before building the invocation.
     Confirm {
         command_id: CommandId,
         arguments: ParameterCollectionState,
@@ -294,19 +310,18 @@ pub struct SlashCompletionState {
 pub struct SlashCompletionEngine;
 
 impl SlashCompletionEngine {
-    /// Searches and filters command descriptors matching a slash prefix.
-    pub fn matches(query: &str) -> Vec<&'static CommandDescriptor> {
+    /// Searches and filters command descriptors matching a slash prefix as an iterator.
+    pub fn matches(query: &str) -> impl Iterator<Item = &'static CommandDescriptor> {
         if !query.starts_with('/') {
-            return Vec::new();
+            return [].iter().copied().take(0); // empty iterator
         }
-        let term = &query[1..].to_lowercase();
+        let term = query[1..].to_lowercase();
         COMMANDS.iter()
-            .filter(|cmd| {
+            .filter(move |cmd| {
                 cmd.visibility != CommandVisibility::PaletteOnly
-                    && (cmd.title.to_lowercase().contains(term)
-                        || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(term)))
+                    && (cmd.title.to_lowercase().contains(&term)
+                        || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term)))
             })
-            .collect()
     }
 }
 ```
@@ -335,9 +350,11 @@ pub enum CommandInvocation {
 
 ### 5.2 Execution Plans and Effects
 
-We define a pure structure for execution results, decoupling state side-effects from the UI:
+We define a pure structure for execution results, decoupling state side-effects from the UI. We reuse `RenderReason` and `RenderInvalidation` defined in `crate::ui::scheduler`:
 
 ```rust
+use crate::ui::scheduler::{RenderReason, RenderInvalidation, RenderRequest};
+
 pub enum LocalStateMutation {
     ApplyTheme(ThemeId),
     RenameSession(SessionId, String),
@@ -347,16 +364,10 @@ pub enum LocalStateMutation {
     ClearChat,
 }
 
-pub enum RenderInvalidation {
-    EverythingStale,
-    ConversationStale,
-    PromptStale,
-}
-
 pub struct ExecutionPlan {
-    pub mutation: Option<LocalStateMutation>,
-    pub backend_command: Option<BackendCommand>,
-    pub invalidation: RenderInvalidation,
+    pub mutations: Vec<LocalStateMutation>,
+    pub backend_commands: Vec<BackendCommand>,
+    pub invalidation: RenderRequest,
 }
 
 pub struct CommandExecutor;
@@ -366,20 +377,26 @@ impl CommandExecutor {
     pub fn plan(invocation: CommandInvocation) -> ExecutionPlan {
         match invocation {
             CommandInvocation::ChangeTheme { theme } => ExecutionPlan {
-                mutation: Some(LocalStateMutation::ApplyTheme(theme)),
-                backend_command: Some(BackendCommand::SaveConfig {
+                mutations: vec![LocalStateMutation::ApplyTheme(theme)],
+                backend_commands: vec![BackendCommand::SaveConfig {
                     key: "theme".to_string(),
                     val: theme.0.to_string(),
-                }),
-                invalidation: RenderInvalidation::EverythingStale,
+                }],
+                invalidation: RenderRequest {
+                    reason: RenderReason::ThemeChanged,
+                    invalidation: RenderInvalidation::EverythingStale,
+                },
             },
             CommandInvocation::RenameSession { id, title } => ExecutionPlan {
-                mutation: Some(LocalStateMutation::RenameSession(id, title.0.clone())),
-                backend_command: Some(BackendCommand::RenameSession {
+                mutations: vec![LocalStateMutation::RenameSession(id, title.0.clone())],
+                backend_commands: vec![BackendCommand::RenameSession {
                     session_id: id,
                     title: Some(title.0),
-                }),
-                invalidation: RenderInvalidation::EverythingStale,
+                }],
+                invalidation: RenderRequest {
+                    reason: RenderReason::Input,
+                    invalidation: RenderInvalidation::EverythingStale,
+                },
             },
             // ... plans for remaining commands
         }
