@@ -257,8 +257,8 @@ Every task in this plan must satisfy the following criteria before being conside
 ### Task 2: Slash Commands
 
 **Files:**
-- Modify: `crates/brain-tui/src/ui/state.rs`
-- Create: `crates/brain-tui/src/ui/command/completion.rs`
+- Create: `crates/brain-tui/src/ui/command/completion.rs` (SlashCompletionState, SlashCompletionEngine)
+- Modify: `crates/brain-tui/src/ui/state.rs` (reference SlashCompletionState inside AppState)
 - Modify: `crates/brain-tui/src/ui/widgets/chat_screen.rs` (render the popup box)
 
 **Interfaces:**
@@ -285,11 +285,18 @@ Every task in this plan must satisfy the following criteria before being conside
   Expected: FAIL (compilation errors, completion engine not defined).
 
 - [ ] **Step 3: Write minimal implementation**
-  Create `crates/brain-tui/src/ui/command/completion.rs`.
+  Create `crates/brain-tui/src/ui/command/completion.rs` defining `SlashCompletionState` and `SlashCompletionEngine`.
   
   ```rust
   // crates/brain-tui/src/ui/command/completion.rs
   use crate::ui::command::{COMMANDS, CommandDescriptor, CommandVisibility};
+
+  /// UI state tracker for active inline slash completion popup.
+  pub struct SlashCompletionState {
+      pub visible: bool,
+      pub selected_index: usize,
+      pub query: String,
+  }
 
   pub struct SlashCompletionEngine;
 
@@ -326,7 +333,9 @@ Every task in this plan must satisfy the following criteria before being conside
 ### Task 3: Command Palette UI
 
 **Files:**
-- Modify: `crates/brain-tui/src/ui/focus.rs`
+- Create: `crates/brain-tui/src/ui/command/palette.rs` (CommandPaletteState definition)
+- Modify: `crates/brain-tui/src/ui/state.rs` (reference CommandPaletteState inside AppState)
+- Modify: `crates/brain-tui/src/ui/focus.rs` (FocusTarget, FocusManager updates)
 - Modify: `crates/brain-tui/src/ui/layout/mod.rs` (defining overlay bounds)
 - Modify: `crates/brain-tui/src/ui/renderer.rs` (overlay rendering)
 
@@ -364,6 +373,7 @@ Every task in this plan must satisfy the following criteria before being conside
   Expected: FAIL
 
 - [ ] **Step 3: Write minimal implementation**
+  Create `crates/brain-tui/src/ui/command/palette.rs` containing `CommandPaletteState` and the stage/arguments enums.
   Add `FocusTarget::CommandPalette` and `save_focus`/`pop_saved_focus` methods on `FocusManager` inside `crates/brain-tui/src/ui/focus.rs`.
   Define `CommandPaletteGeometry` in the layout files and update `crates/brain-tui/src/ui/renderer.rs` to render a centered bordered box when the palette is open.
 
@@ -373,6 +383,7 @@ Every task in this plan must satisfy the following criteria before being conside
 
 - [ ] **Step 5: Commit**
   ```bash
+  git add crates/brain-tui/src/ui/command/palette.rs
   git commit -am "feat(tui): add Command Palette overlay bounds, rendering, and focus targets"
   ```
 
@@ -381,6 +392,7 @@ Every task in this plan must satisfy the following criteria before being conside
 ### Task 4: Parameter Collection
 
 **Files:**
+- Modify: `crates/brain-tui/src/ui/command/palette.rs`
 - Modify: `crates/brain-tui/src/ui/state.rs`
 - Modify: `crates/brain-tui/src/ui/interaction/dispatcher.rs`
 
@@ -401,7 +413,7 @@ Every task in this plan must satisfy the following criteria before being conside
   Expected: FAIL
 
 - [ ] **Step 3: Write minimal implementation**
-  Define `ParameterValue`, `CollectedParameter`, `ParameterCollectionState`, and `PaletteStage` inside `crates/brain-tui/src/ui/state.rs`.
+  Move `ParameterValue`, `CollectedParameter`, `ParameterCollectionState`, and `PaletteStage` into `crates/brain-tui/src/ui/command/palette.rs`.
   Implement key bindings for navigation and collection inside the dispatcher so pressing `Enter` moves the stage state forward or updates the query.
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -425,7 +437,7 @@ Every task in this plan must satisfy the following criteria before being conside
 - Consumes: `CommandInvocation`
 - Produces: `ExecutionPlan` mapping to optimistic state updates and `BackendCommand` transport events
 
-- [ ] **Step 1: Write the failing test for execution plan mappings**
+- [ ] **Step 1: Write the failing test for pure execution planning**
   Write a test showing that `CommandExecutor` generates the correct `ExecutionPlan` with a backend command and a local theme mutation.
   
   ```rust
@@ -448,9 +460,12 @@ Every task in this plan must satisfy the following criteria before being conside
   Run: `PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --test command_palette_tests`
   Expected: FAIL
 
-- [ ] **Step 3: Write minimal implementation**
-  Create `crates/brain-tui/src/ui/command/executor.rs` implementing `CommandInvocation`, `LocalStateMutation`, `ExecutionPlan`, and `CommandExecutor`.
-  Update `crates/brain-tui/src/ui/application.rs` to parse invocations into plans, apply mutations to `AppState` optimistically, and push commands to the client.
+- [ ] **Step 3a: Write minimal implementation for CommandExecutor (pure mapping)**
+  Create `crates/brain-tui/src/ui/command/executor.rs` implementing `CommandInvocation`, `LocalStateMutation`, `ExecutionPlan`, and `CommandExecutor` mappings.
+  Run unit tests to verify correctness of pure mappings.
+
+- [ ] **Step 3b: Integrate ExecutionPlan with Application loop (async orchestration)**
+  Update `crates/brain-tui/src/ui/application.rs` to process mutations on `AppState` and forward backend command effects to the client.
   
   > **Reconciliation Invariant Note**: Ensure all optimistic updates (such as renaming or deleting sessions) correspond directly to downstream event handlers for reconciliation.
   > **Transport Invariant Note**: `ExecutionPlan` is kept transport-agnostic; it simply declares abstract backend effects to keep clean architectural boundaries.
