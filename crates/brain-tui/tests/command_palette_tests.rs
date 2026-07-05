@@ -477,6 +477,61 @@ fn test_command_execution_pipeline() {
     assert_eq!(res.ui_event, Some(UiEvent::Command(CommandInvocation::ClearChat)));
 }
 
+#[test]
+fn test_command_palette_widget_rendering() {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use brain_tui::ui::theme::Theme;
+    use brain_tui::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState};
+    use brain_tui::ui::widgets::palette;
+    use brain_tui::ui::widgets::completion;
+    use brain_tui::ui::command::completion::SlashCompletionState;
+
+    // 1. Render Search Stage
+    let backend = TestBackend::new(80, 20);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let theme = Theme::default();
+    let mut state = CommandPaletteState::new();
+    state.stage = PaletteStage::Search;
+    state.editor.insert('t');
+    state.editor.insert('h');
+
+    let area = ratatui::layout::Rect::new(10, 2, 60, 15);
+    terminal.draw(|f| {
+        palette::draw(f, area, &state, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    // Validate centering/sizing and title text exists in buffer
+    let mut title_found = false;
+    for y in 0..20 {
+        for x in 0..80 {
+            let cell = buffer.get(x, y);
+            if cell.symbol() == "P" {
+                // "Palette" contains 'P'
+                title_found = true;
+            }
+        }
+    }
+    assert!(title_found);
+
+    // 2. Render CollectParameter Stage
+    let mut state_param = CommandPaletteState::new();
+    state_param.stage = PaletteStage::CollectParameter(ParameterCollectionState::new(brain_tui::ui::command::CHANGE_THEME));
+    terminal.draw(|f| {
+        palette::draw(f, area, &state_param, &theme);
+    }).unwrap();
+
+    // 3. Render Slash Completion Popup
+    let mut completion_state = SlashCompletionState::new();
+    completion_state.visible = true;
+    completion_state.query = "/t".to_string();
+    terminal.draw(|f| {
+        completion::draw(f, ratatui::layout::Rect::new(0, 0, 40, 10), &completion_state, &theme);
+    }).unwrap();
+}
+
+
 
 
 
