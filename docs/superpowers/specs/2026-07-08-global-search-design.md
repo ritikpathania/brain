@@ -59,8 +59,8 @@ use brain_domain::SessionId;
 pub struct ProviderId(&'static str);
 
 impl ProviderId {
-    /// Internal construction helper.
-    pub const fn new(id: &'static str) -> Self {
+    /// Crate-private construction helper.
+    pub(crate) const fn new(id: &'static str) -> Self {
         Self(id)
     }
     /// Returns the inner string slice.
@@ -194,6 +194,8 @@ pub trait SearchProvider: Send + Sync {
 
 ### The Search Session & Controller
 The `SearchController` coordinates lifetimes and increments generation sequences. It is the only component allowed to start search providers, schedule remote searches, or trigger cancellations.
+
+> **Registration Invariant**: Provider registration occurs once during application initialization and remains immutable for the lifetime of the application.
 
 ```rust
 pub struct SearchSession {
