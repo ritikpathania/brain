@@ -11,6 +11,8 @@ pub mod sidebar;
 pub mod ast;
 /// Document parser mapping markdown to semantic blocks.
 pub mod parser;
+/// Language syntax highlighting lexer framework.
+pub mod lexer;
 
 pub use editor::{TextBuffer, Cursor, Editor};
 pub use scroll::{ScrollState, AutoFollowPolicy};
