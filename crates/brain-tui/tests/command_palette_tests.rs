@@ -137,6 +137,8 @@ fn test_slash_completion_dispatch_trapping() {
     let lookup = DummyLookup;
 
 
+    let mut pending_approvals = vec![];
+
     // 1. Type '/' -> Should show autocomplete
     let _ = Dispatcher::dispatch(
         InputAction::Text(TextInput::Char('/')),
@@ -151,6 +153,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -172,6 +175,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -192,6 +196,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -210,6 +215,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -275,6 +281,8 @@ fn test_palette_parameter_collection_transitions() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     // 1. Toggle command palette open via shortcut
     let _ = Dispatcher::dispatch(
         InputAction::Command(Command::ToggleCommandPalette),
@@ -289,6 +297,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
     assert!(command_palette.open);
@@ -310,6 +319,7 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
+                pending_approvals: &mut pending_approvals,
             }
         );
     }
@@ -335,6 +345,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
     assert!(command_palette.open);
@@ -361,6 +372,7 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
+                pending_approvals: &mut pending_approvals,
             }
         );
     }
@@ -379,6 +391,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -437,6 +450,8 @@ fn test_command_execution_pipeline() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     // Input "clear" to select Clear Chat
     for c in "clear".chars() {
         let _ = Dispatcher::dispatch(
@@ -452,6 +467,7 @@ fn test_command_execution_pipeline() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
+                pending_approvals: &mut pending_approvals,
             }
         );
     }
@@ -469,6 +485,7 @@ fn test_command_execution_pipeline() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 

@@ -121,8 +121,30 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         if let Some(event) = events.next().await {
             match event {
                 Event::Terminal(crate::event::TerminalEvent::Key(key)) => {
-                    let action = match key.code {
-                        crossterm::event::KeyCode::Esc => {
+                    let action = if !state.pending_approvals.is_empty() {
+                        let first = state.pending_approvals.first().unwrap().clone();
+                        match key.code {
+                            crossterm::event::KeyCode::Char('y') | crossterm::event::KeyCode::Char('Y') | crossterm::event::KeyCode::Enter => {
+                                let client_clone = client.clone();
+                                let call_id = first.call_id.clone();
+                                tokio::spawn(async move {
+                                    let _ = client_clone.approve_tool_call(call_id, true).await;
+                                });
+                                Some(Action::ApproveToolCall { call_id: first.call_id, approved: true })
+                            }
+                            crossterm::event::KeyCode::Char('n') | crossterm::event::KeyCode::Char('N') | crossterm::event::KeyCode::Esc => {
+                                let client_clone = client.clone();
+                                let call_id = first.call_id.clone();
+                                tokio::spawn(async move {
+                                    let _ = client_clone.approve_tool_call(call_id, false).await;
+                                });
+                                Some(Action::ApproveToolCall { call_id: first.call_id, approved: false })
+                            }
+                            _ => None,
+                        }
+                    } else {
+                        match key.code {
+                            crossterm::event::KeyCode::Esc => {
                             if state.is_generating() {
                                 if let Some(token) = active_cancel.take() {
                                     token.cancel();
@@ -210,7 +232,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             }
                         }
                         _ => None,
-                    };
+                    }
+                };
+
                     if let Some(act) = action {
                         let res = state.update(act);
                         match res {
@@ -293,6 +317,32 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             state.update(Action::CancelStream);
                             active_cancel = None;
                         }
+                        brain_core::events::StreamEventKind::ToolCallRequest { call_id, tool_id, arguments, requires_approval } => {
+                            state.update(Action::ToolCallRequested {
+                                message: crate::ui::interaction::MessageId(0),
+                                call_id,
+                                tool_id,
+                                arguments,
+                                requires_approval,
+                            });
+                        }
+                        brain_core::events::StreamEventKind::ToolProgress { call_id, sequence, detail, message } => {
+                            state.update(Action::ToolProgressReceived {
+                                message: crate::ui::interaction::MessageId(0),
+                                call_id,
+                                sequence,
+                                detail,
+                                log_message: message,
+                            });
+                        }
+                        brain_core::events::StreamEventKind::ToolCallResult { call_id, result, is_error } => {
+                            state.update(Action::ToolResultReceived {
+                                message: crate::ui::interaction::MessageId(0),
+                                call_id,
+                                result,
+                                is_error,
+                            });
+                        }
                         _ => {}
                     }
                 }
@@ -338,6 +388,7 @@ mod integration_tests {
         async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> { Ok(vec![]) }
         async fn load_session(&self, _id: brain_domain::SessionId) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
         async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> { Ok(()) }
+        async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> { Ok(()) }
     }
 
     #[tokio::test]

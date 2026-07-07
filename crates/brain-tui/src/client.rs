@@ -82,6 +82,9 @@ pub trait ExecutionClient: Send + Sync {
 
     /// Permanently deletes a historical session.
     async fn delete_session(&self, id: SessionId) -> Result<(), BrainError>;
+
+    /// Approves or denies a tool call.
+    async fn approve_tool_call(&self, call_id: brain_core::events::ToolCallId, approved: bool) -> Result<(), BrainError>;
 }
 
 #[cfg(test)]
@@ -122,6 +125,10 @@ mod tests {
         }
 
         async fn delete_session(&self, _id: SessionId) -> Result<(), BrainError> {
+            Ok(())
+        }
+
+        async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
             Ok(())
         }
     }

@@ -10,6 +10,10 @@ use crate::ui::protocol::FinishReason;
 use crate::ui::interaction::sidebar::SidebarInteraction;
 use crate::ui::command::completion::SlashCompletionState;
 use crate::ui::command::palette::CommandPaletteState;
+use crate::ui::command::tool::{ToolCallId, ToolId, ToolProgressDetail, ToolExecution, ToolApproval, ToolExecutionStatus, ToolLogEntry};
+use std::time::SystemTime;
+
+
 
 
 
@@ -28,7 +32,9 @@ pub struct AppState<'a> {
     command_palette: CommandPaletteState,
     sessions: Vec<SessionSummary>,
     router: ScreenRouter<'a>,
-
+    active_tool_calls: Vec<crate::ui::command::tool::ToolExecution>,
+    pending_approvals: Vec<crate::ui::command::tool::ToolApproval>,
+    message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
 
     cols: u16,
     rows: u16,
@@ -55,9 +61,12 @@ impl<'a> AppState<'a> {
             command_palette: CommandPaletteState::new(),
             sessions: Vec::new(),
             router,
-
+            active_tool_calls: Vec::new(),
+            pending_approvals: Vec::new(),
+            message_tool_calls: std::collections::HashMap::new(),
 
             cols: 80,
+
             rows: 24,
         }
     }
@@ -128,6 +137,21 @@ impl<'a> AppState<'a> {
     }
 
 
+
+    /// Read-only accessor for active tool calls.
+    pub fn active_tool_calls(&self) -> &[crate::ui::command::tool::ToolExecution] {
+        &self.active_tool_calls
+    }
+
+    /// Read-only accessor for pending approvals.
+    pub fn pending_approvals(&self) -> &[crate::ui::command::tool::ToolApproval] {
+        &self.pending_approvals
+    }
+
+    /// Read-only accessor for message tool calls.
+    pub fn message_tool_calls(&self) -> &std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>> {
+        &self.message_tool_calls
+    }
 
     /// Read-only accessor for session summaries.
     pub fn sessions(&self) -> &[SessionSummary] {
@@ -316,4 +340,90 @@ impl<'a> AppState<'a> {
     pub fn reset_generation(&mut self) {
         self.generation = GenerationState::Idle;
     }
+
+    /// Domain operation when tool call is requested by backend.
+    pub fn handle_tool_call_request(
+        &mut self,
+        message: MessageId,
+        call_id: ToolCallId,
+        tool_id: ToolId,
+        arguments: String,
+        requires_approval: bool,
+    ) {
+        if self.active_tool_calls.iter().any(|t| t.call_id == call_id) {
+            return;
+        }
+        if self.message_tool_calls.values().any(|list| list.iter().any(|t| t.call_id == call_id)) {
+            return;
+        }
+
+        let mut new_execution = ToolExecution::new(message, call_id.clone(), tool_id.clone());
+        if requires_approval {
+            let approval = ToolApproval {
+                message_id: message,
+                call_id,
+                tool_id,
+                arguments,
+            };
+            self.pending_approvals.push(approval);
+        } else {
+            new_execution.status = ToolExecutionStatus::Approved;
+        }
+        self.active_tool_calls.push(new_execution);
+    }
+
+    /// Domain operation to update tool execution progress.
+    pub fn handle_tool_progress(
+        &mut self,
+        call_id: ToolCallId,
+        sequence: u64,
+        detail: ToolProgressDetail,
+        log_message: String,
+    ) {
+        if let Some(tool) = self.active_tool_calls.iter_mut().find(|t| t.call_id == call_id) {
+            if tool.status.is_terminal() {
+                return;
+            }
+            if sequence <= tool.protocol_state.last_sequence {
+                return;
+            }
+            tool.protocol_state.last_sequence = sequence;
+            tool.status = ToolExecutionStatus::Running { progress: detail };
+            if !log_message.is_empty() {
+                tool.logs.push(ToolLogEntry {
+                    timestamp: SystemTime::now(),
+                    message: log_message,
+                });
+            }
+        }
+    }
+
+    /// Domain operation to receive a final tool outcome result.
+    pub fn handle_tool_result(&mut self, message: MessageId, call_id: ToolCallId, result: String, is_error: bool) {
+        if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+            let mut tool = self.active_tool_calls.remove(pos);
+            if is_error {
+                tool.status = ToolExecutionStatus::Failed { error: result };
+            } else {
+                tool.status = ToolExecutionStatus::Completed { result };
+            }
+            self.message_tool_calls.entry(message).or_default().push(tool);
+        }
+    }
+
+    /// Domain operation to record user approval or denial.
+    pub fn handle_approve_tool_call(&mut self, call_id: ToolCallId, approved: bool) {
+        self.pending_approvals.retain(|a| a.call_id != call_id);
+        if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+            if approved {
+                self.active_tool_calls[pos].status = ToolExecutionStatus::Approved;
+            } else {
+                let mut tool = self.active_tool_calls.remove(pos);
+                tool.status = ToolExecutionStatus::Denied;
+                let msg_id = tool.message_id;
+                self.message_tool_calls.entry(msg_id).or_default().push(tool);
+            }
+        }
+    }
 }
+

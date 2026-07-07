@@ -53,7 +53,78 @@ pub enum StreamEventKind {
         /// Diagnostics error message description.
         message: String,
     },
+    /// Request user authorization for a tool call.
+    ToolCallRequest {
+        /// Unique tool call ID.
+        call_id: ToolCallId,
+        /// Name / identifier of the tool.
+        tool_id: ToolId,
+        /// Arguments json payload.
+        arguments: String,
+        /// True if user approval is required before execution.
+        requires_approval: bool,
+    },
+    /// Incremental progress log updates from a running tool.
+    ToolProgress {
+        /// Unique tool call ID.
+        call_id: ToolCallId,
+        /// Monotonic sequence within the tool call lifecycle.
+        sequence: u64,
+        /// Determinate or indeterminate progress metrics.
+        detail: ToolProgressDetail,
+        /// Diagnostic progress text message.
+        message: String,
+    },
+    /// Final result of a tool execution.
+    ToolCallResult {
+        /// Unique tool call ID.
+        call_id: ToolCallId,
+        /// Output content or error description from the tool.
+        result: String,
+        /// True if execution failed.
+        is_error: bool,
+    },
 }
+
+/// Type-safe opaque identifier for a tool execution call.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ToolCallId(pub String);
+
+
+/// Type-safe opaque identifier for a tool descriptor.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ToolId(pub String);
+
+/// Unit category for tool progress completion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProgressUnit {
+    /// Steps completed.
+    Steps,
+    /// Bytes processed.
+    Bytes,
+    /// Arbitrary items completed.
+    Items,
+}
+
+/// Completion details for a tool execution step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ToolProgressDetail {
+    /// Progress is ongoing but has no absolute total bound.
+    Indeterminate,
+    /// Progress has known completed and total quantities.
+    Determinate {
+        /// Number of units completed.
+        completed: u64,
+        /// Total number of units expected.
+        total: u64,
+        /// The progress unit kind.
+        unit: ProgressUnit,
+    },
+}
+
+
 
 #[cfg(test)]
 mod tests {

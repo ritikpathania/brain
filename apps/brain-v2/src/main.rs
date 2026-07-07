@@ -38,6 +38,10 @@ impl ExecutionClient for EmbeddedClient {
     async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> {
         Ok(())
     }
+
+    async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
+        Ok(())
+    }
 }
 
 #[tokio::main]

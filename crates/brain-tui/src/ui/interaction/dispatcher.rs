@@ -38,9 +38,10 @@ pub struct InteractionContext<'a> {
     pub visible_ids: &'a [SessionId],
     /// The session lookup service.
     pub lookup: &'a dyn SessionLookup,
-
-
+    /// Pending tool call approvals queue.
+    pub pending_approvals: &'a mut Vec<crate::ui::command::tool::ToolApproval>,
 }
+
 
 /// Abstract user interface intent events.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +54,15 @@ pub enum UiEvent {
     Sidebar(SidebarEvent),
     /// Intent to execute command invocation.
     Command(CommandInvocation),
+    /// Intent to approve or deny a tool call.
+    ApproveToolCall {
+        /// Unique identifier for the tool call.
+        call_id: brain_core::events::ToolCallId,
+        /// True if approved, false if denied.
+        approved: bool,
+    },
 }
+
 
 
 /// Dispatcher result codes representing TUI state changes.
@@ -95,6 +104,32 @@ pub struct Dispatcher;
 impl Dispatcher {
     /// Executes the InputAction against the given sub-systems context.
     pub fn dispatch(action: InputAction, ctx: &mut InteractionContext<'_>) -> DispatchResult {
+        if ctx.focus.current() == FocusTarget::Dialog {
+            if let Some(first_approval) = ctx.pending_approvals.first() {
+                let call_id = first_approval.call_id.clone();
+                match action {
+                    InputAction::Text(TextInput::Char('y')) | InputAction::Text(TextInput::Char('Y')) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: true });
+                    }
+                    InputAction::Text(TextInput::Char('n')) | InputAction::Text(TextInput::Char('N')) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: false });
+                    }
+                    InputAction::Command(Command::Submit) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: true });
+                    }
+                    InputAction::Command(Command::Exit) | InputAction::Command(Command::Escape) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: false });
+                    }
+                    _ => {
+                        return DispatchResult::none();
+                    }
+                }
+            } else {
+                ctx.focus.set_focus(FocusTarget::Prompt);
+                return DispatchResult::render();
+            }
+        }
+
         if ctx.focus.current() == FocusTarget::Sidebar {
             let key_opt = match action {
                 InputAction::Command(cmd) => match cmd {

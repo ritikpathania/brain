@@ -54,9 +54,7 @@ pub enum ConversationNodeId {
     },
 }
 
-/// Unique ID identifying tool call sessions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ToolCallId(pub u64);
+use crate::ui::command::tool::ToolCallId;
 
 /// Ephemeral view state tracking selections, collapses, and viewports.
 pub struct ConversationViewState {

@@ -119,6 +119,8 @@ fn test_dispatcher_exit_needs_render() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     // Exit action sets should_exit = true
     let res = Dispatcher::dispatch(
         InputAction::Command(Command::Exit),
@@ -133,6 +135,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -156,6 +159,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -182,6 +186,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -210,6 +215,8 @@ fn test_separation_of_concerns() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     // Scroll operations must NOT modify editor state or cursor state
     let original_text = editor.text().to_string();
     let original_cursor = editor.cursor();
@@ -227,6 +234,7 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -250,6 +258,7 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 

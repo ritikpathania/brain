@@ -325,7 +325,11 @@ pub mod palette;
 /// Pure command execution module.
 pub mod executor;
 
+/// Tool execution domain models.
+pub mod tool;
+
 pub use executor::{CommandInvocation, LocalStateMutation, ExecutionPlan, CommandExecutor};
+
 
 
 

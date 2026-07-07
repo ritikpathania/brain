@@ -50,6 +50,8 @@ fn test_transactional_submission() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     let res = Dispatcher::dispatch(
         InputAction::Command(Command::Submit),
         &mut InteractionContext {
@@ -63,6 +65,7 @@ fn test_transactional_submission() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -103,6 +106,8 @@ fn test_empty_whitespace_submissions() {
     let visible_ids = vec![];
     let lookup = DummyLookup;
 
+    let mut pending_approvals = vec![];
+
     // Case 1: Empty editor
     let res = Dispatcher::dispatch(
         InputAction::Command(Command::Submit),
@@ -117,6 +122,7 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 
@@ -139,6 +145,7 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
+            pending_approvals: &mut pending_approvals,
         }
     );
 

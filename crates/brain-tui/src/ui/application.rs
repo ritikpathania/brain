@@ -292,6 +292,14 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
+            UiEvent::ApproveToolCall { call_id, approved } => {
+                self.state.handle_approve_tool_call(call_id.clone(), approved);
+                self.client.send(BackendCommand::ApproveToolCall { call_id, approved }).await?;
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::Input,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
         }
 
     }
@@ -310,6 +318,27 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
             }
             BackendEvent::Finished { message, reason } => {
                 self.state.finish_stream(message, reason);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
+            BackendEvent::ToolCallRequest { message, call_id, tool_id, arguments, requires_approval } => {
+                self.state.handle_tool_call_request(message, call_id, tool_id, arguments, requires_approval);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
+            BackendEvent::ToolProgress { message: _, call_id, sequence, detail, log_message } => {
+                self.state.handle_tool_progress(call_id, sequence, detail, log_message);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::ConversationStale,
+                }))
+            }
+            BackendEvent::ToolCallResult { message, call_id, result, is_error } => {
+                self.state.handle_tool_result(message, call_id, result, is_error);
                 Ok(Some(RenderRequest {
                     reason: RenderReason::StreamToken,
                     invalidation: RenderInvalidation::EverythingStale,
