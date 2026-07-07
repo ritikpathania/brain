@@ -25,9 +25,37 @@ struct RenderingMessage {
     revision: u64,
 }
 
+/// Cache key identifying a compiled LayoutTree geometry block.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct LayoutCacheKey {
+    /// Target message identifier string.
+    pub message_id: String,
+    /// Message content revision sequence.
+    pub content_revision: u64,
+    /// Viewport width constraint.
+    pub width: usize,
+}
+
+/// Cache key identifying a solved NavigationIndex flat coordinates list.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct NavigationCacheKey {
+    /// Target message identifier string.
+    pub message_id: String,
+    /// Message content revision sequence.
+    pub content_revision: u64,
+    /// Viewport width constraint.
+    pub width: usize,
+    /// ViewState expanded tool sections hash value.
+    pub expansion_hash: u64,
+}
+
 /// Layout grid organizer dividing the screen cells and assembling widget view models.
 pub struct AppRenderer {
     layout_cache: RefCell<HashMap<String, CachedMessageLayout>>,
+    /// LayoutTree geometry cache.
+    pub layout_tree_cache: RefCell<HashMap<LayoutCacheKey, crate::ui::interaction::layout_tree::LayoutTree>>,
+    /// Flat navigation solved index cache.
+    pub navigation_cache: RefCell<HashMap<NavigationCacheKey, crate::ui::interaction::navigation::NavigationIndex>>,
 }
 
 impl AppRenderer {
@@ -35,6 +63,8 @@ impl AppRenderer {
     pub fn new() -> Self {
         Self {
             layout_cache: RefCell::new(HashMap::new()),
+            layout_tree_cache: RefCell::new(HashMap::new()),
+            navigation_cache: RefCell::new(HashMap::new()),
         }
     }
 
