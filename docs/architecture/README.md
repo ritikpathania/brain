@@ -10,7 +10,25 @@ Start here to understand the structural design of the project:
 
 ## Architectural Decision Records (ADRs)
 
-The core architectural decisions are recorded chronologically in the **[adr/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr)** directory. They are categorized below by stability and focus:
+The core architectural decisions are recorded chronologically in the **[adr/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr)** directory. They are categorized below by stability and focus.
+
+### ADR Dependency Graph
+```mermaid
+flowchart TD
+    adr10["ADR-010 Domain Boundaries"] --> adr12["ADR-012 Value Objects"]
+    adr12 --> adr16["ADR-016 Pure Transformations"]
+    adr16 --> adr13["ADR-013 Behavioral Invariants"]
+    adr13 --> adr18["ADR-018 Reproducible ML Lifecycle"]
+    adr18 --> adr19["ADR-019 Observability First"]
+
+    adr11["ADR-011 Immutable Snapshots"] --> adr14["ADR-014 Deterministic Execution"]
+    adr14 --> adr18
+    
+    adr15["ADR-015 Strategy Interfaces"] --> adr17["ADR-017 Model Compilation"]
+    adr17 --> adr19
+```
+
+### ADR Stability Index
 
 ### Foundational Invariants (Expected Stability: Long-term)
 * **[ADR-004: In-Memory Event Bus](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-004.md)** (Accepted) — Establish single-process asynchronous pub-sub for decoupled subsystem events.
