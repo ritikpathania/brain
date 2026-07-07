@@ -13,6 +13,8 @@ pub mod ast;
 pub mod parser;
 /// Language syntax highlighting lexer framework.
 pub mod lexer;
+/// Width-aware layout tree compiler.
+pub mod layout_tree;
 
 pub use editor::{TextBuffer, Cursor, Editor};
 pub use scroll::{ScrollState, AutoFollowPolicy};
