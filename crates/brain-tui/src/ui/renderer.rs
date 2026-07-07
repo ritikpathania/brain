@@ -10,6 +10,7 @@ use crate::ui::widgets::{
     prompt::{self, PromptView},
     status::{self, StatusView},
     sidebar,
+    dialog::Dialog,
 };
 use crate::ui::interaction::markdown::{
     SelectionState, CachedMessageLayout, MessageRevision, ViewportIndex,
@@ -178,7 +179,31 @@ impl AppRenderer {
                 cache.insert(key.clone(), new_layout.clone());
                 new_layout
             };
-            cached_layouts.push(layout);
+
+            let mut visual_lines = layout.visual_lines.clone();
+            let tools = if msg.id_str == "active_response" {
+                state.active_tool_calls.clone()
+            } else if msg.id_str.starts_with("msg_") {
+                if let Ok(id_val) = msg.id_str["msg_".len()..].parse::<u64>() {
+                    state.message_tool_calls.get(&crate::ui::interaction::MessageId(id_val)).cloned().unwrap_or_default()
+                } else {
+                    vec![]
+                }
+            } else {
+                vec![]
+            };
+
+            for tool in tools {
+                let expanded = state.conversation_view.expanded_tool_sections.get(&tool.call_id);
+                visual_lines.extend(format_tool_execution(&tool, theme, expanded));
+            }
+
+            let final_layout = CachedMessageLayout {
+                revision: layout.revision,
+                height: visual_lines.len(),
+                visual_lines,
+            };
+            cached_layouts.push(final_layout);
         }
 
         // Build heights list and Cumulative heights index
@@ -269,6 +294,58 @@ impl AppRenderer {
             let completion_area = state.slash_completion().geometry(area);
             crate::ui::widgets::completion::draw(f, completion_area, state.slash_completion(), theme);
         }
+
+        if !state.pending_approvals.is_empty() {
+            let first = &state.pending_approvals[0];
+            let title = format!(" Tool Approval: {} ", first.tool_id.0);
+            let message = format!("Arguments: {}", first.arguments);
+            let buttons = [
+                crate::ui::widgets::view_models::DialogButton {
+                    label: "Yes (y)",
+                    kind: crate::ui::widgets::view_models::ButtonKind::Primary,
+                    enabled: true,
+                },
+                crate::ui::widgets::view_models::DialogButton {
+                    label: "No (n)",
+                    kind: crate::ui::widgets::view_models::ButtonKind::Secondary,
+                    enabled: true,
+                },
+            ];
+            let view = crate::ui::widgets::view_models::DialogView {
+                title: &title,
+                message: &message,
+                buttons: &buttons,
+                selected_index: 0,
+            };
+            let dialog = Dialog { view: &view };
+
+            let dialog_width = 60;
+            let dialog_height = 8;
+            let dialog_area = Rect::new(
+                area.x + (area.width.saturating_sub(dialog_width) / 2),
+                area.y + (area.height.saturating_sub(dialog_height) / 2),
+                dialog_width.min(area.width),
+                dialog_height.min(area.height),
+            );
+
+            let buf = f.buffer_mut();
+            let block = ratatui::widgets::Block::default()
+                .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+            ratatui::widgets::Widget::render(block, dialog_area, buf);
+
+            let caps = crate::ui::render::RenderCapabilities::detect();
+            let policy = crate::ui::render::CapabilityPolicy::default();
+            let capabilities = crate::ui::render::CapabilityResolver::resolve(&caps, &policy);
+            let icons = crate::ui::render::IconSet::new(capabilities.nerd_fonts != crate::ui::render::NerdFontsSupport::None);
+            let ctx = crate::ui::render::RenderContext {
+                theme,
+                icons: &icons,
+                capabilities,
+                tick: 0,
+            };
+
+            crate::ui::widgets::brain_widget::BrainWidget::render(&dialog, dialog_area, buf, &ctx);
+        }
     }
 
 }
@@ -278,3 +355,105 @@ impl Default for AppRenderer {
         Self::new()
     }
 }
+
+fn format_tool_execution(
+    tool: &crate::ui::command::tool::ToolExecution,
+    _theme: &Theme,
+    expanded_sections: Option<&std::collections::HashSet<crate::ui::interaction::navigation::ToolSection>>,
+) -> Vec<VisualLine> {
+    use crate::ui::command::tool::ToolExecutionStatus;
+    use crate::ui::interaction::markdown::{VisualSpan, VisualStyle};
+    use crate::ui::interaction::navigation::ToolSection;
+
+    let mut lines = Vec::new();
+    
+    // Header line
+    let tool_name = &tool.tool_id.0;
+    let (status_text, style) = match &tool.status {
+        ToolExecutionStatus::PendingApproval => ("Awaiting Approval", VisualStyle::Bold),
+        ToolExecutionStatus::Approved => ("Approved", VisualStyle::Bold),
+        ToolExecutionStatus::Denied => ("Denied", VisualStyle::Normal),
+        ToolExecutionStatus::Running { .. } => ("Running", VisualStyle::Bold),
+        ToolExecutionStatus::Completed { .. } => ("Completed", VisualStyle::Bold),
+        ToolExecutionStatus::Failed { .. } => ("Failed", VisualStyle::Normal),
+    };
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("🔧 Tool: {} [ {} ]", tool_name, status_text),
+                style,
+            )
+        ],
+    });
+
+    // Progress/details line
+    match &tool.status {
+        ToolExecutionStatus::Running { progress } => {
+            let progress_text = match progress {
+                brain_core::events::ToolProgressDetail::Determinate { completed, total, unit: _ } => {
+                    let pct = if *total > 0 { ((*completed as f64) / (*total as f64)) * 100.0 } else { 0.0 };
+                    let fill = ((pct / 10.0) as usize).min(10);
+                    let empty = 10 - fill;
+                    let bar = format!("[{}{}]", "█".repeat(fill), "░".repeat(empty));
+                    format!("  Progress: {} {:.1}%", bar, pct)
+                }
+                brain_core::events::ToolProgressDetail::Indeterminate => {
+                    "  Running...".to_string()
+                }
+            };
+
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        progress_text,
+                        VisualStyle::Normal,
+                    )
+                ],
+            });
+        }
+        ToolExecutionStatus::Failed { error } => {
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        format!("  Error: {}", error),
+                        VisualStyle::Normal,
+                    )
+                ],
+            });
+        }
+        _ => {}
+    }
+
+    // Lazy logs rendering
+    let show_logs = expanded_sections.map(|s| s.contains(&ToolSection::Logs)).unwrap_or(false);
+    if show_logs {
+        for log in &tool.logs {
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        format!("    • {}", log.message),
+                        VisualStyle::CodeComment,
+                    )
+                ],
+            });
+        }
+    } else if !tool.logs.is_empty() {
+        lines.push(VisualLine {
+            kind: VisualLineKind::Text,
+            spans: vec![
+                VisualSpan::new(
+                    format!("    ▶ Logs collapsed ({} entries)", tool.logs.len()),
+                    VisualStyle::Normal,
+                )
+            ],
+        });
+    }
+
+    lines
+}
+

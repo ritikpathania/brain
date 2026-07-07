@@ -1,4 +1,5 @@
 use brain_domain::SessionId;
+use crate::ui::interaction::MessageId;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::{Instant, SystemTime};
@@ -499,7 +500,17 @@ pub struct UiState {
     pub message_revisions: std::collections::HashMap<brain_domain::MessageId, u64>,
     /// Monotonic revision value of the active typewriter response text.
     pub active_response_revision: u64,
+    /// Collection of active or completed tool calls in the current generation.
+    pub active_tool_calls: Vec<crate::ui::command::tool::ToolExecution>,
+    /// FIFO queue of pending tool execution approvals.
+    pub pending_approvals: Vec<crate::ui::command::tool::ToolApproval>,
+    /// Mapping from message ID to permanently completed tool executions.
+    pub message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
+    /// View state for conversation scroll and select.
+    pub conversation_view: crate::ui::interaction::navigation::ConversationViewState,
 }
+
+
 
 /// Structured user action triggering pure state transitions.
 pub enum Action {
@@ -539,6 +550,51 @@ pub enum Action {
     ReportError(String),
     /// Loaded list of session metadata summaries.
     LoadSessions(Vec<crate::client::SessionSummary>),
+    /// Tool call request from backend.
+    ToolCallRequested {
+        /// Message ID that triggered the tool call.
+        message: MessageId,
+        /// Unique identifier for the tool call.
+        call_id: brain_core::events::ToolCallId,
+        /// Target tool ID.
+        tool_id: brain_core::events::ToolId,
+        /// JSON string representation of arguments.
+        arguments: String,
+        /// True if approval is required.
+        requires_approval: bool,
+    },
+    /// Tool execution progress update.
+    ToolProgressReceived {
+        /// Message ID.
+        message: MessageId,
+        /// Unique identifier for the tool call.
+        call_id: brain_core::events::ToolCallId,
+        /// Monotonic sequence within tool call lifecycle.
+        sequence: u64,
+        /// Determinate or indeterminate progress metrics.
+        detail: brain_core::events::ToolProgressDetail,
+        /// Diagnostic progress text message.
+        log_message: String,
+    },
+    /// Final result output of a tool call.
+    ToolResultReceived {
+        /// Message ID.
+        message: MessageId,
+        /// Unique identifier for the tool call.
+        call_id: brain_core::events::ToolCallId,
+        /// Output result text.
+        result: String,
+        /// True if execution resulted in error.
+        is_error: bool,
+    },
+    /// Approve or deny tool call.
+    ApproveToolCall {
+        /// Unique identifier for the tool call.
+        call_id: brain_core::events::ToolCallId,
+        /// True if approved.
+        approved: bool,
+    },
+
     /// Tab cycles focus region.
     ToggleFocus,
     /// Move selected sidebar list cursor up.
@@ -617,6 +673,10 @@ impl UiState {
             active_messages: Vec::new(),
             message_revisions: std::collections::HashMap::new(),
             active_response_revision: 0,
+            active_tool_calls: Vec::new(),
+            pending_approvals: Vec::new(),
+            message_tool_calls: std::collections::HashMap::new(),
+            conversation_view: crate::ui::interaction::navigation::ConversationViewState::default(),
         }
     }
 
@@ -647,6 +707,10 @@ impl UiState {
             active_messages: Vec::new(),
             message_revisions: std::collections::HashMap::new(),
             active_response_revision: 0,
+            active_tool_calls: Vec::new(),
+            pending_approvals: Vec::new(),
+            message_tool_calls: std::collections::HashMap::new(),
+            conversation_view: crate::ui::interaction::navigation::ConversationViewState::default(),
         }
     }
 
@@ -845,6 +909,8 @@ impl UiState {
                 self.typewriter.clear();
                 self.active_response.clear();
                 self.active_response_revision += 1;
+                self.active_tool_calls.clear();
+                self.pending_approvals.clear();
                 self.generation_state = GenerationState::Starting;
                 UpdateResult::Changed
             }
@@ -942,6 +1008,9 @@ impl UiState {
             Action::ActivateSession { session_id, request_id } => {
                 self.pending_load = Some(PendingLoad { session_id, request_id });
                 self.session_load_state = SessionLoadState::Loading;
+                self.active_tool_calls.clear();
+                self.pending_approvals.clear();
+                self.message_tool_calls.clear();
                 UpdateResult::Changed
             }
             Action::SessionLoaded { session_id, request_id, messages } => {
@@ -959,6 +1028,9 @@ impl UiState {
                         }
                         self.active_messages = messages.clone();
                         self.session_load_state = SessionLoadState::Loaded(messages);
+                        self.active_tool_calls.clear();
+                        self.pending_approvals.clear();
+                        self.message_tool_calls.clear();
                         self.clear_pending_load();
                         return UpdateResult::Changed;
                     }
@@ -1012,9 +1084,84 @@ impl UiState {
                     UpdateResult::Changed
                 }
             }
+            Action::ToolCallRequested { message, call_id, tool_id, arguments, requires_approval } => {
+                if self.active_tool_calls.iter().any(|t| t.call_id == call_id) {
+                    return UpdateResult::NoChange;
+                }
+                if self.message_tool_calls.values().any(|list| list.iter().any(|t| t.call_id == call_id)) {
+                    return UpdateResult::NoChange;
+                }
+
+                let mut new_execution = crate::ui::command::tool::ToolExecution::new(message, call_id.clone(), tool_id.clone());
+                if requires_approval {
+                    let approval = crate::ui::command::tool::ToolApproval {
+                        message_id: message,
+                        call_id,
+                        tool_id,
+                        arguments,
+                    };
+                    self.pending_approvals.push(approval);
+                } else {
+                    new_execution.status = crate::ui::command::tool::ToolExecutionStatus::Approved;
+                }
+                self.active_tool_calls.push(new_execution);
+                UpdateResult::Changed
+            }
+            Action::ToolProgressReceived { message: _, call_id, sequence, detail, log_message } => {
+                if let Some(tool) = self.active_tool_calls.iter_mut().find(|t| t.call_id == call_id) {
+                    if tool.status.is_terminal() {
+                        return UpdateResult::NoChange;
+                    }
+                    if sequence <= tool.protocol_state.last_sequence {
+                        return UpdateResult::NoChange;
+                    }
+                    tool.protocol_state.last_sequence = sequence;
+                    tool.status = crate::ui::command::tool::ToolExecutionStatus::Running { progress: detail };
+                    if !log_message.is_empty() {
+                        tool.logs.push(crate::ui::command::tool::ToolLogEntry {
+                            timestamp: SystemTime::now(),
+                            message: log_message,
+                        });
+                    }
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::ToolResultReceived { message, call_id, result, is_error } => {
+                if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+                    let mut tool = self.active_tool_calls.remove(pos);
+                    if is_error {
+                        tool.status = crate::ui::command::tool::ToolExecutionStatus::Failed { error: result };
+                    } else {
+                        tool.status = crate::ui::command::tool::ToolExecutionStatus::Completed { result };
+                    }
+                    self.message_tool_calls.entry(message).or_default().push(tool);
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::ApproveToolCall { call_id, approved } => {
+                self.pending_approvals.retain(|a| a.call_id != call_id);
+                if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+                    if approved {
+                        self.active_tool_calls[pos].status = crate::ui::command::tool::ToolExecutionStatus::Approved;
+                    } else {
+                        let mut tool = self.active_tool_calls.remove(pos);
+                        tool.status = crate::ui::command::tool::ToolExecutionStatus::Denied;
+                        let msg_id = tool.message_id;
+                        self.message_tool_calls.entry(msg_id).or_default().push(tool);
+                    }
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
         }
     }
 }
+
 
 impl Default for UiState {
     fn default() -> Self {
