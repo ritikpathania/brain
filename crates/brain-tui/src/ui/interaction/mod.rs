@@ -15,6 +15,8 @@ pub mod parser;
 pub mod lexer;
 /// Width-aware layout tree compiler.
 pub mod layout_tree;
+/// Hierarchical document cursor navigation.
+pub mod navigation;
 
 pub use editor::{TextBuffer, Cursor, Editor};
 pub use scroll::{ScrollState, AutoFollowPolicy};
