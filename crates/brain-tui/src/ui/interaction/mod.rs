@@ -5,7 +5,12 @@ pub mod scroll;
 pub mod dispatcher;
 pub mod chat;
 pub mod markdown;
+/// Sidebar navigation component interaction.
 pub mod sidebar;
+/// Abstract syntax tree definitions for markdown blocks.
+pub mod ast;
+/// Document parser mapping markdown to semantic blocks.
+pub mod parser;
 
 pub use editor::{TextBuffer, Cursor, Editor};
 pub use scroll::{ScrollState, AutoFollowPolicy};
