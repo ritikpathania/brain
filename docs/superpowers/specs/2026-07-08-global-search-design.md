@@ -53,14 +53,26 @@ use crate::ui::command::CommandId;
 use crate::ui::interaction::MessageId;
 use brain_domain::SessionId;
 
-/// Stable provider identifier value object.
+/// Stable provider identifier value object. Private construction to prevent
+/// arbitrary provider IDs from being created outside this module.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProviderId(&'static str);
 
-pub const PROVIDER_COMMANDS: ProviderId = ProviderId("commands");
-pub const PROVIDER_SESSIONS: ProviderId = ProviderId("sessions");
-pub const PROVIDER_LOCAL_MESSAGES: ProviderId = ProviderId("messages.local");
-pub const PROVIDER_REMOTE_MESSAGES: ProviderId = ProviderId("messages.remote");
+impl ProviderId {
+    /// Internal construction helper.
+    pub const fn new(id: &'static str) -> Self {
+        Self(id)
+    }
+    /// Returns the inner string slice.
+    pub fn as_str(&self) -> &'static str {
+        self.0
+    }
+}
+
+pub const PROVIDER_COMMANDS: ProviderId = ProviderId::new("commands");
+pub const PROVIDER_SESSIONS: ProviderId = ProviderId::new("sessions");
+pub const PROVIDER_LOCAL_MESSAGES: ProviderId = ProviderId::new("messages.local");
+pub const PROVIDER_REMOTE_MESSAGES: ProviderId = ProviderId::new("messages.remote");
 
 /// Monotonic search query generation sequence identifier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -181,7 +193,7 @@ pub trait SearchProvider: Send + Sync {
 ## 3. Search Aggregator, Controller & Pure Ranking Engine
 
 ### The Search Session & Controller
-The `SearchController` coordinates lifetimes and increments generation sequences. It is the only component allowed to start search providers or trigger cancellations.
+The `SearchController` coordinates lifetimes and increments generation sequences. It is the only component allowed to start search providers, schedule remote searches, or trigger cancellations.
 
 ```rust
 pub struct SearchSession {
@@ -221,7 +233,11 @@ impl SearchViewState {
     pub fn generation(&self) -> SearchGeneration { self.generation }
     pub fn query(&self) -> &str { &self.query }
     pub fn results(&self) -> &[SearchResult] { &self.ranked_results }
-    pub fn statuses(&self) -> &HashMap<ProviderId, ProviderStatus> { &self.provider_statuses }
+    
+    /// Returns an iterator over statuses to avoid leaking backing collection type.
+    pub fn statuses(&self) -> impl Iterator<Item = (&ProviderId, &ProviderStatus)> {
+        self.provider_statuses.iter()
+    }
 }
 
 pub struct SearchAggregator {
@@ -233,7 +249,7 @@ pub struct SearchAggregator {
 }
 
 impl SearchAggregator {
-    /// Processes a incoming search event and updates internal caches.
+    /// Processes an incoming search event and updates internal caches.
     pub fn handle_event(&mut self, event: SearchEvent) {
         // Drop events if generation is older than active_generation
         // Update collected_results and statuses accordingly
@@ -253,6 +269,7 @@ impl SearchAggregator {
     }
 
     /// Evaluates if all active providers have completed or failed search.
+    /// Invariant: A provider that never emitted `Started` is treated as `Idle`, not `Completed`.
     pub fn is_complete(&self) -> bool {
         self.statuses.values().all(|&status| {
             matches!(status, ProviderStatus::Completed | ProviderStatus::Failed(_))
@@ -262,9 +279,12 @@ impl SearchAggregator {
 ```
 
 ### Pure Ranking Engine & Sorting Invariants
-The `RankingEngine` is pure, containing no internal caching or network calls. It computes a sorted result list using the following scoring pipeline:
+The `RankingEngine` is pure, containing no internal caching or network calls. It computes a sorted result list using an ordered, additive scoring pipeline:
 
-$$\text{Final Score} = \text{ProviderScore} + \text{PrefixBoost} + \text{WordBoundaryBoost} + \text{KindBoost}$$
+1. **ProviderScore**: Base matching score computed by the provider.
+2. **PrefixBoost**: Adds $+100$ if the title starts with the query.
+3. **WordBoundaryBoost**: Adds $+50$ if a word boundary in the title matches the query.
+4. **KindBoost**: Adds $+10$ for `Session`, $+5$ for `Command`.
 
 ```rust
 pub struct RankingEngine;
@@ -320,4 +340,4 @@ impl RankingEngine {
 1. **Aggregator Monotonic Generation Tests**: Assert that `SearchAggregator` drops events carrying generation sequences older than the current generation, maintaining state integrity under network races.
 2. **Deterministic Stable Sorting Tests**: Verify `RankingEngine` produces identical, stably-sorted output sequences across duplicate scoring inputs, sorting alphabetically on title.
 3. **Provider Lifecycle & Cancellation Tests**: Verify `SearchController` successfully cancels in-flight `SearchProvider` tasks when a new query generation starts.
-4. **Hybrid Message Provider Tests**: Test that the `MessagesProvider` immediately emits local messages, schedules debounced daemon query commands, and discards daemon results if aborted by a new search generation.
+4. **Hybrid Message Provider Tests**: Test that the `MessagesProvider` immediately emits local messages, while the controller schedules debounced daemon query commands, discarding results if aborted.
