@@ -67,7 +67,7 @@ Run: `git add crates/brain-tui/src/ui/search/mod.rs crates/brain-tui/src/ui/sear
 
 ---
 
-### Task 2: Pure Ranking Engine
+### Task 2: Pure Ranking Engine & Sorting Invariants
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/search/ranking.rs`
@@ -77,38 +77,13 @@ Run: `git add crates/brain-tui/src/ui/search/mod.rs crates/brain-tui/src/ui/sear
 - Consumes: `SearchResult`, `SearchResultKind`
 - Produces: `RankingEngine::rank(&self, query: &str, results: impl IntoIterator<Item = SearchResult>) -> Vec<SearchResult>`
 
-- [ ] **Step 1: Write the deterministic sorting tests**
+- [ ] **Step 1: Write the deterministic sorting and property tests**
 
 Create `crates/brain-tui/tests/search_ranking_tests.rs`:
-```rust
-use brain_tui::ui::search::types::{SearchResult, SearchResultKind, SearchResultAction};
-use brain_tui::ui::search::ranking::RankingEngine;
-
-#[test]
-fn test_ranking_determinism_and_stable_sort() {
-    let engine = RankingEngine;
-    let results = vec![
-        SearchResult {
-            title: "B Session".to_string(),
-            subtitle: "".to_string(),
-            kind: SearchResultKind::Session,
-            provider_score: 5,
-            action: SearchResultAction::InvokeCommand(brain_tui::ui::command::CommandId("test".to_string())),
-        },
-        SearchResult {
-            title: "A Session".to_string(),
-            subtitle: "".to_string(),
-            kind: SearchResultKind::Session,
-            provider_score: 5,
-            action: SearchResultAction::InvokeCommand(brain_tui::ui::command::CommandId("test".to_string())),
-        },
-    ];
-    
-    let ranked = engine.rank("session", results);
-    assert_eq!(ranked[0].title, "A Session"); // Alphabetical fallback when scores match
-    assert_eq!(ranked[1].title, "B Session");
-}
-```
+- Assert deterministic ordering for identical inputs.
+- Assert idempotency: `rank(rank(results)) == rank(results)`.
+- Assert independence: adding unrelated low-scoring results does not reorder higher-scoring results.
+- Assert stable tie-breaking fallback remains alphabetical.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -140,11 +115,13 @@ Run: `git add crates/brain-tui/src/ui/search/ranking.rs crates/brain-tui/tests/s
 - Consumes: `SearchEvent`, `SearchViewState`, `RankingEngine`
 - Produces: `SearchAggregator::handle_event(&mut self, event: SearchEvent)`, `SearchAggregator::view_state(&self) -> SearchViewState`, and `SearchAggregator::is_complete(&self) -> bool`
 
-- [ ] **Step 1: Write the generation filtering test**
+- [ ] **Step 1: Write generation filtering and aggregation tests**
 
 Create `crates/brain-tui/tests/search_aggregator_tests.rs`:
 - Test that events from older generations are discarded.
-- Test that events from the current generation update statuses and collected results, and trigger incremental view state updates.
+- Test that duplicate `Results` events replace/merge without duplicating entries.
+- Test that receiving `Finished` before `Started` is handled deterministically.
+- Test that calling `view_state()` repeatedly returns byte-for-byte equivalent snapshots.
 - Test that `is_complete()` returns true only when all registered providers are `Completed` or `Failed`.
 
 - [ ] **Step 2: Run test to verify it fails**
