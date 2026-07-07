@@ -13,6 +13,16 @@
 - Maintain zero external subsystem dependencies on `brain-domain`.
 - Handle Unicode and ASCII terminal capability levels gracefully at the renderer boundary.
 - Do not let escape sequences affect visual text wrapping math.
+- Keep the `interaction/` directory modular:
+  ```text
+  interaction/
+      ast.rs
+      parser.rs
+      lexer.rs
+      layout_tree.rs
+      navigation.rs
+      markdown.rs   // façade re-exporting the API
+  ```
 
 ---
 
@@ -20,12 +30,14 @@
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/interaction/ast.rs`
-- Modify: `crates/brain-tui/src/ui/interaction/markdown.rs`
+- Create: `crates/brain-tui/src/ui/interaction/parser.rs`
+- Modify: `crates/brain-tui/src/ui/interaction/markdown.rs` (turns into façade re-exporting the submodules)
 - Create: `crates/brain-tui/tests/markdown_ast_tests.rs`
 
 **Interfaces:**
 - Consumes: None
 - Produces: `DocumentBlock`, `InlineNode`, `LanguageId`, `LinkTarget`, `TableCell`, `TableNode`, `ListKind`, and `MarkdownParser::parse_to_blocks(text: &str) -> Vec<DocumentBlock>`
+- **Resilience Invariant**: Unknown/unsupported markdown elements must degrade gracefully to plain text paragraphs rather than failing or panicking.
 
 - [ ] **Step 1: Write the failing parser test**
 
@@ -64,90 +76,9 @@ Expected: FAIL with compilation error (modules/types not defined)
 
 - [ ] **Step 3: Scaffolding and Parser Implementation**
 
-Create `crates/brain-tui/src/ui/interaction/ast.rs`:
-```rust
-use brain_domain::MessageId;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BlockId(pub u64);
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LinkTarget(Box<str>);
-
-impl LinkTarget {
-    pub fn new(url: impl Into<Box<str>>) -> Self {
-        Self(url.into())
-    }
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct CitationId(pub Box<str>);
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum InlineNode {
-    Text(String),
-    Strong(Vec<InlineNode>),
-    Emphasis(Vec<InlineNode>),
-    Code(String),
-    Link {
-        children: Vec<InlineNode>,
-        url: LinkTarget,
-    },
-    Citation(CitationId),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TableCell {
-    pub content: Vec<InlineNode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TableNode {
-    pub headers: Vec<TableCell>,
-    pub rows: Vec<Vec<TableCell>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ListKind {
-    Unordered,
-    Ordered,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LanguageId {
-    PlainText,
-    Rust,
-    Python,
-    Json,
-    Shell,
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DocumentBlock {
-    Paragraph(Vec<InlineNode>),
-    Heading {
-        level: u8,
-        content: Vec<InlineNode>,
-    },
-    CodeBlock {
-        language: LanguageId,
-        lines: Vec<String>,
-    },
-    Table(TableNode),
-    List {
-        kind: ListKind,
-        items: Vec<Vec<InlineNode>>,
-    },
-    BlockQuote(Vec<DocumentBlock>),
-    HorizontalRule,
-}
-```
-
-Update `crates/brain-tui/src/ui/interaction/markdown.rs` to expose parser methods mapping Markdown strings recursively to `DocumentBlock`s. Integrate a hash-based generator to produce stable `BlockId`s for parsed blocks.
+Create `crates/brain-tui/src/ui/interaction/ast.rs` defining the normalized enum blocks and recursive inline nodes, using typed `BlockId` and `LinkTarget` identifiers.
+Create `crates/brain-tui/src/ui/interaction/parser.rs` implementing width-agnostic parsing, converting inputs into `DocumentBlock` collections.
+Rewrite `crates/brain-tui/src/ui/interaction/markdown.rs` to serve as the façade module.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -156,7 +87,7 @@ Expected: PASS
 
 - [ ] **Step 5: Commit**
 
-Run: `git add crates/brain-tui/src/ui/interaction/ast.rs crates/brain-tui/src/ui/interaction/markdown.rs crates/brain-tui/tests/markdown_ast_tests.rs && git commit -m "feat: add width-agnostic markdown parser and AST structures"`
+Run: `git add crates/brain-tui/src/ui/interaction/ast.rs crates/brain-tui/src/ui/interaction/parser.rs crates/brain-tui/src/ui/interaction/markdown.rs crates/brain-tui/tests/markdown_ast_tests.rs && git commit -m "feat: add width-agnostic markdown parser and AST structures"`
 
 ---
 
@@ -172,9 +103,9 @@ Run: `git add crates/brain-tui/src/ui/interaction/ast.rs crates/brain-tui/src/ui
 
 - [ ] **Step 1: Write the failing lexer test**
 
-Create `crates/brain-tui/tests/lexer_tests.rs`:
+Create `crates/brain-tui/tests/lexer_tests.rs` including alias normalization checks:
 ```rust
-use brain_tui::ui::interaction::lexer::{TokenKind, SyntaxHighlighterRegistry};
+use brain_tui::ui::interaction::lexer::{TokenKind, SyntaxHighlighterRegistry, normalize_language};
 use brain_tui::ui::interaction::ast::LanguageId;
 
 #[test]
@@ -183,6 +114,15 @@ fn test_rust_keyword_tokenization() {
     let spans: Vec<_> = SyntaxHighlighterRegistry::highlight(LanguageId::Rust, line).collect();
     assert_eq!(spans[0].kind, TokenKind::Keyword);
     assert_eq!(spans[0].text, "pub");
+}
+
+#[test]
+fn test_alias_normalization() {
+    assert_eq!(normalize_language("rs"), LanguageId::Rust);
+    assert_eq!(normalize_language("python"), LanguageId::Python);
+    assert_eq!(normalize_language("py"), LanguageId::Python);
+    assert_eq!(normalize_language("sh"), LanguageId::Shell);
+    assert_eq!(normalize_language("bash"), LanguageId::Shell);
 }
 ```
 
@@ -193,48 +133,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Lexer Framework Implementation**
 
-Create `crates/brain-tui/src/ui/interaction/lexer.rs`:
-```rust
-use crate::ui::interaction::ast::LanguageId;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenKind {
-    Keyword,
-    String,
-    Number,
-    Comment,
-    Operator,
-    Type,
-    Function,
-    Identifier,
-    Plain,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HighlightSpan<'a> {
-    pub kind: TokenKind,
-    pub text: &'a str,
-}
-
-pub trait LanguageHighlighter: Send + Sync {
-    fn language_id(&self) -> LanguageId;
-    fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a>;
-}
-
-pub struct SyntaxHighlighterRegistry;
-
-impl SyntaxHighlighterRegistry {
-    pub fn highlight<'a>(lang: LanguageId, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
-        // Match lang against Rust, Python, Json, Shell highlighters or fallback to PlainText
-        // Return boxed iterator yielding HighlightSpans
-    }
-}
-```
-Implement simple, non-allocating string-scanners for:
-- `RustHighlighter` (matches standard keywords, double-slash comments, and strings).
-- `JsonHighlighter` (scans key string labels and numbers).
-- `PythonHighlighter` (scans python keyword tokens and comments).
-- `ShellHighlighter` (scans bash scripts).
+Create `crates/brain-tui/src/ui/interaction/lexer.rs` implementing `LanguageHighlighter` (returning lazy iterators to avoid allocations) and highlighters for Rust, Python, Json, Shell, and PlainText.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -251,7 +150,6 @@ Run: `git add crates/brain-tui/src/ui/interaction/lexer.rs crates/brain-tui/test
 
 **Files:**
 - Create: `crates/brain-tui/src/ui/interaction/layout_tree.rs`
-- Modify: `crates/brain-tui/src/ui/interaction/markdown.rs`
 - Create: `crates/brain-tui/tests/layout_tree_tests.rs`
 
 **Interfaces:**
@@ -283,20 +181,20 @@ fn test_heading_layout_wrapping() {
 Run: `cargo test --test layout_tree_tests`
 Expected: FAIL
 
-- [ ] **Step 3: Layout Engine Implementation**
+- [ ] **Step 3: Phase A Implementation (Paragraph Wrapping, Headings, and Inline Spans)**
 
-Create `crates/brain-tui/src/ui/interaction/layout_tree.rs` carrying definitions for `LayoutTree`, `LayoutBlock`, `VisualLine`, `VisualSpan`, `VisualStyle`, and `SpanAction`.
-Implement `LayoutEngine::compile(blocks, width)` to:
-- Resolve indentation for blockquotes and lists.
-- Dynamically wrap nested inline formatting spans cleanly at word boundaries.
-- Calculate table column widths (balancing available space) and format cells into structured columns.
+Create `crates/brain-tui/src/ui/interaction/layout_tree.rs` and implement text/heading layout compiler logic. Validate basic layout.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Phase B Implementation (Tables, Lists, and Blockquotes)**
+
+Implement structured layout for tables (sizing/alignment), lists, and blockquotes inside `layout_tree.rs`.
+
+- [ ] **Step 5: Run all layout tests to verify it passes**
 
 Run: `cargo test --test layout_tree_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 Run: `git add crates/brain-tui/src/ui/interaction/layout_tree.rs crates/brain-tui/tests/layout_tree_tests.rs && git commit -m "feat: compile semantic layout tree with width awareness"`
 
@@ -340,11 +238,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Border & Link Resolvers Implementation**
 
-Create `crates/brain-tui/src/ui/render/resolver.rs`:
-- Define `BorderGlyphs`, `BorderResolver`.
-- Define `TerminalSpan`, `LinkRenderer::render`.
-- Implement OSC 8 escape code generator for `TerminalSpan::Hyperlink` when OSC 8 is enabled; otherwise format link as plain text: `text (url)`.
-Integrate `LinkRenderer` and `BorderResolver` inside `crates/brain-tui/src/ui/renderer.rs` to output final cells.
+Create `crates/brain-tui/src/ui/render/resolver.rs`. Integrate `LinkRenderer` and `BorderResolver` inside `crates/brain-tui/src/ui/renderer.rs` to output final cells.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -368,7 +262,7 @@ Run: `git add crates/brain-tui/src/ui/render/resolver.rs crates/brain-tui/tests/
 - Consumes: `LayoutTree`, `ConversationViewState`
 - Produces: `ConversationViewState`, `ConversationNodeId`, `NavigationIndex`, `NavigationSolver::solve(layout: &LayoutTree, view_state: &ConversationViewState) -> NavigationIndex`
 
-- [ ] **Step 1: Write the failing navigation test**
+- [ ] **Step 1: Write the navigation solver property tests**
 
 Create `crates/brain-tui/tests/navigation_solver_tests.rs`:
 ```rust
@@ -378,14 +272,23 @@ use brain_tui::ui::interaction::ast::BlockId;
 use brain_domain::MessageId;
 
 #[test]
-fn test_navigation_solver_traversal() {
+fn test_navigation_solver_uniqueness_and_selection_existence() {
     let blocks = vec![
         LayoutBlock { id: BlockId(1), kind: VisualBlockKind::Paragraph, lines: vec![] }
     ];
     let tree = LayoutTree::new(blocks);
-    let view_state = ConversationViewState::default();
+    let mut view_state = ConversationViewState::default();
+    let selected = ConversationNodeId::Message(MessageId(42));
+    view_state.selected_node = Some(selected.clone());
+    
     let index = NavigationSolver::solve(&tree, &view_state);
-    assert_eq!(index.nodes.len(), 1);
+    
+    // Invariant: every selected node must exist in the resulting NavigationIndex, and all nodes must be unique
+    assert!(index.nodes.contains(&selected));
+    let mut unique = index.nodes.clone();
+    unique.sort_by_key(|n| format!("{:?}", n));
+    unique.dedup();
+    assert_eq!(unique.len(), index.nodes.len());
 }
 ```
 
@@ -396,11 +299,7 @@ Expected: FAIL
 
 - [ ] **Step 3: ViewState & Solver Implementation**
 
-Create `crates/brain-tui/src/ui/interaction/navigation.rs`:
-- Define `ConversationViewState` (holds scroll offset, selection, and a set of expanded tool call headers).
-- Define `ConversationNodeId` enum hierarchy.
-- Implement pure `NavigationSolver::solve` that traverses the layout tree and view state to assemble the flat `NavigationIndex`.
-- Integrate cursoring keys (Up/Down targets indices, Right/Left expands/collapses, Enter toggles).
+Create `crates/brain-tui/src/ui/interaction/navigation.rs` implementing `ConversationViewState`, `ConversationNodeId`, and the side-effect free `NavigationSolver::solve`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -426,10 +325,7 @@ Run: `git add crates/brain-tui/src/ui/interaction/navigation.rs crates/brain-tui
 
 - [ ] **Step 1: Write the failing lazy timeline test**
 
-Create `crates/brain-tui/tests/lazy_timeline_tests.rs`:
-- Setup a tool block in state.
-- Assert that when `Logs` section is collapsed, log visual lines are NOT compiled into the layout tree.
-- Assert that when `Logs` is expanded, log lines are compiled.
+Create `crates/brain-tui/tests/lazy_timeline_tests.rs` verifying logs are only constructed inside layout blocks when expanded.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -438,10 +334,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Lazy Tool Execution Blocks Implementation**
 
-Update `crates/brain-tui/src/ui/renderer.rs` and `chat_screen.rs` to:
-- Render each completed tool execution inside a framed card.
-- Read `ConversationViewState` expanded tool call keys.
-- Lazily generate visual layout lines for logs/JSON outputs only when expanded.
+Update `crates/brain-tui/src/ui/renderer.rs` and `chat_screen.rs` to support collapsible tool blocks, lazily adding children blocks to the LayoutTree.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -461,12 +354,20 @@ Run: `git add crates/brain-tui/src/ui/renderer.rs crates/brain-tui/tests/lazy_ti
 - Create: `crates/brain-tui/tests/layout_cache_tests.rs`
 
 **Interfaces:**
-- Consumes: `LayoutCacheKey`, `LayoutCache`
+- Consumes: `LayoutCacheKey`, `LayoutCache`, `NavigationCache`
 - Produces: Cached LayoutTrees and layout determinism properties
 
 - [ ] **Step 1: Write the layout determinism test**
 
-Create `crates/brain-tui/tests/layout_cache_tests.rs` containing a property test checking that two compilation runs on identical text, width, and capabilities yield identical byte-for-byte `LayoutTree` geometry output.
+Create `crates/brain-tui/tests/layout_cache_tests.rs` asserting layout tree compilation determinism (excluding memory pointers/timestamps/hash order) and layout cache invalidations:
+
+| Change             | Layout Cache | Navigation Cache |
+| ------------------ | ------------ | ---------------- |
+| Width              | Invalidate   | Invalidate       |
+| Message revision   | Invalidate   | Invalidate       |
+| Theme              | Keep         | Keep             |
+| Unicode capability | Keep         | Keep             |
+| Expanded sections  | Keep         | Invalidate       |
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -475,7 +376,7 @@ Expected: FAIL
 
 - [ ] **Step 3: Layout Caching Implementation**
 
-Modify `crates/brain-tui/src/ui/renderer.rs` to cache `LayoutTree` geometry blocks using `LayoutCacheKey` (MessageId, content_revision, and width), bypassing layout rebuilding when only viewport focus, selection, or theme styles change.
+Modify `crates/brain-tui/src/ui/renderer.rs` to cache `LayoutTree` geometry and `NavigationIndex` separately.
 
 - [ ] **Step 4: Run test to verify it passes**
 
