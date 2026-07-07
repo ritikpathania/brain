@@ -46,3 +46,6 @@ pub mod application;
 /// Command Palette and Slash Commands pipeline.
 pub mod command;
 
+/// Unified Global Search omnibox and providers.
+pub mod search;
+
