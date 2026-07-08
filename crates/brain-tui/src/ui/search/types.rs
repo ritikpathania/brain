@@ -182,3 +182,28 @@ impl SearchViewState {
         self.provider_statuses.iter()
     }
 }
+
+/// Contextual dynamic snapshot of client-side application state passed to search providers.
+#[derive(Debug, Clone)]
+pub struct SearchContext {
+    /// Active sessions.
+    pub sessions: Vec<crate::state::SessionViewModel>,
+    /// Loaded messages in the current session.
+    pub active_messages: Vec<brain_domain::Message>,
+}
+
+/// Abstract search source provider interface.
+pub trait SearchProvider: Send + Sync {
+    /// Unique provider identifier.
+    fn provider_id(&self) -> ProviderId;
+
+    /// Runs a search query. Immediate providers emit results synchronously.
+    /// Async providers return immediately and stream results onto the sink.
+    fn search(
+        &self,
+        query: &SearchQuery,
+        context: &SearchContext,
+        cancellation_token: tokio_util::sync::CancellationToken,
+        sink: std::sync::Arc<dyn SearchEventSink>,
+    );
+}

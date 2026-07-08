@@ -3,7 +3,9 @@
 pub mod types;
 pub mod ranking;
 pub mod aggregator;
+pub mod providers;
 
 pub use types::*;
 pub use ranking::*;
 pub use aggregator::*;
+pub use providers::*;
