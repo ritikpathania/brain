@@ -102,4 +102,14 @@ impl SearchAggregator {
             matches!(status, ProviderStatus::Completed | ProviderStatus::Failed(_))
         })
     }
+
+    /// Resets the aggregator back to initial empty state.
+    pub fn reset(&mut self) {
+        self.active_generation = SearchGeneration(0);
+        self.active_query_text = String::new();
+        self.collected_results.clear();
+        for provider in &self.expected_providers {
+            self.statuses.insert(*provider, ProviderStatus::Idle);
+        }
+    }
 }

@@ -78,6 +78,12 @@ pub struct CommandPaletteState {
     pub selected_index: usize,
     /// Current workflow stage.
     pub stage: PaletteStage,
+    /// Pluggable search controller.
+    pub search_controller: Option<crate::ui::search::controller::SearchController>,
+    /// Pluggable search aggregator.
+    pub search_aggregator: Option<crate::ui::search::aggregator::SearchAggregator>,
+    /// Precompiled view state snapshot.
+    pub view_state: crate::ui::search::types::SearchViewState,
 }
 
 impl CommandPaletteState {
@@ -88,6 +94,52 @@ impl CommandPaletteState {
             editor: Editor::new(),
             selected_index: 0,
             stage: PaletteStage::Search,
+            search_controller: None,
+            search_aggregator: None,
+            view_state: crate::ui::search::types::SearchViewState::default(),
+        }
+    }
+
+    /// Initializes pluggable search providers and controllers.
+    pub fn initialize(
+        &mut self,
+        client: std::sync::Arc<dyn crate::client::ExecutionClient>,
+        sink: std::sync::Arc<dyn crate::ui::search::types::SearchEventSink>,
+    ) {
+        let immediate_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> = vec![
+            std::sync::Arc::new(crate::ui::search::providers::CommandsProvider),
+            std::sync::Arc::new(crate::ui::search::providers::SessionsProvider),
+            std::sync::Arc::new(crate::ui::search::providers::LocalMessagesProvider),
+        ];
+        let async_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> = vec![
+            std::sync::Arc::new(crate::ui::search::providers::RemoteMessagesProvider::new(client)),
+        ];
+        let expected_providers = vec![
+            crate::ui::search::types::PROVIDER_COMMANDS,
+            crate::ui::search::types::PROVIDER_SESSIONS,
+            crate::ui::search::types::PROVIDER_LOCAL_MESSAGES,
+            crate::ui::search::types::PROVIDER_REMOTE_MESSAGES,
+        ];
+
+        self.search_controller = Some(crate::ui::search::controller::SearchController::new(
+            immediate_providers,
+            async_providers,
+            sink,
+        ));
+        self.search_aggregator = Some(crate::ui::search::aggregator::SearchAggregator::new(expected_providers));
+        self.view_state = crate::ui::search::types::SearchViewState::default();
+    }
+
+    /// Triggers a new search query execution.
+    pub fn trigger_search(&mut self, text: String, context: &crate::ui::search::types::SearchContext) {
+        if let Some(ref mut agg) = self.search_aggregator {
+            agg.set_query(text.clone());
+        }
+        if let Some(ref mut controller) = self.search_controller {
+            controller.search(text, context);
+        }
+        if let Some(ref agg) = self.search_aggregator {
+            self.view_state = agg.view_state();
         }
     }
 
@@ -97,6 +149,18 @@ impl CommandPaletteState {
         self.editor = Editor::new();
         self.selected_index = 0;
         self.stage = PaletteStage::Search;
+        if let Some(ref mut controller) = self.search_controller {
+            controller.cancel();
+        }
+        if let Some(ref mut agg) = self.search_aggregator {
+            agg.reset();
+        }
+        self.view_state = crate::ui::search::types::SearchViewState::default();
+    }
+
+    /// Return the ranked, active search results.
+    pub fn results(&self) -> &[crate::ui::search::types::SearchResult] {
+        self.view_state.results()
     }
 
     /// Filter COMMANDS matching the current search term.

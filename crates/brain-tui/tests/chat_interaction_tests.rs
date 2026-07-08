@@ -65,7 +65,7 @@ fn test_transactional_submission() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -122,7 +122,7 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -145,7 +145,7 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 

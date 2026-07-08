@@ -78,6 +78,13 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     let mut events = EventHandler::new(Duration::from_millis(10)); // 10ms for smooth ticks
     let renderer = AppRenderer::new();
     let mut state = UiState::new();
+    
+    // Initialize unified omnibox search
+    let search_sink = std::sync::Arc::new(ChannelEventSink {
+        sender: events.sender(),
+    });
+    state.command_palette_mut().initialize(client.clone(), search_sink);
+
     let theme = crate::ui::theme::Theme::default();
     
     let mut active_cancel: Option<tokio_util::sync::CancellationToken> = None;
@@ -288,6 +295,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                         break;
                     }
                 }
+                Event::App(AppEvent::Search(search_event)) => {
+                    if let Some(ref mut agg) = state.command_palette_mut().search_aggregator {
+                        agg.handle_event(search_event);
+                        state.command_palette_mut().view_state = agg.view_state();
+                    }
+                }
                 Event::App(AppEvent::SessionsLoaded(summaries)) => {
                     state.update(Action::LoadSessions(summaries));
                 }
@@ -362,6 +375,16 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     }
 
     Ok(())
+}
+
+struct ChannelEventSink {
+    sender: tokio::sync::mpsc::UnboundedSender<Event>,
+}
+
+impl crate::ui::search::types::SearchEventSink for ChannelEventSink {
+    fn submit(&self, event: crate::ui::search::types::SearchEvent) {
+        let _ = self.sender.send(Event::App(AppEvent::Search(event)));
+    }
 }
 
 #[cfg(test)]

@@ -183,6 +183,17 @@ impl SearchViewState {
     }
 }
 
+impl Default for SearchViewState {
+    fn default() -> Self {
+        Self {
+            generation: SearchGeneration(0),
+            query: String::new(),
+            ranked_results: Vec::new(),
+            provider_statuses: HashMap::new(),
+        }
+    }
+}
+
 /// Contextual dynamic snapshot of client-side application state passed to search providers.
 #[derive(Debug, Clone)]
 pub struct SearchContext {

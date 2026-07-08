@@ -135,7 +135,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -159,7 +159,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -186,7 +186,7 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -234,7 +234,7 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -258,7 +258,7 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 

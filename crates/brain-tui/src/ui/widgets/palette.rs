@@ -47,18 +47,43 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                 f.set_cursor(cursor_x, cursor_y);
             }
 
-            // 2. Draw list of matching commands
-            let matches: Vec<_> = state.matches().collect();
-            let items: Vec<ListItem> = matches.iter().enumerate().map(|(idx, cmd)| {
-                let style = if idx == state.selected_index {
-                    theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
-                } else {
-                    theme.text
-                };
-                let text = format!("  {} - {}", cmd.title, cmd.description);
-                ListItem::new(text).style(style)
-            }).collect();
+            // 2. Draw list of matching search results
+            let items: Vec<ListItem> = if state.search_aggregator.is_some() {
+                let results = state.results();
+                results.iter().enumerate().map(|(idx, res)| {
+                    let is_selected = idx == state.selected_index;
+                    
+                    let (prefix, prefix_style) = match res.kind {
+                        crate::ui::search::types::SearchResultKind::Command => (" [CMD] ", theme.accent),
+                        crate::ui::search::types::SearchResultKind::Session => (" [SES] ", theme.primary),
+                        crate::ui::search::types::SearchResultKind::Message => (" [MSG] ", theme.inactive),
+                    };
 
+                    let line = ratatui::text::Line::from(vec![
+                        ratatui::text::Span::styled(prefix, prefix_style),
+                        ratatui::text::Span::styled(&res.title, if is_selected {
+                            theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
+                        } else {
+                            theme.text
+                        }),
+                        ratatui::text::Span::styled(" - ", theme.inactive),
+                        ratatui::text::Span::styled(&res.subtitle, theme.inactive),
+                    ]);
+
+                    ListItem::new(line)
+                }).collect()
+            } else {
+                let matches: Vec<_> = state.matches().collect();
+                matches.iter().enumerate().map(|(idx, cmd)| {
+                    let style = if idx == state.selected_index {
+                        theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
+                    } else {
+                        theme.text
+                    };
+                    let text = format!("  {} - {}", cmd.title, cmd.description);
+                    ListItem::new(text).style(style)
+                }).collect()
+            };
 
             let list = List::new(items).style(theme.text);
             f.render_widget(list, chunks[1]);

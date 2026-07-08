@@ -11,6 +11,7 @@ use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
 use crate::ui::command::completion::SlashCompletionState;
 use crate::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState, CollectedParameter, ParameterValue};
 use crate::ui::command::{CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability, CommandInvocation};
+use crate::ui::search::types::SearchResultAction;
 
 
 
@@ -40,6 +41,10 @@ pub struct InteractionContext<'a> {
     pub lookup: &'a dyn SessionLookup,
     /// Pending tool call approvals queue.
     pub pending_approvals: &'a mut Vec<crate::ui::command::tool::ToolApproval>,
+    /// Full sessions list for global search contexts.
+    pub sessions: &'a [crate::state::SessionViewModel],
+    /// Loaded active session messages.
+    pub active_messages: &'a [brain_domain::Message],
 }
 
 
@@ -61,6 +66,8 @@ pub enum UiEvent {
         /// True if approved, false if denied.
         approved: bool,
     },
+    /// Intent to select a search result action.
+    SearchSelect(crate::ui::search::types::SearchResultAction),
 }
 
 
@@ -180,6 +187,13 @@ impl Dispatcher {
                 ctx.focus.set_focus(FocusTarget::CommandPalette);
                 ctx.command_palette.reset();
                 ctx.command_palette.open = true;
+
+                // Trigger initial search with empty text
+                let search_context = crate::ui::search::types::SearchContext {
+                    sessions: ctx.sessions.to_vec(),
+                    active_messages: ctx.active_messages.to_vec(),
+                };
+                ctx.command_palette.trigger_search("".to_string(), &search_context);
             }
             return DispatchResult::render();
         }
@@ -204,7 +218,11 @@ impl Dispatcher {
                     Command::ScrollUp => {
                         match &ctx.command_palette.stage {
                             PaletteStage::Search => {
-                                let count = ctx.command_palette.matches().count();
+                                let count = if ctx.command_palette.search_aggregator.is_some() {
+                                    ctx.command_palette.results().len()
+                                } else {
+                                    ctx.command_palette.matches().count()
+                                };
                                 if count > 0 {
                                     if ctx.command_palette.selected_index == 0 {
                                         ctx.command_palette.selected_index = count - 1;
@@ -220,7 +238,11 @@ impl Dispatcher {
                     Command::ScrollDown => {
                         match &ctx.command_palette.stage {
                             PaletteStage::Search => {
-                                let count = ctx.command_palette.matches().count();
+                                let count = if ctx.command_palette.search_aggregator.is_some() {
+                                    ctx.command_palette.results().len()
+                                } else {
+                                    ctx.command_palette.matches().count()
+                                };
                                 if count > 0 {
                                     ctx.command_palette.selected_index = (ctx.command_palette.selected_index + 1) % count;
                                 }
@@ -232,24 +254,69 @@ impl Dispatcher {
                     Command::Submit => {
                         match &mut ctx.command_palette.stage {
                             PaletteStage::Search => {
-                                let matched_cmd = ctx.command_palette.matches().nth(ctx.command_palette.selected_index);
-                                if let Some(cmd) = matched_cmd {
-                                    if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
-                                        if !cmd.parameters.is_empty() {
-                                            ctx.command_palette.stage = PaletteStage::CollectParameter(
-                                                ParameterCollectionState::new(cmd.id)
-                                            );
-                                            ctx.command_palette.editor.clear();
-                                            ctx.command_palette.selected_index = 0;
-                                        } else {
-                                            // Trigger execution event
-                                            let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
-                                            ctx.command_palette.reset();
-                                            if let Some(saved) = ctx.focus.pop_saved_focus() {
-                                                ctx.focus.set_focus(saved);
+                                if ctx.command_palette.search_aggregator.is_some() {
+                                    let results = ctx.command_palette.results();
+                                    let matched_res = results.get(ctx.command_palette.selected_index).cloned();
+                                    if let Some(res) = matched_res {
+                                        match res.action {
+                                            SearchResultAction::InvokeCommand(command_id) => {
+                                                let matched_cmd = crate::ui::command::COMMANDS.iter().find(|c| c.id == command_id);
+                                                if let Some(cmd) = matched_cmd {
+                                                    if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
+                                                        if !cmd.parameters.is_empty() {
+                                                            ctx.command_palette.stage = PaletteStage::CollectParameter(
+                                                                ParameterCollectionState::new(cmd.id)
+                                                            );
+                                                            ctx.command_palette.editor.clear();
+                                                            ctx.command_palette.selected_index = 0;
+                                                        } else {
+                                                            let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
+                                                            ctx.command_palette.reset();
+                                                            if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                                ctx.focus.set_focus(saved);
+                                                            }
+                                                            if let Some(inv) = inv_opt {
+                                                                return DispatchResult::event(UiEvent::Command(inv));
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            if let Some(inv) = inv_opt {
-                                                return DispatchResult::event(UiEvent::Command(inv));
+                                            SearchResultAction::SwitchSession(session_id) => {
+                                                ctx.command_palette.reset();
+                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    ctx.focus.set_focus(saved);
+                                                }
+                                                return DispatchResult::event(UiEvent::Sidebar(SidebarEvent::Open(session_id)));
+                                            }
+                                            SearchResultAction::JumpToMessage { message_id } => {
+                                                ctx.command_palette.reset();
+                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    ctx.focus.set_focus(saved);
+                                                }
+                                                return DispatchResult::event(UiEvent::SearchSelect(SearchResultAction::JumpToMessage { message_id }));
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    let matched_cmd = ctx.command_palette.matches().nth(ctx.command_palette.selected_index);
+                                    if let Some(cmd) = matched_cmd {
+                                        if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
+                                            if !cmd.parameters.is_empty() {
+                                                ctx.command_palette.stage = PaletteStage::CollectParameter(
+                                                    ParameterCollectionState::new(cmd.id)
+                                                );
+                                                ctx.command_palette.editor.clear();
+                                                ctx.command_palette.selected_index = 0;
+                                            } else {
+                                                let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
+                                                ctx.command_palette.reset();
+                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    ctx.focus.set_focus(saved);
+                                                }
+                                                if let Some(inv) = inv_opt {
+                                                    return DispatchResult::event(UiEvent::Command(inv));
+                                                }
                                             }
                                         }
                                     }
@@ -264,7 +331,7 @@ impl Dispatcher {
                                         if !text.is_empty() {
                                             let val = match param_desc.kind {
                                                 crate::ui::command::ParameterKind::String => Some(ParameterValue::String(text)),
-                                                crate::ui::command::ParameterKind::Theme => Some(ParameterValue::Theme(crate::ui::command::ThemeId("dark"))), // Stub validation
+                                                crate::ui::command::ParameterKind::Theme => Some(ParameterValue::Theme(crate::ui::command::ThemeId("dark"))),
                                                 _ => Some(ParameterValue::String(text)),
                                             };
                                             if let Some(param_val) = val {
@@ -300,10 +367,26 @@ impl Dispatcher {
                     }
                     Command::Backspace => {
                         ctx.command_palette.editor.backspace();
+                        if let PaletteStage::Search = ctx.command_palette.stage {
+                            let query_text = ctx.command_palette.editor.text().to_string();
+                            let search_context = crate::ui::search::types::SearchContext {
+                                sessions: ctx.sessions.to_vec(),
+                                active_messages: ctx.active_messages.to_vec(),
+                            };
+                            ctx.command_palette.trigger_search(query_text, &search_context);
+                        }
                         return DispatchResult::render();
                     }
                     Command::Delete => {
                         ctx.command_palette.editor.delete();
+                        if let PaletteStage::Search = ctx.command_palette.stage {
+                            let query_text = ctx.command_palette.editor.text().to_string();
+                            let search_context = crate::ui::search::types::SearchContext {
+                                sessions: ctx.sessions.to_vec(),
+                                active_messages: ctx.active_messages.to_vec(),
+                            };
+                            ctx.command_palette.trigger_search(query_text, &search_context);
+                        }
                         return DispatchResult::render();
                     }
                     Command::MoveLeft => {
@@ -318,6 +401,14 @@ impl Dispatcher {
                 },
                 InputAction::Text(TextInput::Char(c)) => {
                     ctx.command_palette.editor.insert(c);
+                    if let PaletteStage::Search = ctx.command_palette.stage {
+                        let query_text = ctx.command_palette.editor.text().to_string();
+                        let search_context = crate::ui::search::types::SearchContext {
+                            sessions: ctx.sessions.to_vec(),
+                            active_messages: ctx.active_messages.to_vec(),
+                        };
+                        ctx.command_palette.trigger_search(query_text, &search_context);
+                    }
                     return DispatchResult::render();
                 }
                 _ => {}

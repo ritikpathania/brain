@@ -153,7 +153,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -175,7 +175,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -196,7 +196,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -215,7 +215,7 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -297,7 +297,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
     assert!(command_palette.open);
@@ -319,7 +319,7 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals,
+                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
             }
         );
     }
@@ -345,7 +345,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
     assert!(command_palette.open);
@@ -372,7 +372,7 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals,
+                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
             }
         );
     }
@@ -391,7 +391,7 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 
@@ -467,7 +467,7 @@ fn test_command_execution_pipeline() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals,
+                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
             }
         );
     }
@@ -485,7 +485,7 @@ fn test_command_execution_pipeline() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals,
+            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
         }
     );
 

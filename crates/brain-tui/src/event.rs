@@ -40,6 +40,8 @@ pub enum AppEvent {
         /// Diagnostic error description.
         error: String,
     },
+    /// Unified global search event emitted by a provider.
+    Search(crate::ui::search::types::SearchEvent),
 }
 
 
