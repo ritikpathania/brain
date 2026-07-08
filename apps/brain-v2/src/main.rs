@@ -42,6 +42,10 @@ impl ExecutionClient for EmbeddedClient {
     async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
         Ok(())
     }
+
+    async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
+        Ok(vec![])
+    }
 }
 
 #[tokio::main]

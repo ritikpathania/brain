@@ -389,6 +389,7 @@ mod integration_tests {
         async fn load_session(&self, _id: brain_domain::SessionId) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
         async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> { Ok(()) }
         async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> { Ok(()) }
+        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
     }
 
     #[tokio::test]

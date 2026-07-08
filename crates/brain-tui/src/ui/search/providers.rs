@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ui::search::types::{
     ProviderId, SearchQuery, SearchContext, SearchEventSink, SearchEvent,
     SearchResult, SearchResultKind, SearchResultAction,
-    PROVIDER_COMMANDS, PROVIDER_SESSIONS, PROVIDER_LOCAL_MESSAGES, SearchProvider
+    PROVIDER_COMMANDS, PROVIDER_SESSIONS, PROVIDER_LOCAL_MESSAGES, PROVIDER_REMOTE_MESSAGES, SearchProvider
 };
 
 /// Pluggable provider for static system command workflows.
@@ -172,6 +172,101 @@ impl SearchProvider for LocalMessagesProvider {
         sink.submit(SearchEvent::Finished {
             generation: query.generation,
             provider: self.provider_id(),
+        });
+    }
+}
+
+/// Pluggable provider for remote message history.
+pub struct RemoteMessagesProvider {
+    client: Arc<dyn crate::client::ExecutionClient>,
+}
+
+impl RemoteMessagesProvider {
+    /// Instantiates a new RemoteMessagesProvider.
+    pub fn new(client: Arc<dyn crate::client::ExecutionClient>) -> Self {
+        Self { client }
+    }
+}
+
+impl SearchProvider for RemoteMessagesProvider {
+    fn provider_id(&self) -> ProviderId {
+        PROVIDER_REMOTE_MESSAGES
+    }
+
+    fn search(
+        &self,
+        query: &SearchQuery,
+        _context: &SearchContext,
+        cancellation_token: CancellationToken,
+        sink: Arc<dyn SearchEventSink>,
+    ) {
+        sink.submit(SearchEvent::Started {
+            generation: query.generation,
+            provider: self.provider_id(),
+        });
+
+        let query_text = query.text.clone();
+        let gen = query.generation;
+        let client_clone = self.client.clone();
+        let sink_clone = sink.clone();
+        let provider_id = self.provider_id();
+
+        tokio::spawn(async move {
+            if cancellation_token.is_cancelled() {
+                return;
+            }
+
+            match client_clone.search_messages(&query_text).await {
+                Ok(messages) => {
+                    if cancellation_token.is_cancelled() {
+                        return;
+                    }
+                    let mut results = Vec::new();
+                    for msg in messages {
+                        let preview = if msg.content.len() > 50 {
+                            format!("{}...", &msg.content[..50])
+                        } else {
+                            msg.content.clone()
+                        };
+
+                        let role_name = match msg.role {
+                            brain_domain::MessageRole::User => "User",
+                            brain_domain::MessageRole::Assistant => "Assistant",
+                            brain_domain::MessageRole::System => "System",
+                        };
+
+                        results.push(SearchResult {
+                            title: preview,
+                            subtitle: format!("{} message (history)", role_name),
+                            kind: SearchResultKind::Message,
+                            provider_score: 1,
+                            action: SearchResultAction::JumpToMessage {
+                                message_id: crate::ui::interaction::MessageId(0), // Opaque jump target for historical messages
+                            },
+                        });
+                    }
+
+                    sink_clone.submit(SearchEvent::Results {
+                        generation: gen,
+                        provider: provider_id,
+                        results,
+                    });
+                    sink_clone.submit(SearchEvent::Finished {
+                        generation: gen,
+                        provider: provider_id,
+                    });
+                }
+                Err(_e) => {
+                    if cancellation_token.is_cancelled() {
+                        return;
+                    }
+                    sink_clone.submit(SearchEvent::Failed {
+                        generation: gen,
+                        provider: provider_id,
+                        reason: crate::ui::search::types::SearchFailure::Internal,
+                    });
+                }
+            }
         });
     }
 }

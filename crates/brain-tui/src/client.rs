@@ -85,6 +85,9 @@ pub trait ExecutionClient: Send + Sync {
 
     /// Approves or denies a tool call.
     async fn approve_tool_call(&self, call_id: brain_core::events::ToolCallId, approved: bool) -> Result<(), BrainError>;
+
+    /// Searches historical messages across all sessions.
+    async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError>;
 }
 
 #[cfg(test)]
@@ -130,6 +133,10 @@ mod tests {
 
         async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
             Ok(())
+        }
+
+        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
+            Ok(vec![])
         }
     }
 
