@@ -90,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Shutdown sequence completed successfully.");
     } else {
         // Start interactive Ratatui TUI mode by default
-        let client = Box::new(EmbeddedClient);
+        let client = Box::new(brain_tui::client::UdsClient::default());
         if let Err(e) = brain_tui::run(client).await {
             eprintln!("TUI Error: {}", e);
             std::process::exit(1);
