@@ -82,7 +82,8 @@ impl Exporter for AnalyticsDatabase {
         // 4. Update the last sync watermark in DuckDB if we found any newer updates
         if max_updated_at > last_sync {
             tx.execute(
-                "INSERT INTO sync_metadata (key, val_int) VALUES ('last_sync_updated_at', ?)",
+                "INSERT INTO sync_metadata (key, val_int) VALUES ('last_sync_updated_at', ?)
+                 ON CONFLICT(key) DO UPDATE SET val_int = excluded.val_int",
                 params![max_updated_at],
             )
             .map_err(|e| e.to_string())?;

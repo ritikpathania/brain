@@ -398,10 +398,20 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
 
     let metrics = Arc::new(DaemonMetrics::new());
 
-    let analytics_db = Arc::new(
-        AnalyticsDatabase::new(paths.analytics_db_path.to_str().unwrap())
-            .expect("Failed to initialize DuckDB"),
-    );
+    let analytics_db = match AnalyticsDatabase::new(paths.analytics_db_path.to_str().unwrap()) {
+        Ok(db) => Arc::new(db),
+        Err(e) => {
+            error!(component = "main", "Failed to initialize DuckDB analytics database: {}", e);
+            eprintln!(
+                "Error: Failed to initialize DuckDB database at {}.\n\
+                 This usually means another instance of the brain daemon is already running\n\
+                 or holds a lock on the database file. Details: {}",
+                paths.analytics_db_path.display(),
+                e
+            );
+            std::process::exit(1);
+        }
+    };
     let (analytics_tx, analytics_rx) =
         tokio::sync::mpsc::unbounded_channel::<daemon_bridge::storage::duckdb::AnalyticsEvent>();
 
@@ -417,10 +427,20 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     });
 
     let global_state: GlobalState = Arc::new(RwLock::new(HashMap::new()));
-    let ltm_db = Arc::new(
-        LtmDatabase::new(paths.db_path.to_str().unwrap())
-            .expect("Failed to initialize LTM Database"),
-    );
+    let ltm_db = match LtmDatabase::new(paths.db_path.to_str().unwrap()) {
+        Ok(db) => Arc::new(db),
+        Err(e) => {
+            error!(component = "main", "Failed to initialize SQLite LTM database: {}", e);
+            eprintln!(
+                "Error: Failed to initialize SQLite database at {}.\n\
+                 This usually means another instance of the brain daemon is already running\n\
+                 or holds a lock on the database file. Details: {}",
+                paths.db_path.display(),
+                e
+            );
+            std::process::exit(1);
+        }
+    };
     info!(component = "database", db_path = %paths.db_path.display(), "LTM Persistent Graph Database initialized");
 
     // Read or create config

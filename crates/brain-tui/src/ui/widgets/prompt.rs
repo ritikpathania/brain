@@ -34,9 +34,12 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
     f.render_widget(p, area);
 
     // Set cursor position.
-    let cursor_x = area.x + 1 + view.cursor_position as u16;
-    let cursor_y = area.y + 1;
-    if cursor_x < area.x + area.width - 1 {
-        f.set_cursor(cursor_x, cursor_y);
+    if area.width > 2 && area.height > 2 {
+        let max_x = area.x + area.width - 2;
+        let cursor_x = (area.x + 1).saturating_add(view.cursor_position as u16);
+        let cursor_y = area.y + 1;
+        if cursor_x <= max_x {
+            f.set_cursor(cursor_x, cursor_y);
+        }
     }
 }
