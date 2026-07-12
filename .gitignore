@@ -70,5 +70,9 @@ cli/bin/brain_tui
 cli/tests/captures/
 cli/tests/rigorous_test_results.json
 
+# Generated contract artifacts
+generated/contracts/
+temp_generated/
+
 
 

@@ -116,7 +116,15 @@ As the relational memory engine grows, maintain the following design disciplines
    - **Positive Assertions**: Incorporate structural validation checks verifying that required standards (e.g. traits derived, expected placement directories) are successfully satisfied.
    - **Dependency DAG Verification**: Assert full workspace dependency layout invariants (e.g. verifying that `brain-domain` lacks outgoing dependencies and `brain-services` handles facade orchestrations) using `cargo_metadata` or cargo tree analysis.
 
+## Framework Evolution Guardrails
 
+To prevent the framework from growing faster than the product, adhere to this core project rule:
 
+> **Framework code exists only to enable capabilities. Capabilities should not require framework evolution by default.**
 
+Before proposing or introducing any new foundational framework abstraction, enforce the following checklist:
+1. **Reuse**: Can this capability be implemented cleanly using the existing aggregate, event, projection, and query models?
+2. **Duplication Proof**: Is this the second or third separate feature showing a clear need for the proposed abstraction?
+3. **Generalizability**: Will the new abstraction simplify multiple future capabilities, rather than just the immediate task at hand?
 
+Unless the answer to all three is a clear "yes", implement the capability strictly on top of the existing architecture instead of extending it.
