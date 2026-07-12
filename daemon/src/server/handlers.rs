@@ -422,6 +422,33 @@ pub async fn handle_connection(
                                             // 4. Ingest and persist
                                             match db.insert_event(&env) {
                                                 Ok(sequence) => {
+                                                    let text_to_ingest = match &env.event {
+                                                        brain_integrations::IngestionEvent::Text { content, .. } => Some(content.clone()),
+                                                        brain_integrations::IngestionEvent::Message { content, .. } => Some(content.clone()),
+                                                        brain_integrations::IngestionEvent::TerminalCommand { command, stdout_summary, .. } => {
+                                                            Some(format!("Terminal command executed: {}\nOutput: {}", command, stdout_summary.as_deref().unwrap_or("")))
+                                                        }
+                                                        brain_integrations::IngestionEvent::FileEdit { path, diff, .. } => {
+                                                            Some(format!("File edited: {}\nDiff:\n{}", path, diff.as_deref().unwrap_or("")))
+                                                        }
+                                                        brain_integrations::IngestionEvent::GitCommit { message, hash, .. } => {
+                                                            Some(format!("Git commit ({}): {}", hash, message))
+                                                        }
+                                                        brain_integrations::IngestionEvent::GitBranch { action, branch_name, .. } => {
+                                                            Some(format!("Git branch {}: {}", action, branch_name))
+                                                        }
+                                                        brain_integrations::IngestionEvent::Diagnostic { message, severity, source, file, .. } => {
+                                                            Some(format!("Diagnostic [{} / {}] in {}: {}", source, severity, file.as_deref().unwrap_or(""), message))
+                                                        }
+                                                        _ => None,
+                                                    };
+
+                                                    if let Some(text) = text_to_ingest {
+                                                        let mut state_guard = state.write().await;
+                                                        let session = state_guard.entry(session_id.clone()).or_insert_with(stm::SessionContext::new);
+                                                        session.ingest(text);
+                                                    }
+
                                                     let ack_body = serde_json::json!({
                                                         "sequence": sequence,
                                                         "event_id": env.identity.event_id.to_string(),
@@ -430,7 +457,7 @@ pub async fn handle_connection(
                                                     info!(
                                                         sequence = sequence,
                                                         event_id = %env.identity.event_id,
-                                                        "Event successfully written to write-ahead event log"
+                                                        "Event successfully written to write-ahead event log and STM"
                                                     );
 
                                                     if is_versioned {

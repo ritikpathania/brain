@@ -87,6 +87,10 @@ def normalize_entity(text: str):
         clean_id = re.sub(r'[^a-zA-Z0-9_-]+', '-', text_lower).strip('-')
         return clean_id, text_clean, "concept"
         
+    # 4. Fallback for other strings (lowercase/unmatched concepts)
+    clean_id = re.sub(r'[^a-zA-Z0-9_-]+', '-', text_lower).strip('-')
+    return clean_id, text_clean, "concept"
+        
 def _split_overlapping_proper_nouns(raw_entities, content, stop_words):
     """
     Splits proper noun (concept) matches that contain/overlap with specific entity matches
