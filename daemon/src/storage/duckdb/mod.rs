@@ -263,4 +263,32 @@ mod tests {
         assert_eq!(summary.cache_hit_rate, 1.0);
         assert_eq!(summary.avg_query_latency_us, 150.0);
     }
+
+    #[test]
+    fn test_duplicate_watermark_sync_no_panic() {
+        let db = AnalyticsDatabase::new_in_memory().unwrap();
+        let conn = db.conn.lock().unwrap();
+
+        // 1. Initial insert of watermark
+        conn.execute(
+            "INSERT INTO sync_metadata (key, val_int) VALUES ('last_sync_updated_at', 100)
+             ON CONFLICT(key) DO UPDATE SET val_int = excluded.val_int",
+            params![],
+        )
+        .unwrap();
+
+        // 2. Second insert of the same key (simulating duplicate watermark sync)
+        conn.execute(
+            "INSERT INTO sync_metadata (key, val_int) VALUES ('last_sync_updated_at', 200)
+             ON CONFLICT(key) DO UPDATE SET val_int = excluded.val_int",
+            params![],
+        )
+        .unwrap();
+
+        // 3. Verify it was updated successfully to 200 without constraint violation
+        let mut stmt = conn.prepare("SELECT val_int FROM sync_metadata WHERE key = 'last_sync_updated_at'").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let val: i64 = rows.next().unwrap().unwrap().get(0).unwrap();
+        assert_eq!(val, 200);
+    }
 }
