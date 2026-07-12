@@ -190,7 +190,16 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     message: assistant_id,
                     text,
                 };
-                self.client.send(cmd).await?;
+                if let Err(e) = self.client.send(cmd).await {
+                    let err_msg = format!(
+                        "Error: Failed to connect to memory daemon ({}).\n\n\
+                         Please check that the backend is running by executing:\n\n\
+                         \x20\x20brain daemon start\n\n\
+                         in your terminal, then try again.",
+                        e
+                    );
+                    self.state.handle_submission_error(assistant_id, err_msg);
+                }
                 Ok(Some(RenderRequest {
                     reason: RenderReason::Input,
                     invalidation: RenderInvalidation::EverythingStale,
@@ -280,6 +289,9 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                             let visible_ids = self.state.visible_session_ids();
                             self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
                         }
+                        LocalStateMutation::ToggleReflectionLogs => {
+                            self.state.toggle_reflection_logs();
+                        }
                     }
                 }
 
@@ -345,6 +357,34 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
             }
             BackendEvent::ToolCallResult { message, call_id, result, is_error } => {
                 self.state.handle_tool_result(message, call_id, result, is_error);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
+            BackendEvent::RetrievalStarted { message, query } => {
+                self.state.handle_retrieval_started(message, query);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::ConversationStale,
+                }))
+            }
+            BackendEvent::RetrievalRetrieved { message, info } => {
+                self.state.handle_retrieval_retrieved(message, info);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::EverythingStale,
+                }))
+            }
+            BackendEvent::RetrievalCompleted { message } => {
+                self.state.handle_retrieval_completed(message);
+                Ok(Some(RenderRequest {
+                    reason: RenderReason::StreamToken,
+                    invalidation: RenderInvalidation::ConversationStale,
+                }))
+            }
+            BackendEvent::SessionsUpdated { sessions } => {
+                self.state.set_sessions(sessions);
                 Ok(Some(RenderRequest {
                     reason: RenderReason::StreamToken,
                     invalidation: RenderInvalidation::EverythingStale,

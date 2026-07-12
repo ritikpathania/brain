@@ -35,6 +35,16 @@ pub struct AppState<'a> {
     active_tool_calls: Vec<crate::ui::command::tool::ToolExecution>,
     pending_approvals: Vec<crate::ui::command::tool::ToolApproval>,
     message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
+    /// User-facing retrieval metadata objects.
+    pub retrievals: std::collections::HashMap<brain_domain::bkf::retrieval::RetrievalId, brain_domain::bkf::retrieval::RetrievalInfo>,
+    /// Map from UI MessageId to associated retrievals.
+    pub message_retrievals: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<brain_domain::bkf::retrieval::RetrievalId>>,
+    /// Chronological list of events in the session timeline.
+    pub timeline: Vec<(crate::ui::interaction::timeline::EventOrdinal, crate::ui::interaction::timeline::TimelineItem)>,
+    /// Monotonically increasing sequence number for timeline events.
+    pub next_ordinal: u64,
+    /// Toggle state for showing/hiding reflection logs.
+    pub enable_reflection_logs: bool,
 
     cols: u16,
     rows: u16,
@@ -64,11 +74,20 @@ impl<'a> AppState<'a> {
             active_tool_calls: Vec::new(),
             pending_approvals: Vec::new(),
             message_tool_calls: std::collections::HashMap::new(),
+            retrievals: std::collections::HashMap::new(),
+            message_retrievals: std::collections::HashMap::new(),
+            timeline: Vec::new(),
+            next_ordinal: 1,
+            enable_reflection_logs: false,
 
             cols: 80,
 
             rows: 24,
         }
+    }
+    /// Toggle reflection logs visibility.
+    pub fn toggle_reflection_logs(&mut self) {
+        self.enable_reflection_logs = !self.enable_reflection_logs;
     }
 
     /// Read-only accessor for ChatState.
@@ -341,6 +360,12 @@ impl<'a> AppState<'a> {
         self.generation = GenerationState::Idle;
     }
 
+    /// Transition active generation state to Error and append the error message.
+    pub fn handle_submission_error(&mut self, assistant_id: MessageId, error_message: String) {
+        let _ = self.chat.append_token(assistant_id, &error_message);
+        self.generation = GenerationState::Error { message: assistant_id };
+    }
+
     /// Domain operation when tool call is requested by backend.
     pub fn handle_tool_call_request(
         &mut self,
@@ -361,7 +386,7 @@ impl<'a> AppState<'a> {
         if requires_approval {
             let approval = ToolApproval {
                 message_id: message,
-                call_id,
+                call_id: call_id.clone(),
                 tool_id,
                 arguments,
             };
@@ -370,6 +395,11 @@ impl<'a> AppState<'a> {
             new_execution.status = ToolExecutionStatus::Approved;
         }
         self.active_tool_calls.push(new_execution);
+        self.timeline.push((
+            crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+            crate::ui::interaction::timeline::TimelineItem::ToolExecution(call_id),
+        ));
+        self.next_ordinal += 1;
     }
 
     /// Domain operation to update tool execution progress.
@@ -424,6 +454,28 @@ impl<'a> AppState<'a> {
                 self.message_tool_calls.entry(msg_id).or_default().push(tool);
             }
         }
+    }
+
+    /// Domain operation when retrieval phase has started.
+    pub fn handle_retrieval_started(&mut self, message: MessageId, query: String) {
+        let _ = (message, query);
+    }
+
+    /// Domain operation when context chunk is retrieved.
+    pub fn handle_retrieval_retrieved(&mut self, message: MessageId, info: brain_domain::bkf::retrieval::RetrievalInfo) {
+        let id = info.id;
+        self.retrievals.insert(id, info);
+        self.message_retrievals.entry(message).or_default().push(id);
+        self.timeline.push((
+            crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+            crate::ui::interaction::timeline::TimelineItem::Retrieval(id),
+        ));
+        self.next_ordinal += 1;
+    }
+
+    /// Domain operation when retrieval phase completes.
+    pub fn handle_retrieval_completed(&mut self, message: MessageId) {
+        let _ = message;
     }
 }
 
