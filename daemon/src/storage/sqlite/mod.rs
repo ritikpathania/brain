@@ -403,6 +403,137 @@ impl StorageBackend for LtmDatabase {
         }
         Ok(nodes)
     }
+
+    fn apply_kpp_ops(&self, ops: &[brain_domain::bkf::SqliteOp]) -> Result<(), String> {
+        let mut conn_guard = self.conn.lock().unwrap();
+        let tx = conn_guard.transaction().map_err(|e| e.to_string())?;
+
+        for op in ops {
+            match op {
+                brain_domain::bkf::SqliteOp::Node(delta) => match delta {
+                    brain_domain::bkf::ProjectionDelta::Insert(node) => {
+                        let props_json = serde_json::to_string(&node.attributes).unwrap_or_default();
+                        tx.execute(
+                            "INSERT INTO nodes (id, label, type, properties, updated_at, lifecycle, validity, version_state) \
+                             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
+                             ON CONFLICT(id) DO UPDATE SET \
+                             label=excluded.label, \
+                             type=excluded.type, \
+                             properties=excluded.properties, \
+                             updated_at=excluded.updated_at, \
+                             lifecycle=excluded.lifecycle, \
+                             validity=excluded.validity, \
+                             version_state=excluded.version_state",
+                            (
+                                &node.id,
+                                &node.label,
+                                &node.entity_type,
+                                &props_json,
+                                Utc::now().timestamp(),
+                                format!("{:?}", node.lifecycle),
+                                format!("{:?}", node.validity),
+                                format!("{:?}", node.version_state),
+                            ),
+                        ).map_err(|e| e.to_string())?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Update { id, changes } => {
+                        let props_json = serde_json::to_string(&changes.attributes).unwrap_or_default();
+                        tx.execute(
+                            "UPDATE nodes SET label = ?1, type = ?2, properties = ?3, updated_at = ?4, lifecycle = ?5, validity = ?6, version_state = ?7 WHERE id = ?8",
+                            (
+                                &changes.label,
+                                &changes.entity_type,
+                                &props_json,
+                                Utc::now().timestamp(),
+                                format!("{:?}", changes.lifecycle),
+                                format!("{:?}", changes.validity),
+                                format!("{:?}", changes.version_state),
+                                id,
+                            ),
+                        ).map_err(|e| e.to_string())?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Delete(id) => {
+                        tx.execute("DELETE FROM nodes WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
+                    }
+                },
+                brain_domain::bkf::SqliteOp::Edge(delta) => match delta {
+                    brain_domain::bkf::ProjectionDelta::Insert(edge) => {
+                        tx.execute(
+                            "INSERT INTO edges (source, target, relation, weight, updated_at, lifecycle, version_state) \
+                             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) \
+                             ON CONFLICT(source, target, relation) DO UPDATE SET \
+                             weight=excluded.weight, \
+                             lifecycle=excluded.lifecycle, \
+                             version_state=excluded.version_state",
+                            (
+                                &edge.source,
+                                &edge.target,
+                                &edge.relation,
+                                edge.weight,
+                                Utc::now().timestamp(),
+                                format!("{:?}", edge.lifecycle),
+                                format!("{:?}", edge.version_state),
+                            ),
+                        ).map_err(|e| e.to_string())?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Update { id: _, changes } => {
+                        tx.execute(
+                            "UPDATE edges SET weight = ?1, lifecycle = ?2, version_state = ?3 WHERE source = ?4 AND target = ?5 AND relation = ?6",
+                            (
+                                changes.weight,
+                                format!("{:?}", changes.lifecycle),
+                                format!("{:?}", changes.version_state),
+                                &changes.source,
+                                &changes.target,
+                                &changes.relation,
+                            ),
+                        ).map_err(|e| e.to_string())?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Delete(id) => {
+                        tx.execute(
+                            "DELETE FROM edges WHERE (source || '-' || target || '-' || LOWER(relation)) = ?1",
+                            [id],
+                        ).map_err(|e| e.to_string())?;
+                    }
+                },
+            }
+        }
+
+        tx.commit().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn log_kpp_event(&self, event: &brain_domain::DomainEvent) -> Result<(), String> {
+        let event_id = uuid::Uuid::new_v4().to_string();
+        let _correlation_id = uuid::Uuid::new_v4().to_string();
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        let payload_json = serde_json::to_string(event).map_err(|e| e.to_string())?;
+
+        let conn_guard = self.conn.lock().unwrap();
+        conn_guard.execute(
+            "INSERT INTO event_log (event_id, adapter_id, client_id, session_id, workspace_id, conversation_id, event_model_version, event_type, payload, timestamp, received_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            (
+                &event_id,
+                "KPP",
+                "KPP_CLIENT",
+                "KPP_SESSION",
+                "KPP_WORKSPACE",
+                None::<String>,
+                "1.0",
+                "core",
+                &payload_json,
+                &timestamp_ms.to_string(),
+                &timestamp_ms.to_string(),
+            ),
+        ).map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
 }
 
 impl crate::plugins::traits::EventLogRepository for LtmDatabase {

@@ -16,7 +16,13 @@ members = [
     "crates/brain-integrations",
     "crates/brain-sdk-rs",
     "crates/brain-cli-adapter",
+    "crates/brain-application",
+    "crates/brain-mcp-adapter",
+    "crates/brain-acp-adapter",
+    "crates/brain-adapter-core",
+    "crates/brain-a2a-adapter",
     "apps/brain-v2",
+    "xtask",
 ]
 exclude = ["daemon"]
 
@@ -35,3 +41,4 @@ pyo3 = { version = "0.21.0", features = ["auto-initialize"] }
 reqwest = { version = "0.12", features = ["json"] }
 toml = "0.8"
 semver = "1.0"
+specta = { version = "1.0.5", features = ["serde", "typescript"] }

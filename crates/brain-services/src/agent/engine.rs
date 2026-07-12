@@ -173,7 +173,7 @@ impl ExecutionStage for PlanningStage {
         }
 
         // Context history resolves context conversation
-        let history = brain_domain::Conversation::new_empty();
+        let history = brain_domain::Session::new_empty();
         match ctx.planner.plan_steps(&ctx.prompt, &history) {
             Ok(steps) => {
                 state.planner_output = steps;

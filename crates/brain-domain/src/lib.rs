@@ -68,3 +68,7 @@ pub use temporal::*;
 /// First-class domain consolidation policies and decision engines.
 pub mod consolidation;
 pub use consolidation::*;
+
+/// First-class background jobs models and state machine.
+pub mod jobs;
+pub use jobs::*;

@@ -34,31 +34,31 @@ Traditional memory architectures for LLMs rely on naive flat vector search, whic
 ### Goals
 * **Designed for sub-millisecond STM retrieval and low-latency hybrid retrieval**: Cache hot paths using in-memory structures and optimize persistent queries to run under 10ms.
 * **Native SQLite-backed vector storage without an external vector database**: Implement high-performance float vector comparisons inside a local SQLite database using native floating-point math, removing dependencies on heavy external vector databases.
-* **Low-Overhead FFI Boundary**: Embed the Python interpreter directly into a Rust daemon using PyO3 and Maturin to run NLP heuristics and embedding models in-memory.
+* **Low-Overhead FFI Boundary**: Embed the Python interpreter directly into the Rust runtime using PyO3 and Maturin to run NLP heuristics and embedding models in-memory.
 * **Separation of OLTP and OLAP**: Keep transactional writes (SQLite) isolated from columnar diagnostics and query statistics (DuckDB) to prevent analytics query lockouts.
 * **Developer-Friendly Extensibility**: Support dynamic plugin loading using simple Python scripts dropped into a user-specific configuration directory (`~/.brain/plugins`).
 
 ### Non-Goals
 * Replacing enterprise-grade graph databases (e.g., Neo4j) for massive multi-million node graphs.
-* Running deep learning model training processes inside the daemon (training is offloaded to external LLM/embedding providers).
+* Running deep learning model training processes inside the runtime (training is offloaded to external LLM/embedding providers).
 * Serving as a public multi-tenant cloud service (the engine is structured as a local, single-user process).
 
 ---
 
 ## 2. High-Level Architecture
 
-The system is structured as a client-server architecture running entirely on the developer's local machine. The user interacts via a command-line interface or React/Ink TUI CLI, which communicates over a Unix Domain Socket (UDS) with the background Rust daemon.
+The system is structured as a client-server architecture running entirely on the developer's local machine. The user interacts via a command-line interface or native Rust TUI, which communicates over a Unix Domain Socket (UDS) with the background relational memory runtime daemon.
 
 ### System Components
 
 ```mermaid
 graph TD
-    subgraph CLI ["CLI / Ink TUI Client"]
-        TUI[React/Ink TUI]
-        TS_Client[SocketClient TS]
+    subgraph CLI ["CLI / TUI Client"]
+        TUI[Ratatui TUI]
+        UDS_Client[UDS IPC Client]
     end
 
-    subgraph Daemon ["Rust Daemon Server (Tokio)"]
+    subgraph Runtime ["Rust Runtime Server (Tokio)"]
         UDS_Server[UDS Socket Server]
         HTTP_Server[HTTP Metrics/Diag Server]
         Core_Config[Config Subsystem]
@@ -98,8 +98,8 @@ graph TD
         LLM_Plugins[llm_plugins.py]
     end
 
-    TUI -->|User Inputs| TS_Client
-    TS_Client <-->|UDS JSON-IPC| UDS_Server
+    TUI -->|User Inputs| UDS_Client
+    UDS_Client <-->|UDS JSON-IPC| UDS_Server
     UDS_Server -->|Route requests| Ret_Pipeline
     UDS_Server -->|Write logs| STM
     
@@ -137,7 +137,7 @@ The engine processes data through two primary pathways: the **Ingestion Path** (
 
 #### Ingestion Path
 1. The user or external agent submits an ingestion request (unstructured text) via UDS.
-2. The daemon validates the request and immediately appends it to the in-memory **Short-Term Memory (STM)** buffer queue.
+2. The runtime validates the request and immediately appends it to the in-memory **Short-Term Memory (STM)** buffer queue.
 3. Every 30 seconds, a background **Consolidation Worker** rotates the STM epoch, drains the accumulated buffer, and passes the text chunks across the PyO3 FFI boundary to the Python-side **Heuristics Extractor** or LLM plugin.
 4. The extractor parses the text into a semantic graph representation (nodes and relationship edges).
 5. The consolidation worker receives the graph, resolves references, and commits the nodes and edges transactionally to the **SQLite Long-Term Memory (LTM)** database.
@@ -146,7 +146,7 @@ The engine processes data through two primary pathways: the **Ingestion Path** (
 
 #### Query Path
 1. The client sends a query request via UDS (e.g., `query db config`).
-2. The daemon dispatches the search request to the **Hybrid Retrieval Pipeline**.
+2. The runtime dispatches the search request to the **Hybrid Retrieval Pipeline**.
 3. In parallel, the pipeline searches:
    * The ephemeral **STM** cache using token-overlap and fuzzy abbreviation matching (`SkimMatcherV2`).
    * The **LTM** database using lexical keyword scoring (`BM25`).
@@ -168,7 +168,7 @@ When the `brain` executable is started:
 ## 3. Technology Decisions
 
 ### Why Rust?
-Rust was chosen for the core daemon to ensure sub-millisecond core scheduling, data race prevention, and safe concurrent access to databases and in-memory caches. It compiles to a single native binary, eliminating runtime interpreter overhead.
+Rust was chosen for the core runtime to ensure sub-millisecond core scheduling, data race prevention, and safe concurrent access to databases and in-memory caches. It compiles to a single native binary, eliminating runtime interpreter overhead.
 
 ### Why SQLite?
 SQLite is the industry standard for lightweight, zero-configuration relational storage.
@@ -185,7 +185,7 @@ DuckDB provides high-performance analytical capabilities on local columnar data.
 Python is the center of the LLM, NLP, and machine learning ecosystem. Using Python for plugin development allows users to easily integrate models like `sentence-transformers`, LLMs like Anthropic/OpenAI, and local model servers like Ollama without recompiling the Rust binary.
 
 ### Why PyO3 & Maturin?
-PyO3 provides direct, in-process CPython FFI bindings. Instead of running Python scripts as separate processes (which introduces high startup costs and IPC serialization delays), PyO3 loads Python modules directly into the daemon process. Maturin manages compiling the Rust-side FUI bindings back into Python.
+PyO3 provides direct, in-process CPython FFI bindings. Instead of running Python scripts as separate processes (which introduces high startup costs and IPC serialization delays), PyO3 loads Python modules directly into the runtime process. Maturin manages compiling the Rust-side FUI bindings back into Python.
 
 ### Architectural Tradeoffs
 * **FFI Boundary Crossings**: Crossing the Rust-Python boundary requires acquiring the CPython Global Interpreter Lock (GIL). To prevent this from blocking the async socket thread pool, FFI tasks are offloaded to dedicated OS threads via `tokio::task::spawn_blocking`.
@@ -195,7 +195,7 @@ PyO3 provides direct, in-process CPython FFI bindings. Instead of running Python
 
 ## 4. Project Structure
 
-The codebase is organized in a monorepo structure, cleanly isolating the client, daemon, storage, and Python layers.
+The codebase is organized in a monorepo structure, cleanly isolating the client, runtime, storage, and Python layers.
 
 ```
 brain/
@@ -285,7 +285,7 @@ At startup, if `~/.brain/config.json` is missing, it is created with default plu
 Isolates read/write persistence. The SQLite OLTP backend uses Write-Ahead Logging (WAL) for concurrent reads/writes. In directories with restricted permissions, SQLite falls back gracefully to `rollback DELETE` journal mode. It maintains database schema migrations automatically.
 
 ### Plugin System
-The plugin system operates on a registry model. At startup, the daemon compiles a registry of active plugins, resolving dynamic plugins from Python scripts inside `~/.brain/plugins/` and built-in Rust plugins. It registers them against trait implementations for LLMs, embeddings, retrievers, storage backends, and metrics exporters.
+The plugin system operates on a registry model. At startup, the runtime compiles a registry of active plugins, resolving dynamic plugins from Python scripts inside `~/.brain/plugins/` and built-in Rust plugins. It registers them against trait implementations for LLMs, embeddings, retrievers, storage backends, and metrics exporters.
 
 ### Indexing Subsystem
 Short-term indexing parses raw text into tokens, strips English stop-words, and stores them in a memory-efficient `HashMap` Inverted Index inside the current epoch. Long-term indexing relies on SQLite indexing tables on node types and edge relations.
@@ -511,7 +511,7 @@ sequenceDiagram
 
 ### IPC Versioning and Schema
 
-To support backward compatibility with older command-line tools, the daemon uses Serde untagged enums to route requests transparently.
+To support backward compatibility with older command-line tools, the runtime uses Serde untagged enums to route requests transparently.
 
 #### Versioned Request Envelope
 ```json
@@ -586,7 +586,7 @@ It writes these updates to DuckDB's tables and updates the watermark timestamp.
 To maintain sub-millisecond latencies, **Brain** employs several design patterns:
 
 ### GIL Offloading via Tokio Threadpool
-Acquiring the CPython GIL blocks executing threads. Because the Tokio async scheduler runs on a fixed pool of thread workers, blocking any of them degrades daemon socket responsiveness.
+Acquiring the CPython GIL blocks executing threads. Because the Tokio async scheduler runs on a fixed pool of thread workers, blocking any of them degrades runtime socket responsiveness.
 * **Solution**: All PyO3 boundary calls, SQLite database writes, and DuckDB analytical sweeps are executed inside a `tokio::task::spawn_blocking` pool. This shifts blocking operations to a separate pool of OS threads.
 
 ### SQLite Cosine Similarity & IVF Indexing
@@ -598,7 +598,7 @@ Vector similarity calculations are compiled in native Rust. When a vector search
 5. Auto-vectorization allows the compiler to generate SIMD instructions (like AVX2 or NEON), reducing vector search latency into the low-microsecond range for small datasets.
 
 ### Atomic Metrics & Standardized Telemetry
-Liveness metrics (like cache hit rates, query counts, and queue depth) are updated on every request. Instead of using Mutex locks (which introduce lock contention), the daemon uses lock-free atomic counters (`AtomicUsize`, `AtomicU64`) to track metrics.
+Liveness metrics (like cache hit rates, query counts, and queue depth) are updated on every request. Instead of using Mutex locks (which introduce lock contention), the runtime uses lock-free atomic counters (`AtomicUsize`, `AtomicU64`) to track metrics.
 These metrics are exposed via two HTTP endpoints running on a dedicated health server (default port `8080`):
 * `GET /metrics`: Returns standard Prometheus text metrics formatted with `HELP` and `TYPE` comments (`Content-Type: text/plain; version=0.0.4`).
 * `GET /metrics/json`: Returns the metrics in legacy JSON format (`Content-Type: application/json`).
@@ -608,7 +608,7 @@ These metrics are exposed via two HTTP endpoints running on a dedicated health s
 ## 11. Error Handling
 
 ### SQLite Fallback
-If the ephemeral STM cache search returns zero results, the query pipeline automatically falls back to traversing the persistent LTM database. If the database file is corrupted or locked, it logs a warning and falls back to a clean in-memory SQLite schema to prevent daemon crashes.
+If the ephemeral STM cache search returns zero results, the query pipeline automatically falls back to traversing the persistent LTM database. If the database file is corrupted or locked, it logs a warning and falls back to a clean in-memory SQLite schema to prevent runtime crashes.
 
 ### Network and LLM Resiliency
 When generating embeddings or NLP graphs, if external API calls (e.g. OpenAI or Ollama) fail:
@@ -632,12 +632,84 @@ When generating embeddings or NLP graphs, if external API calls (e.g. OpenAI or 
 
 ---
 
+## External Integration Architecture
+
+To preserve clean boundaries, the runtime remains protocol-agnostic. All external interfaces are decoupled from core logic via translation layers.
+
+### Layer Responsibilities
+* **CLI / TUI**: Primary user-facing terminal interface. Interacts with the daemon using UDS sockets.
+* **SDKs**: Language-specific client libraries (e.g. Python, TypeScript) wrapping around the UDS and IPC protocols for easy external embedding.
+* **Stable Application Interface**: A stable, unified facade/interface layer wrapping domain queries, workflows, and state machines.
+* **MCP / ACP / A2A / REST Adapters**: Protocol translation layers that convert external messages to stable internal commands and invoke the stable application interface. They contain zero business logic.
+
+### Architectural Invariants
+
+#### Runtime Independence
+Brain Runtime must never depend on protocol libraries (such as MCP, ACP, A2A, REST, HTTP, WebSocket, or editor APIs).
+
+#### Protocol Translation Rule
+The translation layer is strictly limited to:
+* Validating incoming request formats.
+* Translating external DTOs into internal structures.
+* Invoking the stable application interface.
+* Formatting and returning responses.
+No domain business rules, storage queries, or calculation routines are allowed inside translation layers.
+
+#### Single Source of Business Logic
+All retrieval, memory, workflow, graph, storage, ranking, and execution logic belongs exclusively inside the runtime.
+
+#### Extensibility
+Adding a new protocol should require creating only a new adapter crate. No runtime modifications should be necessary.
+
+#### Adapter Replaceability
+Any external interface (CLI, MCP, ACP, REST, A2A, SDKs) may be added, removed, or replaced without requiring changes to the Brain Runtime.
+
+#### Transport Independence
+The runtime must not know whether a request originated from:
+* CLI
+* TUI
+* MCP
+* ACP
+* REST
+* A2A
+* Tests
+* Future transports
+Every request reaches the runtime through the same application interface.
+
+### Possible Future Workspace Organization
+
+```text
+apps/
+    brain-cli
+    brain-tui
+
+crates/
+    brain-runtime
+    brain-domain
+    brain-services
+    brain-storage
+    brain-workflows
+    brain-plugins
+    ... (future stable application interface)
+
+adapters/
+    brain-mcp
+    brain-acp
+    brain-a2a
+    brain-rest
+
+sdk/
+    typescript
+    python
+```
+
+---
+
 ## 13. Design Decisions
 
 ### Embedded Assets
 To make the application a single, self-contained executable:
 * The Python NLP heuristics library and providers are bundled as binary assets in the Rust binary using `include_str!`.
-* The Ink TUI script assets (including `yoga.wasm` binary bytes) are embedded in the CLI module, ensuring that the user does not need to install Bun or Node dependencies to run the TUI.
 
 ### Columns vs. Key-Value Storage
 Instead of creating complex relational tables for every possible node attribute, properties are stored as JSON strings in a single SQLite column (`properties`). This allows schema-less flexibility while retaining SQL search compatibility via SQLite JSON operators:
@@ -763,7 +835,7 @@ As the relational memory engine grows, maintain the following disciplines:
 
 ### CLI Subcommands
 The CLI tool `brain` supports the following operations:
-* `brain`: Launches the interactive React/Ink TUI. Supports theme override via the `--theme`/`-t` flag or `BRAIN_THEME` environment variable.
+* `brain`: Launches the interactive Ratatui-based TUI. Supports theme override via the `--theme`/`-t` flag or `BRAIN_THEME` environment variable.
 * `brain daemon start`: Starts the background memory daemon process.
 * `brain daemon stop`: Stops the running daemon process.
 * `brain daemon status`: Asserts if the daemon is currently running.

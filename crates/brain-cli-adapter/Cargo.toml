@@ -1,0 +1,17 @@
+[package]
+name = "brain-cli-adapter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+brain-domain = { path = "../brain-domain" }
+brain-integrations = { path = "../brain-integrations" }
+brain-sdk-rs = { path = "../brain-sdk-rs" }
+
+[dev-dependencies]
+rand = "0.8"

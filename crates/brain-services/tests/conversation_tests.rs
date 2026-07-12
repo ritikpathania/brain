@@ -5,7 +5,7 @@ use brain_core::errors::BrainError;
 use brain_core::repositories::{EdgeRepository, NodeRepository};
 use brain_core::services::{MemoryExtractor, ExtractionRequest, ExtractionResult};
 use brain_domain::{
-    Conversation, ConversationId, Edge, Message, MessageId, MessageRole, Node, NodeId, NodeType,
+    Session, ConversationId, Edge, Message, MessageId, MessageRole, Node, NodeId, NodeType,
     SessionId, RelationKind
 };
 use brain_session::SessionCacheManager;
@@ -123,7 +123,7 @@ async fn test_checkpoint_store_immutability() {
     let session_id = SessionId::new();
     let checkpoint_id = ConversationId::new();
 
-    let mut history = Conversation::new_empty();
+    let mut history = Session::new_empty();
     history.messages.push(Message::new(
         MessageId::new(),
         MessageRole::User,
@@ -392,10 +392,10 @@ fn test_archive_conversation_and_event_publishing() {
     assert!(err.is_err());
     assert!(err.unwrap_err().to_string().contains("is archived"));
 
-    // Verify event was published
+    // Verify event was published (1 SessionCreated, 2 MessageAdded, 1 ConversationArchived = 4 events)
     let events = published_events.lock().unwrap();
-    assert_eq!(events.len(), 1);
-    let envelope = &events[0];
+    assert_eq!(events.len(), 4);
+    let envelope = &events[3];
     assert_eq!(envelope.source, "conversation_service");
     match &envelope.payload {
         brain_events::DomainEvent::Session(brain_events::SessionEvent::ConversationArchived(_)) => {}

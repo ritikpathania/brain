@@ -508,6 +508,16 @@ pub struct UiState {
     pub message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
     /// View state for conversation scroll and select.
     pub conversation_view: crate::ui::interaction::navigation::ConversationViewState,
+    /// Retrieval metadata objects by ID.
+    pub retrievals: std::collections::HashMap<brain_domain::bkf::retrieval::RetrievalId, brain_domain::bkf::retrieval::RetrievalInfo>,
+    /// Mapping from message ID to context retrievals.
+    pub message_retrievals: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<brain_domain::bkf::retrieval::RetrievalId>>,
+    /// Chronological list of events in the session.
+    pub timeline: Vec<(crate::ui::interaction::timeline::EventOrdinal, crate::ui::interaction::timeline::TimelineItem)>,
+    /// Next monotonic EventOrdinal index.
+    pub next_ordinal: u64,
+    /// Toggle state for showing/hiding reflection logs.
+    pub enable_reflection_logs: bool,
 }
 
 
@@ -594,6 +604,25 @@ pub enum Action {
         /// True if approved.
         approved: bool,
     },
+    /// Retrieval phase has started.
+    RetrievalStarted {
+        /// Message requesting retrieval.
+        message: MessageId,
+        /// The query text being searched.
+        query: String,
+    },
+    /// A retrieved context block has been received.
+    RetrievalReceived {
+        /// Message requesting retrieval.
+        message: MessageId,
+        /// Detailed user-facing retrieval entry.
+        info: brain_domain::bkf::retrieval::RetrievalInfo,
+    },
+    /// Retrieval phase completed successfully.
+    RetrievalCompleted {
+        /// Message requesting retrieval.
+        message: MessageId,
+    },
 
     /// Tab cycles focus region.
     ToggleFocus,
@@ -628,6 +657,8 @@ pub enum Action {
     },
     /// Delete selected session thread permanently.
     DeleteSession(SessionId),
+    /// Toggle the visibility of KPP reflection logs in TUI.
+    ToggleReflectionLogs,
 }
 
 /// Pure status indicator returning from state updates.
@@ -677,6 +708,11 @@ impl UiState {
             pending_approvals: Vec::new(),
             message_tool_calls: std::collections::HashMap::new(),
             conversation_view: crate::ui::interaction::navigation::ConversationViewState::default(),
+            retrievals: std::collections::HashMap::new(),
+            message_retrievals: std::collections::HashMap::new(),
+            timeline: Vec::new(),
+            next_ordinal: 1,
+            enable_reflection_logs: false,
         }
     }
 
@@ -711,6 +747,11 @@ impl UiState {
             pending_approvals: Vec::new(),
             message_tool_calls: std::collections::HashMap::new(),
             conversation_view: crate::ui::interaction::navigation::ConversationViewState::default(),
+            retrievals: std::collections::HashMap::new(),
+            message_retrievals: std::collections::HashMap::new(),
+            timeline: Vec::new(),
+            next_ordinal: 1,
+            enable_reflection_logs: false,
         }
     }
 
@@ -884,6 +925,12 @@ impl UiState {
                     self.active_response = String::new();
                     self.active_response_revision += 1;
                     self.typewriter.clear();
+                    
+                    self.retrievals.clear();
+                    self.message_retrievals.clear();
+                    self.timeline.clear();
+                    self.next_ordinal = 1;
+
                     UpdateResult::PromptSubmitted(prompt)
                 } else {
                     UpdateResult::NoChange
@@ -911,6 +958,10 @@ impl UiState {
                 self.active_response_revision += 1;
                 self.active_tool_calls.clear();
                 self.pending_approvals.clear();
+                self.retrievals.clear();
+                self.message_retrievals.clear();
+                self.timeline.clear();
+                self.next_ordinal = 1;
                 self.generation_state = GenerationState::Starting;
                 UpdateResult::Changed
             }
@@ -920,6 +971,14 @@ impl UiState {
                     self.generation_state = GenerationState::Streaming {
                         started_at: SystemTime::now(),
                     };
+                    let active_msg_id = crate::ui::interaction::MessageId(0);
+                    if !self.timeline.iter().any(|(_, item)| matches!(item, crate::ui::interaction::timeline::TimelineItem::Message(id) if *id == active_msg_id)) {
+                        self.timeline.push((
+                            crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                            crate::ui::interaction::timeline::TimelineItem::Message(active_msg_id),
+                        ));
+                        self.next_ordinal += 1;
+                    }
                 }
                 UpdateResult::Changed
             }
@@ -1011,6 +1070,10 @@ impl UiState {
                 self.active_tool_calls.clear();
                 self.pending_approvals.clear();
                 self.message_tool_calls.clear();
+                self.retrievals.clear();
+                self.message_retrievals.clear();
+                self.timeline.clear();
+                self.next_ordinal = 1;
                 UpdateResult::Changed
             }
             Action::SessionLoaded { session_id, request_id, messages } => {
@@ -1031,6 +1094,18 @@ impl UiState {
                         self.active_tool_calls.clear();
                         self.pending_approvals.clear();
                         self.message_tool_calls.clear();
+                        self.retrievals.clear();
+                        self.message_retrievals.clear();
+                        self.timeline.clear();
+                        self.next_ordinal = 1;
+                        for idx in 0..self.active_messages.len() {
+                            let msg_id = crate::ui::interaction::MessageId((idx + 1) as u64);
+                            self.timeline.push((
+                                crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                                crate::ui::interaction::timeline::TimelineItem::Message(msg_id),
+                            ));
+                            self.next_ordinal += 1;
+                        }
                         self.clear_pending_load();
                         return UpdateResult::Changed;
                     }
@@ -1049,6 +1124,10 @@ impl UiState {
                     }
                 }
                 UpdateResult::NoChange
+            }
+            Action::ToggleReflectionLogs => {
+                self.enable_reflection_logs = !self.enable_reflection_logs;
+                UpdateResult::Changed
             }
             Action::DeleteSession(session_id) => {
                 if let Some(ref pending) = self.pending_load {
@@ -1096,7 +1175,7 @@ impl UiState {
                 if requires_approval {
                     let approval = crate::ui::command::tool::ToolApproval {
                         message_id: message,
-                        call_id,
+                        call_id: call_id.clone(),
                         tool_id,
                         arguments,
                     };
@@ -1105,6 +1184,11 @@ impl UiState {
                     new_execution.status = crate::ui::command::tool::ToolExecutionStatus::Approved;
                 }
                 self.active_tool_calls.push(new_execution);
+                self.timeline.push((
+                    crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                    crate::ui::interaction::timeline::TimelineItem::ToolExecution(call_id),
+                ));
+                self.next_ordinal += 1;
                 UpdateResult::Changed
             }
             Action::ToolProgressReceived { message: _, call_id, sequence, detail, log_message } => {
@@ -1157,6 +1241,25 @@ impl UiState {
                 } else {
                     UpdateResult::NoChange
                 }
+            }
+            Action::RetrievalStarted { message, query } => {
+                let _ = (message, query);
+                UpdateResult::Changed
+            }
+            Action::RetrievalReceived { message, info } => {
+                let id = info.id;
+                self.retrievals.insert(id, info);
+                self.message_retrievals.entry(message).or_default().push(id);
+                self.timeline.push((
+                    crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                    crate::ui::interaction::timeline::TimelineItem::Retrieval(id),
+                ));
+                self.next_ordinal += 1;
+                UpdateResult::Changed
+            }
+            Action::RetrievalCompleted { message } => {
+                let _ = message;
+                UpdateResult::Changed
             }
         }
     }

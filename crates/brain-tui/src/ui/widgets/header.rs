@@ -11,6 +11,8 @@ pub struct HeaderView {
     pub connection_status: String,
     /// Boolean indicator showing whether the connection is active.
     pub connection_color_ok: bool,
+    /// Boolean toggle state for showing/hiding reflection logs.
+    pub enable_reflection_logs: bool,
 }
 
 /// Renders the Header bar panel at the top of the interface.
@@ -25,10 +27,15 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &HeaderView, theme: &Theme) {
         .borders(Borders::ALL)
         .border_style(theme.border);
 
-    let text = ratatui::text::Line::from(vec![
+    let mut spans = vec![
         ratatui::text::Span::styled(format!(" {} ", view.title), theme.header),
         ratatui::text::Span::styled(format!("  {}", view.connection_status), status_style),
-    ]);
+    ];
+    if view.enable_reflection_logs {
+        spans.push(ratatui::text::Span::styled("  [Reflection Logs]", theme.accent));
+    }
+
+    let text = ratatui::text::Line::from(spans);
     let p = Paragraph::new(text)
         .block(title_block)
         .alignment(Alignment::Left);

@@ -1,9 +1,18 @@
 # Architecture Documentation
 
+## Architecture Status
+* **State**: Stable
+* **Foundational ADRs**: Complete
+* **Future Architectural Evolution**: Evidence-driven only
+* **Primary Engineering Focus**: Building product capabilities
+
+---
+
 Start here to understand the structural design of the project:
 
-* **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the daemon.
+* **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the Brain runtime.
 * **[STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md)** — Stability contracts for frozen, extensible, and experimental code.
+* **[contract-lifecycle.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md)** — Explanation of the DTO contract lifecycle.
 * **[GRAPH_SPEC.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md)** — Specification governing the Knowledge Graph schema and constraints.
 * **[relations.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md)** — Canoncial design specification for relationship semantics and the declarative taxonomy.
 
@@ -16,6 +25,10 @@ The core architectural decisions are recorded chronologically in the **[adr/](fi
 ```mermaid
 flowchart TD
     adr10["ADR-010 Domain Boundaries"] --> adr12["ADR-012 Value Objects"]
+    adr10 --> adr20["ADR-020 Protocol Independence"]
+    adr20 --> adr21["ADR-021 Stable Application Interface"]
+    adr20 --> adr23["ADR-023 Shared Adapter Infrastructure"]
+    adr21 --> adr22["ADR-022 Contract Ownership Strategy"]
     adr12 --> adr16["ADR-016 Pure Transformations"]
     adr16 --> adr13["ADR-013 Behavioral Invariants"]
     adr13 --> adr18["ADR-018 Reproducible ML Lifecycle"]
@@ -39,6 +52,10 @@ flowchart TD
 * **[ADR-013: Behavioral Invariants](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-013-behavioral-invariants.md)** (Accepted) — Verify retrieval/routing invariants mathematically instead of end-to-end data matches.
 * **[ADR-014: Deterministic Execution](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-014-deterministic-execution.md)** (Accepted) — Injecting clocks and stable hash algorithms (`FNV-1a`) to ensure reproducible runs.
 * **[ADR-016: Pure Transformations](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-016-pure-transformation-pipelines.md)** (Accepted) — Restructuring execution loops to adhere to stateless `Input -> Transform -> Output` flows.
+* **[ADR-020: Protocol Independence & Adapter Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-020-protocol-independence.md)** (Proposed) — Establishes strict hexagonal decoupling between Brain Runtime and external interfaces.
+* **[ADR-021: Stable Application Interface](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-021-stable-application-interface.md)** (Proposed) — Defines the transport-neutral, capability-oriented application interface contract.
+* **[ADR-022: Contract Ownership & DTO Generation Strategy](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-022-contract-ownership-strategy.md)** (Proposed) — Decides on Rust-first contract ownership and language-neutral type generation workflows.
+* **[ADR-023: Shared Adapter Infrastructure](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-023-shared-adapter-infrastructure.md)** (Accepted) — Defines the generic, type-erased capability and registry infrastructure for protocol independence.
 
 ### Platform & Extensibility (Expected Stability: Medium to High)
 * **[ADR-000: Plugin-Based Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-000.md)** (Accepted) — Define core providers as traits with offloaded blocking executor calls.

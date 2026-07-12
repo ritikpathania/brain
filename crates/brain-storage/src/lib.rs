@@ -11,6 +11,21 @@ pub mod migrations;
 /// Private SQLite repository implementations.
 pub mod store;
 
+/// SQLite event log implementations.
+pub mod event_log;
+
+/// Projection checkpoint repository implementation.
+pub mod projection_checkpoint;
+
+/// SQLite jobs projection read model.
+pub mod jobs_projection;
+
+/// SQLite sessions projection read model.
+pub mod sessions_projection;
+
+/// SQLite search index FTS5 projection read model.
+pub mod search_projection;
+
 /// Re-export test utilities for test environments or when `test-utils` feature is active.
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
@@ -19,3 +34,8 @@ pub mod test_utils;
 pub use test_utils::TestStorage;
 
 pub use store::SqliteStorage;
+pub use event_log::{StoredEvent, SqliteEventLog};
+pub use projection_checkpoint::SqliteProjectionCheckpointRepository;
+pub use jobs_projection::{JobReadModel, SqliteJobReadModelRepository};
+pub use sessions_projection::{SessionReadModel, SqliteSessionReadModelRepository, ReadModelRepository};
+pub use search_projection::{SearchQuery, SqliteSearchRepository};

@@ -3,8 +3,9 @@
 Welcome to the Standalone Relational Memory Engine (`brain`) documentation! Use this index to locate various guides and specifications.
 
 ## 🏗️ [Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/README.md)
-* [overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md) — Canonical technical reference guide to the daemon.
+* [overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md) — Canonical technical reference guide to the Brain runtime.
 * [STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md) — Stability contracts for frozen, extensible, and experimental code.
+* [contract-lifecycle.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md) — Explanation of the DTO contract lifecycle.
 * [adr/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr) — Chronological history of Architectural Decision Records.
 * [rfc/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc) — Proposed Requests for Comments.
 
@@ -12,6 +13,7 @@ Welcome to the Standalone Relational Memory Engine (`brain`) documentation! Use 
 * [protocol.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/protocol.md) — Unix Domain Socket streaming protocol.
 * [plugin-api.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/plugin-api.md) — Python extensions and traits.
 * [storage.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/storage.md) — DuckDB and SQLite storage layout.
+* [generation_workflow.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/generation_workflow.md) — Contract generation and developer code-gen workflow.
 * [benchmarking.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/benchmarking.md) — Benchmarking and performance profiling rules.
 * [cli-ux-comparison.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/cli-ux-comparison.md) — Competitive UI/UX comparison of AI coding CLIs.
 

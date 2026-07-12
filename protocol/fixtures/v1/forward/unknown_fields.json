@@ -1,0 +1,20 @@
+{
+  "event_model_version": "1.0",
+  "identity": {
+    "event_id": "01010101-0101-0101-0101-010101010101",
+    "workspace_id": "work-123",
+    "client_id": "cursor-1.0",
+    "adapter_id": "vscode-ext",
+    "session_id": "01HFPVDGK6X6W1A6C2J6RDTG90",
+    "timestamp": "2026-06-29T15:30:00Z",
+    "future_identity_field": "some-value"
+  },
+  "event": {
+    "event_type": "message",
+    "role": "user",
+    "content": "Hello World",
+    "metadata": {},
+    "future_event_field": 12345
+  },
+  "future_envelope_field": true
+}

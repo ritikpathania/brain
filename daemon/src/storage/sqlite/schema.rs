@@ -39,6 +39,13 @@ pub fn initialize_schema(conn: &Connection) -> Result<(), rusqlite::Error> {
     // Run migration: Add weight column to edges if missing
     let _ = conn.execute("ALTER TABLE edges ADD COLUMN weight REAL DEFAULT 1.0;", []);
 
+    // KPP Migration: Add lifecycle, validity, and version_state columns if missing
+    let _ = conn.execute("ALTER TABLE nodes ADD COLUMN lifecycle TEXT DEFAULT 'Observed';", []);
+    let _ = conn.execute("ALTER TABLE nodes ADD COLUMN validity TEXT DEFAULT 'Unverified';", []);
+    let _ = conn.execute("ALTER TABLE nodes ADD COLUMN version_state TEXT DEFAULT 'Current';", []);
+    let _ = conn.execute("ALTER TABLE edges ADD COLUMN lifecycle TEXT DEFAULT 'Observed';", []);
+    let _ = conn.execute("ALTER TABLE edges ADD COLUMN version_state TEXT DEFAULT 'Current';", []);
+
     // Run migration: Add centroid_id column to node_embeddings if missing
     let _ = conn.execute(
         "ALTER TABLE node_embeddings ADD COLUMN centroid_id INTEGER;",

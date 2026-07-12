@@ -6,13 +6,13 @@ use brain_core::retrieval::{
 };
 use brain_core::services::{RetrievalService, SessionService};
 use brain_domain::{
-    Conversation, ConversationId, Edge, MemoryDTO, Message, MessageRole, Node, NodeDTO, NodeId,
+    Edge, MemoryDTO, Message, MessageRole, Node, NodeDTO, NodeId,
     NodeType, SessionId, RelationKind
 };
 use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
 use brain_services::retrieval::source::StmMemorySource;
 use brain_services::{
-    RetrievalServiceImpl, SessionServiceImpl, StubRetrievalService, StubSessionService,
+    RetrievalServiceImpl, SessionServiceImpl, StubRetrievalService, StubSessionService, StubDomainEventPublisher,
 };
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
@@ -24,25 +24,27 @@ fn test_session_service_lifecycle() {
     let test_store = TestStorage::new();
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
+    let publisher = Arc::new(StubDomainEventPublisher::new());
 
-    let service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), publisher.clone());
 
     // 1. Create session
     let session_id = service.create_session().unwrap();
     assert!(service.session_exists(&session_id).unwrap());
 
     // 2. Load empty session
-    let conversation = service.load_session(&session_id).unwrap();
-    assert!(conversation.messages.is_empty());
+    let session = service.load_session(&session_id).unwrap();
+    assert!(session.messages.is_empty());
 
-    // 3. Save conversation history
+    // 3. Save session history
     let message = Message::new(
         brain_domain::MessageId::new(),
         MessageRole::User,
         "Hello".to_string(),
     );
-    let history = Conversation::new(ConversationId(session_id.0)).with_messages(vec![message]);
-    service.save_session(&session_id, &history).unwrap();
+    let mut session = service.load_session(&session_id).unwrap();
+    session.add_message(message).unwrap();
+    service.save_session(&session_id, &mut session).unwrap();
 
     let loaded = service.load_session(&session_id).unwrap();
     assert_eq!(loaded.messages.len(), 1);
@@ -75,7 +77,7 @@ fn test_retrieval_service_stm_and_ltm() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 
@@ -126,7 +128,7 @@ fn test_cache_precedence_over_ltm() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 
@@ -167,7 +169,7 @@ fn test_retrieval_cache_miss_db_hit_populates_cache() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 
@@ -281,7 +283,7 @@ fn test_pipeline_deduplication() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 
@@ -354,7 +356,7 @@ fn test_pipeline_empty_first_source() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 
@@ -484,7 +486,7 @@ fn test_retrieval_natural_language_and_expansion() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone());
+    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
 

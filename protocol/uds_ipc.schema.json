@@ -1,0 +1,213 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UDS IPC Wire Protocol Schema",
+  "description": "Formal schemas for requests, responses, and stream events over UDS JSON-IPC",
+  "$defs": {
+    "VersionHeader": {
+      "type": "object",
+      "properties": {
+        "version": { "const": "1.0" }
+      },
+      "required": ["version"]
+    },
+    "StreamBase": {
+      "type": "object",
+      "properties": {
+        "streamId": { "type": "string" },
+        "metadata": { "$ref": "#/$defs/Metadata" },
+        "ext": { "$ref": "#/$defs/Extensions" }
+      },
+      "required": ["streamId"]
+    },
+    "Metadata": {
+      "description": "Implementation-generated diagnostics, timing, tracing, and performance metrics.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "Extensions": {
+      "description": "Application/vendor-defined customizations. Must not affect base protocol semantics.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "Request": {
+      "oneOf": [
+        {
+          "description": "Versioned Request Envelope",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/VersionHeader" }],
+          "properties": {
+            "version": { "const": "1.0" },
+            "type": { "const": "Request" },
+            "id": { "type": "integer" },
+            "action": { "enum": ["query", "ingest"] },
+            "body": { "type": "string" },
+            "ext": { "$ref": "#/$defs/Extensions" }
+          },
+          "required": ["version", "type", "id", "action", "body"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Legacy Request Envelope",
+          "type": "object",
+          "properties": {
+            "action": { "enum": ["query", "ingest"] },
+            "payload": { "type": "string" }
+          },
+          "required": ["action", "payload"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Response": {
+      "oneOf": [
+        {
+          "description": "Legacy Response Envelope",
+          "type": "object",
+          "properties": {
+            "status": { "enum": ["ok", "error"] },
+            "message": { "type": "string" }
+          },
+          "required": ["status", "message"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Versioned Success Response Envelope",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/VersionHeader" }],
+          "properties": {
+            "version": { "const": "1.0" },
+            "type": { "const": "Response" },
+            "id": { "type": "integer" },
+            "status": { "enum": ["success", "error"] },
+            "body": { "type": "string" },
+            "ext": { "$ref": "#/$defs/Extensions" }
+          },
+          "required": ["version", "type", "id", "status", "body"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Versioned Error Envelope",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/VersionHeader" }],
+          "properties": {
+            "version": { "const": "1.0" },
+            "type": { "const": "Error" },
+            "id": { "type": "integer" },
+            "status": { "const": "error" },
+            "body": { "type": "string" }
+          },
+          "required": ["version", "type", "id", "status", "body"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Versioned Notification Envelope",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/VersionHeader" }],
+          "properties": {
+            "version": { "const": "1.0" },
+            "type": { "const": "Notification" },
+            "notification_type": { "type": "string" },
+            "message": { "type": "string" },
+            "ext": { "$ref": "#/$defs/Extensions" }
+          },
+          "required": ["version", "type", "notification_type", "message"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Versioned Event Envelope",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/VersionHeader" }],
+          "properties": {
+            "version": { "const": "1.0" },
+            "type": { "const": "Event" },
+            "event_name": { "type": "string" },
+            "payload": { "type": "object" },
+            "ext": { "$ref": "#/$defs/Extensions" }
+          },
+          "required": ["version", "type", "event_name", "payload"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "StreamEvent": {
+      "oneOf": [
+        {
+          "description": "Stream Start Event",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/StreamBase" }],
+          "properties": {
+            "type": { "const": "stream_start" },
+            "streamId": { "type": "string" },
+            "metadata": { "$ref": "#/$defs/Metadata" },
+            "ext": { "$ref": "#/$defs/Extensions" }
+          },
+          "required": ["type", "streamId"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Stream Progress Event",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/StreamBase" }],
+          "properties": {
+            "type": { "const": "stream_progress" },
+            "streamId": { "type": "string" },
+            "metadata": { "$ref": "#/$defs/Metadata" },
+            "ext": { "$ref": "#/$defs/Extensions" },
+            "sequence": { "type": "integer" },
+            "progress": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "message": { "type": "string" }
+          },
+          "required": ["type", "streamId", "sequence", "progress", "message"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Stream Chunk Event",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/StreamBase" }],
+          "properties": {
+            "type": { "const": "stream_chunk" },
+            "streamId": { "type": "string" },
+            "metadata": { "$ref": "#/$defs/Metadata" },
+            "ext": { "$ref": "#/$defs/Extensions" },
+            "sequence": { "type": "integer" },
+            "content": { "type": "string" }
+          },
+          "required": ["type", "streamId", "sequence", "content"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Stream End Event",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/StreamBase" }],
+          "properties": {
+            "type": { "const": "stream_end" },
+            "streamId": { "type": "string" },
+            "metadata": { "$ref": "#/$defs/Metadata" },
+            "ext": { "$ref": "#/$defs/Extensions" },
+            "sequence": { "type": "integer" }
+          },
+          "required": ["type", "streamId", "sequence"],
+          "additionalProperties": false
+        },
+        {
+          "description": "Stream Cancelled Event",
+          "type": "object",
+          "allOf": [{ "$ref": "#/$defs/StreamBase" }],
+          "properties": {
+            "type": { "const": "stream_cancelled" },
+            "streamId": { "type": "string" },
+            "metadata": { "$ref": "#/$defs/Metadata" },
+            "ext": { "$ref": "#/$defs/Extensions" },
+            "sequence": { "type": "integer" }
+          },
+          "required": ["type", "streamId", "sequence"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{HostContext, PluginLifecycle};
-use brain_domain::{Conversation, Node, NodeId, NodeType, PluginId, PluginState, SessionId};
+use brain_domain::{Session, Node, NodeId, NodeType, PluginId, PluginState, SessionId};
 use brain_plugins::{InstalledPlugin, LoaderKind};
 use brain_python::loader::PythonPluginLoader;
 
@@ -202,7 +202,7 @@ class MockPlugin:
 
     // Verify PlannerAgent
     let planner_agent = loaded.planner_agent.as_ref().unwrap();
-    let history = Conversation::new_empty();
+    let history = Session::new_empty();
     let plan = planner_agent.plan_steps("task", &history).unwrap();
     assert_eq!(plan.len(), 1);
     assert_eq!(plan[0].call_id, "call_123");

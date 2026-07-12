@@ -19,9 +19,9 @@ pub enum DomainError {
     /// The target node of a relationship is missing.
     #[error("Missing target node: {0}")]
     MissingTargetNode(String),
-    /// Conversation is archived and cannot be modified.
-    #[error("Conversation is archived: {0}")]
-    ConversationArchived(String),
+    /// Session is archived and cannot be modified.
+    #[error("Session is archived: {0}")]
+    SessionArchived(String),
     /// Goal already exists in the session.
     #[error("Duplicate goal in session: {0}")]
     DuplicateGoal(String),

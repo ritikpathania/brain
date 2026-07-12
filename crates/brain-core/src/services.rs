@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Conversation, MemoryDTO, Node, Edge, GraphProvenance, GraphVersion, SessionId};
+use brain_domain::{Session, MemoryDTO, Node, Edge, GraphProvenance, GraphVersion, SessionId};
 
 /// Service managing chat session lifecycle, history persistence, and volatile cache synchronization.
 pub trait SessionService: Send + Sync {
@@ -9,17 +9,29 @@ pub trait SessionService: Send + Sync {
     /// Verifies if a session exists in cache or persistence.
     fn session_exists(&self, id: &SessionId) -> Result<bool, BrainError>;
 
-    /// Loads session conversation history, reading from persistence into the volatile cache if necessary.
-    fn load_session(&self, id: &SessionId) -> Result<Conversation, BrainError>;
+    /// Loads session aggregate, reading from persistence into the volatile cache if necessary.
+    fn load_session(&self, id: &SessionId) -> Result<Session, BrainError>;
 
-    /// Saves session conversation history, persisting it to DB and updating cache.
-    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError>;
+    /// Saves session aggregate, persisting it to DB and updating cache.
+    fn save_session(&self, id: &SessionId, session: &mut Session) -> Result<(), BrainError>;
 
     /// Ingests a node into the session's volatile cache and database.
     fn ingest_node(&self, id: &SessionId, node: Node) -> Result<(), BrainError>;
 
     /// Deletes a session's history and cleans up its volatile cache.
     fn delete_session(&self, id: &SessionId) -> Result<(), BrainError>;
+
+    /// Renames a session.
+    fn rename_session(&self, id: &SessionId, title: &str) -> Result<(), BrainError>;
+
+    /// Sets the pinned status of a session.
+    fn set_session_pinned(&self, id: &SessionId, pinned: bool) -> Result<(), BrainError>;
+
+    /// Archives a session.
+    fn archive_session(&self, id: &SessionId) -> Result<(), BrainError>;
+
+    /// Restores a session.
+    fn restore_session(&self, id: &SessionId) -> Result<(), BrainError>;
 }
 
 /// Service providing unified retrieval capabilities over volatile caches (STM) and persistent storage (LTM).

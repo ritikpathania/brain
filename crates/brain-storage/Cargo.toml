@@ -9,6 +9,7 @@ r2d2.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 uuid.workspace = true
+ulid.workspace = true
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
 

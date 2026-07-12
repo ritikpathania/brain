@@ -15,15 +15,10 @@ use crate::ui::widgets::{
 use crate::ui::interaction::markdown::{
     SelectionState, CachedMessageLayout, MessageRevision, ViewportIndex,
     MarkdownParser, MarkdownLayout, KeywordSyntaxHighlighter,
-    VisualLine, VisualLineKind
+    VisualLine, VisualLineKind, VisualSpan, VisualStyle
 };
 
-struct RenderingMessage {
-    sender: String,
-    content: String,
-    id_str: String,
-    revision: u64,
-}
+
 
 /// Cache key identifying a compiled LayoutTree geometry block.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -66,6 +61,32 @@ impl AppRenderer {
             layout_tree_cache: RefCell::new(HashMap::new()),
             navigation_cache: RefCell::new(HashMap::new()),
         }
+    }
+
+    fn get_or_create_layout(
+        &self,
+        key: &str,
+        content: &str,
+        revision: MessageRevision,
+        width: usize,
+        highlighter: &KeywordSyntaxHighlighter,
+    ) -> CachedMessageLayout {
+        let mut cache = self.layout_cache.borrow_mut();
+        if let Some(cached) = cache.get(key) {
+            if cached.revision == revision {
+                return cached.clone();
+            }
+        }
+        let ast = MarkdownParser::parse(content);
+        let lines = MarkdownLayout::layout(&ast, width, highlighter);
+        let height = lines.len();
+        let new_layout = CachedMessageLayout {
+            revision,
+            visual_lines: lines,
+            height,
+        };
+        cache.insert(key.to_string(), new_layout.clone());
+        new_layout
     }
 
     /// Computes constraints and returns partitioned area Rects for widgets.
@@ -115,6 +136,7 @@ impl AppRenderer {
             title: "BRAIN v2 Engine".to_string(),
             connection_status,
             connection_color_ok,
+            enable_reflection_logs: state.enable_reflection_logs,
         };
 
         // 2. Draw Sidebar if visible
@@ -141,145 +163,180 @@ impl AppRenderer {
         let width = chat_area.width.saturating_sub(4) as usize;
         let highlighter = KeywordSyntaxHighlighter::new();
 
-        let mut rendering_messages = Vec::new();
-        if state.active_messages.is_empty() && !state.is_generating() {
-            rendering_messages.push(RenderingMessage {
-                sender: "System".to_string(),
-                content: "No messages in this conversation.".to_string(),
-                id_str: "system_empty".to_string(),
-                revision: 0,
-            });
+        struct TimelineBlock {
+            header: Option<String>,
+            visual_lines: Vec<VisualLine>,
+        }
+
+        let mut blocks = Vec::new();
+        if !state.timeline.is_empty() {
+            for (_ordinal, item) in state.timeline.clone() {
+                match item {
+                    crate::ui::interaction::timeline::TimelineItem::Message(msg_id) => {
+                        if msg_id == crate::ui::interaction::MessageId(0) {
+                            if !state.active_response.is_empty() || state.is_generating() {
+                                let key = format!("active_response_w{}", width);
+                                let revision = MessageRevision(state.active_response_revision);
+                                let layout = self.get_or_create_layout(&key, &state.active_response, revision, width, &highlighter);
+                                blocks.push(TimelineBlock {
+                                    header: Some("Assistant".to_string()),
+                                    visual_lines: layout.visual_lines,
+                                });
+                            }
+                        } else {
+                            let idx = (msg_id.0 - 1) as usize;
+                            if idx < state.active_messages.len() {
+                                let msg = &state.active_messages[idx];
+                                let sender = match msg.role {
+                                    brain_domain::MessageRole::User => "User".to_string(),
+                                    brain_domain::MessageRole::Assistant => "Assistant".to_string(),
+                                    brain_domain::MessageRole::System => "System".to_string(),
+                                };
+                                let rev = *state.message_revisions.get(&msg.id).unwrap_or(&0);
+                                let key = format!("msg_{}_w{}", msg.id.0, width);
+                                let layout = self.get_or_create_layout(&key, &msg.content, MessageRevision(rev), width, &highlighter);
+                                blocks.push(TimelineBlock {
+                                    header: Some(sender),
+                                    visual_lines: layout.visual_lines,
+                                });
+                            }
+                        }
+                    }
+                    crate::ui::interaction::timeline::TimelineItem::ToolExecution(ref call_id) => {
+                        let tool_opt = state.active_tool_calls.iter().find(|t| t.call_id == *call_id)
+                            .or_else(|| state.message_tool_calls.values().flatten().find(|t| &t.call_id == call_id));
+                        if let Some(tool) = tool_opt {
+                            let expanded = state.conversation_view.expanded_tool_sections.get(&tool.call_id);
+                            blocks.push(TimelineBlock {
+                                header: None,
+                                visual_lines: format_tool_execution(tool, theme, expanded),
+                            });
+                        } else {
+                            blocks.push(TimelineBlock {
+                                header: None,
+                                visual_lines: vec![VisualLine {
+                                    kind: VisualLineKind::Text,
+                                    spans: vec![VisualSpan::new("🔧 Tool: [Loading...]".to_string(), VisualStyle::Normal)],
+                                }],
+                            });
+                        }
+                    }
+                    crate::ui::interaction::timeline::TimelineItem::Retrieval(ref retrieval_id) => {
+                        if let Some(retrieval) = state.retrievals.get(retrieval_id) {
+                            blocks.push(TimelineBlock {
+                                header: None,
+                                visual_lines: format_retrieval_info(retrieval, theme),
+                            });
+                        } else {
+                            blocks.push(TimelineBlock {
+                                header: None,
+                                visual_lines: vec![VisualLine {
+                                    kind: VisualLineKind::Text,
+                                    spans: vec![VisualSpan::new("🧠 Memory: [Loading...]".to_string(), VisualStyle::Normal)],
+                                }],
+                            });
+                        }
+                    }
+                }
+            }
         } else {
-            for msg in &state.active_messages {
-                let sender = match msg.role {
-                    brain_domain::MessageRole::User => "User".to_string(),
-                    brain_domain::MessageRole::Assistant => "Assistant".to_string(),
-                    brain_domain::MessageRole::System => "System".to_string(),
-                };
-                let rev = *state.message_revisions.get(&msg.id).unwrap_or(&0);
-                rendering_messages.push(RenderingMessage {
-                    sender,
-                    content: msg.content.clone(),
-                    id_str: format!("msg_{}", msg.id.0),
-                    revision: rev,
+            if state.active_messages.is_empty() && !state.is_generating() {
+                blocks.push(TimelineBlock {
+                    header: Some("System".to_string()),
+                    visual_lines: vec![VisualLine {
+                        kind: VisualLineKind::Text,
+                        spans: vec![VisualSpan::new("No messages in this conversation.".to_string(), VisualStyle::Normal)],
+                    }],
                 });
-            }
-            if !state.active_response.is_empty() || state.is_generating() {
-                rendering_messages.push(RenderingMessage {
-                    sender: "Assistant".to_string(),
-                    content: state.active_response.clone(),
-                    id_str: "active_response".to_string(),
-                    revision: state.active_response_revision,
-                });
-            }
-        }
-
-        // Retrieve or calculate CachedMessageLayouts
-        let mut cached_layouts = Vec::with_capacity(rendering_messages.len());
-        let mut cache = self.layout_cache.borrow_mut();
-
-        for msg in &rendering_messages {
-            let key = format!("{}_w{}", msg.id_str, width);
-            let revision = MessageRevision(msg.revision);
-
-            let layout = if let Some(cached) = cache.get(&key) {
-                if cached.revision == revision {
-                    cached.clone()
-                } else {
-                    let ast = MarkdownParser::parse(&msg.content);
-                    let lines = MarkdownLayout::layout(&ast, width, &highlighter);
-                    let height = lines.len();
-                    let new_layout = CachedMessageLayout {
-                        revision,
-                        visual_lines: lines,
-                        height,
+            } else {
+                for msg in &state.active_messages {
+                    let sender = match msg.role {
+                        brain_domain::MessageRole::User => "User".to_string(),
+                        brain_domain::MessageRole::Assistant => "Assistant".to_string(),
+                        brain_domain::MessageRole::System => "System".to_string(),
                     };
-                    cache.insert(key.clone(), new_layout.clone());
-                    new_layout
+                    let rev = *state.message_revisions.get(&msg.id).unwrap_or(&0);
+                    let key = format!("msg_{}_w{}", msg.id.0, width);
+                    let layout = self.get_or_create_layout(&key, &msg.content, MessageRevision(rev), width, &highlighter);
+                    blocks.push(TimelineBlock {
+                        header: Some(sender),
+                        visual_lines: layout.visual_lines,
+                    });
                 }
-            } else {
-                let ast = MarkdownParser::parse(&msg.content);
-                let lines = MarkdownLayout::layout(&ast, width, &highlighter);
-                let height = lines.len();
-                let new_layout = CachedMessageLayout {
-                    revision,
-                    visual_lines: lines,
-                    height,
-                };
-                cache.insert(key.clone(), new_layout.clone());
-                new_layout
-            };
-
-            let mut visual_lines = layout.visual_lines.clone();
-            let tools = if msg.id_str == "active_response" {
-                state.active_tool_calls.clone()
-            } else if msg.id_str.starts_with("msg_") {
-                if let Ok(id_val) = msg.id_str["msg_".len()..].parse::<u64>() {
-                    state.message_tool_calls.get(&crate::ui::interaction::MessageId(id_val)).cloned().unwrap_or_default()
-                } else {
-                    vec![]
+                if !state.active_response.is_empty() || state.is_generating() {
+                    let key = format!("active_response_w{}", width);
+                    let revision = MessageRevision(state.active_response_revision);
+                    let layout = self.get_or_create_layout(&key, &state.active_response, revision, width, &highlighter);
+                    let mut visual_lines = layout.visual_lines;
+                    for tool in &state.active_tool_calls {
+                        let expanded = state.conversation_view.expanded_tool_sections.get(&tool.call_id);
+                        visual_lines.extend(format_tool_execution(tool, theme, expanded));
+                    }
+                    blocks.push(TimelineBlock {
+                        header: Some("Assistant".to_string()),
+                        visual_lines,
+                    });
                 }
-            } else {
-                vec![]
-            };
-
-            for tool in tools {
-                let expanded = state.conversation_view.expanded_tool_sections.get(&tool.call_id);
-                visual_lines.extend(format_tool_execution(&tool, theme, expanded));
             }
-
-            let final_layout = CachedMessageLayout {
-                revision: layout.revision,
-                height: visual_lines.len(),
-                visual_lines,
-            };
-            cached_layouts.push(final_layout);
         }
 
-        // Build heights list and Cumulative heights index
-        let mut heights = Vec::with_capacity(rendering_messages.len());
-        for layout in &cached_layouts {
-            heights.push(1 + layout.height + 1); // 1 (header) + layout.height + 1 (spacer)
+        let mut heights = Vec::with_capacity(blocks.len());
+        for block in &blocks {
+            let h = if block.header.is_some() {
+                1 + block.visual_lines.len() + 1
+            } else {
+                block.visual_lines.len() + 1
+            };
+            heights.push(h);
         }
         let index = ViewportIndex::rebuild(&heights);
 
-        // Binary search viewport boundaries for virtualization
         let start_offset = state.viewport.scroll_offset as u32;
-        let viewport_height = chat_area.height.saturating_sub(2) as u32; // border lines subtracted
+        let viewport_height = chat_area.height.saturating_sub(2) as u32;
 
         let mut visible_lines = Vec::new();
-        if let Some((mut msg_idx, mut local_line)) = index.find_offset(start_offset) {
+        if let Some((mut block_idx, mut local_line)) = index.find_offset(start_offset) {
             let mut lines_collected = 0u32;
-            while msg_idx < rendering_messages.len() && lines_collected < viewport_height {
-                let msg = &rendering_messages[msg_idx];
-                let layout = &cached_layouts[msg_idx];
-                let block_height = heights[msg_idx] as u32;
+            while block_idx < blocks.len() && lines_collected < viewport_height {
+                let block = &blocks[block_idx];
+                let block_height = heights[block_idx] as u32;
 
                 while local_line < block_height && lines_collected < viewport_height {
-                    if local_line == 0 {
-                        // Sender title header line
-                        visible_lines.push(VisibleChatLine {
-                            line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
-                            sender_header: Some(msg.sender.clone()),
-                        });
-                    } else if local_line <= layout.height as u32 {
-                        // Styled layout line from cache
-                        let line_idx = (local_line - 1) as usize;
-                        visible_lines.push(VisibleChatLine {
-                            line: layout.visual_lines[line_idx].clone(),
-                            sender_header: None,
-                        });
+                    if let Some(ref sender) = block.header {
+                        if local_line == 0 {
+                            visible_lines.push(VisibleChatLine {
+                                line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                sender_header: Some(sender.clone()),
+                            });
+                        } else if local_line <= block.visual_lines.len() as u32 {
+                            let line_idx = (local_line - 1) as usize;
+                            visible_lines.push(VisibleChatLine {
+                                line: block.visual_lines[line_idx].clone(),
+                                sender_header: None,
+                            });
+                        } else {
+                            visible_lines.push(VisibleChatLine {
+                                line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                sender_header: None,
+                            });
+                        }
                     } else {
-                        // Empty separator line
-                        visible_lines.push(VisibleChatLine {
-                            line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
-                            sender_header: None,
-                        });
+                        if local_line < block.visual_lines.len() as u32 {
+                            visible_lines.push(VisibleChatLine {
+                                line: block.visual_lines[local_line as usize].clone(),
+                                sender_header: None,
+                            });
+                        } else {
+                            visible_lines.push(VisibleChatLine {
+                                line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                sender_header: None,
+                            });
+                        }
                     }
                     local_line += 1;
                     lines_collected += 1;
                 }
-                msg_idx += 1;
+                block_idx += 1;
                 local_line = 0;
             }
         }
@@ -483,6 +540,81 @@ fn format_tool_execution(
             ],
         });
     }
+
+    lines
+}
+
+fn format_retrieval_info(
+    retrieval: &brain_domain::bkf::retrieval::RetrievalInfo,
+    _theme: &Theme,
+) -> Vec<VisualLine> {
+    use crate::ui::interaction::markdown::{VisualSpan, VisualStyle};
+    use brain_domain::bkf::retrieval::RetrievalWeight;
+
+    let mut lines = Vec::new();
+
+    let weight_badge = match retrieval.explanation.weight {
+        RetrievalWeight::Critical => "CRITICAL",
+        RetrievalWeight::High => "HIGH",
+        RetrievalWeight::Normal => "NORMAL",
+    };
+    
+    let weight_style = match retrieval.explanation.weight {
+        RetrievalWeight::Critical => VisualStyle::Bold,
+        RetrievalWeight::High => VisualStyle::Bold,
+        RetrievalWeight::Normal => VisualStyle::Normal,
+    };
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("🧠 Memory: {} [ {} ]", retrieval.title, weight_badge),
+                weight_style,
+            )
+        ],
+    });
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("  > {}", retrieval.excerpt),
+                VisualStyle::Italic,
+            )
+        ],
+    });
+
+    let keywords_str = retrieval.explanation.matched_keywords.join(", ");
+    let recency_str = if retrieval.explanation.recency_boost {
+        " (+recency boost)"
+    } else {
+        ""
+    };
+    
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!(
+                    "  Matches: [{}] Similarity: {:?}{}",
+                    keywords_str, retrieval.explanation.semantic_similarity, recency_str
+                ),
+                VisualStyle::CodeComment,
+            )
+        ],
+    });
+
+    let provenance_line = format!(
+        "  Source: {:?} at {}",
+        retrieval.explanation.provenance.kind, retrieval.explanation.provenance.location
+    );
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(provenance_line, VisualStyle::Citation),
+        ],
+    });
 
     lines
 }

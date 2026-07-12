@@ -27,8 +27,59 @@ impl fmt::Display for SessionId {
     }
 }
 
+
+/// Strongly-typed identifier for a session goal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct GoalId(pub Uuid);
+
+impl GoalId {
+    /// Generates a new unique `GoalId` (UUID v4).
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+impl Default for GoalId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for GoalId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for GoalId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+/// Value object representing a session title.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionTitle(pub String);
+
+impl Default for SessionTitle {
+    fn default() -> Self {
+        Self("New Session".to_string())
+    }
+}
+
+/// Value object representing a domain timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SessionTimestamp(pub u64);
+
+impl Default for SessionTimestamp {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
 /// Strongly-typed identifier for an agent execution run.
-/// Wraps a chronological, sortable `ulid::Ulid`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RunId(pub Ulid);
 
@@ -483,6 +534,46 @@ impl fmt::Display for AdapterId {
 }
 
 impl std::str::FromStr for AdapterId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.to_string()))
+    }
+}
+
+/// Strongly-typed identifier for an individual message's timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+pub struct MessageTimestamp(pub u64);
+
+impl fmt::Display for MessageTimestamp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Strongly-typed identifier for a search document in the full-text search index.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct SearchDocumentId(pub String);
+
+impl SearchDocumentId {
+    /// Creates a new SearchDocumentId from a string.
+    pub fn new<S: Into<String>>(id: S) -> Self {
+        Self(id.into())
+    }
+
+    /// Accesses the underlying string slice of the SearchDocumentId.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SearchDocumentId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for SearchDocumentId {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {

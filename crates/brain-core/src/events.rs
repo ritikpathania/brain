@@ -84,6 +84,18 @@ pub enum StreamEventKind {
         /// True if execution failed.
         is_error: bool,
     },
+    /// Context retrieval has started.
+    RetrievalStarted {
+        /// The query text being searched.
+        query: String,
+    },
+    /// A matching chunk retrieved from local or remote knowledge base.
+    RetrievalRetrieved {
+        /// Detailed user-facing retrieval entry.
+        info: brain_domain::bkf::retrieval::RetrievalInfo,
+    },
+    /// Retrieval phase completed.
+    RetrievalCompleted,
 }
 
 /// Type-safe opaque identifier for a tool execution call.

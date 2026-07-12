@@ -10,20 +10,23 @@ pub async fn start_health_server(
     metrics: Arc<DaemonMetrics>,
     analytics_db: Arc<AnalyticsDatabase>,
 ) {
-    let listener = match tokio::net::TcpListener::bind("127.0.0.1:8080").await {
+    let port = std::env::var("BRAIN_HEALTH_PORT")
+        .unwrap_or_else(|_| "8080".to_string());
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
             error!(
                 component = "observability",
-                "Failed to bind health HTTP listener: {}", e
+                "Failed to bind health HTTP listener on {}: {}", addr, e
             );
             return;
         }
     };
     info!(
         component = "observability",
-        port = 8080,
-        "Health, Readiness & Metrics HTTP server running on http://127.0.0.1:8080"
+        port = %port,
+        "Health, Readiness & Metrics HTTP server running on http://{}", addr
     );
 
     loop {

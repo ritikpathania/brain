@@ -13,7 +13,7 @@ mod stub;
 pub use retrieval::RetrievalServiceImpl;
 pub use retrieval::{pipeline, source, cache, calibration, active_weights, feature_extractor, evaluator, experiment, model_resolver};
 pub use session::SessionServiceImpl;
-pub use stub::{StubRetrievalService, StubSessionService};
+pub use stub::{StubRetrievalService, StubSessionService, StubDomainEventPublisher};
 
 /// Unified application runtime lifecycle, builder, and composition locator.
 pub mod runtime;
@@ -31,3 +31,17 @@ pub mod conversation;
 /// Memory consolidation services.
 pub mod consolidation;
 pub use consolidation::MemoryConsolidationService;
+
+/// Background jobs scheduling and execution engine.
+pub mod jobs;
+pub use jobs::*;
+
+/// Query services and DTO layer.
+pub mod query;
+
+/// Unified stateful projections engine.
+pub mod projections;
+pub use projections::{
+    StateReducer, ProjectionRunner, ReducerRegistry, JobProjectionReducer, SessionProjectionReducer, SearchProjectionReducer,
+    ProjectionId, ProjectionNotificationBus
+};

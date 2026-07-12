@@ -17,11 +17,16 @@ pub enum EventTopic {
     Plugin,
     /// TUI render events, window resizes, keystrokes.
     UI,
+    /// Core business domain events.
+    Core,
 }
 
 /// Metadata envelope wrapping asynchronous event payloads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventEnvelope {
+    /// Sequence number assigned by the event log database (populated on load/insert).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<u64>,
     /// Unique event identifier for tracing.
     pub event_id: uuid::Uuid,
     /// Correlation identifier for request tracing.
@@ -40,6 +45,7 @@ impl EventEnvelope {
     /// Creates a new `EventEnvelope` wrapping a `DomainEvent` with a random correlation ID.
     pub fn new(source: String, payload: DomainEvent) -> Self {
         Self {
+            sequence: None,
             event_id: uuid::Uuid::new_v4(),
             correlation_id: uuid::Uuid::new_v4(),
             timestamp_ms: std::time::SystemTime::now()
@@ -59,6 +65,7 @@ impl EventEnvelope {
         correlation_id: uuid::Uuid,
     ) -> Self {
         Self {
+            sequence: None,
             event_id: uuid::Uuid::new_v4(),
             correlation_id,
             timestamp_ms: std::time::SystemTime::now()
@@ -221,6 +228,8 @@ pub enum DomainEvent {
     Plugin(PluginEvent),
     /// User interface and render view signal.
     UI(UIEvent),
+    /// Wrapped core business domain events.
+    Core(brain_domain::DomainEvent),
 }
 
 /// Thread-safe contract for publishing system events.
@@ -234,3 +243,19 @@ pub trait EventSubscriber: Send + Sync {
     /// Registers a closure handler to be executed when events are published on a topic.
     fn subscribe(&self, topic: EventTopic, handler: Box<dyn Fn(EventEnvelope) + Send + Sync>);
 }
+
+/// Persistent event log registry for appending and querying sequence-ordered event envelopes.
+pub trait EventLog: Send + Sync {
+    /// Appends an event to the log, returning its database-assigned sequence number.
+    fn append(&self, envelope: &EventEnvelope) -> Result<u64, brain_core::errors::BrainError>;
+
+    /// Reads events from the log starting at a specific sequence ID (inclusive).
+    fn read_from(&self, start_sequence: u64, limit: usize) -> Result<Vec<EventEnvelope>, brain_core::errors::BrainError>;
+
+    /// Retrieves the latest sequence number in the log. Returns 0 if the log is empty.
+    fn latest_sequence(&self) -> Result<u64, brain_core::errors::BrainError>;
+}
+
+/// Canonical event-log sequence number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct SequenceNumber(pub u64);

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use brain_core::errors::BrainError;
 use brain_core::services::RetrievalService;
-use brain_domain::{Conversation, ConversationId, MemoryDTO, SessionId, ToolCall};
+use brain_domain::{Session, ConversationId, MemoryDTO, SessionId, ToolCall};
 use brain_services::agent::engine::AgentExecutionEngine;
 use brain_services::agent::{
     AgentToolExecutor, ExecutionPolicy,
@@ -55,7 +55,7 @@ impl brain_core::agents::PlannerAgent for MockPlanner {
     fn plan_steps(
         &self,
         _task: &str,
-        _history: &Conversation,
+        _history: &Session,
     ) -> Result<Vec<ToolCall>, BrainError> {
         if self.should_fail {
             return Err(BrainError::Validation {

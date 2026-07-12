@@ -1,6 +1,6 @@
 use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
-use brain_domain::{Conversation, EdgeDTO, NodeDTO, SessionId, ToolCall};
+use brain_domain::{Session, EdgeDTO, NodeDTO, SessionId, ToolCall};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;
@@ -221,7 +221,7 @@ impl PlannerAgent for PythonPlannerAgent {
     fn plan_steps(
         &self,
         task_description: &str,
-        history: &Conversation,
+        history: &Session,
     ) -> Result<Vec<ToolCall>, BrainError> {
         enum RawToolCall {
             Direct(ToolCall),
@@ -564,7 +564,7 @@ class MockAgent:
 
             // Test PythonPlannerAgent
             let planner_agent = PythonPlannerAgent::new(py, instance.clone()).unwrap();
-            let history = Conversation::new_empty();
+            let history = Session::new_empty();
             let plans = planner_agent.plan_steps("do task", &history).unwrap();
             assert_eq!(plans.len(), 1);
             assert_eq!(plans[0].call_id, "call_1");

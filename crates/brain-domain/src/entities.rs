@@ -503,7 +503,7 @@ impl Embedding {
 
 /// Represents an individual chat message in a conversation thread.
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
     /// The unique identifier of the message.
     pub id: MessageId,
@@ -527,69 +527,13 @@ impl Message {
     }
 }
 
-/// Represents a conversation log history consisting of serial messages.
-#[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Conversation {
-    /// The unique identifier of the conversation.
-    pub id: ConversationId,
-    /// The ordered list of messages in this conversation.
-    pub messages: Vec<Message>,
-    /// Optional metadata tag maps.
-    pub metadata: HashMap<String, String>,
-}
-
-impl Conversation {
-    /// Creates a new empty `Conversation`.
-    pub fn new(id: ConversationId) -> Self {
-        Self {
-            id,
-            messages: Vec::new(),
-            metadata: HashMap::new(),
-        }
-    }
-
-    /// Creates a new empty `Conversation` with a generated conversation ID.
-    pub fn new_empty() -> Self {
-        Self::new(ConversationId::new())
-    }
-
-    /// Builder method to specify messages in the conversation.
-    pub fn with_messages(mut self, messages: Vec<Message>) -> Self {
-        self.messages = messages;
-        self
-    }
-
-    /// Builder method to specify metadata on the conversation.
-    pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
-        self.metadata = metadata;
-        self
-    }
-
-    /// Archives the conversation, preventing further modifications.
-    pub fn archive(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
-        if self.is_archived() {
-            return Err(crate::errors::DomainError::ConversationArchived(self.id.to_string()));
-        }
-        self.metadata.insert("status".to_string(), "archived".to_string());
-        Ok(crate::events::DomainEvent::ConversationArchived {
-            conversation_id: self.id.to_string(),
-        })
-    }
-
-    /// Checks if the conversation is archived.
-    pub fn is_archived(&self) -> bool {
-        self.metadata.get("status").map(|s| s == "archived").unwrap_or(false)
-    }
-
-    /// Adds a message to the conversation if not archived.
-    pub fn add_message(&mut self, message: Message) -> Result<(), crate::errors::DomainError> {
-        if self.is_archived() {
-            return Err(crate::errors::DomainError::ConversationArchived(self.id.to_string()));
-        }
-        self.messages.push(message);
-        Ok(())
-    }
+/// Value object representing a session goal with identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Goal {
+    /// Goal ID.
+    pub id: GoalId,
+    /// Goal text.
+    pub text: String,
 }
 
 /// Represents a planned tool invocation request formulated by a planning agent.
@@ -740,55 +684,198 @@ impl Default for KnowledgeGraph {
 }
 
 /// Represents an active user session in the brain system.
-/// This acts as an aggregate root for session-related data and goal tracking.
+/// This acts as an aggregate root for session-related data, history, and goal tracking.
 #[non_exhaustive]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     /// The unique identifier of the session.
     pub id: SessionId,
+    /// The title of the session.
+    #[serde(default)]
+    pub title: SessionTitle,
+    /// Whether the session is archived.
+    #[serde(default)]
+    pub archived: bool,
+    /// Whether the session is pinned.
+    #[serde(default)]
+    pub pinned: bool,
+    /// The ordered list of messages in this session.
+    #[serde(default)]
+    pub messages: Vec<Message>,
     /// The targets / goals tracked within this session.
-    pub goals: Vec<String>,
-    /// Optional metadata associated with the session.
-    pub metadata: HashMap<String, String>,
-    /// Unix timestamp when the session was last updated.
-    pub updated_at: u64,
+    #[serde(default)]
+    pub goals: Vec<Goal>,
+    /// Value timestamp when the session was last updated.
+    #[serde(default)]
+    pub updated_at: SessionTimestamp,
+    /// Staged domain events.
+    #[serde(skip)]
+    pub staged_events: Vec<crate::events::DomainEvent>,
 }
 
 impl Session {
-    /// Creates a new `Session`.
-    pub fn new(id: SessionId) -> Self {
+    /// Creates a new empty `Session` (primarily for testing and empty initializations).
+    pub fn new_empty() -> Self {
         Self {
-            id,
+            id: SessionId::new(),
+            title: SessionTitle("Empty Session".to_string()),
+            archived: false,
+            pinned: false,
+            messages: Vec::new(),
             goals: Vec::new(),
-            metadata: HashMap::new(),
-            updated_at: current_unix_timestamp(),
+            updated_at: SessionTimestamp(0),
+            staged_events: Vec::new(),
         }
     }
 
+    /// Creates a new `Session`.
+    pub fn new(id: SessionId, title: SessionTitle, timestamp: SessionTimestamp) -> Self {
+        let mut session = Self {
+            id,
+            title: title.clone(),
+            archived: false,
+            pinned: false,
+            messages: Vec::new(),
+            goals: Vec::new(),
+            updated_at: timestamp,
+            staged_events: Vec::new(),
+        };
+        session.staged_events.push(crate::events::DomainEvent::SessionCreated {
+            session_id: id,
+            title,
+            created_at: timestamp,
+        });
+        session
+    }
+
+    /// Builder/creation helper for creating a new session from a given ID without staging events.
+    /// This is useful when reconstructing the aggregate from stored state without spawning new events.
+    pub fn reconstruct(
+        id: SessionId,
+        title: SessionTitle,
+        archived: bool,
+        pinned: bool,
+        messages: Vec<Message>,
+        goals: Vec<Goal>,
+        updated_at: SessionTimestamp,
+    ) -> Self {
+        Self {
+            id,
+            title,
+            archived,
+            pinned,
+            messages,
+            goals,
+            updated_at,
+            staged_events: Vec::new(),
+        }
+    }
+
+    /// Renames a session.
+    pub fn rename(&mut self, title: SessionTitle, timestamp: SessionTimestamp) {
+        self.title = title.clone();
+        self.updated_at = timestamp;
+        self.staged_events.push(crate::events::DomainEvent::SessionRenamed {
+            session_id: self.id,
+            title,
+            updated_at: timestamp,
+        });
+    }
+
+    /// Archives a session.
+    pub fn archive(&mut self, timestamp: SessionTimestamp) -> Result<(), crate::errors::DomainError> {
+        if self.archived {
+            return Err(crate::errors::DomainError::SessionArchived(self.id.to_string()));
+        }
+        self.archived = true;
+        self.updated_at = timestamp;
+        self.staged_events.push(crate::events::DomainEvent::SessionArchived {
+            session_id: self.id,
+            updated_at: timestamp,
+        });
+        Ok(())
+    }
+
+    /// Sets the pinned status.
+    pub fn set_pinned(&mut self, pinned: bool, timestamp: SessionTimestamp) {
+        self.pinned = pinned;
+        self.updated_at = timestamp;
+        self.staged_events.push(crate::events::DomainEvent::SessionPinnedChanged {
+            session_id: self.id,
+            pinned,
+            updated_at: timestamp,
+        });
+    }
+
+    /// Restores an archived session.
+    pub fn restore(&mut self, timestamp: SessionTimestamp) -> Result<(), crate::errors::DomainError> {
+        if !self.archived {
+            return Ok(());
+        }
+        self.archived = false;
+        self.updated_at = timestamp;
+        self.staged_events.push(crate::events::DomainEvent::SessionRestored {
+            session_id: self.id,
+            updated_at: timestamp,
+        });
+        Ok(())
+    }
+
+    /// Staged event for deletion (this is processed by the projection as a deletion policy).
+    pub fn delete(&mut self) {
+        self.staged_events.push(crate::events::DomainEvent::SessionDeleted {
+            session_id: self.id,
+        });
+    }
+
+    /// Adds a chat message.
+    pub fn add_message(&mut self, message: Message) -> Result<(), crate::errors::DomainError> {
+        if self.archived {
+            return Err(crate::errors::DomainError::SessionArchived(self.id.to_string()));
+        }
+        let snapshot = MessageSnapshot {
+            id: message.id,
+            role: message.role,
+            content: message.content.clone(),
+            timestamp: MessageTimestamp(message.timestamp),
+        };
+        self.messages.push(message);
+        self.updated_at = SessionTimestamp(current_unix_timestamp());
+        self.staged_events.push(crate::events::DomainEvent::MessageAdded {
+            session_id: self.id,
+            message: snapshot,
+        });
+        Ok(())
+    }
+
     /// Adds a goal to the session.
-    pub fn add_goal(&mut self, goal: String) -> Result<(), crate::errors::DomainError> {
-        let trimmed = goal.trim();
+    pub fn add_goal(&mut self, goal: Goal) -> Result<(), crate::errors::DomainError> {
+        let trimmed = goal.text.trim();
         if trimmed.is_empty() {
             return Err(crate::errors::DomainError::DuplicateGoal("Goal cannot be empty".to_string()));
         }
-        if self.goals.iter().any(|g| g == trimmed) {
+        if self.goals.iter().any(|g| g.text == trimmed) {
             return Err(crate::errors::DomainError::DuplicateGoal(trimmed.to_string()));
         }
-        self.goals.push(trimmed.to_string());
-        self.updated_at = current_unix_timestamp();
+        self.goals.push(goal);
+        self.updated_at = SessionTimestamp(current_unix_timestamp());
         Ok(())
     }
 
     /// Removes a goal from the session.
-    pub fn remove_goal(&mut self, goal: &str) -> Result<(), crate::errors::DomainError> {
-        let trimmed = goal.trim();
-        if let Some(pos) = self.goals.iter().position(|g| g == trimmed) {
+    pub fn remove_goal(&mut self, goal_id: &GoalId) -> Result<(), crate::errors::DomainError> {
+        if let Some(pos) = self.goals.iter().position(|g| g.id == *goal_id) {
             self.goals.remove(pos);
-            self.updated_at = current_unix_timestamp();
+            self.updated_at = SessionTimestamp(current_unix_timestamp());
             Ok(())
         } else {
-            Err(crate::errors::DomainError::GoalNotFound(trimmed.to_string()))
+            Err(crate::errors::DomainError::GoalNotFound(goal_id.to_string()))
         }
+    }
+
+    /// Drains all staged domain events.
+    pub fn drain_events(&mut self) -> std::vec::Drain<'_, crate::events::DomainEvent> {
+        self.staged_events.drain(..)
     }
 }
 
@@ -900,6 +987,89 @@ impl<'a> GraphBuilder<'a> {
     /// Returns the built KnowledgeGraph.
     pub fn build(self) -> KnowledgeGraph {
         self.graph
+    }
+}
+
+/// The kind classification of a search document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SearchDocumentKind {
+    /// Active or archived chat session.
+    Session,
+    /// Chat message in a session thread.
+    Message,
+    /// Configured goal or objective.
+    Goal,
+    /// Background job execution trace.
+    Job,
+    /// Retrieval telemetry/provenance reference.
+    Retrieval,
+}
+
+/// Structured search document metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum SearchMetadata {
+    /// Metadata specific to a session document.
+    Session {
+        /// Whether the session is archived.
+        archived: bool,
+        /// Whether the session is pinned.
+        pinned: bool,
+    },
+    /// Metadata specific to a message document.
+    Message {
+        /// Parent session identifier.
+        session_id: SessionId,
+        /// Sender role (e.g. user, assistant, system).
+        role: MessageRole,
+    },
+}
+
+/// Value object representing a single message snapshot staged in domain events.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MessageSnapshot {
+    /// Message ID.
+    pub id: MessageId,
+    /// Sender role.
+    pub role: MessageRole,
+    /// Content string.
+    pub content: String,
+    /// Timestamp of when the message was sent.
+    pub timestamp: MessageTimestamp,
+}
+
+/// Represents an immutable indexed unit stored in the full-text search projection index.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchDocument {
+    /// Unique search document ID (e.g. session:id or message:id).
+    pub id: SearchDocumentId,
+    /// Kind classification.
+    pub kind: SearchDocumentKind,
+    /// Title field (indexed).
+    pub title: String,
+    /// Body field (indexed).
+    pub body: String,
+    /// Structured metadata (unindexed JSON).
+    pub metadata: SearchMetadata,
+}
+
+impl SearchDocument {
+    /// Creates a new immutable `SearchDocument`.
+    pub fn new(
+        id: SearchDocumentId,
+        kind: SearchDocumentKind,
+        title: String,
+        body: String,
+        metadata: SearchMetadata,
+    ) -> Self {
+        Self {
+            id,
+            kind,
+            title,
+            body,
+            metadata,
+        }
     }
 }
 

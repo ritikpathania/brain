@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, SessionId};
+use brain_domain::{Session, Edge, EdgeId, Embedding, Node, NodeId, SessionId};
 
 /// Trait defining atomic CRUD operations for graph Nodes in the database.
 ///
@@ -56,13 +56,13 @@ pub trait EmbeddingRepository: Send + Sync {
     fn list_all_embeddings(&self) -> Result<Vec<Embedding>, BrainError>;
 }
 
-/// Trait defining CRUD operations for active and historical session conversation logs.
+/// Trait defining CRUD operations for active and historical sessions.
 pub trait SessionRepository: Send + Sync {
-    /// Saves session conversation history.
-    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError>;
-    /// Loads session conversation history by its identifier.
-    fn load_session(&self, id: &SessionId) -> Result<Option<Conversation>, BrainError>;
-    /// Deletes historical session conversation logs.
+    /// Saves session aggregate.
+    fn save_session(&self, id: &SessionId, session: &Session) -> Result<(), BrainError>;
+    /// Loads session aggregate by its identifier.
+    fn load_session(&self, id: &SessionId) -> Result<Option<Session>, BrainError>;
+    /// Deletes historical session data.
     fn delete_session(&self, id: &SessionId) -> Result<(), BrainError>;
 }
 

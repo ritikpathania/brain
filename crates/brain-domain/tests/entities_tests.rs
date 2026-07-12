@@ -39,29 +39,36 @@ fn test_edge_strengthen_and_decay() {
 }
 
 #[test]
-fn test_conversation_archiving() {
-    let mut conv = Conversation::new_empty();
-    assert!(!conv.is_archived());
+fn test_session_archiving() {
+    let id = SessionId::new();
+    let title = SessionTitle("Test Session".to_string());
+    let timestamp = SessionTimestamp(0);
+    let mut session = Session::new(id, title, timestamp);
+    assert!(!session.archived);
 
     let msg1 = Message::new(MessageId::new(), MessageRole::User, "Hello".to_string());
-    assert!(conv.add_message(msg1).is_ok());
-    assert_eq!(conv.messages.len(), 1);
+    assert!(session.add_message(msg1).is_ok());
+    assert_eq!(session.messages.len(), 1);
 
     // Archive it
-    let res = conv.archive();
+    let res = session.archive(SessionTimestamp(10));
     assert!(res.is_ok());
-    let event = res.unwrap();
-    assert!(matches!(event, DomainEvent::ConversationArchived { ref conversation_id } 
-        if conversation_id == &conv.id.to_string()));
-    assert!(conv.is_archived());
+    
+    // Check events
+    let events: Vec<_> = session.drain_events().collect();
+    // 0 is SessionCreated, 1 is MessageAdded, 2 is SessionArchived
+    assert_eq!(events.len(), 3);
+    assert!(matches!(events[2], DomainEvent::SessionArchived { session_id, updated_at }
+        if session_id == id && updated_at == SessionTimestamp(10)));
+    assert!(session.archived);
 
     // Archiving again should err
-    assert!(conv.archive().is_err());
+    assert!(session.archive(SessionTimestamp(20)).is_err());
 
     // Cannot add message when archived
     let msg2 = Message::new(MessageId::new(), MessageRole::Assistant, "Hi".to_string());
-    assert!(conv.add_message(msg2).is_err());
-    assert_eq!(conv.messages.len(), 1);
+    assert!(session.add_message(msg2).is_err());
+    assert_eq!(session.messages.len(), 1);
 }
 
 #[test]
@@ -112,25 +119,32 @@ fn test_knowledge_graph_invariants() {
 
 #[test]
 fn test_session_goals() {
-    let mut session = Session::new(SessionId::new());
+    let id = SessionId::new();
+    let title = SessionTitle("Test Session".to_string());
+    let timestamp = SessionTimestamp(0);
+    let mut session = Session::new(id, title, timestamp);
     assert!(session.goals.is_empty());
 
     // Add goal
-    assert!(session.add_goal("Study Rust".to_string()).is_ok());
-    assert_eq!(session.goals, vec!["Study Rust".to_string()]);
+    let goal_id = GoalId::new();
+    let goal = Goal { id: goal_id, text: "Study Rust".to_string() };
+    assert!(session.add_goal(goal.clone()).is_ok());
+    assert_eq!(session.goals, vec![goal]);
 
     // Empty goal should err
-    assert!(session.add_goal("   ".to_string()).is_err());
+    let empty_goal = Goal { id: GoalId::new(), text: "   ".to_string() };
+    assert!(session.add_goal(empty_goal).is_err());
 
     // Duplicate goal should err
-    assert!(session.add_goal("Study Rust".to_string()).is_err());
+    let dup_goal = Goal { id: GoalId::new(), text: "Study Rust".to_string() };
+    assert!(session.add_goal(dup_goal).is_err());
 
     // Remove goal
-    assert!(session.remove_goal("Study Rust").is_ok());
+    assert!(session.remove_goal(&goal_id).is_ok());
     assert!(session.goals.is_empty());
 
     // Remove non-existent goal should err
-    assert!(session.remove_goal("Study Rust").is_err());
+    assert!(session.remove_goal(&goal_id).is_err());
 }
 
 #[test]

@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IngestionEnvelope",
+  "type": "object",
+  "required": [
+    "event_model_version",
+    "identity",
+    "event"
+  ],
+  "properties": {
+    "event_model_version": { "type": "string" },
+    "identity": { "$ref": "event_identity.schema.json" },
+    "event": {
+      "type": "object",
+      "required": ["event_type"],
+      "properties": {
+        "event_type": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

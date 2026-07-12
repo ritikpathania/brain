@@ -1,0 +1,18 @@
+{
+  "id": "c862d3a3-d022-4467-8ccb-7e6df5b61b47",
+  "label": "SQLite",
+  "node_type": "database",
+  "properties": {
+    "speed": "fast"
+  },
+  "provenance": {
+    "source_conversation": null,
+    "source_message": null,
+    "extracted_at": 1000,
+    "extractor_version": "v1.0.0",
+    "confidence": 1.0,
+    "text_span": null,
+    "source": "extracted"
+  },
+  "updated_at": 1000
+}

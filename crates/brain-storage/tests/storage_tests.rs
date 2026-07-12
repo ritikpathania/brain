@@ -3,7 +3,7 @@ use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, SessionRepository,
 };
 use brain_domain::{
-    Conversation, ConversationId, Edge, EdgeId, Embedding, Message, MessageId, MessageRole, Node,
+    Session, SessionTitle, SessionTimestamp, Edge, EdgeId, Embedding, Message, MessageId, MessageRole, Node,
     NodeId, NodeType, SessionId, RelationKind, RelationId
 };
 use brain_storage::{SqliteStorage, TestStorage};
@@ -151,13 +151,18 @@ fn test_sqlite_storage_session_and_config() {
     let store = test_store.storage();
 
     let session_id = SessionId::new();
-    let conversation = Conversation::new(ConversationId::new()).with_messages(vec![Message::new(
+    let mut session = Session::new(
+        session_id,
+        SessionTitle("test session".to_string()),
+        SessionTimestamp(0),
+    );
+    session.add_message(Message::new(
         MessageId::new(),
         MessageRole::User,
         "Hello".to_string(),
-    )]);
+    )).unwrap();
 
-    SessionRepository::save_session(store, &session_id, &conversation).unwrap();
+    SessionRepository::save_session(store, &session_id, &session).unwrap();
 
     let loaded = SessionRepository::load_session(store, &session_id)
         .unwrap()

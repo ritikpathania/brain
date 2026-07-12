@@ -1,0 +1,20 @@
+[package]
+name = "brain-sdk-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+tokio = { workspace = true, features = ["full"] }
+thiserror.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+async-trait = "0.1"
+rand = "0.8"
+brain-domain = { path = "../brain-domain" }
+brain-integrations = { path = "../brain-integrations" }
+
+[dev-dependencies]
+jsonschema = "0.17"

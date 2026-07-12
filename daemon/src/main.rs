@@ -2,9 +2,9 @@ use pyo3::prelude::PyAnyMethods;
 use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
-use tokio::net::UnixListener;
+use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use daemon_bridge::config::{self, BrainPaths};
 use daemon_bridge::plugins::{self, BuiltinPythonExtractor};
@@ -14,6 +14,52 @@ use daemon_bridge::storage::duckdb::AnalyticsDatabase;
 use daemon_bridge::storage::sqlite::LtmDatabase;
 use daemon_bridge::workers::{start_analytics_worker, start_cleanup_worker};
 use daemon_bridge::{DaemonMetrics, GlobalState};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DaemonState {
+    Starting,
+    Running,
+    Draining,
+    Stopped,
+}
+
+struct DaemonCleanupGuard {
+    pid_path: Option<std::path::PathBuf>,
+    socket_path: Option<std::path::PathBuf>,
+}
+
+impl DaemonCleanupGuard {
+    fn new(pid_path: std::path::PathBuf, socket_path: std::path::PathBuf) -> Self {
+        Self {
+            pid_path: Some(pid_path),
+            socket_path: Some(socket_path),
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.pid_path = None;
+        self.socket_path = None;
+    }
+}
+
+impl Drop for DaemonCleanupGuard {
+    fn drop(&mut self) {
+        if let Some(path) = self.pid_path.take() {
+            if let Err(e) = std::fs::remove_file(&path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!("Failed to remove stale PID file: {}", e);
+                }
+            }
+        }
+        if let Some(path) = self.socket_path.take() {
+            if let Err(e) = std::fs::remove_file(&path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!("Failed to remove stale UDS socket file: {}", e);
+                }
+            }
+        }
+    }
+}
 
 fn is_pid_running(pid: i32) -> bool {
     unsafe {
@@ -610,17 +656,53 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
 
     let plugin_registry = Arc::new(plugin_registry);
 
+    let mut state = DaemonState::Starting;
+    info!(component = "daemon", "Daemon state: {:?}", state);
+
+    // Initialize Cleanup Guard
+    let mut cleanup_guard = DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
+
     if paths.socket_path.exists() {
-        info!(
-            component = "socket",
-            "Clean up old socket at: {}",
-            paths.socket_path.display()
-        );
-        let _ = fs::remove_file(&paths.socket_path);
+        // Attempt to connect to check if it's a live listener
+        match UnixStream::connect(&paths.socket_path).await {
+            Ok(_) => {
+                error!(
+                    component = "socket",
+                    "UDS socket at '{}' is active. Another daemon is running. Aborting startup.",
+                    paths.socket_path.display()
+                );
+                return Err("Daemon already running".into());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                error!(
+                    component = "socket",
+                    "Permission denied checking socket status at '{}': {}. Aborting startup.",
+                    paths.socket_path.display(),
+                    e
+                );
+                return Err(e.into());
+            }
+            Err(e) => {
+                info!(
+                    component = "socket",
+                    "Stale or invalid file/socket detected at '{}' (Error: {}). Cleaning up...",
+                    paths.socket_path.display(),
+                    e
+                );
+                if let Err(err) = fs::remove_file(&paths.socket_path) {
+                    if err.kind() != std::io::ErrorKind::NotFound {
+                        warn!(component = "socket", "Failed to remove stale UDS file: {}", err);
+                    }
+                }
+            }
+        }
     }
 
     let listener = UnixListener::bind(&paths.socket_path)?;
     info!(component = "socket", socket_path = %paths.socket_path.display(), "Socket bound successfully");
+
+    state = DaemonState::Running;
+    info!(component = "daemon", "Daemon state: {:?}", state);
 
     let consolidation_state = Arc::clone(&global_state);
     let worker_metrics = Arc::clone(&metrics);
@@ -630,14 +712,93 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         start_cleanup_worker(consolidation_state, worker_metrics, consolidation_registry).await;
     });
 
-    start_uds_listener(
-        listener,
-        global_state,
-        plugin_registry,
-        metrics,
-        analytics_tx,
-    )
-    .await;
+    // Spawn signal listener for graceful shutdown
+    let cancel_token = tokio_util::sync::CancellationToken::new();
+    let cancel_trigger = cancel_token.clone();
+    
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
+    tokio::spawn(async move {
+        let reason = tokio::select! {
+            _ = tokio::signal::ctrl_c() => "SIGINT",
+            _ = sigterm.recv() => "SIGTERM",
+        };
+        info!(component = "shutdown", "Shutdown initiated ({})", reason);
+        cancel_trigger.cancel();
+
+        // Absorb repeated signals without panic or exit
+        loop {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    info!(component = "shutdown", "Shutdown already in progress (SIGINT ignored)");
+                }
+                _ = sigterm.recv() => {
+                    info!(component = "shutdown", "Shutdown already in progress (SIGTERM ignored)");
+                }
+            }
+        }
+    });
+
+    // Run uds listener under select
+    let listener_metrics = metrics.clone();
+    tokio::select! {
+        _ = start_uds_listener(
+            listener,
+            global_state,
+            plugin_registry,
+            listener_metrics,
+            analytics_tx,
+        ) => {}
+        _ = cancel_token.cancelled() => {
+            state = DaemonState::Draining;
+            info!(component = "daemon", "Daemon state: {:?}", state);
+        }
+    }
+
+    info!(component = "shutdown", "Stopping accept loop");
+
+    // Draining active workers
+    let start_drain = std::time::Instant::now();
+    let mut active = metrics.active_workers.load(std::sync::atomic::Ordering::Relaxed);
+    while active > 0 {
+        info!(component = "shutdown", "Waiting for workers ({} active)", active);
+        if start_drain.elapsed() >= std::time::Duration::from_secs(5) {
+            warn!(component = "shutdown", "Draining timed out after 5s. Forcing exit.");
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        active = metrics.active_workers.load(std::sync::atomic::Ordering::Relaxed);
+    }
+
+    if active == 0 {
+        info!(component = "shutdown", "Workers drained");
+    }
+
+    state = DaemonState::Stopped;
+    info!(component = "daemon", "Daemon state: {:?}", state);
+
+    info!(component = "shutdown", "Removing socket");
+    if let Some(path) = cleanup_guard.socket_path.take() {
+        if let Err(e) = fs::remove_file(&path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                warn!(component = "shutdown", "Failed to remove UDS socket file: {}", e);
+            }
+        }
+    }
+
+    info!(component = "shutdown", "Removing PID");
+    if let Some(path) = cleanup_guard.pid_path.take() {
+        if let Err(e) = fs::remove_file(&path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                warn!(component = "shutdown", "Failed to remove PID file: {}", e);
+            }
+        }
+    }
+
+    // Disarm guard since we performed cleanup explicitly and cleanly
+    cleanup_guard.disarm();
+
+    info!(component = "shutdown", "Shutdown complete");
 
     Ok(())
 }

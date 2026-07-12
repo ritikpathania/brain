@@ -43,6 +43,14 @@ pub trait StorageBackend: Send + Sync {
     ) -> Result<Vec<(String, f32)>, String>;
     fn get_connections(&self, node_ids: &[String]) -> Result<Vec<ExtractedEdge>, String>;
     fn get_nodes_by_ids(&self, ids: &[String]) -> Result<Vec<ExtractedNode>, String>;
+    /// Applies KPP SQLite deltas transactionally to the database.
+    fn apply_kpp_ops(&self, _ops: &[brain_domain::bkf::SqliteOp]) -> Result<(), String> {
+        Ok(())
+    }
+    /// Logs a KPP pipeline event to the event_log.
+    fn log_kpp_event(&self, _event: &brain_domain::DomainEvent) -> Result<(), String> {
+        Ok(())
+    }
     /// Returns the event log capability if supported by this storage backend.
     fn event_log(&self) -> Option<&dyn EventLogRepository> {
         None

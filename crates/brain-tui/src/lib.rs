@@ -356,6 +356,23 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 is_error,
                             });
                         }
+                        brain_core::events::StreamEventKind::RetrievalStarted { query } => {
+                            state.update(Action::RetrievalStarted {
+                                message: crate::ui::interaction::MessageId(0),
+                                query,
+                            });
+                        }
+                        brain_core::events::StreamEventKind::RetrievalRetrieved { info } => {
+                            state.update(Action::RetrievalReceived {
+                                message: crate::ui::interaction::MessageId(0),
+                                info,
+                            });
+                        }
+                        brain_core::events::StreamEventKind::RetrievalCompleted => {
+                            state.update(Action::RetrievalCompleted {
+                                message: crate::ui::interaction::MessageId(0),
+                            });
+                        }
                         _ => {}
                     }
                 }

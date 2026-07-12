@@ -1,0 +1,23 @@
+[package]
+name = "brain-mcp-adapter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+brain-domain = { path = "../brain-domain" }
+brain-services = { path = "../brain-services" }
+brain-integrations = { path = "../brain-integrations" }
+brain-application = { path = "../brain-application" }
+brain-adapter-core = { path = "../brain-adapter-core" }
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures-util = "0.3"
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid = { workspace = true }
+
+[dev-dependencies]
+chrono = "0.4"
+pyo3 = { workspace = true }
+brain-config = { path = "../brain-config" }

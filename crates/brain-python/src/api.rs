@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use brain_core::extensibility::{ExecutionResult, HostContext};
-use brain_domain::{Conversation, Edge, MessageRole, Node, SessionId, ToolCall};
+use brain_domain::{Session, Edge, MessageRole, Node, SessionId, ToolCall};
 
 /// Converts a PyObject representation of JSON-compatible values to a `serde_json::Value`.
 pub fn py_to_json(_py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<serde_json::Value> {
@@ -254,7 +254,7 @@ impl PyEdge {
 #[pyclass(name = "Conversation")]
 #[derive(Clone)]
 pub struct PyConversation {
-    pub inner: Conversation,
+    pub inner: Session,
 }
 
 #[pymethods]
@@ -288,9 +288,10 @@ impl PyConversation {
     #[getter]
     pub fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
         let py_dict = PyDict::new_bound(py);
-        for (k, v) in &self.inner.metadata {
-            py_dict.set_item(k, v)?;
-        }
+        py_dict.set_item("title", &self.inner.title.0)?;
+        py_dict.set_item("archived", self.inner.archived)?;
+        py_dict.set_item("pinned", self.inner.pinned)?;
+        py_dict.set_item("updated_at", self.inner.updated_at.0)?;
         Ok(py_dict.into())
     }
 

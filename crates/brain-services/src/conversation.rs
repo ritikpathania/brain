@@ -5,7 +5,7 @@ use brain_core::errors::BrainError;
 use brain_core::extensibility::DecisionEngine;
 use brain_core::repositories::RepositorySet;
 use brain_core::services::{RetrievalService, MemoryExtractor, ExtractionRequest, ExtractionResult};
-use brain_domain::{Conversation, ConversationId, MemoryDTO, Message, Node, SessionId};
+use brain_domain::{Session, SessionTitle, ConversationId, MemoryDTO, Message, Node, SessionId, SessionTimestamp};
 use brain_session::SessionCacheManager;
 use brain_storage::SqliteStorage;
 
@@ -257,21 +257,21 @@ pub trait SummaryPolicy: Send + Sync {
 
 /// Decoupled interface for saving and restoring conversation snapshots.
 pub trait CheckpointStore: Send + Sync {
-    /// Saves an immutable snapshot of conversation history.
+    /// Saves an immutable snapshot of session history.
     fn save(
         &self,
         session_id: &SessionId,
         checkpoint_id: &ConversationId,
         label: &str,
-        history: &Conversation,
+        history: &Session,
     ) -> Result<(), BrainError>;
 
-    /// Restores a conversation snapshot.
+    /// Restores a session snapshot.
     fn restore(
         &self,
         session_id: &SessionId,
         checkpoint_id: &ConversationId,
-    ) -> Result<Conversation, BrainError>;
+    ) -> Result<Session, BrainError>;
 }
 
 /// Central facade orchestrating conversation lifecycle and memory promotion.
@@ -832,7 +832,7 @@ impl CheckpointStore for SqliteCheckpointStore {
         session_id: &SessionId,
         checkpoint_id: &ConversationId,
         label: &str,
-        history: &Conversation,
+        history: &Session,
     ) -> Result<(), BrainError> {
         let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
@@ -867,7 +867,7 @@ impl CheckpointStore for SqliteCheckpointStore {
         &self,
         _session_id: &SessionId,
         checkpoint_id: &ConversationId,
-    ) -> Result<Conversation, BrainError> {
+    ) -> Result<Session, BrainError> {
         let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -884,7 +884,7 @@ impl CheckpointStore for SqliteCheckpointStore {
                 message: format!("Checkpoint not found: {}", e),
             })?;
 
-        let conversation: Conversation =
+        let conversation: Session =
             serde_json::from_str(&history_json).map_err(|e| BrainError::Validation {
                 message: format!("Failed to deserialize checkpoint: {}", e),
             })?;
@@ -1045,12 +1045,12 @@ impl ConversationManager for ConversationManagerImpl {
         policy: IngestionPolicy,
     ) -> Result<(), BrainError> {
         // 1. Transactionally append messages to active session conversation history
-        self.storage.run_transaction(|tx| {
+        let events = self.storage.run_transaction(|tx| {
             let repos = tx.repositories();
             let mut conversation = repos
                 .sessions()
                 .load_session(session_id)?
-                .unwrap_or_else(Conversation::new_empty);
+                .unwrap_or_else(|| Session::new(*session_id, SessionTitle("New Session".to_string()), SessionTimestamp(0)));
 
             let user_msg = Message::new(
                 brain_domain::MessageId::new(),
@@ -1067,8 +1067,19 @@ impl ConversationManager for ConversationManagerImpl {
             conversation.add_message(assistant_msg)?;
 
             repos.sessions().save_session(session_id, &conversation)?;
-            Ok(())
+            let events = conversation.drain_events().collect::<Vec<_>>();
+            Ok(events)
         })?;
+
+        if let Some(ref publ) = self.event_publisher {
+            for event in events {
+                let envelope = brain_events::EventEnvelope::new(
+                    "conversation_service".to_string(),
+                    brain_events::DomainEvent::Core(event),
+                );
+                let _ = publ.publish(envelope);
+            }
+        }
 
         // 2. Perform volatile cache (STM) update if stm_only policy allows
         let nodes_to_ingest = if policy.stm_only {
@@ -1114,13 +1125,13 @@ impl ConversationManager for ConversationManagerImpl {
             .repos
             .sessions()
             .load_session(session_id)?
-            .unwrap_or_else(Conversation::new_empty);
+            .unwrap_or_else(Session::new_empty);
 
         let active_goals = conversation
-            .metadata
-            .get("active_goals")
-            .map(|s| s.split(',').map(|g| g.trim().to_string()).collect::<Vec<_>>())
-            .unwrap_or_default();
+            .goals
+            .iter()
+            .map(|g| g.text.clone())
+            .collect::<Vec<_>>();
 
         let metadata = SessionMetadata { active_goals };
 
@@ -1160,7 +1171,7 @@ impl ConversationManager for ConversationManagerImpl {
             .repos
             .sessions()
             .load_session(session_id)?
-            .unwrap_or_else(Conversation::new_empty);
+            .unwrap_or_else(Session::new_empty);
 
         let latest_summary = self.get_latest_summary(session_id)?;
 
@@ -1259,7 +1270,7 @@ impl ConversationManager for ConversationManagerImpl {
             .repos
             .sessions()
             .load_session(session_id)?
-            .unwrap_or_else(Conversation::new_empty);
+            .unwrap_or_else(Session::new_empty);
 
         if conversation.messages.is_empty() {
             return Err(BrainError::Validation {
@@ -1301,7 +1312,7 @@ impl ConversationManager for ConversationManagerImpl {
             .repos
             .sessions()
             .load_session(session_id)?
-            .unwrap_or_else(Conversation::new_empty);
+            .unwrap_or_else(Session::new_empty);
 
         let checkpoint_id = ConversationId::new();
         self.checkpoint_store
@@ -1359,15 +1370,21 @@ impl ConversationManager for ConversationManagerImpl {
             let mut conversation = repos
                 .sessions()
                 .load_session(session_id)?
-                .unwrap_or_else(Conversation::new_empty);
+                .unwrap_or_else(Session::new_empty);
 
-            let _event = conversation.archive()?;
+            let timestamp = SessionTimestamp(
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
+            let _event = conversation.archive(timestamp)?;
             repos.sessions().save_session(session_id, &conversation)?;
 
             // Publish event
             if let Some(publ) = &self.event_publisher {
                 let wrapped_event = brain_events::DomainEvent::Session(
-                    brain_events::SessionEvent::ConversationArchived(conversation.id)
+                    brain_events::SessionEvent::ConversationArchived(ConversationId(conversation.id.0))
                 );
                 publ.publish(brain_events::EventEnvelope::new("conversation_service".to_string(), wrapped_event));
             }

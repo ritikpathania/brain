@@ -20,6 +20,8 @@ pub const SWITCH_MODEL: CommandId = CommandId("model.switch");
 pub const CLEAR_CHAT: CommandId = CommandId("chat.clear");
 /// Constant identifier for showing help.
 pub const SHOW_HELP: CommandId = CommandId("help.show");
+/// Constant identifier for toggling reflection logs.
+pub const TOGGLE_REFLECTION: CommandId = CommandId("reflection.toggle");
 
 /// Type-safe, opaque identifier for visual themes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -233,6 +235,17 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         priority: 30,
         aliases: &["help", "info"],
         keywords: &["docs", "help", "commands", "manual"],
+        parameters: &[],
+    },
+    CommandDescriptor {
+        id: TOGGLE_REFLECTION,
+        title: "Toggle Reflection Logs",
+        description: "Toggle KPP offline reflection critiques and log outputs",
+        category: CommandCategory::Settings,
+        visibility: CommandVisibility::Both,
+        priority: 45,
+        aliases: &["reflection", "toggle-reflection"],
+        keywords: &["reflection", "kpp", "critique", "toggle", "logs"],
         parameters: &[],
     },
 ];

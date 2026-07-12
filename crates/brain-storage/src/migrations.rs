@@ -122,6 +122,75 @@ const MIGRATIONS: &[&str] = &[
         context TEXT NOT NULL
     );
     "#,
+    // Version 7 Schema Setup (System / Domain Event Log)
+    r#"
+    CREATE TABLE IF NOT EXISTS system_event_log (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id TEXT UNIQUE NOT NULL,
+        correlation_id TEXT NOT NULL,
+        timestamp_ms INTEGER NOT NULL,
+        version TEXT NOT NULL,
+        source TEXT NOT NULL,
+        topic TEXT NOT NULL,
+        payload TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_system_event_log_topic ON system_event_log(topic);
+    CREATE INDEX IF NOT EXISTS idx_system_event_log_ts ON system_event_log(timestamp_ms);
+    "#,
+    // Version 8 Schema Setup (Projection Checkpoints)
+    r#"
+    CREATE TABLE IF NOT EXISTS projection_checkpoints (
+        projection_name TEXT PRIMARY KEY,
+        last_sequence INTEGER NOT NULL
+    );
+    "#,
+    // Version 9 Schema Setup (Jobs Projection Read Model)
+    r#"
+    CREATE TABLE IF NOT EXISTS jobs_projection (
+        job_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        owner TEXT NOT NULL,
+        state TEXT NOT NULL,
+        priority INTEGER NOT NULL,
+        progress INTEGER NOT NULL,
+        started_at INTEGER,
+        completed_at INTEGER,
+        failure_reason TEXT,
+        updated_sequence INTEGER NOT NULL
+    );
+    "#,
+    // Version 10 Schema Setup (KPP lifecycle, validity, version_state fields)
+    r#"
+    ALTER TABLE nodes ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'Observed';
+    ALTER TABLE nodes ADD COLUMN validity TEXT NOT NULL DEFAULT 'Unverified';
+    ALTER TABLE nodes ADD COLUMN version_state TEXT NOT NULL DEFAULT 'Current';
+    ALTER TABLE edges ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'Observed';
+    ALTER TABLE edges ADD COLUMN version_state TEXT NOT NULL DEFAULT 'Current';
+    "#,
+    // Version 11 Schema Setup (Sessions Projection Read Model)
+    r#"
+    CREATE TABLE IF NOT EXISTS sessions_projection (
+        session_id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        is_archived INTEGER NOT NULL,
+        is_pinned INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        updated_sequence INTEGER NOT NULL
+    );
+    "#,
+    // Version 12 Schema Setup (Search Index FTS5 Projection)
+    r#"
+    CREATE VIRTUAL TABLE IF NOT EXISTS search_projection USING fts5(
+        id UNINDEXED,
+        kind UNINDEXED,
+        title,
+        body,
+        metadata UNINDEXED,
+        updated_sequence UNINDEXED,
+        tokenize='unicode61'
+    );
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

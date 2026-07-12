@@ -1,0 +1,90 @@
+[
+  {
+    "id": "uses",
+    "display_name": "uses",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": true,
+    "fallback_suppression": true,
+    "confidence_strategy": "maximum",
+    "description": "Indicates dependency or consumption of a library, component, or resource."
+  },
+  {
+    "id": "depends_on",
+    "display_name": "depends on",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": true,
+    "fallback_suppression": true,
+    "confidence_strategy": "maximum",
+    "description": "Represents a strict dependency boundary between systems or modules."
+  },
+  {
+    "id": "runs_on",
+    "display_name": "runs on",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": false,
+    "fallback_suppression": true,
+    "confidence_strategy": "source_defined",
+    "description": "Denotes system execution execution environments (e.g. containers, OS, runtimes)."
+  },
+  {
+    "id": "develops",
+    "display_name": "develops",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": false,
+    "fallback_suppression": true,
+    "confidence_strategy": "source_defined",
+    "description": "Designates development ownership, authoring, or implementation relations."
+  },
+  {
+    "id": "stored_in",
+    "display_name": "stored in",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": false,
+    "fallback_suppression": true,
+    "confidence_strategy": "source_defined",
+    "description": "Specifies physical or logical storage location (e.g. database, directory, environment variables)."
+  },
+  {
+    "id": "configures",
+    "display_name": "configures",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": false,
+    "fallback_suppression": true,
+    "confidence_strategy": "maximum",
+    "description": "Represents configuration layout binding one component to another."
+  },
+  {
+    "id": "communicates_via",
+    "display_name": "communicates via",
+    "inverse": null,
+    "directionality": "directed",
+    "symmetry": false,
+    "transitivity": false,
+    "fallback_suppression": true,
+    "confidence_strategy": "average",
+    "description": "Indicates network/socket protocols and channels of communication."
+  },
+  {
+    "id": "associated_with",
+    "display_name": "associated with",
+    "inverse": "associated_with",
+    "directionality": "undirected",
+    "symmetry": true,
+    "transitivity": false,
+    "fallback_suppression": false,
+    "confidence_strategy": "average",
+    "description": "A symmetric, undirected generic association between two nodes."
+  }
+]

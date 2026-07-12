@@ -42,6 +42,38 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
             "brain-observability",
             "brain-events",
         ],
+        "brain-application" => vec![
+            "brain-domain",
+            "brain-services",
+            "brain-integrations",
+            "brain-storage",
+            "brain-config",
+        ],
+        "brain-mcp-adapter" => vec![
+            "brain-domain",
+            "brain-services",
+            "brain-integrations",
+            "brain-application",
+            "brain-adapter-core",
+            "brain-config",
+        ],
+        "brain-acp-adapter" => vec![
+            "brain-domain",
+            "brain-services",
+            "brain-integrations",
+            "brain-application",
+            "brain-adapter-core",
+            "brain-config",
+        ],
+        "brain-a2a-adapter" => vec![
+            "brain-domain",
+            "brain-services",
+            "brain-integrations",
+            "brain-application",
+            "brain-adapter-core",
+            "brain-config",
+        ],
+        "brain-adapter-core" => vec![],
         _ => vec![], // Allow other / apps
     }
 }

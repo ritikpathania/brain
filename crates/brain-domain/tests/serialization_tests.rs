@@ -144,8 +144,8 @@ fn test_json_roundtrip_entities() {
         deserialized_embedding.dimension
     );
 
-    // 4. Conversation Roundtrip
-    let conv_id = ConversationId::new();
+    // 4. Session Roundtrip
+    let session_id = SessionId::new();
     let msg1 = Message::new(MessageId::new(), MessageRole::User, "hello".to_string());
     let msg2 = Message::new(
         MessageId::new(),
@@ -153,27 +153,34 @@ fn test_json_roundtrip_entities() {
         "hi there".to_string(),
     );
 
-    let original_conv = Conversation::new(conv_id)
-        .with_messages(vec![msg1, msg2])
-        .with_metadata(
-            vec![("session".to_string(), "test".to_string())]
-                .into_iter()
-                .collect(),
-        );
+    let original_session = Session::reconstruct(
+        session_id,
+        SessionTitle("test title".to_string()),
+        false,
+        true,
+        vec![msg1, msg2],
+        vec![Goal { id: GoalId::new(), text: "test goal".to_string() }],
+        SessionTimestamp(123456),
+    );
 
-    let serialized_conv = serde_json::to_string(&original_conv).unwrap();
-    let deserialized_conv: Conversation = serde_json::from_str(&serialized_conv).unwrap();
+    let serialized_session = serde_json::to_string(&original_session).unwrap();
+    let deserialized_session: Session = serde_json::from_str(&serialized_session).unwrap();
 
-    assert_eq!(original_conv.id, deserialized_conv.id);
+    assert_eq!(original_session.id, deserialized_session.id);
     assert_eq!(
-        original_conv.messages.len(),
-        deserialized_conv.messages.len()
+        original_session.messages.len(),
+        deserialized_session.messages.len()
     );
     assert_eq!(
-        original_conv.messages[0].content,
-        deserialized_conv.messages[0].content
+        original_session.messages[0].content,
+        deserialized_session.messages[0].content
     );
-    assert_eq!(original_conv.metadata, deserialized_conv.metadata);
+    assert_eq!(original_session.title, deserialized_session.title);
+    assert_eq!(original_session.pinned, deserialized_session.pinned);
+    assert_eq!(original_session.archived, deserialized_session.archived);
+    assert_eq!(original_session.goals.len(), deserialized_session.goals.len());
+    assert_eq!(original_session.goals[0].text, deserialized_session.goals[0].text);
+    assert_eq!(original_session.updated_at, deserialized_session.updated_at);
 }
 
 #[test]
@@ -214,14 +221,18 @@ fn test_custom_node_type_serialization() {
 }
 
 #[test]
-fn test_conversation_new_empty() {
-    let conv = Conversation::new_empty();
+fn test_session_new() {
+    let id = SessionId::new();
+    let title = SessionTitle("New Session".to_string());
+    let timestamp = SessionTimestamp(0);
+    let session = Session::new(id, title.clone(), timestamp);
     // Verify message list is empty
-    assert!(conv.messages.is_empty());
-    // Verify metadata map is empty
-    assert!(conv.metadata.is_empty());
-    // Verify unique non-zero ConversationId was generated
-    assert_ne!(conv.id, ConversationId(ulid::Ulid::nil()));
+    assert!(session.messages.is_empty());
+    // Verify default fields
+    assert_eq!(session.title, title);
+    assert!(!session.archived);
+    assert!(!session.pinned);
+    assert!(session.goals.is_empty());
 }
 
 #[test]

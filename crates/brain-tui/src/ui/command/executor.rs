@@ -19,6 +19,8 @@ pub enum LocalStateMutation {
     DeleteSession(SessionId),
     /// Request local restore of session.
     RestoreSession(SessionId),
+    /// Request toggle of KPP reflection logs visibility.
+    ToggleReflectionLogs,
 }
 
 /// A parsed, type-safe command invocation representation.
@@ -60,6 +62,8 @@ pub enum CommandInvocation {
     ClearChat,
     /// Render help popup.
     ShowHelp,
+    /// Toggle reflection logs visibility.
+    ToggleReflection,
 }
 
 impl CommandInvocation {
@@ -122,6 +126,9 @@ impl CommandInvocation {
             crate::ui::command::SHOW_HELP => {
                 Some(CommandInvocation::ShowHelp)
             }
+            crate::ui::command::TOGGLE_REFLECTION => {
+                Some(CommandInvocation::ToggleReflection)
+            }
             _ => None,
         }
     }
@@ -176,6 +183,10 @@ impl CommandExecutor {
             },
             CommandInvocation::ShowHelp => ExecutionPlan {
                 mutations: vec![],
+                backend_commands: vec![],
+            },
+            CommandInvocation::ToggleReflection => ExecutionPlan {
+                mutations: vec![LocalStateMutation::ToggleReflectionLogs],
                 backend_commands: vec![],
             },
         }

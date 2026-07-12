@@ -5,7 +5,7 @@ use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, RepositorySet,
     SessionRepository, StorageTransaction,
 };
-use brain_domain::{Conversation, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId, RelationKind, NodeKind};
+use brain_domain::{Session, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId, RelationKind, NodeKind};
 use std::collections::HashMap;
 
 thread_local! {
@@ -1551,20 +1551,17 @@ impl<'a> EmbeddingRepository for ActiveConnection<'a> {
 fn save_session_conn(
     db: &ActiveConnection<'_>,
     id: &SessionId,
-    history: &Conversation,
+    session: &Session,
 ) -> Result<(), BrainError> {
-    let history_str = serde_json::to_string(history).map_err(|e| BrainError::Storage {
-        message: format!("Failed to serialize session history: {}", e),
+    let session_str = serde_json::to_string(session).map_err(|e| BrainError::Storage {
+        message: format!("Failed to serialize session: {}", e),
         source: Some(Box::new(e)),
     })?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let now = session.updated_at.0;
 
     db.execute(
         "INSERT OR REPLACE INTO sessions (id, history, updated_at) VALUES (?, ?, ?)",
-        (id.to_string(), history_str, now),
+        (id.to_string(), session_str, now),
     )
     .map_err(|e| BrainError::Storage {
         message: format!("Failed to save session {}: {}", id, e),
@@ -1576,7 +1573,7 @@ fn save_session_conn(
 fn load_session_conn(
     db: &ActiveConnection<'_>,
     id: &SessionId,
-) -> Result<Option<Conversation>, BrainError> {
+) -> Result<Option<Session>, BrainError> {
     let mut stmt = db
         .prepare("SELECT history FROM sessions WHERE id = ?")
         .map_err(|e| BrainError::Storage {
@@ -1591,12 +1588,12 @@ fn load_session_conn(
 
     match res {
         Ok(history_str) => {
-            let conversation: Conversation =
+            let session: Session =
                 serde_json::from_str(&history_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize conversation: {}", e),
+                    message: format!("Failed to deserialize session: {}", e),
                     source: Some(Box::new(e)),
                 })?;
-            Ok(Some(conversation))
+            Ok(Some(session))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => Err(BrainError::Storage {
@@ -1616,16 +1613,16 @@ fn delete_session_conn(db: &ActiveConnection<'_>, id: &SessionId) -> Result<(), 
 }
 
 impl SessionRepository for SqliteStorage {
-    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError> {
+    fn save_session(&self, id: &SessionId, session: &Session) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
         let active = ActiveConnection::new(&conn);
-        save_session_conn(&active, id, history)
+        save_session_conn(&active, id, session)
     }
 
-    fn load_session(&self, id: &SessionId) -> Result<Option<Conversation>, BrainError> {
+    fn load_session(&self, id: &SessionId) -> Result<Option<Session>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -1645,11 +1642,11 @@ impl SessionRepository for SqliteStorage {
 }
 
 impl<'a> SessionRepository for ActiveConnection<'a> {
-    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError> {
-        save_session_conn(self, id, history)
+    fn save_session(&self, id: &SessionId, session: &Session) -> Result<(), BrainError> {
+        save_session_conn(self, id, session)
     }
 
-    fn load_session(&self, id: &SessionId) -> Result<Option<Conversation>, BrainError> {
+    fn load_session(&self, id: &SessionId) -> Result<Option<Session>, BrainError> {
         load_session_conn(self, id)
     }
 
@@ -1726,3 +1723,171 @@ impl<'a> ConfigRepository for ActiveConnection<'a> {
         get_config_key_conn(self, key)
     }
 }
+
+impl SqliteStorage {
+    /// Applies KPP SQLite deltas transactionally to the database.
+    pub fn apply_kpp_ops(&self, ops: &[brain_domain::bkf::SqliteOp]) -> Result<(), BrainError> {
+        let mut conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection for KPP ops: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let tx = conn.transaction().map_err(|e| BrainError::Storage {
+            message: format!("Failed to start transaction for KPP ops: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        for op in ops {
+            match op {
+                brain_domain::bkf::SqliteOp::Node(delta) => match delta {
+                    brain_domain::bkf::ProjectionDelta::Insert(node) => {
+                        tx.execute(
+                            "INSERT INTO nodes (id, label, node_type, properties, updated_at, lifecycle, validity, version_state) \
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+                             ON CONFLICT(id) DO UPDATE SET \
+                             label=excluded.label, \
+                             node_type=excluded.node_type, \
+                             properties=excluded.properties, \
+                             updated_at=excluded.updated_at, \
+                             lifecycle=excluded.lifecycle, \
+                             validity=excluded.validity, \
+                             version_state=excluded.version_state",
+                            (
+                                &node.id,
+                                &node.label,
+                                &node.entity_type,
+                                &node.attributes,
+                                1700000000i64,
+                                &node.lifecycle,
+                                &node.validity,
+                                &node.version_state,
+                            ),
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to insert/update KPP node: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Update { id, changes } => {
+                        tx.execute(
+                            "UPDATE nodes SET label = ?, node_type = ?, properties = ?, lifecycle = ?, validity = ?, version_state = ? WHERE id = ?",
+                            (
+                                &changes.label,
+                                &changes.entity_type,
+                                &changes.attributes,
+                                &changes.lifecycle,
+                                &changes.validity,
+                                &changes.version_state,
+                                id,
+                            ),
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to update KPP node: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Delete(id) => {
+                        tx.execute("DELETE FROM nodes WHERE id = ?", [id]).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to delete KPP node: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                },
+                brain_domain::bkf::SqliteOp::Edge(delta) => match delta {
+                    brain_domain::bkf::ProjectionDelta::Insert(edge) => {
+                        tx.execute(
+                            "INSERT INTO edges (source, target, relation, weight, updated_at, lifecycle, version_state) \
+                             VALUES (?, ?, ?, ?, ?, ?, ?) \
+                             ON CONFLICT(source, target, relation) DO UPDATE SET \
+                             weight=excluded.weight, \
+                             lifecycle=excluded.lifecycle, \
+                             version_state=excluded.version_state",
+                            (
+                                &edge.source,
+                                &edge.target,
+                                &edge.relation,
+                                edge.weight,
+                                1700000000i64,
+                                &edge.lifecycle,
+                                &edge.version_state,
+                            ),
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to insert/update KPP edge: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Update { id: _, changes } => {
+                        tx.execute(
+                            "UPDATE edges SET weight = ?, lifecycle = ?, version_state = ? WHERE source = ? AND target = ? AND relation = ?",
+                            (
+                                changes.weight,
+                                &changes.lifecycle,
+                                &changes.version_state,
+                                &changes.source,
+                                &changes.target,
+                                &changes.relation,
+                            ),
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to update KPP edge: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                    brain_domain::bkf::ProjectionDelta::Delete(id) => {
+                        tx.execute(
+                            "DELETE FROM edges WHERE (source || '-' || target || '-' || LOWER(relation)) = ?",
+                            [id],
+                        ).map_err(|e| BrainError::Storage {
+                            message: format!("Failed to delete KPP edge: {}", e),
+                            source: Some(Box::new(e)),
+                        })?;
+                    }
+                },
+            }
+        }
+
+        tx.commit().map_err(|e| BrainError::Storage {
+            message: format!("Failed to commit KPP operations: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
+
+    /// Logs a KPP pipeline event to the system_event_log database table.
+    pub fn log_kpp_event(&self, event: &brain_domain::DomainEvent) -> Result<(), BrainError> {
+        let event_id = uuid::Uuid::new_v4();
+        let correlation_id = uuid::Uuid::new_v4();
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        let payload_json = serde_json::to_string(event).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize KPP event payload: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection for event logging: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        conn.execute(
+            "INSERT INTO system_event_log (event_id, correlation_id, timestamp_ms, version, source, topic, payload) \
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                event_id.to_string(),
+                correlation_id.to_string(),
+                timestamp_ms as i64,
+                "1.0",
+                "KPP",
+                "core",
+                payload_json,
+            ),
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert system_event_log row: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
+}
+

@@ -1,12 +1,12 @@
 use brain_core::errors::BrainError;
 use brain_core::services::{RetrievalService, SessionService};
-use brain_domain::{Conversation, MemoryDTO, Node, NodeDTO, SessionId};
+use brain_domain::{Session, SessionTitle, SessionTimestamp, MemoryDTO, Node, NodeDTO, SessionId};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 /// Stub implementation of SessionService using an in-memory map.
 pub struct StubSessionService {
-    sessions: Mutex<HashMap<SessionId, Conversation>>,
+    sessions: Mutex<HashMap<SessionId, Session>>,
     nodes: Mutex<HashMap<SessionId, Vec<Node>>>,
 }
 
@@ -28,9 +28,13 @@ impl Default for StubSessionService {
 
 impl SessionService for StubSessionService {
     fn create_session(&self) -> Result<SessionId, BrainError> {
-        let conversation = Conversation::new_empty();
         let id = SessionId::new();
-        self.sessions.lock().unwrap().insert(id, conversation);
+        let session = Session::new(
+            id,
+            SessionTitle("New Session".to_string()),
+            SessionTimestamp(0),
+        );
+        self.sessions.lock().unwrap().insert(id, session);
         Ok(id)
     }
 
@@ -38,7 +42,7 @@ impl SessionService for StubSessionService {
         Ok(self.sessions.lock().unwrap().contains_key(id))
     }
 
-    fn load_session(&self, id: &SessionId) -> Result<Conversation, BrainError> {
+    fn load_session(&self, id: &SessionId) -> Result<Session, BrainError> {
         self.sessions
             .lock()
             .unwrap()
@@ -50,7 +54,7 @@ impl SessionService for StubSessionService {
             })
     }
 
-    fn save_session(&self, id: &SessionId, history: &Conversation) -> Result<(), BrainError> {
+    fn save_session(&self, id: &SessionId, session: &mut Session) -> Result<(), BrainError> {
         let mut guard = self.sessions.lock().unwrap();
         if !guard.contains_key(id) {
             return Err(BrainError::Session {
@@ -58,7 +62,7 @@ impl SessionService for StubSessionService {
                 message: "Session does not exist".to_string(),
             });
         }
-        guard.insert(*id, history.clone());
+        guard.insert(*id, session.clone());
         Ok(())
     }
 
@@ -82,6 +86,58 @@ impl SessionService for StubSessionService {
         self.sessions.lock().unwrap().remove(id);
         self.nodes.lock().unwrap().remove(id);
         Ok(())
+    }
+
+    fn rename_session(&self, id: &SessionId, title: &str) -> Result<(), BrainError> {
+        let mut guard = self.sessions.lock().unwrap();
+        if let Some(s) = guard.get_mut(id) {
+            s.rename(SessionTitle(title.to_string()), SessionTimestamp(0));
+            Ok(())
+        } else {
+            Err(BrainError::Session {
+                session_id: *id,
+                message: "Session not found".to_string(),
+            })
+        }
+    }
+
+    fn set_session_pinned(&self, id: &SessionId, pinned: bool) -> Result<(), BrainError> {
+        let mut guard = self.sessions.lock().unwrap();
+        if let Some(s) = guard.get_mut(id) {
+            s.set_pinned(pinned, SessionTimestamp(0));
+            Ok(())
+        } else {
+            Err(BrainError::Session {
+                session_id: *id,
+                message: "Session not found".to_string(),
+            })
+        }
+    }
+
+    fn archive_session(&self, id: &SessionId) -> Result<(), BrainError> {
+        let mut guard = self.sessions.lock().unwrap();
+        if let Some(s) = guard.get_mut(id) {
+            s.archive(SessionTimestamp(0))?;
+            Ok(())
+        } else {
+            Err(BrainError::Session {
+                session_id: *id,
+                message: "Session not found".to_string(),
+            })
+        }
+    }
+
+    fn restore_session(&self, id: &SessionId) -> Result<(), BrainError> {
+        let mut guard = self.sessions.lock().unwrap();
+        if let Some(s) = guard.get_mut(id) {
+            s.restore(SessionTimestamp(0))?;
+            Ok(())
+        } else {
+            Err(BrainError::Session {
+                session_id: *id,
+                message: "Session not found".to_string(),
+            })
+        }
     }
 }
 
@@ -139,5 +195,41 @@ impl RetrievalService for StubRetrievalService {
 
         results.truncate(limit);
         Ok(results)
+    }
+}
+
+/// Stub implementation of DomainEventPublisher that collects published events.
+pub struct StubDomainEventPublisher {
+    events: Mutex<Vec<brain_domain::DomainEvent>>,
+}
+
+impl StubDomainEventPublisher {
+    /// Creates a new StubDomainEventPublisher.
+    pub fn new() -> Self {
+        Self {
+            events: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Clears all collected events.
+    pub fn clear(&self) {
+        self.events.lock().unwrap().clear();
+    }
+
+    /// Returns a clone of all published events.
+    pub fn get_events(&self) -> Vec<brain_domain::DomainEvent> {
+        self.events.lock().unwrap().clone()
+    }
+}
+
+impl Default for StubDomainEventPublisher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl crate::jobs::publisher::DomainEventPublisher for StubDomainEventPublisher {
+    fn publish(&self, event: brain_domain::DomainEvent) {
+        self.events.lock().unwrap().push(event);
     }
 }

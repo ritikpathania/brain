@@ -1,0 +1,8 @@
+{
+  "event_model_version": "1.0",
+  "event": {
+    "event_type": "message",
+    "role": "user",
+    "content": "Hello World"
+  }
+}

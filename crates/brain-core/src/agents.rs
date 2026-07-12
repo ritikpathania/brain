@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Conversation, EdgeDTO, NodeDTO, SessionId, ToolCall};
+use brain_domain::{Session, EdgeDTO, NodeDTO, SessionId, ToolCall};
 
 /// Trait defining standard LLM chat conversation agent capabilities.
 pub trait ChatAgent: Send + Sync {
@@ -35,7 +35,7 @@ pub trait PlannerAgent: Send + Sync {
     fn plan_steps(
         &self,
         task_description: &str,
-        history: &Conversation,
+        history: &Session,
     ) -> Result<Vec<ToolCall>, BrainError>;
 }
 
