@@ -63,6 +63,10 @@ pub enum FocusRegion {
     Editor,
     /// Focus inside the sidebar session listing browser.
     Sidebar,
+    /// Focus inside the chat timeline references.
+    Timeline,
+    /// Focus inside the active knowledge inspector panel.
+    Inspector,
 }
 
 /// Monotonic identifier tracking asynchronous session load invocations.
@@ -179,11 +183,22 @@ impl TypewriterQueue {
         self.backend_finished && self.tokens.is_empty()
     }
 
-    /// Drains paced tokens from the queue based on elapsed time since the last tick.
+    /// Drains paced tokens from the queue based on elapsed time since the last drain.
+    ///
+    /// Invariant: `last_drained_at` advances only when tokens are actually emitted.
+    /// This ensures elapsed time accumulates across idle ticks so the 30ms threshold
+    /// is reached even when the event loop ticks faster than the drain rate.
+    ///
+    /// When the backend has finished sending, all remaining tokens are flushed
+    /// immediately — there is no value in pacing tokens that have already arrived.
+    ///
+    /// During active streaming, the drain rate adapts to queue depth:
+    /// - queue ≤ 5:  30ms/token — smooth typewriter for LLM-style drip
+    /// - queue ≤ 20: 10ms/token — faster for moderate bursts
+    /// - queue > 20: flush all  — bulk retrieval data, no pacing
     pub fn drain_for_tick(&mut self, now: Instant) -> DrainResult {
         let is_first = self.last_drained_at.is_none();
         let last = self.last_drained_at.unwrap_or(now);
-        self.last_drained_at = Some(now);
 
         if self.tokens.is_empty() {
             return DrainResult {
@@ -192,16 +207,31 @@ impl TypewriterQueue {
             };
         }
 
-        let elapsed = now.duration_since(last);
-        let rate_ms = 30; // 30ms typewriter speed
-        let count = if elapsed.as_millis() >= rate_ms {
-            let num = (elapsed.as_millis() / rate_ms) as usize;
-            std::cmp::min(num, self.tokens.len())
-        } else if is_first {
-            // Default first tick: emit 1 token immediately
-            1
+        // When the backend stream has completed, flush everything immediately.
+        // Pacing only makes sense while tokens are still arriving.
+        let count = if self.backend_finished {
+            self.tokens.len()
         } else {
-            0
+            let queue_len = self.tokens.len();
+            // Adaptive pacing: large queues mean bulk data arrived in a burst.
+            // Pacing bulk data at 30ms/token produces multi-minute delays for
+            // retrieval responses that are already fully in memory.
+            if queue_len > 20 {
+                // Bulk data — flush everything now.
+                queue_len
+            } else {
+                let rate_ms = if queue_len > 5 { 10 } else { 30 };
+                let elapsed = now.duration_since(last);
+                if elapsed.as_millis() >= rate_ms {
+                    let num = (elapsed.as_millis() / rate_ms) as usize;
+                    std::cmp::min(num, queue_len)
+                } else if is_first {
+                    // Emit the first token immediately on the very first drain call.
+                    1
+                } else {
+                    0
+                }
+            }
         };
 
         let mut emitted = Vec::new();
@@ -209,6 +239,11 @@ impl TypewriterQueue {
             if let Some(tok) = self.tokens.pop_front() {
                 emitted.push(tok);
             }
+        }
+
+        // Advance the drain timer only when progress is made.
+        if !emitted.is_empty() {
+            self.last_drained_at = Some(now);
         }
 
         DrainResult {
@@ -435,6 +470,12 @@ impl EditorState {
         Some(content)
     }
 
+    /// Clears the active text buffer and resets cursor position.
+    pub fn clear(&mut self) {
+        self.chars.clear();
+        self.cursor = 0;
+    }
+
     /// Recalls the previous history entry.
     pub fn recall_up(&mut self) {
         let current = self.text();
@@ -459,8 +500,77 @@ impl Default for EditorState {
     }
 }
 
+/// Active interface interaction mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TuiMode {
+    /// Conversational message and prompt entry screen.
+    Conversation,
+    /// Detailed node context reference browsing.
+    Exploration,
+}
+
+/// Active interface overlay state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TuiOverlay {
+    /// No modal overlay open.
+    None,
+    /// Modal list showing pinned nodes.
+    PinnedContext,
+}
+
+/// A pinned knowledge node stored in-memory during the active session.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PinnedNode {
+    /// Unique identifier of the pinned node.
+    pub node_id: brain_domain::NodeId,
+    /// Cached display name/label of the pinned node.
+    pub label: String,
+    /// Domain node type category.
+    pub node_type: brain_domain::NodeType,
+    /// Monotonic session pinning order index.
+    pub pinned_at: usize,
+}
+
+/// Loading status of the focused Inspector entity query.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InspectorLoadState {
+    /// In-flight RPC request loading.
+    Loading,
+    /// Successfully loaded model details.
+    Loaded(brain_domain::query::inspector::InspectorModel),
+    /// Failed query error.
+    Error(String),
+}
+
+/// Live browsing context parameters for the knowledge graph explorer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InspectorSession {
+    /// Currently focused Node ID.
+    pub node_id: brain_domain::NodeId,
+    /// Loading or completed data payload.
+    pub load_state: InspectorLoadState,
+    /// Scoped volatile history history.
+    pub breadcrumbs: Vec<brain_domain::NodeId>,
+    /// Scroll row offset of the inspector list view.
+    pub scroll_offset: usize,
+    /// Currently highlighted relation connection index.
+    pub selected_relation_idx: usize,
+}
+
 /// Central application layout and editor context.
 pub struct UiState {
+    /// Active interface mode
+    pub mode: TuiMode,
+    /// Active interface overlay
+    pub overlay: TuiOverlay,
+    /// Active exploration inspector session details
+    pub active_inspector: Option<InspectorSession>,
+    /// List of pinned nodes stored in-memory during session liveness.
+    pub pinned_nodes: Vec<PinnedNode>,
+    /// Selected index inside the pinned overlay.
+    pub pinned_overlay_cursor: usize,
+    /// Transient message with timestamp for display timeouts.
+    pub transient_message: Option<(String, std::time::Instant)>,
     /// Active engine connection mode.
     pub connection_mode: ConnectionMode,
     /// Current conversation session identifier.
@@ -518,6 +628,24 @@ pub struct UiState {
     pub next_ordinal: u64,
     /// Toggle state for showing/hiding reflection logs.
     pub enable_reflection_logs: bool,
+    /// Current terminal window columns.
+    pub terminal_width: u16,
+    /// Current terminal window rows.
+    pub terminal_height: u16,
+    /// In-memory store of conversation histories per Session ID.
+    pub session_histories: std::collections::HashMap<SessionId, Vec<brain_domain::Message>>,
+}
+
+/// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
+/// (e.g. "Brain", "You") and sizing information. It exists solely to facilitate virtualized layout wrapping,
+/// index-based viewport slicing, and render-time column constraints. It does not carry any domain invariants or persist
+/// beyond the rendering tick.
+#[derive(Debug, Clone)]
+pub struct TimelineBlock {
+    /// Optional sender header name (e.g. "You", "Brain").
+    pub header: Option<String>,
+    /// Chronological list of visual lines wrapped to the column width.
+    pub visual_lines: Vec<crate::ui::interaction::markdown::VisualLine>,
 }
 
 
@@ -659,6 +787,48 @@ pub enum Action {
     DeleteSession(SessionId),
     /// Toggle the visibility of KPP reflection logs in TUI.
     ToggleReflectionLogs,
+    /// Create a fresh conversation thread.
+    NewSession,
+    /// Scroll the viewport up by a specified line count.
+    ScrollUp(usize),
+    /// Scroll the viewport down by a specified line count.
+    ScrollDown(usize),
+    /// Navigate/inspect node details.
+    InspectNode(brain_domain::NodeId),
+    /// Inspector details loaded successfully.
+    NodeDetailsLoaded(brain_domain::query::inspector::InspectorModel),
+    /// Inspector details query failed.
+    NodeDetailsFailed(String),
+    /// Backspace pops breadcrumb navigation history.
+    PopBreadcrumb,
+    /// Close Inspector and return to Conversation Mode.
+    CloseInspector,
+    /// Scroll the Inspector details panel up.
+    ScrollInspectorUp(usize),
+    /// Scroll the Inspector details panel down.
+    ScrollInspectorDown(usize),
+    /// Highlight next connection.
+    NextInspectorRelation,
+    /// Highlight previous connection.
+    PrevInspectorRelation,
+    /// Inspect the highlighted relation connection.
+    TraverseToRelation,
+    /// Pin/unpin the currently open Inspector node.
+    PinCurrentNode,
+    /// Unpin a specific node.
+    UnpinNode(brain_domain::NodeId),
+    /// Clear all pinned context nodes.
+    ClearAllPins,
+    /// Open the pinned context overlay.
+    OpenPinnedOverlay,
+    /// Close the pinned context overlay.
+    ClosePinnedOverlay,
+    /// Scroll the pinned overlay cursor up.
+    PinnedOverlayUp,
+    /// Scroll the pinned overlay cursor down.
+    PinnedOverlayDown,
+    /// Inspect the pinned node at the given index.
+    InspectPinnedNode(usize),
 }
 
 /// Pure status indicator returning from state updates.
@@ -672,6 +842,8 @@ pub enum UpdateResult {
     PromptSubmitted(String),
     /// Request loading of the specified session history.
     LoadSession(SessionId),
+    /// Spawn async UDS call to inspect node details.
+    InspectNode(brain_domain::NodeId),
     /// Exit main interactive loop.
     Exit,
 }
@@ -680,6 +852,12 @@ impl UiState {
     /// Creates a default `UiState` with random Session ID.
     pub fn new() -> Self {
         Self {
+            mode: TuiMode::Conversation,
+            overlay: TuiOverlay::None,
+            active_inspector: None,
+            pinned_nodes: Vec::new(),
+            pinned_overlay_cursor: 0,
+            transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
             session_id: SessionId::new(),
             session_title: "New Conversation".to_string(),
@@ -713,12 +891,21 @@ impl UiState {
             timeline: Vec::new(),
             next_ordinal: 1,
             enable_reflection_logs: false,
+            terminal_width: 80,
+            terminal_height: 24,
+            session_histories: std::collections::HashMap::new(),
         }
     }
 
     /// Creates a new `UiState` with custom history capacity.
     pub fn with_history_capacity(capacity: usize) -> Self {
         Self {
+            mode: TuiMode::Conversation,
+            overlay: TuiOverlay::None,
+            active_inspector: None,
+            pinned_nodes: Vec::new(),
+            pinned_overlay_cursor: 0,
+            transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
             session_id: SessionId::new(),
             session_title: "New Conversation".to_string(),
@@ -752,6 +939,9 @@ impl UiState {
             timeline: Vec::new(),
             next_ordinal: 1,
             enable_reflection_logs: false,
+            terminal_width: 80,
+            terminal_height: 24,
+            session_histories: std::collections::HashMap::new(),
         }
     }
 
@@ -834,6 +1024,16 @@ impl UiState {
         )
     }
 
+    /// Returns the number of tokens currently queued in the typewriter buffer.
+    pub fn typewriter_queue_len(&self) -> usize {
+        self.typewriter.tokens.len()
+    }
+
+    /// Returns whether the typewriter backend has signalled completion.
+    pub fn typewriter_backend_finished(&self) -> bool {
+        self.typewriter.backend_finished
+    }
+
     /// Pure reducer transitioning state based on Action.
     pub fn update(&mut self, action: Action) -> UpdateResult {
         let prev_messages = self.active_messages.clone();
@@ -899,10 +1099,6 @@ impl UiState {
                     UpdateResult::NoChange
                 }
             }
-            Action::Resize(cols, rows) => {
-                let _ = (cols, rows);
-                UpdateResult::Changed
-            }
             Action::Quit => {
                 self.clear_pending_load();
                 UpdateResult::Exit
@@ -913,9 +1109,6 @@ impl UiState {
             }
             Action::SubmitPrompt => {
                 if self.focus == FocusRegion::Editor {
-                    if self.is_generating() {
-                        return UpdateResult::NoChange;
-                    }
                     let prompt = self.editor.text();
                     if prompt.trim().is_empty() {
                         return UpdateResult::NoChange;
@@ -926,10 +1119,40 @@ impl UiState {
                     self.active_response_revision += 1;
                     self.typewriter.clear();
                     
-                    self.retrievals.clear();
-                    self.message_retrievals.clear();
-                    self.timeline.clear();
-                    self.next_ordinal = 1;
+                    // Save User message to active session
+                    let user_msg = brain_domain::Message::new(
+                        brain_domain::MessageId::new(),
+                        brain_domain::MessageRole::User,
+                        prompt.clone(),
+                    );
+                    self.active_messages.push(user_msg.clone());
+                    self.session_histories.entry(self.session_id).or_default().push(user_msg);
+
+                    let user_msg_id = crate::ui::interaction::MessageId(self.active_messages.len() as u64);
+                    self.timeline.push((
+                        crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                        crate::ui::interaction::timeline::TimelineItem::Message(user_msg_id),
+                    ));
+                    self.next_ordinal += 1;
+
+                    // Rename conversation title if it is currently default "New Conversation"
+                    if self.session_title == "New Conversation" {
+                        let mut new_title = prompt.trim().to_string();
+                        if let Some(idx) = new_title.find('\n') {
+                            new_title.truncate(idx);
+                        }
+                        if new_title.chars().count() > 25 {
+                            let char_idx = new_title.char_indices().nth(25).map(|(i, _)| i).unwrap_or(25);
+                            new_title.truncate(char_idx);
+                            new_title.push_str("...");
+                        }
+                        if !new_title.is_empty() {
+                            self.session_title = new_title.clone();
+                            if let Some(idx) = self.sessions.iter().position(|s| s.id == self.session_id) {
+                                self.sessions[idx].title = new_title;
+                            }
+                        }
+                    }
 
                     UpdateResult::PromptSubmitted(prompt)
                 } else {
@@ -958,10 +1181,6 @@ impl UiState {
                 self.active_response_revision += 1;
                 self.active_tool_calls.clear();
                 self.pending_approvals.clear();
-                self.retrievals.clear();
-                self.message_retrievals.clear();
-                self.timeline.clear();
-                self.next_ordinal = 1;
                 self.generation_state = GenerationState::Starting;
                 UpdateResult::Changed
             }
@@ -983,8 +1202,16 @@ impl UiState {
                 UpdateResult::Changed
             }
             Action::TypewriterTick(now) => {
+                let mut changed = false;
+                if let Some((_, start)) = self.transient_message {
+                    if now.duration_since(start).as_secs() >= 3 {
+                        self.transient_message = None;
+                        changed = true;
+                    }
+                }
                 let res = self.typewriter.drain_for_tick(now);
-                if !res.emitted.is_empty() {
+                let drained = !res.emitted.is_empty();
+                if drained {
                     for tok in res.emitted {
                         match tok {
                             RenderToken::Text(t) => self.active_response.push_str(&t),
@@ -995,23 +1222,31 @@ impl UiState {
                 }
                 if res.finished {
                     self.generation_state = GenerationState::Finished;
+                    self.commit_active_response();
                 }
-                UpdateResult::Changed
+                if drained || res.finished || changed {
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
             }
             Action::FinishStream => {
                 self.typewriter.finish_backend();
                 if self.typewriter.is_finished() {
                     self.generation_state = GenerationState::Finished;
+                    self.commit_active_response();
                 }
                 UpdateResult::Changed
             }
             Action::CancelStream => {
                 self.typewriter.clear();
+                self.commit_active_response();
                 self.generation_state = GenerationState::Cancelled(None);
                 UpdateResult::Changed
             }
             Action::ReportError(msg) => {
                 self.typewriter.clear();
+                self.commit_active_response();
                 self.generation_state = GenerationState::Error(msg);
                 UpdateResult::Changed
             }
@@ -1039,10 +1274,21 @@ impl UiState {
                 UpdateResult::Changed
             }
             Action::ToggleFocus => {
-                self.focus = match self.focus {
-                    FocusRegion::Editor => FocusRegion::Sidebar,
-                    FocusRegion::Sidebar => FocusRegion::Editor,
-                };
+                if self.mode == TuiMode::Exploration {
+                    self.focus = match self.focus {
+                        FocusRegion::Inspector => FocusRegion::Timeline,
+                        FocusRegion::Timeline => FocusRegion::Inspector,
+                        _ => FocusRegion::Inspector,
+                    };
+                } else if self.terminal_width >= 80 {
+                    self.focus = match self.focus {
+                        FocusRegion::Editor => FocusRegion::Sidebar,
+                        FocusRegion::Sidebar => FocusRegion::Editor,
+                        _ => FocusRegion::Editor,
+                    };
+                } else {
+                    self.focus = FocusRegion::Editor;
+                }
                 UpdateResult::Changed
             }
             Action::MoveSidebarCursorUp => {
@@ -1065,15 +1311,47 @@ impl UiState {
                 }
             }
             Action::ActivateSession { session_id, request_id } => {
+                // Save current messages to histories first (Session Boundary Sync)
+                self.session_histories.insert(self.session_id, self.active_messages.clone());
+
                 self.pending_load = Some(PendingLoad { session_id, request_id });
                 self.session_load_state = SessionLoadState::Loading;
-                self.active_tool_calls.clear();
-                self.pending_approvals.clear();
-                self.message_tool_calls.clear();
-                self.retrievals.clear();
-                self.message_retrievals.clear();
-                self.timeline.clear();
-                self.next_ordinal = 1;
+                
+                // If we already have the history in-memory, load it immediately for snappy switching.
+                if let Some(messages) = self.session_histories.get(&session_id).cloned() {
+                    self.session_id = session_id;
+                    for s in &mut self.sessions {
+                        s.active = s.id == session_id;
+                    }
+                    if let Some(idx) = self.sessions.iter().position(|s| s.id == session_id) {
+                        self.session_title = self.sessions[idx].title.clone();
+                    }
+                    self.active_messages = messages;
+                    self.session_load_state = SessionLoadState::Loaded(self.active_messages.clone());
+                    self.active_tool_calls.clear();
+                    self.pending_approvals.clear();
+                    self.message_tool_calls.clear();
+                    self.retrievals.clear();
+                    self.message_retrievals.clear();
+                    self.timeline.clear();
+                    self.next_ordinal = 1;
+                    for idx in 0..self.active_messages.len() {
+                        let msg_id = crate::ui::interaction::MessageId((idx + 1) as u64);
+                        self.timeline.push((
+                            crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                            crate::ui::interaction::timeline::TimelineItem::Message(msg_id),
+                        ));
+                        self.next_ordinal += 1;
+                    }
+                } else {
+                    self.active_tool_calls.clear();
+                    self.pending_approvals.clear();
+                    self.message_tool_calls.clear();
+                    self.retrievals.clear();
+                    self.message_retrievals.clear();
+                    self.timeline.clear();
+                    self.next_ordinal = 1;
+                }
                 UpdateResult::Changed
             }
             Action::SessionLoaded { session_id, request_id, messages } => {
@@ -1090,6 +1368,7 @@ impl UiState {
                             self.session_title = self.sessions[idx].title.clone();
                         }
                         self.active_messages = messages.clone();
+                        self.session_histories.insert(session_id, messages.clone());
                         self.session_load_state = SessionLoadState::Loaded(messages);
                         self.active_tool_calls.clear();
                         self.pending_approvals.clear();
@@ -1127,6 +1406,189 @@ impl UiState {
             }
             Action::ToggleReflectionLogs => {
                 self.enable_reflection_logs = !self.enable_reflection_logs;
+                UpdateResult::Changed
+            }
+            Action::NewSession => {
+                // Save current messages to histories first (Session Boundary Sync)
+                self.session_histories.insert(self.session_id, self.active_messages.clone());
+
+                let new_id = SessionId::new();
+                let new_sess = SessionViewModel {
+                    id: new_id,
+                    title: "New Conversation".to_string(),
+                    updated_at: std::time::SystemTime::now(),
+                    active: true,
+                    preview: None,
+                    pinned: false,
+                    archived: false,
+                };
+                
+                // Deactivate other sessions
+                for s in &mut self.sessions {
+                    s.active = false;
+                }
+                
+                // Add and activate new session
+                self.sessions.insert(0, new_sess);
+                self.session_id = new_id;
+                self.session_title = "New Conversation".to_string();
+                self.selected_session_idx = 0;
+                
+                // Reset timeline and state
+                self.active_messages.clear();
+                self.active_tool_calls.clear();
+                self.pending_approvals.clear();
+                self.message_tool_calls.clear();
+                self.retrievals.clear();
+                self.message_retrievals.clear();
+                self.timeline.clear();
+                self.next_ordinal = 1;
+                self.session_load_state = SessionLoadState::Loaded(Vec::new());
+                self.viewport.scroll_offset = 0;
+                self.viewport.follow_tail = true;
+                self.editor.clear();
+                self.focus = FocusRegion::Editor;
+
+                UpdateResult::Changed
+            }
+            Action::InspectNode(node_id) => {
+                self.mode = TuiMode::Exploration;
+                self.focus = FocusRegion::Inspector;
+                
+                let mut breadcrumbs = Vec::new();
+                if let Some(ref active) = self.active_inspector {
+                    breadcrumbs = active.breadcrumbs.clone();
+                }
+                // Only push if not already at the top of breadcrumbs to avoid duplicate loads
+                if breadcrumbs.last() != Some(&node_id) {
+                    breadcrumbs.push(node_id);
+                }
+
+                self.active_inspector = Some(InspectorSession {
+                    node_id,
+                    load_state: InspectorLoadState::Loading,
+                    breadcrumbs,
+                    scroll_offset: 0,
+                    selected_relation_idx: 0,
+                });
+                
+                UpdateResult::InspectNode(node_id)
+            }
+            Action::NodeDetailsLoaded(model) => {
+                if let Some(ref mut active) = self.active_inspector {
+                    active.load_state = InspectorLoadState::Loaded(model);
+                    active.selected_relation_idx = 0;
+                }
+                UpdateResult::Changed
+            }
+            Action::NodeDetailsFailed(err) => {
+                if let Some(ref mut active) = self.active_inspector {
+                    active.load_state = InspectorLoadState::Error(err);
+                }
+                UpdateResult::Changed
+            }
+            Action::PopBreadcrumb => {
+                let mut go_back_to = None;
+                if let Some(ref mut active) = self.active_inspector {
+                    active.breadcrumbs.pop(); // Pop current
+                    if let Some(prev) = active.breadcrumbs.last() {
+                        go_back_to = Some(*prev);
+                    }
+                }
+                if let Some(prev_node_id) = go_back_to {
+                    // Update breadcrumbs manually to preserve stack
+                    let mut breadcrumbs = Vec::new();
+                    if let Some(ref active) = self.active_inspector {
+                        breadcrumbs = active.breadcrumbs.clone();
+                    }
+                    self.active_inspector = Some(InspectorSession {
+                        node_id: prev_node_id,
+                        load_state: InspectorLoadState::Loading,
+                        breadcrumbs,
+                        scroll_offset: 0,
+                        selected_relation_idx: 0,
+                    });
+                    UpdateResult::InspectNode(prev_node_id)
+                } else {
+                    self.mode = TuiMode::Conversation;
+                    self.focus = FocusRegion::Editor;
+                    self.active_inspector = None;
+                    UpdateResult::Changed
+                }
+            }
+            Action::CloseInspector => {
+                self.mode = TuiMode::Conversation;
+                self.focus = FocusRegion::Editor;
+                // Setting active_inspector to None also clears breadcrumbs,
+                // which are volatile and scoped to the active Inspector session (RFC-006 §4).
+                self.active_inspector = None;
+                // Resume auto-follow so the timeline scrolls to bottom on next message.
+                self.viewport.follow_tail = true;
+                self.recalculate_viewport();
+                UpdateResult::Changed
+            }
+            Action::ScrollInspectorUp(lines) => {
+                if let Some(ref mut active) = self.active_inspector {
+                    active.scroll_offset = active.scroll_offset.saturating_sub(lines);
+                }
+                UpdateResult::Changed
+            }
+            Action::ScrollInspectorDown(lines) => {
+                if let Some(ref mut active) = self.active_inspector {
+                    active.scroll_offset += lines;
+                }
+                UpdateResult::Changed
+            }
+            Action::NextInspectorRelation => {
+                if let Some(ref mut active) = self.active_inspector {
+                    if let InspectorLoadState::Loaded(ref model) = active.load_state {
+                        if !model.relationships.is_empty() && active.selected_relation_idx < model.relationships.len() - 1 {
+                            active.selected_relation_idx += 1;
+                        }
+                    }
+                }
+                UpdateResult::Changed
+            }
+            Action::PrevInspectorRelation => {
+                if let Some(ref mut active) = self.active_inspector {
+                    if active.selected_relation_idx > 0 {
+                        active.selected_relation_idx -= 1;
+                    }
+                }
+                UpdateResult::Changed
+            }
+            Action::TraverseToRelation => {
+                let mut target_id = None;
+                if let Some(ref active) = self.active_inspector {
+                    if let InspectorLoadState::Loaded(ref model) = active.load_state {
+                        if active.selected_relation_idx < model.relationships.len() {
+                            target_id = Some(model.relationships[active.selected_relation_idx].target_id.clone());
+                        }
+                    }
+                }
+                if let Some(uuid_str) = target_id {
+                    if let Ok(parsed_uuid) = uuid::Uuid::parse_str(&uuid_str) {
+                        return self.update_internal(Action::InspectNode(brain_domain::NodeId(parsed_uuid)));
+                    }
+                }
+                UpdateResult::NoChange
+            }
+            Action::ScrollUp(lines) => {
+                self.viewport.scroll_offset = self.viewport.scroll_offset.saturating_sub(lines);
+                self.viewport.follow_tail = false;
+                UpdateResult::Changed
+            }
+            Action::ScrollDown(lines) => {
+                self.viewport.scroll_offset += lines;
+                self.viewport.follow_tail = false;
+                UpdateResult::Changed
+            }
+            Action::Resize(cols, rows) => {
+                self.terminal_width = cols;
+                self.terminal_height = rows;
+                if cols < 80 && self.focus == FocusRegion::Sidebar {
+                    self.focus = FocusRegion::Editor;
+                }
                 UpdateResult::Changed
             }
             Action::DeleteSession(session_id) => {
@@ -1261,8 +1723,460 @@ impl UiState {
                 let _ = message;
                 UpdateResult::Changed
             }
+            Action::PinCurrentNode => {
+                if let Some(ref active) = self.active_inspector {
+                    if let InspectorLoadState::Loaded(ref model) = active.load_state {
+                        let node_id = active.node_id;
+                        let node_label = model.entity.label.clone();
+                        let node_type: brain_domain::NodeType = model.entity.node_type.parse().unwrap_or(brain_domain::NodeKind::Unknown);
+
+                        if let Some(pos) = self.pinned_nodes.iter().position(|pn| pn.node_id == node_id) {
+                            self.pinned_nodes.remove(pos);
+                            self.transient_message = Some((
+                                format!("Unpinned: {}", node_label),
+                                std::time::Instant::now(),
+                            ));
+                        } else {
+                            self.pinned_nodes.push(PinnedNode {
+                                node_id,
+                                label: node_label.clone(),
+                                node_type,
+                                pinned_at: self.pinned_nodes.len(),
+                            });
+                            self.transient_message = Some((
+                                format!("Pinned: {}", node_label),
+                                std::time::Instant::now(),
+                            ));
+                        }
+                        UpdateResult::Changed
+                    } else {
+                        UpdateResult::NoChange
+                    }
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::UnpinNode(node_id) => {
+                if let Some(pos) = self.pinned_nodes.iter().position(|pn| pn.node_id == node_id) {
+                    let label = self.pinned_nodes[pos].label.clone();
+                    self.pinned_nodes.remove(pos);
+                    self.transient_message = Some((
+                        format!("Unpinned: {}", label),
+                        std::time::Instant::now(),
+                    ));
+                    if !self.pinned_nodes.is_empty() && self.pinned_overlay_cursor >= self.pinned_nodes.len() {
+                        self.pinned_overlay_cursor = self.pinned_nodes.len() - 1;
+                    }
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::ClearAllPins => {
+                self.pinned_nodes.clear();
+                self.pinned_overlay_cursor = 0;
+                self.transient_message = Some((
+                    "Cleared all pinned context".to_string(),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::OpenPinnedOverlay => {
+                self.overlay = TuiOverlay::PinnedContext;
+                self.pinned_overlay_cursor = 0;
+                UpdateResult::Changed
+            }
+            Action::ClosePinnedOverlay => {
+                self.overlay = TuiOverlay::None;
+                UpdateResult::Changed
+            }
+            Action::PinnedOverlayUp => {
+                if !self.pinned_nodes.is_empty() && self.pinned_overlay_cursor > 0 {
+                    self.pinned_overlay_cursor -= 1;
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::PinnedOverlayDown => {
+                if !self.pinned_nodes.is_empty() && self.pinned_overlay_cursor < self.pinned_nodes.len() - 1 {
+                    self.pinned_overlay_cursor += 1;
+                    UpdateResult::Changed
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
+            Action::InspectPinnedNode(idx) => {
+                if idx < self.pinned_nodes.len() {
+                    let node_id = self.pinned_nodes[idx].node_id;
+                    self.overlay = TuiOverlay::None;
+                    self.mode = TuiMode::Exploration;
+                    self.focus = FocusRegion::Inspector;
+                    self.active_inspector = Some(InspectorSession {
+                        node_id,
+                        load_state: InspectorLoadState::Loading,
+                        breadcrumbs: vec![],
+                        scroll_offset: 0,
+                        selected_relation_idx: 0,
+                    });
+                    UpdateResult::InspectNode(node_id)
+                } else {
+                    UpdateResult::NoChange
+                }
+            }
         }
     }
+    /// Commits the active response typewriter buffer into active_messages history.
+    pub fn commit_active_response(&mut self) {
+        if !self.active_response.is_empty() {
+            let final_content = self.active_response.clone();
+            let assistant_msg = brain_domain::Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::Assistant,
+                final_content,
+            );
+            self.active_messages.push(assistant_msg.clone());
+            self.session_histories.entry(self.session_id).or_default().push(assistant_msg);
+
+            let assistant_msg_id = crate::ui::interaction::MessageId(self.active_messages.len() as u64);
+
+            // Replace MessageId(0) placeholder in timeline with committed assistant ID
+            for (_, item) in &mut self.timeline {
+                if let crate::ui::interaction::timeline::TimelineItem::Message(id) = item {
+                    if id.0 == 0 {
+                        *id = assistant_msg_id;
+                    }
+                }
+            }
+
+            // Move tools and retrievals from MessageId(0) key to assistant_msg_id key
+            if let Some(tools) = self.message_tool_calls.remove(&crate::ui::interaction::MessageId(0)) {
+                let mut updated_tools = tools;
+                for t in &mut updated_tools {
+                    t.message_id = assistant_msg_id;
+                }
+                self.message_tool_calls.insert(assistant_msg_id, updated_tools);
+            }
+            if let Some(retrievals) = self.message_retrievals.remove(&crate::ui::interaction::MessageId(0)) {
+                self.message_retrievals.insert(assistant_msg_id, retrievals);
+            }
+        } else {
+            // Prune stranded MessageId(0) timeline placeholder
+            self.timeline.retain(|(_, item)| {
+                !matches!(item, crate::ui::interaction::timeline::TimelineItem::Message(id) if id.0 == 0)
+            });
+        }
+        self.active_response.clear();
+        self.active_response_revision += 1;
+    }
+
+    /// Computes the responsive layouts and returns (sidebar_width, chat_width, inspector_width).
+    pub fn panel_widths(&self) -> (u16, u16, u16) {
+        let c = self.terminal_width;
+        match self.mode {
+            TuiMode::Conversation => {
+                if c > 70 {
+                    (25, c.saturating_sub(25), 0)
+                } else {
+                    (0, c, 0)
+                }
+            }
+            TuiMode::Exploration => {
+                if c >= 105 {
+                    (20, 50, c.saturating_sub(70))
+                } else if c >= 85 {
+                    (0, c.saturating_sub(35), 35)
+                } else {
+                    (0, 0, c)
+                }
+            }
+        }
+    }
+
+    /// Recalculates the scroll viewport boundaries and clamps or scrolls to bottom based on follow_tail.
+    pub fn recalculate_viewport(&mut self) {
+        if self.terminal_width == 0 || self.terminal_height == 0 {
+            return;
+        }
+        let (_, chat_w, _) = self.panel_widths();
+        let chat_width = chat_w.saturating_sub(2) as usize; // 2 borders
+
+        let mid_height = self.terminal_height.saturating_sub(3 + 3 + 1); // 3 header + 3 editor + 1 status
+        let viewport_height = mid_height.saturating_sub(2) as usize; // 2 borders
+
+        // Build the blocks list to find total height
+        let blocks = self.build_timeline_blocks(chat_width);
+        
+        let mut total_height = 0;
+        for block in &blocks {
+            let h = if block.header.is_some() {
+                1 + block.visual_lines.len() + 1
+            } else {
+                block.visual_lines.len() + 1
+            };
+            total_height += h;
+        }
+
+        let max_scroll = total_height.saturating_sub(viewport_height);
+
+        if self.viewport.follow_tail {
+            self.viewport.scroll_offset = max_scroll;
+        } else {
+            if self.viewport.scroll_offset >= max_scroll {
+                self.viewport.scroll_offset = max_scroll;
+                self.viewport.follow_tail = true;
+            }
+        }
+    }
+
+    /// Build timeline blocks formatted to the current column width.
+    pub fn build_timeline_blocks(&self, chat_width: usize) -> Vec<TimelineBlock> {
+        let highlighter = crate::ui::interaction::markdown::KeywordSyntaxHighlighter::new();
+        let mut blocks = Vec::new();
+
+        for (_, item) in &self.timeline {
+            match item {
+                crate::ui::interaction::timeline::TimelineItem::Message(msg_id) => {
+                    if msg_id.0 == 0 {
+                        if !self.active_response.is_empty() || self.is_generating() {
+                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(&self.active_response);
+                            let visual_lines = crate::ui::interaction::markdown::MarkdownLayout::layout(&ast, chat_width, &highlighter);
+                            blocks.push(TimelineBlock {
+                                header: Some("Brain".to_string()),
+                                visual_lines,
+                            });
+                        }
+                    } else {
+                        let idx = (msg_id.0 - 1) as usize;
+                        if idx < self.active_messages.len() {
+                            let msg = &self.active_messages[idx];
+                            let sender = match msg.role {
+                                brain_domain::MessageRole::User => "You".to_string(),
+                                brain_domain::MessageRole::Assistant => "Brain".to_string(),
+                                brain_domain::MessageRole::System => "System".to_string(),
+                            };
+                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(&msg.content);
+                            let visual_lines = crate::ui::interaction::markdown::MarkdownLayout::layout(&ast, chat_width, &highlighter);
+                            blocks.push(TimelineBlock {
+                                header: Some(sender),
+                                visual_lines,
+                            });
+                        }
+                    }
+                }
+                crate::ui::interaction::timeline::TimelineItem::ToolExecution(ref call_id) => {
+                    let tool_opt = self.active_tool_calls.iter().find(|t| t.call_id == *call_id)
+                        .or_else(|| self.message_tool_calls.values().flatten().find(|t| &t.call_id == call_id));
+                    if let Some(tool) = tool_opt {
+                        let expanded = self.conversation_view.expanded_tool_sections.get(&tool.call_id);
+                        blocks.push(TimelineBlock {
+                            header: None,
+                            visual_lines: format_tool_execution(tool, expanded),
+                        });
+                    } else {
+                        blocks.push(TimelineBlock {
+                            header: None,
+                            visual_lines: vec![crate::ui::interaction::markdown::VisualLine {
+                                kind: crate::ui::interaction::markdown::VisualLineKind::Text,
+                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new("🔧 Tool: [Loading...]".to_string(), crate::ui::interaction::markdown::VisualStyle::Normal)],
+                            }],
+                        });
+                    }
+                }
+                crate::ui::interaction::timeline::TimelineItem::Retrieval(ref retrieval_id) => {
+                    if let Some(retrieval) = self.retrievals.get(retrieval_id) {
+                        blocks.push(TimelineBlock {
+                            header: None,
+                            visual_lines: format_retrieval_info(retrieval),
+                        });
+                    } else {
+                        blocks.push(TimelineBlock {
+                            header: None,
+                            visual_lines: vec![crate::ui::interaction::markdown::VisualLine {
+                                kind: crate::ui::interaction::markdown::VisualLineKind::Text,
+                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new("🧠 Memory: [Loading...]".to_string(), crate::ui::interaction::markdown::VisualStyle::Normal)],
+                            }],
+                        });
+                    }
+                }
+            }
+        }
+        blocks
+    }
+}
+
+fn format_tool_execution(
+    tool: &crate::ui::command::tool::ToolExecution,
+    expanded_sections: Option<&std::collections::HashSet<crate::ui::interaction::navigation::ToolSection>>,
+) -> Vec<crate::ui::interaction::markdown::VisualLine> {
+    use crate::ui::interaction::markdown::{VisualLine, VisualLineKind, VisualSpan, VisualStyle};
+    use crate::ui::command::tool::ToolExecutionStatus;
+    use crate::ui::interaction::navigation::ToolSection;
+
+    let mut lines = Vec::new();
+    
+    // Header line
+    let tool_name = &tool.tool_id.0;
+    let (status_text, style) = match &tool.status {
+        ToolExecutionStatus::PendingApproval => ("Awaiting Approval", VisualStyle::Bold),
+        ToolExecutionStatus::Approved => ("Approved", VisualStyle::Bold),
+        ToolExecutionStatus::Denied => ("Denied", VisualStyle::Normal),
+        ToolExecutionStatus::Running { .. } => ("Running", VisualStyle::Bold),
+        ToolExecutionStatus::Completed { .. } => ("Completed", VisualStyle::Bold),
+        ToolExecutionStatus::Failed { .. } => ("Failed", VisualStyle::Normal),
+    };
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("🔧 Tool: {} [ {} ]", tool_name, status_text),
+                style,
+            )
+        ],
+    });
+
+    // Progress/details line
+    match &tool.status {
+        ToolExecutionStatus::Running { progress } => {
+            let progress_text = match progress {
+                brain_core::events::ToolProgressDetail::Determinate { completed, total, unit: _ } => {
+                    let pct = if *total > 0 { ((*completed as f64) / (*total as f64)) * 100.0 } else { 0.0 };
+                    let fill = ((pct / 10.0) as usize).min(10);
+                    let empty = 10 - fill;
+                    let bar = format!("[{}{}]", "█".repeat(fill), "░".repeat(empty));
+                    format!("  Progress: {} {:.1}%", bar, pct)
+                }
+                brain_core::events::ToolProgressDetail::Indeterminate => {
+                    "  Running...".to_string()
+                }
+            };
+
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        progress_text,
+                        VisualStyle::Normal,
+                    )
+                ],
+            });
+        }
+        ToolExecutionStatus::Failed { error } => {
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        format!("  Error: {}", error),
+                        VisualStyle::Normal,
+                    )
+                ],
+            });
+        }
+        _ => {}
+    }
+
+    // Lazy logs rendering
+    let show_logs = expanded_sections.map(|s| s.contains(&ToolSection::Logs)).unwrap_or(false);
+    if show_logs {
+        for log in &tool.logs {
+            lines.push(VisualLine {
+                kind: VisualLineKind::Text,
+                spans: vec![
+                    VisualSpan::new(
+                        format!("    • {}", log.message),
+                        VisualStyle::CodeComment,
+                    )
+                ],
+            });
+        }
+    } else if !tool.logs.is_empty() {
+        lines.push(VisualLine {
+            kind: VisualLineKind::Text,
+            spans: vec![
+                VisualSpan::new(
+                    format!("    ▶ Logs collapsed ({} entries)", tool.logs.len()),
+                    VisualStyle::Normal,
+                )
+            ],
+        });
+    }
+
+    lines
+}
+
+fn format_retrieval_info(
+    retrieval: &brain_domain::bkf::retrieval::RetrievalInfo,
+) -> Vec<crate::ui::interaction::markdown::VisualLine> {
+    use crate::ui::interaction::markdown::{VisualLine, VisualLineKind, VisualSpan, VisualStyle};
+    use brain_domain::bkf::retrieval::RetrievalWeight;
+
+    let mut lines = Vec::new();
+
+    let weight_badge = match retrieval.explanation.weight {
+        RetrievalWeight::Critical => "CRITICAL",
+        RetrievalWeight::High => "HIGH",
+        RetrievalWeight::Normal => "NORMAL",
+    };
+    
+    let weight_style = match retrieval.explanation.weight {
+        RetrievalWeight::Critical => VisualStyle::Bold,
+        RetrievalWeight::High => VisualStyle::Bold,
+        RetrievalWeight::Normal => VisualStyle::Normal,
+    };
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("🧠 Memory: {} [ {} ]", retrieval.title, weight_badge),
+                weight_style,
+            )
+        ],
+    });
+
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!("  > {}", retrieval.excerpt),
+                VisualStyle::Italic,
+            )
+        ],
+    });
+
+    let keywords_str = retrieval.explanation.matched_keywords.join(", ");
+    let recency_str = if retrieval.explanation.recency_boost {
+        " (+recency boost)"
+    } else {
+        ""
+    };
+    
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(
+                format!(
+                    "  Matches: [{}] Similarity: {:?}{}",
+                    keywords_str, retrieval.explanation.semantic_similarity, recency_str
+                ),
+                VisualStyle::CodeComment,
+            )
+        ],
+    });
+
+    let provenance_line = format!(
+        "  Source: {:?} at {}",
+        retrieval.explanation.provenance.kind, retrieval.explanation.provenance.location
+    );
+    lines.push(VisualLine {
+        kind: VisualLineKind::Text,
+        spans: vec![
+            VisualSpan::new(provenance_line, VisualStyle::Citation),
+        ],
+    });
+
+    lines
 }
 
 
@@ -1405,6 +2319,74 @@ mod tests {
         assert!(r4.finished);
     }
 
+    /// Regression: rapid ticks (10ms) between token pushes must not starve the queue.
+    ///
+    /// Previously `last_drained_at` was reset on every tick, so `elapsed` never
+    /// reached the 30ms threshold and only the very first token was ever drained.
+    #[test]
+    fn test_typewriter_queue_no_starvation_under_rapid_ticks() {
+        let mut q = TypewriterQueue::new();
+        // Push 5 tokens before any ticks.
+        for i in 0..5 {
+            q.push(RenderToken::Text(format!("{} ", i)));
+        }
+
+        let t0 = Instant::now();
+        // Simulate 10ms tick rate — 3 ticks before the first 30ms drain window.
+        let r1 = q.drain_for_tick(t0);                                          // is_first → 1 emitted
+        let r2 = q.drain_for_tick(t0 + std::time::Duration::from_millis(10));  // 10ms < 30ms → 0
+        let r3 = q.drain_for_tick(t0 + std::time::Duration::from_millis(20));  // 20ms < 30ms → 0
+        let r4 = q.drain_for_tick(t0 + std::time::Duration::from_millis(32));  // 32ms >= 30ms → 1
+        let r5 = q.drain_for_tick(t0 + std::time::Duration::from_millis(42));  // 10ms from last drain → 0
+        let r6 = q.drain_for_tick(t0 + std::time::Duration::from_millis(65));  // ~33ms from last drain → 1
+
+        assert_eq!(r1.emitted.len(), 1, "first tick must drain 1 token immediately");
+        assert_eq!(r2.emitted.len(), 0, "10ms tick must not drain (elapsed resets only on emit)");
+        assert_eq!(r3.emitted.len(), 0, "20ms tick must not drain");
+        assert_eq!(r4.emitted.len(), 1, "32ms tick must drain 1 token");
+        assert_eq!(r5.emitted.len(), 0, "10ms after drain must not drain again");
+        assert_eq!(r6.emitted.len(), 1, "33ms after last drain must drain again");
+    }
+
+    /// Regression: queue that empties mid-stream and then receives more tokens
+    /// must continue draining correctly after refill.
+    #[test]
+    fn test_typewriter_queue_intermittent_push() {
+        let mut q = TypewriterQueue::new();
+        q.push(RenderToken::Text("first ".to_string()));
+
+        let t0 = Instant::now();
+        // Drain the only token immediately.
+        let r1 = q.drain_for_tick(t0);
+        assert_eq!(r1.emitted.len(), 1);
+        assert!(q.is_empty());
+
+        // Several ticks pass with an empty queue.
+        let r2 = q.drain_for_tick(t0 + std::time::Duration::from_millis(10));
+        let r3 = q.drain_for_tick(t0 + std::time::Duration::from_millis(20));
+        assert!(r2.emitted.is_empty());
+        assert!(r3.emitted.is_empty());
+
+        // New batch of tokens arrives after 50ms from t0.
+        let t1 = t0 + std::time::Duration::from_millis(50);
+        q.push(RenderToken::Text("second ".to_string()));
+        q.push(RenderToken::Text("third ".to_string()));
+
+        // First tick after refill: is_first is false but 50ms > 30ms → should drain.
+        let r4 = q.drain_for_tick(t1);
+        assert!(
+            !r4.emitted.is_empty(),
+            "queue refilled after 50ms gap must drain on next tick"
+        );
+
+        // Finish backend and flush remaining.
+        q.finish_backend();
+        let t2 = t1 + std::time::Duration::from_millis(35);
+        let r5 = q.drain_for_tick(t2);
+        // Any remaining tokens drained, queue empty, finished.
+        assert!(r5.finished || r4.emitted.len() >= 2, "all tokens must eventually drain");
+    }
+
     #[test]
     fn test_reducer_streaming_lifecycle_invariants() {
         let mut state = UiState::new();
@@ -1414,7 +2396,8 @@ mod tests {
         state.update(Action::StartStream);
         assert_eq!(state.generation_state, GenerationState::Starting);
 
-        // Submitting prompt while generating is rejected
+        // Submitting prompt with empty editor while generating returns NoChange
+        // (because the editor is empty, not because of a generation guard)
         let res = state.update(Action::SubmitPrompt);
         assert_eq!(res, UpdateResult::NoChange);
 
@@ -1428,11 +2411,69 @@ mod tests {
         assert!(matches!(state.generation_state, GenerationState::Streaming { .. }));
         assert_eq!(state.active_response, "");
 
-        // TypewriterTick drains and finishes
+        // TypewriterTick drains and finishes.
+        // With backend_finished=true, all queued tokens flush in a single tick.
         let now = Instant::now();
         state.update(Action::TypewriterTick(now));
-        assert_eq!(state.active_response, "A ");
+        assert_eq!(state.active_response, "");
+        assert_eq!(state.active_messages.len(), 1);
+        assert_eq!(state.active_messages[0].content, "A ");
         assert_eq!(state.generation_state, GenerationState::Finished);
+    }
+
+    /// Regression: when backend_finished, drain_for_tick flushes all remaining
+    /// tokens in one call instead of pacing at 30ms/token.
+    #[test]
+    fn test_typewriter_backend_finished_flushes_immediately() {
+        let mut q = TypewriterQueue::new();
+        for i in 0..20 {
+            q.push(RenderToken::Text(format!("word{} ", i)));
+        }
+
+        let t0 = Instant::now();
+        // First tick (is_first): drains 1 token only — backend not finished yet
+        let r1 = q.drain_for_tick(t0);
+        assert_eq!(r1.emitted.len(), 1);
+        assert!(!r1.finished);
+
+        // Mark backend as finished
+        q.finish_backend();
+
+        // Next tick: should flush ALL remaining 19 tokens immediately
+        let t1 = t0 + std::time::Duration::from_millis(5); // only 5ms later
+        let r2 = q.drain_for_tick(t1);
+        assert_eq!(r2.emitted.len(), 19, "backend_finished must flush all tokens");
+        assert!(r2.finished, "queue empty + backend_finished = finished");
+    }
+
+    /// Regression: submitting a new prompt while a previous stream is active
+    /// must succeed (cancel-and-replace behavior).
+    #[test]
+    fn test_submit_while_generating_cancels_and_replaces() {
+        let mut state = UiState::new();
+
+        // Type and submit first query
+        state.update(Action::InsertChar('A'));
+        let res1 = state.update(Action::SubmitPrompt);
+        assert!(matches!(res1, UpdateResult::PromptSubmitted(ref p) if p == "A"));
+        assert_eq!(state.generation_state, GenerationState::Starting);
+        assert!(state.editor.text().is_empty(), "prompt must be cleared on submit");
+
+        // Simulate streaming in progress
+        state.update(Action::ReceiveToken(RenderToken::Text("response ".to_string())));
+        assert!(state.is_generating());
+
+        // Type and submit second query while first is still streaming
+        state.update(Action::InsertChar('B'));
+        let res2 = state.update(Action::SubmitPrompt);
+        assert!(
+            matches!(res2, UpdateResult::PromptSubmitted(ref p) if p == "B"),
+            "must accept new prompt even while generating"
+        );
+        assert_eq!(state.generation_state, GenerationState::Starting);
+        assert!(state.editor.text().is_empty(), "prompt must be cleared on resubmit");
+        assert_eq!(state.active_response, "", "old response must be cleared");
+        assert!(state.typewriter.is_empty(), "old typewriter queue must be cleared");
     }
 
     #[test]
@@ -1531,6 +2572,172 @@ mod tests {
         assert!(state.pending_load.is_some());
         state.update(Action::Quit);
         assert_eq!(state.pending_load, None);
+    }
+
+    #[test]
+    fn test_immediate_cancellation_preserves_timeline_order() {
+        let mut state = UiState::new();
+
+        // 1. Submit prompt
+        state.editor.insert('a');
+        let res = state.update(Action::SubmitPrompt);
+        assert!(matches!(res, UpdateResult::PromptSubmitted(_)));
+
+        // Expect timeline has: User message
+        assert_eq!(state.timeline.len(), 1);
+        
+        // Receive a token, which creates the placeholder MessageId(0)
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("hello".to_string())));
+        assert_eq!(state.timeline.len(), 2);
+        assert!(matches!(state.timeline[1].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(0))));
+
+        // 2. Cancel stream immediately with empty active_response (simulate cancel before typewriter flushes)
+        state.update(Action::CancelStream);
+
+        // Verify the MessageId(0) placeholder is pruned because active_response is empty
+        assert_eq!(state.timeline.len(), 1);
+        assert!(matches!(state.timeline[0].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(1))));
+
+        // 3. Submit a second prompt
+        state.editor.insert('b');
+        let res2 = state.update(Action::SubmitPrompt);
+        assert!(matches!(res2, UpdateResult::PromptSubmitted(_)));
+
+        // Expect: timeline has MessageId(1) (user prompt 1) and MessageId(2) (user prompt 2)
+        assert_eq!(state.timeline.len(), 2);
+        assert!(matches!(state.timeline[0].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(1))));
+        assert!(matches!(state.timeline[1].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(2))));
+
+        // Receive token for second prompt response
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("world".to_string())));
+        assert_eq!(state.timeline.len(), 3);
+        assert!(matches!(state.timeline[2].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(0))));
+    }
+
+    #[test]
+    fn test_pin_toggle_current_node() {
+        let mut state = UiState::new();
+        let node_id = brain_domain::NodeId(uuid::Uuid::new_v4());
+        
+        // 1. Trying to pin when no inspector is active should be a no-op
+        let res = state.update(Action::PinCurrentNode);
+        assert_eq!(res, UpdateResult::NoChange);
+        assert!(state.pinned_nodes.is_empty());
+
+        // 2. Set active inspector in Exploration mode and loaded state
+        state.mode = TuiMode::Exploration;
+        let model = brain_domain::query::inspector::InspectorModel {
+            entity: brain_domain::dtos::NodeDTO::new(
+                node_id.to_string(),
+                "Episodic Memory".to_string(),
+                "concept".to_string(),
+                serde_json::Value::Null,
+            ),
+            metadata: std::collections::HashMap::new(),
+            relationships: vec![],
+            provenance: brain_domain::query::inspector::ProvenanceDTO {
+                source: "Source".to_string(),
+                location: "Location".to_string(),
+                timestamp: 0,
+                extra_info: std::collections::HashMap::new(),
+            },
+            retrieval_explanation: None,
+            recent_activity: vec![],
+        };
+        state.active_inspector = Some(InspectorSession {
+            node_id,
+            load_state: InspectorLoadState::Loaded(model),
+            breadcrumbs: vec![],
+            scroll_offset: 0,
+            selected_relation_idx: 0,
+        });
+
+        // 3. Pin it
+        let res = state.update(Action::PinCurrentNode);
+        assert_eq!(res, UpdateResult::Changed);
+        assert_eq!(state.pinned_nodes.len(), 1);
+        assert_eq!(state.pinned_nodes[0].node_id, node_id);
+        assert_eq!(state.pinned_nodes[0].label, "Episodic Memory");
+        assert_eq!(state.pinned_nodes[0].node_type, brain_domain::NodeKind::Concept);
+        assert!(state.transient_message.is_some());
+        assert!(state.transient_message.as_ref().unwrap().0.contains("Pinned: Episodic Memory"));
+
+        // 4. Pin again -> should toggle off (unpin)
+        let res = state.update(Action::PinCurrentNode);
+        assert_eq!(res, UpdateResult::Changed);
+        assert!(state.pinned_nodes.is_empty());
+        assert!(state.transient_message.as_ref().unwrap().0.contains("Unpinned: Episodic Memory"));
+    }
+
+    #[test]
+    fn test_pinned_overlay_transitions() {
+        let mut state = UiState::new();
+        assert_eq!(state.overlay, TuiOverlay::None);
+        assert_eq!(state.mode, TuiMode::Conversation);
+
+        // Open Pinned Overlay
+        let res = state.update(Action::OpenPinnedOverlay);
+        assert_eq!(res, UpdateResult::Changed);
+        assert_eq!(state.overlay, TuiOverlay::PinnedContext);
+        assert_eq!(state.mode, TuiMode::Conversation); // mode is unchanged (Refinement 1)
+
+        // Close Pinned Overlay
+        let res = state.update(Action::ClosePinnedOverlay);
+        assert_eq!(res, UpdateResult::Changed);
+        assert_eq!(state.overlay, TuiOverlay::None);
+    }
+
+    #[test]
+    fn test_clear_all_pins() {
+        let mut state = UiState::new();
+        state.pinned_nodes.push(PinnedNode {
+            node_id: brain_domain::NodeId(uuid::Uuid::new_v4()),
+            label: "Test".to_string(),
+            node_type: brain_domain::NodeKind::Tool,
+            pinned_at: 0,
+        });
+        assert_eq!(state.pinned_nodes.len(), 1);
+
+        let res = state.update(Action::ClearAllPins);
+        assert_eq!(res, UpdateResult::Changed);
+        assert!(state.pinned_nodes.is_empty());
+        assert!(state.transient_message.unwrap().0.contains("Cleared"));
+    }
+
+    #[test]
+    fn test_inspect_pinned_node_starts_fresh() {
+        let mut state = UiState::new();
+        let target_node_id = brain_domain::NodeId(uuid::Uuid::new_v4());
+        state.pinned_nodes.push(PinnedNode {
+            node_id: target_node_id,
+            label: "Pinned Tool".to_string(),
+            node_type: brain_domain::NodeKind::Tool,
+            pinned_at: 0,
+        });
+
+        // Set state to overlay and some pre-existing active inspector session (e.g. from previous exploration)
+        state.overlay = TuiOverlay::PinnedContext;
+        state.mode = TuiMode::Exploration;
+        state.active_inspector = Some(InspectorSession {
+            node_id: brain_domain::NodeId(uuid::Uuid::new_v4()),
+            load_state: InspectorLoadState::Loading,
+            breadcrumbs: vec![brain_domain::NodeId(uuid::Uuid::new_v4())], // pre-existing history
+            scroll_offset: 2,
+            selected_relation_idx: 1,
+        });
+
+        // Inspect pinned node at index 0
+        let res = state.update(Action::InspectPinnedNode(0));
+        assert_eq!(res, UpdateResult::InspectNode(target_node_id));
+
+        // Verify overlay is closed, mode is Exploration, and inspector session is fresh without breadcrumbs (Refinement 6)
+        assert_eq!(state.overlay, TuiOverlay::None);
+        assert_eq!(state.mode, TuiMode::Exploration);
+        let active = state.active_inspector.unwrap();
+        assert_eq!(active.node_id, target_node_id);
+        assert!(active.breadcrumbs.is_empty()); // Fresh session, no restored breadcrumbs
+        assert_eq!(active.scroll_offset, 0);
+        assert_eq!(active.selected_relation_idx, 0);
     }
 }
 

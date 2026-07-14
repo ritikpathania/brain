@@ -91,14 +91,25 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     let mut tokenizer = crate::state::IncrementalTokenizer::new();
     let mut request_id_counter = 0u64;
 
-    // 3a. Query initial session list and history
+    // Connection starts as Connecting — transitions to Daemon on first successful
+    // stream_start handshake, or Disconnected on socket error.
+    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Connecting));
+
+    // 3a. Query initial session list and history — also probes connectivity.
     {
         let client_clone = client.clone();
         let tx = events.sender();
         let initial_session_id = state.session_id;
         tokio::spawn(async move {
-            if let Ok(summaries) = client_clone.list_sessions().await {
-                let _ = tx.send(Event::App(AppEvent::SessionsLoaded(summaries)));
+            match client_clone.list_sessions().await {
+                Ok(summaries) => {
+                    // Socket reachable — signal Connected before anything else.
+                    let _ = tx.send(Event::App(AppEvent::Connected));
+                    let _ = tx.send(Event::App(AppEvent::SessionsLoaded(summaries)));
+                }
+                Err(_) => {
+                    let _ = tx.send(Event::App(AppEvent::Disconnected));
+                }
             }
             if let Ok(messages) = client_clone.load_session(initial_session_id).await {
                 let _ = tx.send(Event::App(AppEvent::HistoryLoaded {
@@ -116,6 +127,8 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
 
     // 4. Main event loop
     loop {
+        state.recalculate_viewport();
+
         // Render tick cycle
         terminal.draw(|f| {
             let area = f.size();
@@ -149,29 +162,168 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             }
                             _ => None,
                         }
-                    } else {
+                    } else if state.overlay == crate::state::TuiOverlay::PinnedContext {
                         match key.code {
                             crossterm::event::KeyCode::Esc => {
-                            if state.is_generating() {
-                                if let Some(token) = active_cancel.take() {
-                                    token.cancel();
+                                Some(Action::ClosePinnedOverlay)
+                            }
+                            crossterm::event::KeyCode::Up => {
+                                Some(Action::PinnedOverlayUp)
+                            }
+                            crossterm::event::KeyCode::Down => {
+                                Some(Action::PinnedOverlayDown)
+                            }
+                            crossterm::event::KeyCode::Enter => {
+                                Some(Action::InspectPinnedNode(state.pinned_overlay_cursor))
+                            }
+                            crossterm::event::KeyCode::Char('x') | crossterm::event::KeyCode::Char('X') => {
+                                if !state.pinned_nodes.is_empty() && state.pinned_overlay_cursor < state.pinned_nodes.len() {
+                                    Some(Action::UnpinNode(state.pinned_nodes[state.pinned_overlay_cursor].node_id))
+                                } else {
+                                    None
                                 }
-                                Some(Action::CancelStream)
-                            } else {
+                            }
+                            crossterm::event::KeyCode::Char('c') | crossterm::event::KeyCode::Char('C') => {
+                                Some(Action::ClearAllPins)
+                            }
+                            _ => None, // Focus is locked inside overlay
+                        }
+                    } else if state.mode == crate::state::TuiMode::Exploration {
+                        match key.code {
+                            crossterm::event::KeyCode::Esc => {
+                                Some(Action::CloseInspector)
+                            }
+                            crossterm::event::KeyCode::Backspace => {
+                                Some(Action::PopBreadcrumb)
+                            }
+                            crossterm::event::KeyCode::Up => {
+                                if state.focus == FocusRegion::Inspector {
+                                    Some(Action::PrevInspectorRelation)
+                                } else {
+                                    Some(Action::ScrollUp(1))
+                                }
+                            }
+                            crossterm::event::KeyCode::Down => {
+                                if state.focus == FocusRegion::Inspector {
+                                    Some(Action::NextInspectorRelation)
+                                } else {
+                                    Some(Action::ScrollDown(1))
+                                }
+                            }
+                            crossterm::event::KeyCode::Enter => {
+                                if state.focus == FocusRegion::Inspector {
+                                    Some(Action::TraverseToRelation)
+                                } else {
+                                    None
+                                }
+                            }
+                            crossterm::event::KeyCode::Tab => {
+                                Some(Action::ToggleFocus)
+                            }
+                            crossterm::event::KeyCode::PageUp => {
+                                if state.focus == FocusRegion::Inspector {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollInspectorUp(page))
+                                } else {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollUp(page))
+                                }
+                            }
+                            crossterm::event::KeyCode::PageDown => {
+                                if state.focus == FocusRegion::Inspector {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollInspectorDown(page))
+                                } else {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollDown(page))
+                                }
+                            }
+                            crossterm::event::KeyCode::Char('u') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                if state.focus == FocusRegion::Inspector {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollInspectorUp((page / 2).max(1)))
+                                } else {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollUp((page / 2).max(1)))
+                                }
+                            }
+                            crossterm::event::KeyCode::Char('d') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                if state.focus == FocusRegion::Inspector {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollInspectorDown((page / 2).max(1)))
+                                } else {
+                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    Some(Action::ScrollDown((page / 2).max(1)))
+                                }
+                            }
+                            crossterm::event::KeyCode::Char('p') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                Some(Action::OpenPinnedOverlay)
+                            }
+                            crossterm::event::KeyCode::Char('p') | crossterm::event::KeyCode::Char('P') => {
+                                Some(Action::PinCurrentNode)
+                            }
+                            crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
                                 Some(Action::Quit)
                             }
+                            _ => None,
                         }
-                        crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
-                            if state.is_generating() {
-                                if let Some(token) = active_cancel.take() {
-                                    token.cancel();
+                    } else {
+                        match key.code {
+                            crossterm::event::KeyCode::Char('p') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                Some(Action::OpenPinnedOverlay)
+                            }
+                            crossterm::event::KeyCode::Esc => {
+                                if state.is_generating() {
+                                    if let Some(token) = active_cancel.take() {
+                                        token.cancel();
+                                    }
+                                    Some(Action::CancelStream)
+                                } else if state.focus == FocusRegion::Sidebar {
+                                    Some(Action::ToggleFocus)
+                                } else {
+                                    None
                                 }
                             }
-                            Some(Action::Quit)
-                        }
-                        crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
-                        crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
-                        crossterm::event::KeyCode::Backspace => {
+                            crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                if state.is_generating() {
+                                    if let Some(token) = active_cancel.take() {
+                                        token.cancel();
+                                    }
+                                }
+                                Some(Action::Quit)
+                            }
+                            crossterm::event::KeyCode::Char('q') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                if state.is_generating() {
+                                    if let Some(token) = active_cancel.take() {
+                                        token.cancel();
+                                    }
+                                }
+                                Some(Action::Quit)
+                            }
+                            crossterm::event::KeyCode::Char('n') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                Some(Action::NewSession)
+                            }
+                            crossterm::event::KeyCode::PageUp => {
+                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                Some(Action::ScrollUp(page))
+                            }
+                            crossterm::event::KeyCode::PageDown => {
+                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                Some(Action::ScrollDown(page))
+                            }
+                            crossterm::event::KeyCode::Char('u') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                Some(Action::ScrollUp((page / 2).max(1)))
+                            }
+                            crossterm::event::KeyCode::Char('d') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                Some(Action::ScrollDown((page / 2).max(1)))
+                            }
+                            crossterm::event::KeyCode::Up if key.modifiers == crossterm::event::KeyModifiers::CONTROL => Some(Action::ScrollUp(1)),
+                            crossterm::event::KeyCode::Down if key.modifiers == crossterm::event::KeyModifiers::CONTROL => Some(Action::ScrollDown(1)),
+                            crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
+                            crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
+                            crossterm::event::KeyCode::Backspace => {
                             if state.focus == FocusRegion::Sidebar {
                                 if state.selected_session_idx < state.sessions.len() {
                                     let session_id = state.sessions[state.selected_session_idx].id;
@@ -235,7 +387,33 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     None
                                 }
                             } else {
-                                Some(Action::SubmitPrompt)
+                                if state.connection_mode == crate::state::ConnectionMode::Disconnected && state.editor.text().trim().is_empty() {
+                                    let client_clone = client.clone();
+                                    let tx = events.sender();
+                                    let initial_session_id = state.session_id;
+                                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Connecting));
+                                    tokio::spawn(async move {
+                                        match client_clone.list_sessions().await {
+                                            Ok(summaries) => {
+                                                let _ = tx.send(Event::App(AppEvent::Connected));
+                                                let _ = tx.send(Event::App(AppEvent::SessionsLoaded(summaries)));
+                                            }
+                                            Err(_) => {
+                                                let _ = tx.send(Event::App(AppEvent::Disconnected));
+                                            }
+                                        }
+                                        if let Ok(messages) = client_clone.load_session(initial_session_id).await {
+                                            let _ = tx.send(Event::App(AppEvent::HistoryLoaded {
+                                                session_id: initial_session_id,
+                                                request_id: LoadRequestId(0),
+                                                messages,
+                                            }));
+                                        }
+                                    });
+                                    None
+                                } else {
+                                    Some(Action::SubmitPrompt)
+                                }
                             }
                         }
                         _ => None,
@@ -249,6 +427,10 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             UpdateResult::Changed => {}
                             UpdateResult::NoChange => {}
                             UpdateResult::PromptSubmitted(prompt) => {
+                                // Cancel any in-flight stream before starting a new one.
+                                if let Some(old_token) = active_cancel.take() {
+                                    old_token.cancel();
+                                }
                                 let cancellation_token = tokio_util::sync::CancellationToken::new();
                                 active_cancel = Some(cancellation_token.clone());
                                 tokenizer = crate::state::IncrementalTokenizer::new();
@@ -260,11 +442,29 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     cancellation_token,
                                 };
                                 if let Ok(mut event_receiver) = client.execute(req).await {
+                                    // Only show Connecting if we were previously Disconnected —
+                                    // avoids flickering the header on every query when already Daemon.
+                                    if state.connection_mode == crate::state::ConnectionMode::Disconnected {
+                                        state.update(Action::SetConnectionMode(
+                                            crate::state::ConnectionMode::Connecting,
+                                        ));
+                                    }
                                     let tx = events.sender();
                                     tokio::spawn(async move {
+                                        let mut stream_completed = false;
                                         while let Some(res) = event_receiver.recv().await {
                                             match res {
                                                 Ok(event) => {
+                                                    // Mark the stream as completed so the
+                                                    // EOF path below can tell the difference
+                                                    // between a clean finish and a crash.
+                                                    if matches!(
+                                                        event.kind,
+                                                        brain_core::events::StreamEventKind::Finished { .. }
+                                                            | brain_core::events::StreamEventKind::Cancelled
+                                                    ) {
+                                                        stream_completed = true;
+                                                    }
                                                     if tx.send(Event::App(AppEvent::Stream(event))).is_err() {
                                                         break;
                                                     }
@@ -275,7 +475,17 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                                 }
                                             }
                                         }
+                                        // Channel closed. If we never received a Finished or
+                                        // Cancelled event the daemon disconnected unexpectedly.
+                                        if !stream_completed {
+                                            let _ = tx.send(Event::App(AppEvent::StreamEof));
+                                        }
                                     });
+                                } else {
+                                    // execute() itself failed — socket unreachable.
+                                    state.update(Action::SetConnectionMode(
+                                        crate::state::ConnectionMode::Disconnected,
+                                    ));
                                 }
                             }
                             UpdateResult::LoadSession(session_id) => {
@@ -287,12 +497,45 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 });
                                 trigger_history_load(&client, events.sender(), session_id, req_id).await;
                             }
+                            UpdateResult::InspectNode(node_id) => {
+                                let client_clone = std::sync::Arc::clone(&client);
+                                let tx = events.sender();
+                                tokio::spawn(async move {
+                                    match client_clone.inspect_node(node_id).await {
+                                        Ok(model) => {
+                                            let _ = tx.send(Event::App(AppEvent::InspectNodeLoaded(model)));
+                                        }
+                                        Err(e) => {
+                                            let _ = tx.send(Event::App(AppEvent::InspectNodeFailed(e.to_string())));
+                                        }
+                                    }
+                                });
+                            }
                         }
                     }
                 }
                 Event::Terminal(crate::event::TerminalEvent::Resize(w, h)) => {
                     if let UpdateResult::Exit = state.update(Action::Resize(w, h)) {
                         break;
+                    }
+                }
+                Event::Terminal(crate::event::TerminalEvent::Mouse(mouse)) => {
+                    match mouse.kind {
+                        crossterm::event::MouseEventKind::ScrollUp => {
+                            if state.mode == crate::state::TuiMode::Exploration && state.focus == FocusRegion::Inspector {
+                                state.update(Action::ScrollInspectorUp(3));
+                            } else {
+                                state.update(Action::ScrollUp(3));
+                            }
+                        }
+                        crossterm::event::MouseEventKind::ScrollDown => {
+                            if state.mode == crate::state::TuiMode::Exploration && state.focus == FocusRegion::Inspector {
+                                state.update(Action::ScrollInspectorDown(3));
+                            } else {
+                                state.update(Action::ScrollDown(3));
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 Event::App(AppEvent::Search(search_event)) => {
@@ -310,6 +553,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                 Event::App(AppEvent::HistoryLoadFailed { session_id, request_id, error }) => {
                     state.update(Action::SessionLoadFailed { session_id, request_id, error });
                 }
+                Event::App(AppEvent::InspectNodeLoaded(model)) => {
+                    state.update(Action::NodeDetailsLoaded(model));
+                }
+                Event::App(AppEvent::InspectNodeFailed(error)) => {
+                    state.update(Action::NodeDetailsFailed(error));
+                }
                 Event::App(AppEvent::Stream(stream_event)) => {
                     match stream_event.kind {
                         brain_core::events::StreamEventKind::Token(token) => {
@@ -317,6 +566,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             for tok in tokens {
                                 state.update(Action::ReceiveToken(tok));
                             }
+                        }
+                        brain_core::events::StreamEventKind::Stage { ref name, active } if name == "Start" && active => {
+                            // Protocol handshake confirmed — connection is live.
+                            state.update(Action::SetConnectionMode(
+                                crate::state::ConnectionMode::Daemon,
+                            ));
                         }
                         brain_core::events::StreamEventKind::Finished { .. } => {
                             let tokens = tokenizer.flush();
@@ -378,6 +633,21 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                 }
                 Event::App(AppEvent::Error(err_msg)) => {
                     state.update(Action::ReportError(err_msg));
+                    // A stream error means the daemon-side connection is broken.
+                    state.update(Action::SetConnectionMode(
+                        crate::state::ConnectionMode::Disconnected,
+                    ));
+                    active_cancel = None;
+                }
+                Event::App(AppEvent::StreamEof) => {
+                    // Daemon closed the socket without sending Finished/Cancelled —
+                    // treat as unexpected disconnection.
+                    state.update(Action::ReportError(
+                        "Daemon disconnected unexpectedly.".to_string(),
+                    ));
+                    state.update(Action::SetConnectionMode(
+                        crate::state::ConnectionMode::Disconnected,
+                    ));
                     active_cancel = None;
                 }
                 Event::Tick => {
@@ -385,6 +655,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                 }
                 Event::App(AppEvent::Shutdown) => {
                     break;
+                }
+                Event::App(AppEvent::Connected) => {
+                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Daemon));
+                }
+                Event::App(AppEvent::Disconnected) => {
+                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Disconnected));
                 }
                 _ => {}
             }
@@ -430,6 +706,27 @@ mod integration_tests {
         async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> { Ok(()) }
         async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> { Ok(()) }
         async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
+        async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+            let entity = brain_domain::dtos::NodeDTO::new(
+                id.to_string(),
+                "Mock Node".to_string(),
+                "Technology".to_string(),
+                serde_json::Value::Null,
+            );
+            Ok(brain_domain::query::inspector::InspectorModel {
+                entity,
+                metadata: std::collections::HashMap::new(),
+                relationships: vec![],
+                provenance: brain_domain::query::inspector::ProvenanceDTO {
+                    source: "Mock".to_string(),
+                    location: "Mock Location".to_string(),
+                    timestamp: 123456,
+                    extra_info: std::collections::HashMap::new(),
+                },
+                retrieval_explanation: None,
+                recent_activity: vec![],
+            })
+        }
     }
 
     #[tokio::test]
@@ -458,7 +755,7 @@ mod integration_tests {
         terminal.draw(|f| {
             let area = f.size();
             // Verify layout partitions are calculated cleanly
-            let (h, sb, c, p, s) = renderer.compute_layout(area);
+            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
             assert_eq!(h.height, 3);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);
@@ -474,7 +771,7 @@ mod integration_tests {
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| {
             let area = f.size();
-            let (h, sb, c, p, s) = renderer.compute_layout(area);
+            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
             assert_eq!(h.height, 3);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);

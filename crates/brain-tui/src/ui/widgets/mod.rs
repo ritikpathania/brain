@@ -8,6 +8,8 @@ pub mod prompt;
 pub mod status;
 /// Sidebar widget listing session threads.
 pub mod sidebar;
+/// Interactive knowledge inspector widget.
+pub mod inspector;
 
 /// Decoupled, immutable data structures for widgets.
 pub mod view_models;
@@ -53,4 +55,6 @@ pub use chat_screen::ChatScreen;
 pub mod completion;
 /// Command Palette overlay widget.
 pub mod palette;
+/// Modal pinned context overlay widget.
+pub mod pinned_overlay;
 
