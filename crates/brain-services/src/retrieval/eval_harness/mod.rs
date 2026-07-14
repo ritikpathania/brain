@@ -16,10 +16,15 @@ pub mod ranking;
 pub mod provider;
 /// Calibration and weights optimization engine.
 pub mod calibration;
+/// Sensitivity and feature diagnostics engine.
+pub mod sensitivity;
 
 pub use calibration::{
     CalibrationObjective, CalibrationOptions, CalibrationResult, EvaluationSession,
     CalibrationEngine, MarkdownReportWriter, QueryEvaluationCache,
+};
+pub use sensitivity::{
+    run_sensitivity_analysis, FeatureImpact, SensitivityReport, SensitivityReportWriter,
 };
 
 pub use fts_retriever::FtsRetriever;

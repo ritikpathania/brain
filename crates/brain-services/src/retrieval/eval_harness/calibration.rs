@@ -1,11 +1,10 @@
 use crate::retrieval::eval_harness::{
     metrics::{compute_mrr, compute_precision_at_k, compute_recall_at_k, compute_ndcg_at_k},
-    FeatureContext, FeatureExtractor, FeatureVector, LinearRanker, RankingWeights, RetrievalResult,
-    RetrievalChannel, Retriever, GroundTruthCorpus, QueryCorpus,
+    FeatureContext, FeatureExtractor, LinearRanker, RankingWeights, RetrievalResult,
+    Retriever, GroundTruthCorpus, QueryCorpus,
 };
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
-use std::collections::HashMap;
 
 /// Calibration objective metric.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
