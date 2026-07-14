@@ -267,18 +267,21 @@ impl AppRenderer {
                 };
                 format!(" Backspace: Back  |  Tab: Focus  |  Esc: Close  |  ↑/↓: Nav Relations  |  Enter: Inspect  |  Ctrl+P: Context  |  {}", p_hint)
             } else {
-                let context_hint = if !state.pinned_nodes.is_empty() {
-                    format!("  |  Ctrl+P: Context ({})", state.pinned_nodes.len())
-                } else {
+                // Build workspace hint: show Alt+W option plus active state
+                let workspace_hint = if state.pinned_nodes.is_empty() {
                     "".to_string()
+                } else if state.submit_with_workspace {
+                    format!("  |  Alt+W: WS ✓ ({})  |  Ctrl+P: Context", state.pinned_nodes.len())
+                } else {
+                    format!("  |  Alt+W: WS  |  Ctrl+P: Context ({})", state.pinned_nodes.len())
                 };
                 match &state.generation_state {
                     crate::state::GenerationState::Starting => " 🔍 Searching...".to_string(),
                     crate::state::GenerationState::Streaming { .. } => " 📥 Receiving results...".to_string(),
-                    crate::state::GenerationState::Finished => format!(" ✓  Done  |  Tab: Switch Focus  |  Esc: New query{}  |  Ctrl+C: Quit", context_hint),
+                    crate::state::GenerationState::Finished => format!(" ✓  Done  |  Tab: Switch Focus  |  Esc: New query{}  |  Ctrl+C: Quit", workspace_hint),
                     crate::state::GenerationState::Cancelled(_) => " ✕  Cancelled  |  Tab: Switch Focus  |  Enter: Submit".to_string(),
                     crate::state::GenerationState::Error(msg) => format!(" ⚠  Error: {}  |  Enter: Retry", msg.chars().take(60).collect::<String>()),
-                    crate::state::GenerationState::Idle => format!(" Tab: Switch Focus  |  Esc: Quit  |  Ctrl+C: Cancel{}  |  Enter: Submit", context_hint),
+                    crate::state::GenerationState::Idle => format!(" Tab: Switch Focus  |  Esc: Quit  |  Ctrl+C: Cancel{}  |  Enter: Submit", workspace_hint),
                 }
             }
         };

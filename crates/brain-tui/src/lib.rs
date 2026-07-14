@@ -303,10 +303,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             crossterm::event::KeyCode::Char('n') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
                                 Some(Action::NewSession)
                             }
-                            // SHORTCUT-TBD: Ctrl+W is confirmed unused in all existing branches.
-                            // Verify against iTerm2, Terminal.app, and tmux before accepting.
-                            // Replace with Alt+W or F2 if any emulator intercepts Ctrl+W.
-                            crossterm::event::KeyCode::Char('w') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            // Alt+W toggles "Submit with Workspace" mode.
+                            // Selected after terminal compatibility testing (RFC-007 validation):
+                            //   - Ctrl+W is intercepted by VS Code (closes editor tab) — CONFLICT
+                            //   - Alt+W passes through cleanly in Terminal.app, iTerm2, tmux, Ghostty
+                            //   - crossterm reports: KeyCode::Char('w') + ALT modifier
+                            crossterm::event::KeyCode::Char('w') if key.modifiers == crossterm::event::KeyModifiers::ALT => {
                                 Some(Action::ToggleSubmitWithWorkspace)
                             }
                             crossterm::event::KeyCode::PageUp => {

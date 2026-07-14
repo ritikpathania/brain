@@ -1,7 +1,7 @@
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
 use brain_services::eval_harness::{
-    FeatureExtractor, FeatureVector, LinearRanker, RankingRetriever, RankingWeights,
+    FeatureVector, LinearRanker, RankingRetriever, RankingWeights,
     RetrievalChannel, RetrievalResult, Retriever, run_benchmark,
 };
 use std::collections::HashMap;
@@ -121,7 +121,8 @@ fn test_ranking_retriever_harness_integration() {
         "ground_truth": {{
             "q_001": {{
                 "expected_node_ids": ["{}"],
-                "acceptable_alternatives": ["{}"]
+                "acceptable_alternatives": ["{}"],
+                "minimum_rank": {{}}
             }}
         }}
     }}"#, node_b_str, node_a_str, node_b_str, node_a_str);

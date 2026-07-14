@@ -380,7 +380,6 @@ impl RankingStrategy for LearnedTemporalScorer {
             return Ok(nodes);
         }
 
-        use brain_domain::retrieval::models::{LinearRankingModel, RankingModel};
         use brain_domain::retrieval::features::{MinMaxNormalizer, FeatureNormalizer, NormalizationContext};
         use crate::retrieval::feature_extractor::{FeatureExtractor, DefaultFeatureExtractor};
 

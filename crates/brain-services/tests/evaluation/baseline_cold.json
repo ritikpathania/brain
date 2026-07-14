@@ -13,6 +13,8 @@
       "mean_precision_at_5": 0.6888888888888888,
       "mean_precision_at_10": 0.6888888888888888,
       "mean_mrr": 0.9583333333333334,
+      "mean_ndcg_at_5": 0.9332906424963111,
+      "mean_ndcg_at_10": 0.9332906424963111,
       "total_queries": 24,
       "successful_queries": 24,
       "failed_queries": 0
@@ -29,6 +31,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -42,6 +46,8 @@
         "precision_at_5": 0.3333333333333333,
         "precision_at_10": 0.3333333333333333,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 3
       },
       {
@@ -55,6 +61,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -68,6 +76,8 @@
         "precision_at_5": 0.2,
         "precision_at_10": 0.2,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 5
       },
       {
@@ -81,6 +91,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -94,6 +106,8 @@
         "precision_at_5": 0.3333333333333333,
         "precision_at_10": 0.3333333333333333,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 3
       },
       {
@@ -107,6 +121,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 0.6387878864795979,
+        "ndcg_at_10": 0.6387878864795979,
         "retrieved_count": 2
       },
       {
@@ -120,6 +136,8 @@
         "precision_at_5": 0.3333333333333333,
         "precision_at_10": 0.3333333333333333,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 3
       },
       {
@@ -133,6 +151,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -146,6 +166,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -159,6 +181,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -172,6 +196,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -185,6 +211,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -198,6 +226,8 @@
         "precision_at_5": 0.3333333333333333,
         "precision_at_10": 0.3333333333333333,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 3
       },
       {
@@ -211,6 +241,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -224,6 +256,8 @@
         "precision_at_5": 0.0,
         "precision_at_10": 0.0,
         "mrr": 0.0,
+        "ndcg_at_5": 0.0,
+        "ndcg_at_10": 0.0,
         "retrieved_count": 0
       },
       {
@@ -237,6 +271,8 @@
         "precision_at_5": 0.5,
         "precision_at_10": 0.5,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -250,6 +286,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 0.7601875334318685,
+        "ndcg_at_10": 0.7601875334318685,
         "retrieved_count": 1
       },
       {
@@ -263,6 +301,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -276,6 +316,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -289,6 +331,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -302,6 +346,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 1
       },
       {
@@ -315,6 +361,8 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       },
       {
@@ -328,26 +376,30 @@
         "precision_at_5": 1.0,
         "precision_at_10": 1.0,
         "mrr": 1.0,
+        "ndcg_at_5": 1.0,
+        "ndcg_at_10": 1.0,
         "retrieved_count": 2
       }
     ]
   },
   "measured": {
     "latency": {
-      "p50_latency_ms": 0.29704200000000003,
-      "p95_latency_ms": 0.46875,
-      "max_latency_ms": 1.29175
+      "p50_latency_ms": 0.182916,
+      "p95_latency_ms": 0.348459,
+      "max_latency_ms": 0.70875
     },
     "diagnostics": [
       {
         "query_id": "q_001",
-        "latency_ms": 1.29175,
+        "latency_ms": 0.70875,
         "normalized_query": "how do i configure typescript client uds",
         "executed_query": "how OR do OR i OR configure OR typescript OR client OR uds",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 7.213434277848524,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -355,6 +407,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 1.2276314219879403,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -363,13 +417,15 @@
       },
       {
         "query_id": "q_002",
-        "latency_ms": 0.331542,
+        "latency_ms": 0.203542,
         "normalized_query": "typescript clent socket configuration path",
         "executed_query": "typescript OR clent OR socket OR configuration OR path",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 6.763195875949632,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -377,6 +433,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000005",
             "lexical_score": 0.8923383329296597,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -384,6 +442,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 0.8159403839875699,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -392,13 +452,15 @@
       },
       {
         "query_id": "q_003",
-        "latency_ms": 0.202792,
+        "latency_ms": 0.128083,
         "normalized_query": "configure ts uds",
         "executed_query": "configure OR ts OR uds",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 3.2995292491685424,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -406,6 +468,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 1.2276314219879403,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -414,13 +478,15 @@
       },
       {
         "query_id": "q_004",
-        "latency_ms": 0.46875,
+        "latency_ms": 0.348459,
         "normalized_query": "how does the python plugin loader scan files",
         "executed_query": "how OR does OR the OR python OR plugin OR loader OR scan OR files",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000002",
             "lexical_score": 5.870857543019972,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -428,6 +494,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000005",
             "lexical_score": 1.9569525143399908,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -435,6 +503,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000010",
             "lexical_score": 1.01963155333317,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -442,6 +512,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 0.8923383329296597,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -449,6 +521,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 0.8159403839875699,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -457,13 +531,15 @@
       },
       {
         "query_id": "q_005",
-        "latency_ms": 0.351084,
+        "latency_ms": 0.24108300000000002,
         "normalized_query": "loading external scripts via pyo3 modules",
         "executed_query": "loading OR external OR scripts OR via OR pyo3 OR modules",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000002",
             "lexical_score": 5.870857543019972,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -472,13 +548,15 @@
       },
       {
         "query_id": "q_006",
-        "latency_ms": 0.298917,
+        "latency_ms": 0.188333,
         "normalized_query": "parse daemon command line arguments",
         "executed_query": "parse OR daemon OR command OR line OR arguments",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000003",
             "lexical_score": 6.811654265123732,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -486,6 +564,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000004",
             "lexical_score": 1.3858292882773071,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -493,6 +573,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000007",
             "lexical_score": 1.3019423426707935,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -501,13 +583,15 @@
       },
       {
         "query_id": "q_007",
-        "latency_ms": 0.34475,
+        "latency_ms": 0.217834,
         "normalized_query": "what happens during background daemon lifecycle",
         "executed_query": "what OR happens OR during OR background OR daemon OR lifecycle",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000004",
             "lexical_score": 5.425824976846425,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -515,6 +599,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000003",
             "lexical_score": 1.3858292882773071,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -523,13 +609,15 @@
       },
       {
         "query_id": "q_008",
-        "latency_ms": 0.35,
+        "latency_ms": 0.222292,
         "normalized_query": "handling sigterm signal in daemon main",
         "executed_query": "handling OR sigterm OR signal OR in OR daemon OR main",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000004",
             "lexical_score": 3.405827132561866,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -537,6 +625,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000011",
             "lexical_score": 1.8419742953965725,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -544,6 +634,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000003",
             "lexical_score": 1.3858292882773071,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -552,13 +644,15 @@
       },
       {
         "query_id": "q_009",
-        "latency_ms": 0.08641599999999999,
+        "latency_ms": 0.056292,
         "normalized_query": "daemoncleanupguard",
         "executed_query": "daemoncleanupguard",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000005",
             "lexical_score": 1.9569525143399908,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -567,13 +661,15 @@
       },
       {
         "query_id": "q_010",
-        "latency_ms": 0.29704200000000003,
+        "latency_ms": 0.188583,
         "normalized_query": "removing stale file on start",
         "executed_query": "removing OR stale OR file OR on OR start",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000005",
             "lexical_score": 3.9139050286799817,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -581,6 +677,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000003",
             "lexical_score": 2.0199978442845588,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -589,13 +687,15 @@
       },
       {
         "query_id": "q_011",
-        "latency_ms": 0.236417,
+        "latency_ms": 0.14875000000000002,
         "normalized_query": "damon cleanp gard drop",
         "executed_query": "damon OR cleanp OR gard OR drop",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000005",
             "lexical_score": 1.9569525143399908,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -604,13 +704,15 @@
       },
       {
         "query_id": "q_012",
-        "latency_ms": 0.29945900000000003,
+        "latency_ms": 0.18175,
         "normalized_query": "tokio uds connection timeout error",
         "executed_query": "tokio OR uds OR connection OR timeout OR error",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 3.017038563955784,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -618,6 +720,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 1.3425767348285516,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -626,13 +730,15 @@
       },
       {
         "query_id": "q_013",
-        "latency_ms": 0.195792,
+        "latency_ms": 0.114584,
         "normalized_query": "increase connect timeout",
         "executed_query": "increase OR connect OR timeout",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 1.7894071419678437,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -641,13 +747,15 @@
       },
       {
         "query_id": "q_014",
-        "latency_ms": 0.390542,
+        "latency_ms": 0.224167,
         "normalized_query": "blanket implementation macro for capability deserialization",
         "executed_query": "blanket OR implementation OR macro OR for OR capability OR deserialization",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000007",
             "lexical_score": 4.6607777263912515,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -655,6 +763,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 0.8923383329296597,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -662,6 +772,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 0.8159403839875699,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -670,13 +782,15 @@
       },
       {
         "query_id": "q_015",
-        "latency_ms": 0.09825,
+        "latency_ms": 0.054958,
         "normalized_query": "erasedcapability",
         "executed_query": "erasedcapability",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000007",
             "lexical_score": 1.897723440992495,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -685,20 +799,22 @@
       },
       {
         "query_id": "q_016",
-        "latency_ms": 0.13708399999999998,
+        "latency_ms": 0.081542,
         "normalized_query": "how do extensions work",
         "executed_query": "how OR do OR extensions OR work",
         "candidates": []
       },
       {
         "query_id": "q_017",
-        "latency_ms": 0.294042,
+        "latency_ms": 0.178041,
         "normalized_query": "duckdb analytics database initialization error",
         "executed_query": "duckdb OR analytics OR database OR initialization OR error",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000008",
             "lexical_score": 5.425824976846425,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -706,6 +822,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 1.2276314219879403,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -714,13 +832,15 @@
       },
       {
         "query_id": "q_018",
-        "latency_ms": 0.192375,
+        "latency_ms": 0.12000000000000001,
         "normalized_query": "relational memory engine",
         "executed_query": "relational OR memory OR engine",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 6.1026822959244855,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -729,13 +849,15 @@
       },
       {
         "query_id": "q_019",
-        "latency_ms": 0.238875,
+        "latency_ms": 0.147209,
         "normalized_query": "recent sqlite graph changes",
         "executed_query": "recent OR sqlite OR graph OR changes",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 3.5788142839356873,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -744,13 +866,15 @@
       },
       {
         "query_id": "q_020",
-        "latency_ms": 0.187042,
+        "latency_ms": 0.1175,
         "normalized_query": "sqllite ltm databse",
         "executed_query": "sqllite OR ltm OR databse",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000009",
             "lexical_score": 1.7894071419678437,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -759,13 +883,15 @@
       },
       {
         "query_id": "q_021",
-        "latency_ms": 0.293375,
+        "latency_ms": 0.182916,
         "normalized_query": "type erased registration dynamic mapping",
         "executed_query": "type OR erased OR registration OR dynamic OR mapping",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000007",
             "lexical_score": 5.693170322977485,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -774,13 +900,15 @@
       },
       {
         "query_id": "q_022",
-        "latency_ms": 0.085375,
+        "latency_ms": 0.053875,
         "normalized_query": "fuzzyretrieval",
         "executed_query": "fuzzyretrieval",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000010",
             "lexical_score": 2.2361143283452627,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -789,13 +917,15 @@
       },
       {
         "query_id": "q_023",
-        "latency_ms": 0.297334,
+        "latency_ms": 0.18745799999999999,
         "normalized_query": "graceful worker draining check sleep",
         "executed_query": "graceful OR worker OR draining OR check OR sleep",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000011",
             "lexical_score": 6.21133933433983,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -803,6 +933,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000004",
             "lexical_score": 2.7716585765546142,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -811,13 +943,15 @@
       },
       {
         "query_id": "q_024",
-        "latency_ms": 0.393833,
+        "latency_ms": 0.250542,
         "normalized_query": "how are messages exchanged over uds ipc",
         "executed_query": "how OR are OR messages OR exchanged OR over OR uds OR ipc",
         "candidates": [
           {
             "node_id": "00000000-0000-0000-0000-000000000006",
             "lexical_score": 3.017038563955784,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
@@ -825,6 +959,8 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 1.3425767348285516,
+            "semantic_score": null,
+            "ranked_score": null,
             "retrieval_channels": [
               "fts"
             ]
