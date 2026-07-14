@@ -54,6 +54,8 @@ pub trait EmbeddingRepository: Send + Sync {
     fn delete(&self, node_id: &NodeId) -> Result<(), BrainError>;
     /// Lists all node embeddings.
     fn list_all_embeddings(&self) -> Result<Vec<Embedding>, BrainError>;
+    /// Retrieves all embeddings associated with the specified centroid IDs.
+    fn find_by_centroids(&self, centroid_ids: &[i32]) -> Result<Vec<Embedding>, BrainError>;
 }
 
 /// Trait defining CRUD operations for active and historical sessions.

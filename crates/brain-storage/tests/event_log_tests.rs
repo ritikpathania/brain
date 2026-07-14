@@ -108,3 +108,82 @@ fn test_pagination_boundaries() {
     assert_eq!(page3.first().unwrap().sequence, 21);
     assert_eq!(page3.last().unwrap().sequence, 25);
 }
+
+#[test]
+fn test_ingestion_event_log_repository() {
+    use brain_storage::EventLogRepository;
+    use brain_integrations::{IngestionEnvelope, IngestionEvent, EventIdentity};
+
+    let test_storage = TestStorage::new();
+    let storage = test_storage.store();
+
+    // 1. Create a test IngestionEnvelope
+    let event_id1 = brain_domain::EventId(uuid::Uuid::new_v4());
+    let envelope1 = IngestionEnvelope {
+        event_model_version: "1.0".to_string(),
+        identity: EventIdentity {
+            event_id: event_id1.clone(),
+            parent_event_id: None,
+            workspace_id: brain_domain::WorkspaceId::new("workspace-1"),
+            client_id: brain_domain::ClientId::new("client-1"),
+            adapter_id: brain_domain::AdapterId::new("adapter-1"),
+            session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
+            conversation_id: Some(brain_domain::ConversationId(ulid::Ulid::new())),
+            timestamp: chrono::Utc::now(),
+        },
+        event: IngestionEvent::Message {
+            role: "user".to_string(),
+            content: "Ping observation 1".to_string(),
+            metadata: std::collections::BTreeMap::new(),
+        },
+    };
+
+    // 2. Insert event
+    let seq1 = storage.insert_event(&envelope1).unwrap();
+    assert_eq!(seq1, 1);
+
+    // 3. Check duplicate (same event_id should return existing sequence, not insert a new row)
+    let seq_dup = storage.insert_event(&envelope1).unwrap();
+    assert_eq!(seq_dup, 1);
+
+    // Check duplicate checker directly
+    let is_dup = storage.is_duplicate_event(&event_id1).unwrap();
+    assert!(is_dup);
+
+    let event_id2 = brain_domain::EventId(uuid::Uuid::new_v4());
+    let is_dup2 = storage.is_duplicate_event(&event_id2).unwrap();
+    assert!(!is_dup2);
+
+    // 4. Insert another event
+    let envelope2 = IngestionEnvelope {
+        event_model_version: "1.0".to_string(),
+        identity: EventIdentity {
+            event_id: event_id2.clone(),
+            parent_event_id: None,
+            workspace_id: brain_domain::WorkspaceId::new("workspace-1"),
+            client_id: brain_domain::ClientId::new("client-1"),
+            adapter_id: brain_domain::AdapterId::new("adapter-1"),
+            session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
+            conversation_id: None,
+            timestamp: chrono::Utc::now(),
+        },
+        event: IngestionEvent::Message {
+            role: "assistant".to_string(),
+            content: "Response observation 2".to_string(),
+            metadata: std::collections::BTreeMap::new(),
+        },
+    };
+    let seq2 = storage.insert_event(&envelope2).unwrap();
+    assert_eq!(seq2, 2);
+
+    // 5. Replay events
+    let events = storage.get_events_after(0).unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].identity.event_id, event_id1);
+    assert_eq!(events[1].identity.event_id, event_id2);
+
+    // Replay after sequence 1
+    let events_after = storage.get_events_after(1).unwrap();
+    assert_eq!(events_after.len(), 1);
+    assert_eq!(events_after[0].identity.event_id, event_id2);
+}

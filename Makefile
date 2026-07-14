@@ -33,7 +33,7 @@ type-check:
 build-brain:
 	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --manifest-path daemon/Cargo.toml --bin brain-daemon
 	rm -f ./brain-daemon
-	cp daemon/target/debug/brain-daemon ./brain-daemon
+	cp target/debug/brain-daemon ./brain-daemon
 
 
 # Stop running daemon if active, then start a new instance

@@ -726,7 +726,9 @@ version = "0.1.0"
 dependencies = [
  "brain-core",
  "brain-domain",
+ "brain-integrations",
  "brain-storage",
+ "chrono",
  "r2d2",
  "rusqlite",
  "serde",

@@ -152,3 +152,16 @@ impl SqliteEventLog {
         Ok(seq_opt.unwrap_or(0) as u64)
     }
 }
+
+/// Trait defining atomic CRUD and deduplication operations for the ingestion Write-Ahead Event Log.
+pub trait EventLogRepository: Send + Sync {
+    /// Inserts an ingestion event into the event_log table.
+    /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
+    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, BrainError>;
+
+    /// Checks if the event_id already exists in the log.
+    fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, BrainError>;
+
+    /// Replays events starting after the given sequence number.
+    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, BrainError>;
+}

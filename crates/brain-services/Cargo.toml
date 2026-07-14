@@ -37,3 +37,7 @@ criterion = "0.5"
 name = "policy_benchmarks"
 harness = false
 
+[[bench]]
+name = "retrieval_baseline_benchmarks"
+harness = false
+

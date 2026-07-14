@@ -1,14 +1,27 @@
-use crate::retrieval::eval_harness::{FeatureExtractor, FeatureVector, RetrievalResult, Retriever};
+use crate::retrieval::eval_harness::{FeatureExtractor, FeatureVector, FeatureProvider, FeatureContext, RetrievalResult, Retriever};
 use brain_core::errors::BrainError;
+use brain_domain::NodeId;
 
 /// Immutable calibration weights for the linear scoring model.
 /// Note: Weights are calibration parameters, not learned model parameters.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RankingWeights {
     /// Coefficient for the lexical (FTS) similarity score.
     pub lexical: f64,
     /// Coefficient for the semantic similarity score.
     pub semantic: f64,
+    /// Coefficient for the recency decay feature.
+    pub recency: f64,
+    /// Coefficient for the combined static importance / pinned feature.
+    pub importance: f64,
+    /// Coefficient for the provenance confidence feature.
+    pub provenance_confidence: f64,
+    /// Coefficient for the graph degree feature.
+    pub graph_degree: f64,
+    /// Coefficient for the access frequency feature.
+    pub access_frequency: f64,
+    /// Coefficient for the freshness decay feature.
+    pub freshness_decay: f64,
 }
 
 impl RankingWeights {
@@ -17,6 +30,12 @@ impl RankingWeights {
         Self {
             lexical: 1.0,
             semantic: 1.0,
+            recency: 0.0,
+            importance: 0.0,
+            provenance_confidence: 0.0,
+            graph_degree: 0.0,
+            access_frequency: 0.0,
+            freshness_decay: 0.0,
         }
     }
 }
@@ -47,6 +66,24 @@ impl LinearRanker {
         if let Some(sem) = features.semantic_similarity {
             total += sem * self.weights.semantic;
         }
+        if let Some(rec) = features.recency {
+            total += rec * self.weights.recency;
+        }
+        if let Some(imp) = features.importance {
+            total += imp * self.weights.importance;
+        }
+        if let Some(prov) = features.provenance_confidence {
+            total += prov * self.weights.provenance_confidence;
+        }
+        if let Some(graph) = features.graph_degree {
+            total += graph * self.weights.graph_degree;
+        }
+        if let Some(acc) = features.access_frequency {
+            total += acc * self.weights.access_frequency;
+        }
+        if let Some(fresh) = features.freshness_decay {
+            total += fresh * self.weights.freshness_decay;
+        }
         total
     }
 }
@@ -56,24 +93,80 @@ impl LinearRanker {
 pub struct RankingRetriever<R: Retriever> {
     underlying: R,
     ranker: LinearRanker,
+    provider: Option<FeatureProvider>,
+    reference_time: u64,
+    decay: crate::retrieval::eval_harness::RankingDecay,
 }
 
 impl<R: Retriever> RankingRetriever<R> {
-    /// Instantiates a new RankingRetriever wrapping an underlying candidate generator.
+    /// Instantiates a new RankingRetriever for mock/unit tests without a database provider.
     pub fn new(underlying: R, ranker: LinearRanker) -> Self {
-        Self { underlying, ranker }
+        Self {
+            underlying,
+            ranker,
+            provider: None,
+            reference_time: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            decay: crate::retrieval::eval_harness::RankingDecay::default(),
+        }
+    }
+
+    /// Instantiates a new RankingRetriever with a database-backed FeatureProvider and decay configuration.
+    pub fn with_provider(
+        underlying: R,
+        ranker: LinearRanker,
+        provider: FeatureProvider,
+        reference_time: u64,
+        decay: crate::retrieval::eval_harness::RankingDecay,
+    ) -> Self {
+        Self {
+            underlying,
+            ranker,
+            provider: Some(provider),
+            reference_time,
+            decay,
+        }
     }
 }
 
 impl<R: Retriever> Retriever for RankingRetriever<R> {
     fn retrieve(&self, query: &str) -> Result<Vec<RetrievalResult>, BrainError> {
         let mut candidates = self.underlying.retrieve(query)?;
+        if candidates.is_empty() {
+            return Ok(candidates);
+        }
+
+        // 1. Batch load contexts if provider is present
+        let contexts = if let Some(ref provider) = self.provider {
+            let node_ids: Vec<NodeId> = candidates.iter().map(|c| c.node_id).collect();
+            provider.load_contexts(&node_ids)?
+        } else {
+            std::collections::HashMap::new()
+        };
+
+        // 2. Initialize FeatureExtractor
+        let extractor = FeatureExtractor::new(self.reference_time, self.decay);
+
+        // 3. For each candidate, extract features and compute ranking score
         for res in &mut candidates {
-            let features = FeatureExtractor::extract(res);
+            let default_ctx = FeatureContext {
+                updated_at: None,
+                importance: None,
+                pinned: false,
+                provenance_confidence: None,
+                graph_degree: None,
+                access_count: None,
+                last_observed_at: None,
+            };
+            let context = contexts.get(&res.node_id).unwrap_or(&default_ctx);
+            let features = extractor.extract(res, context);
             let score = self.ranker.score(&features);
             res.ranking_score = Some(score);
         }
-        // Explicitly sort candidates before returning so that RankingRetriever always returns ranked output
+
+        // 4. Explicitly sort candidates before returning so that RankingRetriever always returns ranked output
         super::sort_results_deterministically(&mut candidates);
         Ok(candidates)
     }

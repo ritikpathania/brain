@@ -7,6 +7,8 @@ use brain_core::repositories::{
 };
 use brain_domain::{Session, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId, RelationKind, NodeKind};
 use std::collections::HashMap;
+use crate::event_log::EventLogRepository;
+use brain_integrations::IngestionEnvelope;
 
 thread_local! {
     static TRANSACTION_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -1383,18 +1385,66 @@ impl<'a> EdgeRepository for ActiveConnection<'a> {
 // Embedding Repository implementations and helpers
 // =========================================================================
 
+use std::sync::OnceLock;
+
+fn get_predefined_centroids() -> &'static [Vec<f32>] {
+    static CENTROIDS: OnceLock<Vec<Vec<f32>>> = OnceLock::new();
+    CENTROIDS.get_or_init(|| {
+        let mut centroids = Vec::with_capacity(8);
+        for c in 0..8 {
+            let mut v = vec![0.0f32; 384];
+            let mut norm_sq = 0.0f32;
+            for i in 0..384 {
+                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0).sin() as f32;
+                v[i] = val;
+                norm_sq += val * val;
+            }
+            let norm = norm_sq.sqrt();
+            if norm > 0.0 {
+                for val in v.iter_mut() {
+                    *val /= norm;
+                }
+            }
+            centroids.push(v);
+        }
+        centroids
+    })
+}
+
+fn compute_closest_centroid(vector: &[f32]) -> i32 {
+    let centroids = get_predefined_centroids();
+    let mut best_centroid = 0;
+    let mut max_similarity = f32::NEG_INFINITY;
+
+    for (c, centroid) in centroids.iter().enumerate() {
+        let mut dot_product = 0.0f32;
+        let limit = std::cmp::min(vector.len(), centroid.len());
+        for i in 0..limit {
+            dot_product += vector[i] * centroid[i];
+        }
+        if dot_product > max_similarity {
+            max_similarity = dot_product;
+            best_centroid = c as i32;
+        }
+    }
+    best_centroid
+}
+
 fn save_embedding_conn(db: &ActiveConnection<'_>, embedding: &Embedding) -> Result<(), BrainError> {
     let mut bytes = Vec::with_capacity(embedding.vector.len() * 4);
     for &val in &embedding.vector {
         bytes.extend_from_slice(&val.to_le_bytes());
     }
 
+    let centroid_id = compute_closest_centroid(&embedding.vector);
+
     db.execute(
-        "INSERT OR REPLACE INTO embeddings (node_id, vector, dimension) VALUES (?, ?, ?)",
+        "INSERT OR REPLACE INTO embeddings (node_id, vector, dimension, centroid_id) VALUES (?, ?, ?, ?)",
         (
             embedding.node_id.to_string(),
             bytes,
             embedding.dimension as i64,
+            centroid_id as i64,
         ),
     )
     .map_err(|e| BrainError::Storage {
@@ -1529,6 +1579,15 @@ impl EmbeddingRepository for SqliteStorage {
         let active = ActiveConnection::new(&conn);
         list_all_embeddings_conn(&active)
     }
+
+    fn find_by_centroids(&self, centroid_ids: &[i32]) -> Result<Vec<Embedding>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let active = ActiveConnection::new(&conn);
+        find_embeddings_by_centroids_conn(&active, centroid_ids)
+    }
 }
 
 impl<'a> EmbeddingRepository for ActiveConnection<'a> {
@@ -1547,6 +1606,74 @@ impl<'a> EmbeddingRepository for ActiveConnection<'a> {
     fn list_all_embeddings(&self) -> Result<Vec<Embedding>, BrainError> {
         list_all_embeddings_conn(self)
     }
+
+    fn find_by_centroids(&self, centroid_ids: &[i32]) -> Result<Vec<Embedding>, BrainError> {
+        find_embeddings_by_centroids_conn(self, centroid_ids)
+    }
+}
+
+fn find_embeddings_by_centroids_conn(
+    db: &ActiveConnection<'_>,
+    centroid_ids: &[i32],
+) -> Result<Vec<Embedding>, BrainError> {
+    if centroid_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders: Vec<String> = (0..centroid_ids.len()).map(|_| "?".to_string()).collect();
+    let query_str = format!(
+        "SELECT node_id, vector, dimension FROM embeddings WHERE centroid_id IN ({})",
+        placeholders.join(", ")
+    );
+
+    let mut stmt = db.prepare(&query_str).map_err(|e| BrainError::Storage {
+        message: format!("Failed to prepare query: {}", e),
+        source: Some(Box::new(e)),
+    })?;
+
+    let params: Vec<rusqlite::types::Value> = centroid_ids
+        .iter()
+        .map(|&c| rusqlite::types::Value::Integer(c as i64))
+        .collect();
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> = params
+        .iter()
+        .map(|v| v as &dyn rusqlite::ToSql)
+        .collect();
+
+    let iter = stmt
+        .query_map(&*param_refs, |row| {
+            let node_id_str: String = row.get(0)?;
+            let bytes: Vec<u8> = row.get(1)?;
+            let dimension: i64 = row.get(2)?;
+            Ok((node_id_str, bytes, dimension))
+        })
+        .map_err(|e| BrainError::Storage {
+            message: format!("Query execution failed: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let mut embeddings = Vec::new();
+    for item in iter {
+        let (node_id_str, bytes, _dimension) = item.map_err(|e| BrainError::Storage {
+            message: format!("Failed to parse query row: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let node_id = uuid::Uuid::parse_str(&node_id_str)
+            .map(NodeId)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Invalid UUID: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let mut vector = Vec::with_capacity(bytes.len() / 4);
+        for chunk in bytes.chunks_exact(4) {
+            let arr = chunk.try_into().unwrap_or([0u8; 4]);
+            vector.push(f32::from_le_bytes(arr));
+        }
+        embeddings.push(Embedding::new(node_id, vector));
+    }
+
+    Ok(embeddings)
 }
 
 // =========================================================================
@@ -1893,6 +2020,132 @@ impl SqliteStorage {
         })?;
 
         Ok(())
+    }
+}
+
+impl EventLogRepository for SqliteStorage {
+    fn insert_event(&self, envelope: &IngestionEnvelope) -> Result<u64, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        // 1. Check for duplicate event_id
+        let event_id_str = envelope.identity.event_id.to_string();
+        let mut check_stmt = conn.prepare("SELECT sequence FROM event_log WHERE event_id = ?1").map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare duplicate check statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut rows = check_stmt.query(rusqlite::params![event_id_str]).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query duplicate events: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
+            message: format!("Failed to fetch duplicate event row: {}", e),
+            source: Some(Box::new(e)),
+        })? {
+            let seq: i64 = row.get(0).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get sequence ID: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            return Ok(seq as u64);
+        }
+
+        // 2. Format columns
+        let adapter_id_str = envelope.identity.adapter_id.to_string();
+        let client_id_str = envelope.identity.client_id.to_string();
+        let session_id_str = envelope.identity.session_id.to_string();
+        let workspace_id_str = envelope.identity.workspace_id.to_string();
+        let conversation_id_str = envelope.identity.conversation_id.map(|id| id.to_string());
+        let event_model_version = envelope.event_model_version.clone();
+        let event_type = serde_json::to_value(&envelope.event.kind())
+            .map(|v| v.as_str().unwrap_or("unknown").to_string())
+            .unwrap_or_else(|_| "unknown".to_string());
+        let payload = brain_integrations::to_canonical_json(envelope)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize canonical envelope payload: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let timestamp_str = envelope.identity.timestamp.to_rfc3339();
+        let received_at_str = chrono::Utc::now().to_rfc3339();
+
+        // 3. Insert and retrieve sequence ID
+        conn.execute(
+            "INSERT INTO event_log (event_id, adapter_id, client_id, session_id, workspace_id, conversation_id, event_model_version, event_type, payload, timestamp, received_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![
+                event_id_str,
+                adapter_id_str,
+                client_id_str,
+                session_id_str,
+                workspace_id_str,
+                conversation_id_str,
+                event_model_version,
+                event_type,
+                payload,
+                timestamp_str,
+                received_at_str
+            ],
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert ingestion event: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let sequence = conn.last_insert_rowid() as u64;
+        Ok(sequence)
+    }
+
+    fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare("SELECT 1 FROM event_log WHERE event_id = ?1").map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare duplicate check statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let exists = stmt.exists(rusqlite::params![event_id.0.to_string()]).map_err(|e| BrainError::Storage {
+            message: format!("Failed to check event existence: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(exists)
+    }
+
+    fn get_events_after(&self, sequence: u64) -> Result<Vec<IngestionEnvelope>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut stmt = conn.prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC").map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare select events query: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        
+        let rows = stmt.query_map(rusqlite::params![sequence], |row| {
+            let payload_str: String = row.get(0)?;
+            Ok(payload_str)
+        }).map_err(|e| BrainError::Storage {
+            message: format!("Failed to query events after sequence: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut envelopes = Vec::new();
+        for row in rows {
+            let payload_str = row.map_err(|e| BrainError::Storage {
+                message: format!("Failed to fetch event row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let envelope: IngestionEnvelope = serde_json::from_str(&payload_str)
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize IngestionEnvelope payload: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            envelopes.push(envelope);
+        }
+
+        Ok(envelopes)
     }
 }
 

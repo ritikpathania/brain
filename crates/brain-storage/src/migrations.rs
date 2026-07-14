@@ -210,6 +210,11 @@ const MIGRATIONS: &[&str] = &[
     END;
     INSERT INTO node_search(rowid, label) SELECT rowid, label FROM nodes;
     "#,
+    // Version 14 Schema Setup (IVF Vector Indexing centroid_id field)
+    r#"
+    ALTER TABLE embeddings ADD COLUMN centroid_id INTEGER;
+    CREATE INDEX IF NOT EXISTS idx_embeddings_centroid ON embeddings(centroid_id);
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

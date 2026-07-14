@@ -384,14 +384,14 @@
   },
   "measured": {
     "latency": {
-      "p50_latency_ms": 0.176,
-      "p95_latency_ms": 0.240583,
-      "max_latency_ms": 0.27504100000000004
+      "p50_latency_ms": 0.192583,
+      "p95_latency_ms": 0.25845799999999997,
+      "max_latency_ms": 0.32083300000000003
     },
     "diagnostics": [
       {
         "query_id": "q_001",
-        "latency_ms": 0.240583,
+        "latency_ms": 0.25845799999999997,
         "normalized_query": "how do i configure typescript client uds",
         "executed_query": "how OR do OR i OR configure OR typescript OR client OR uds",
         "candidates": [
@@ -417,7 +417,7 @@
       },
       {
         "query_id": "q_002",
-        "latency_ms": 0.1805,
+        "latency_ms": 0.1995,
         "normalized_query": "typescript clent socket configuration path",
         "executed_query": "typescript OR clent OR socket OR configuration OR path",
         "candidates": [
@@ -452,7 +452,7 @@
       },
       {
         "query_id": "q_003",
-        "latency_ms": 0.117125,
+        "latency_ms": 0.127542,
         "normalized_query": "configure ts uds",
         "executed_query": "configure OR ts OR uds",
         "candidates": [
@@ -478,7 +478,7 @@
       },
       {
         "query_id": "q_004",
-        "latency_ms": 0.27504100000000004,
+        "latency_ms": 0.32083300000000003,
         "normalized_query": "how does the python plugin loader scan files",
         "executed_query": "how OR does OR the OR python OR plugin OR loader OR scan OR files",
         "candidates": [
@@ -531,7 +531,7 @@
       },
       {
         "query_id": "q_005",
-        "latency_ms": 0.206167,
+        "latency_ms": 0.225,
         "normalized_query": "loading external scripts via pyo3 modules",
         "executed_query": "loading OR external OR scripts OR via OR pyo3 OR modules",
         "candidates": [
@@ -548,7 +548,7 @@
       },
       {
         "query_id": "q_006",
-        "latency_ms": 0.185583,
+        "latency_ms": 0.194916,
         "normalized_query": "parse daemon command line arguments",
         "executed_query": "parse OR daemon OR command OR line OR arguments",
         "candidates": [
@@ -583,7 +583,7 @@
       },
       {
         "query_id": "q_007",
-        "latency_ms": 0.213083,
+        "latency_ms": 0.222917,
         "normalized_query": "what happens during background daemon lifecycle",
         "executed_query": "what OR happens OR during OR background OR daemon OR lifecycle",
         "candidates": [
@@ -609,7 +609,7 @@
       },
       {
         "query_id": "q_008",
-        "latency_ms": 0.21108300000000002,
+        "latency_ms": 0.227417,
         "normalized_query": "handling sigterm signal in daemon main",
         "executed_query": "handling OR sigterm OR signal OR in OR daemon OR main",
         "candidates": [
@@ -644,7 +644,7 @@
       },
       {
         "query_id": "q_009",
-        "latency_ms": 0.051458000000000004,
+        "latency_ms": 0.056582999999999994,
         "normalized_query": "daemoncleanupguard",
         "executed_query": "daemoncleanupguard",
         "candidates": [
@@ -661,7 +661,7 @@
       },
       {
         "query_id": "q_010",
-        "latency_ms": 0.176,
+        "latency_ms": 0.192583,
         "normalized_query": "removing stale file on start",
         "executed_query": "removing OR stale OR file OR on OR start",
         "candidates": [
@@ -687,7 +687,7 @@
       },
       {
         "query_id": "q_011",
-        "latency_ms": 0.13875,
+        "latency_ms": 0.1505,
         "normalized_query": "damon cleanp gard drop",
         "executed_query": "damon OR cleanp OR gard OR drop",
         "candidates": [
@@ -704,7 +704,7 @@
       },
       {
         "query_id": "q_012",
-        "latency_ms": 0.17716600000000002,
+        "latency_ms": 0.193,
         "normalized_query": "tokio uds connection timeout error",
         "executed_query": "tokio OR uds OR connection OR timeout OR error",
         "candidates": [
@@ -730,7 +730,7 @@
       },
       {
         "query_id": "q_013",
-        "latency_ms": 0.119208,
+        "latency_ms": 0.12079200000000001,
         "normalized_query": "increase connect timeout",
         "executed_query": "increase OR connect OR timeout",
         "candidates": [
@@ -747,7 +747,7 @@
       },
       {
         "query_id": "q_014",
-        "latency_ms": 0.21562499999999998,
+        "latency_ms": 0.2255,
         "normalized_query": "blanket implementation macro for capability deserialization",
         "executed_query": "blanket OR implementation OR macro OR for OR capability OR deserialization",
         "candidates": [
@@ -782,7 +782,7 @@
       },
       {
         "query_id": "q_015",
-        "latency_ms": 0.052542,
+        "latency_ms": 0.055208,
         "normalized_query": "erasedcapability",
         "executed_query": "erasedcapability",
         "candidates": [
@@ -799,14 +799,14 @@
       },
       {
         "query_id": "q_016",
-        "latency_ms": 0.07966699999999999,
+        "latency_ms": 0.08399999999999999,
         "normalized_query": "how do extensions work",
         "executed_query": "how OR do OR extensions OR work",
         "candidates": []
       },
       {
         "query_id": "q_017",
-        "latency_ms": 0.173666,
+        "latency_ms": 0.18837500000000001,
         "normalized_query": "duckdb analytics database initialization error",
         "executed_query": "duckdb OR analytics OR database OR initialization OR error",
         "candidates": [
@@ -832,7 +832,7 @@
       },
       {
         "query_id": "q_018",
-        "latency_ms": 0.113292,
+        "latency_ms": 0.12279200000000001,
         "normalized_query": "relational memory engine",
         "executed_query": "relational OR memory OR engine",
         "candidates": [
@@ -849,7 +849,7 @@
       },
       {
         "query_id": "q_019",
-        "latency_ms": 0.14100000000000001,
+        "latency_ms": 0.15312499999999998,
         "normalized_query": "recent sqlite graph changes",
         "executed_query": "recent OR sqlite OR graph OR changes",
         "candidates": [
@@ -866,7 +866,7 @@
       },
       {
         "query_id": "q_020",
-        "latency_ms": 0.114,
+        "latency_ms": 0.121625,
         "normalized_query": "sqllite ltm databse",
         "executed_query": "sqllite OR ltm OR databse",
         "candidates": [
@@ -883,7 +883,7 @@
       },
       {
         "query_id": "q_021",
-        "latency_ms": 0.17408300000000002,
+        "latency_ms": 0.189625,
         "normalized_query": "type erased registration dynamic mapping",
         "executed_query": "type OR erased OR registration OR dynamic OR mapping",
         "candidates": [
@@ -900,7 +900,7 @@
       },
       {
         "query_id": "q_022",
-        "latency_ms": 0.051208000000000004,
+        "latency_ms": 0.055083,
         "normalized_query": "fuzzyretrieval",
         "executed_query": "fuzzyretrieval",
         "candidates": [
@@ -917,7 +917,7 @@
       },
       {
         "query_id": "q_023",
-        "latency_ms": 0.178125,
+        "latency_ms": 0.19370800000000002,
         "normalized_query": "graceful worker draining check sleep",
         "executed_query": "graceful OR worker OR draining OR check OR sleep",
         "candidates": [
@@ -943,7 +943,7 @@
       },
       {
         "query_id": "q_024",
-        "latency_ms": 0.235167,
+        "latency_ms": 0.249208,
         "normalized_query": "how are messages exchanged over uds ipc",
         "executed_query": "how OR are OR messages OR exchanged OR over OR uds OR ipc",
         "candidates": [

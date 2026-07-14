@@ -34,7 +34,7 @@ pub mod test_utils;
 pub use test_utils::TestStorage;
 
 pub use store::SqliteStorage;
-pub use event_log::{StoredEvent, SqliteEventLog};
+pub use event_log::{StoredEvent, SqliteEventLog, EventLogRepository};
 pub use projection_checkpoint::SqliteProjectionCheckpointRepository;
 pub use jobs_projection::{JobReadModel, SqliteJobReadModelRepository};
 pub use sessions_projection::{SessionReadModel, SqliteSessionReadModelRepository, ReadModelRepository};

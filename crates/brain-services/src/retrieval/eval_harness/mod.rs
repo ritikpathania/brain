@@ -12,6 +12,15 @@ pub mod semantic_retriever;
 pub mod hybrid_retriever;
 /// Linear ranking and feature extraction.
 pub mod ranking;
+/// Feature context metadata provider.
+pub mod provider;
+/// Calibration and weights optimization engine.
+pub mod calibration;
+
+pub use calibration::{
+    CalibrationObjective, CalibrationOptions, CalibrationResult, EvaluationSession,
+    CalibrationEngine, MarkdownReportWriter, QueryEvaluationCache,
+};
 
 pub use fts_retriever::FtsRetriever;
 pub use runner::{
@@ -22,6 +31,7 @@ pub use regression::{compare_stable_reports, StableReportDiff};
 pub use semantic_retriever::SemanticRetriever;
 pub use hybrid_retriever::HybridRetriever;
 pub use ranking::{RankingWeights, LinearRanker, RankingRetriever};
+pub use provider::FeatureProvider;
 
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
@@ -262,31 +272,127 @@ pub struct FeatureVector {
     pub lexical_similarity: Option<f64>,
     /// Score from vector semantic similarity, if discovered via Semantic search.
     pub semantic_similarity: Option<f64>,
-    /// Temporal recency score (e.g. decayed timestamp delta).
+    /// Temporal recency score (decayed updated_at delta).
     pub recency: Option<f64>,
-    /// Static importance score of the node.
+    /// Combined static importance and pinning flag.
     pub importance: Option<f64>,
     /// Confidence of the source ingestion provenance.
     pub provenance_confidence: Option<f64>,
-    /// Graph distance/adjacency score.
-    pub graph_distance: Option<f64>,
+    /// Log-scaled graph degree.
+    pub graph_degree: Option<f64>,
+    /// Log-scaled access frequency.
+    pub access_frequency: Option<f64>,
+    /// Freshness decay (decayed last_observed_at delta).
+    pub freshness_decay: Option<f64>,
+}
+
+/// Half-life configuration parameters for exponential time decays.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RankingDecay {
+    /// Half-life for updated_at recency decay in days.
+    pub recency_half_life_days: f64,
+    /// Half-life for freshness decay (based on last edge observation) in days.
+    pub freshness_half_life_days: f64,
+}
+
+impl Default for RankingDecay {
+    fn default() -> Self {
+        Self {
+            recency_half_life_days: 7.0,   // 1 week half-life
+            freshness_half_life_days: 1.0, // 1 day half-life
+        }
+    }
+}
+
+/// Immutable database snapshot context used to construct a feature vector.
+#[derive(Debug, Clone, PartialEq)]
+pub struct FeatureContext {
+    /// Timestamp when the node was updated.
+    pub updated_at: Option<u64>,
+    /// Importance score assigned to the node.
+    pub importance: Option<f64>,
+    /// Pinned indicator.
+    pub pinned: bool,
+    /// Provenance confidence score.
+    pub provenance_confidence: Option<f64>,
+    /// Number of edges connected to this node in the graph.
+    pub graph_degree: Option<u32>,
+    /// Ingestion/Interaction selection count.
+    pub access_count: Option<u64>,
+    /// Most recent observed timestamp across all connecting edges.
+    pub last_observed_at: Option<u64>,
 }
 
 /// Pure translation layer extracting raw channel-local features from candidate RetrievalResult.
-pub struct FeatureExtractor;
+pub struct FeatureExtractor {
+    /// Reference time point used to calculate age deltas.
+    pub reference_time: u64,
+    /// Exponential decay parameters.
+    pub decay: RankingDecay,
+}
 
 impl FeatureExtractor {
-    /// Purely extracts a FeatureVector from retrieval evidence.
+    /// Instantiates a new FeatureExtractor with reference time and decay parameters.
+    pub fn new(reference_time: u64, decay: RankingDecay) -> Self {
+        Self { reference_time, decay }
+    }
+
+    /// Purely extracts a FeatureVector from retrieval evidence and database context.
     /// Feature extraction is pure: it derives features only from retrieval evidence and immutable metadata.
     /// It must not perform additional retrieval, graph traversal, or ranking.
-    pub fn extract(result: &RetrievalResult) -> FeatureVector {
+    pub fn extract(&self, result: &RetrievalResult, context: &FeatureContext) -> FeatureVector {
+        let lexical_similarity = result.score(RetrievalChannel::Fts);
+        let semantic_similarity = result.score(RetrievalChannel::Semantic);
+
+        // 1. Recency Decay
+        let recency = context.updated_at.map(|updated_at| {
+            let dt = (self.reference_time.saturating_sub(updated_at)) as f64;
+            let half_life_sec = self.decay.recency_half_life_days * 86400.0;
+            if half_life_sec <= 0.0 {
+                1.0
+            } else {
+                let tau = half_life_sec / 2.0f64.ln();
+                (-dt / tau).exp()
+            }
+        });
+
+        // 2. Importance
+        let importance = if context.pinned {
+            Some(1.0)
+        } else {
+            context.importance.or(Some(0.0))
+        };
+
+        // 3. Provenance Confidence
+        let provenance_confidence = context.provenance_confidence.or(Some(1.0));
+
+        // 4. Log-scaled Graph Degree
+        let graph_degree = context.graph_degree.map(|degree| (degree as f64 + 1.0).ln());
+
+        // 5. Log-scaled Access Frequency
+        let access_frequency = context.access_count.map(|count| (count as f64 + 1.0).ln());
+
+        // 6. Freshness Decay
+        let freshness_decay = context.last_observed_at.map(|last_observed| {
+            let dt = (self.reference_time.saturating_sub(last_observed)) as f64;
+            let half_life_sec = self.decay.freshness_half_life_days * 86400.0;
+            if half_life_sec <= 0.0 {
+                1.0
+            } else {
+                let tau = half_life_sec / 2.0f64.ln();
+                (-dt / tau).exp()
+            }
+        });
+
         FeatureVector {
-            lexical_similarity: result.score(RetrievalChannel::Fts),
-            semantic_similarity: result.score(RetrievalChannel::Semantic),
-            recency: None,
-            importance: None,
-            provenance_confidence: None,
-            graph_distance: None,
+            lexical_similarity,
+            semantic_similarity,
+            recency,
+            importance,
+            provenance_confidence,
+            graph_degree,
+            access_frequency,
+            freshness_decay,
         }
     }
 }

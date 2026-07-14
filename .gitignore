@@ -58,13 +58,21 @@ target/
 
 # Compiled binaries
 brain
+brain-daemon
 cli/bin/brain
 cli/bin/brain_tui
 
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
 
 # AI / Dev Agent Directories
 .code-review-graph/
 .junie/
+.superpowers/
+# Ignore temporary agent UUID workspaces
+[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/
 
 # Test Outputs & Run Captures
 cli/tests/captures/
