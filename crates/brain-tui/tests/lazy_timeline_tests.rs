@@ -38,6 +38,20 @@ fn test_lazy_timeline_rendering() {
     
     state.active_tool_calls.push(tool_call.clone());
     
+    // Populate timeline items to match the new persistent timeline presentation model
+    state.timeline.push((
+        brain_tui::ui::interaction::timeline::EventOrdinal(1),
+        brain_tui::ui::interaction::timeline::TimelineItem::Message(LocalMessageId(1)),
+    ));
+    state.timeline.push((
+        brain_tui::ui::interaction::timeline::EventOrdinal(2),
+        brain_tui::ui::interaction::timeline::TimelineItem::Message(LocalMessageId(0)),
+    ));
+    state.timeline.push((
+        brain_tui::ui::interaction::timeline::EventOrdinal(3),
+        brain_tui::ui::interaction::timeline::TimelineItem::ToolExecution(ToolCallId("call_123".to_string())),
+    ));
+    
     // Scenario 1: Logs collapsed by default
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();

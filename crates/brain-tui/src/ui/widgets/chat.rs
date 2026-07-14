@@ -106,6 +106,9 @@ fn map_span<'a>(span: &VisualSpan, theme: &Theme, is_selected: bool) -> Span<'a>
         VisualStyle::Selected => {
             style = style.bg(Color::LightBlue).fg(Color::Black);
         }
+        VisualStyle::EntityReference(_) => {
+            style = style.fg(theme.accent.fg.unwrap_or(Color::Cyan)).add_modifier(Modifier::UNDERLINED);
+        }
         VisualStyle::Normal => {
             style = theme.text;
         }

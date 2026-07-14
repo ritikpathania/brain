@@ -76,6 +76,13 @@ pub enum InlineNode {
     InlineCode(String),
     /// Footnote or literature citation reference token.
     Citation(String),
+    /// Interactive graph node reference.
+    EntityReference {
+        /// Display label of the entity link.
+        label: String,
+        /// The referenced NodeId.
+        node_id: brain_domain::NodeId,
+    },
 }
 
 /// Aligned table data structure.
@@ -144,6 +151,8 @@ pub enum VisualStyle {
     Citation,
     /// Highlighted selected text style.
     Selected,
+    /// Traversable entity reference link style.
+    EntityReference(brain_domain::NodeId),
 }
 
 /// UI-agnostic visual span representing styled text.
@@ -521,14 +530,50 @@ fn parse_inline(text: &str) -> Vec<InlineNode> {
                     idx += 1;
                 }
             }
-            if closed && (cit_content.chars().all(|c| c.is_numeric()) || cit_content.starts_with('^')) {
-                nodes.push(InlineNode::Citation(cit_content));
+            if closed {
+                let mut is_link = false;
+                if idx < chars.len() && chars[idx] == '(' {
+                    let start_paren = idx;
+                    idx += 1;
+                    let mut target = String::new();
+                    let mut paren_closed = false;
+                    while idx < chars.len() {
+                        if chars[idx] == ')' {
+                            idx += 1;
+                            paren_closed = true;
+                            break;
+                        } else {
+                            target.push(chars[idx]);
+                            idx += 1;
+                        }
+                    }
+                    if paren_closed && target.starts_with("node:") {
+                        let uuid_str = target.trim_start_matches("node:").trim();
+                        if let Ok(parsed_uuid) = uuid::Uuid::parse_str(uuid_str) {
+                            nodes.push(InlineNode::EntityReference {
+                                label: cit_content.clone(),
+                                node_id: brain_domain::NodeId(parsed_uuid),
+                            });
+                            is_link = true;
+                        }
+                    }
+                    if !is_link {
+                        idx = start_paren;
+                    }
+                }
+                
+                if !is_link {
+                    if cit_content.chars().all(|c| c.is_numeric()) || cit_content.starts_with('^') {
+                        nodes.push(InlineNode::Citation(cit_content));
+                    } else {
+                        current_text.push('[');
+                        current_text.push_str(&cit_content);
+                        current_text.push(']');
+                    }
+                }
             } else {
                 current_text.push('[');
                 current_text.push_str(&cit_content);
-                if closed {
-                    current_text.push(']');
-                }
             }
             continue;
         }
@@ -575,6 +620,7 @@ impl MarkdownLayout {
                             InlineNode::Italic(t) => (t.clone(), VisualStyle::Italic),
                             InlineNode::InlineCode(t) => (t.clone(), VisualStyle::InlineCode),
                             InlineNode::Citation(t) => (format!("[{}]", t), VisualStyle::Citation),
+                            InlineNode::EntityReference { label, node_id } => (label.clone(), VisualStyle::EntityReference(*node_id)),
                         };
                         spans.push(VisualSpan::new(text, style));
                     }

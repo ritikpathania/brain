@@ -191,6 +191,25 @@ const MIGRATIONS: &[&str] = &[
         tokenize='unicode61'
     );
     "#,
+    // Version 13 Schema Setup (External-Content FTS5 table for nodes)
+    r#"
+    CREATE VIRTUAL TABLE IF NOT EXISTS node_search USING fts5(
+        label,
+        content='nodes',
+        tokenize='unicode61'
+    );
+    CREATE TRIGGER IF NOT EXISTS trg_nodes_insert AFTER INSERT ON nodes BEGIN
+        INSERT INTO node_search(rowid, label) VALUES (new.rowid, new.label);
+    END;
+    CREATE TRIGGER IF NOT EXISTS trg_nodes_delete AFTER DELETE ON nodes BEGIN
+        INSERT INTO node_search(node_search, rowid, label) VALUES('delete', old.rowid, old.label);
+    END;
+    CREATE TRIGGER IF NOT EXISTS trg_nodes_update AFTER UPDATE ON nodes BEGIN
+        INSERT INTO node_search(node_search, rowid, label) VALUES('delete', old.rowid, old.label);
+        INSERT INTO node_search(rowid, label) VALUES (new.rowid, new.label);
+    END;
+    INSERT INTO node_search(rowid, label) SELECT rowid, label FROM nodes;
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.

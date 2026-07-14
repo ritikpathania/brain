@@ -26,6 +26,10 @@ pub struct ExecutionRequest {
     pub options: ExecutionOptions,
     /// Token for hierarchical cancellation.
     pub cancellation_token: CancellationToken,
+    /// Optional list of pinned node IDs to forward as workspace context to the daemon.
+    /// Present only when the user explicitly enabled `submit_with_workspace`.
+    /// Old daemons that do not recognise the field will ignore it safely.
+    pub workspace_context: Option<Vec<brain_domain::NodeId>>,
 }
 
 /// Opaque wrapper encapsulating streaming events and cancellation controls.
@@ -89,6 +93,9 @@ pub trait ExecutionClient: Send + Sync {
 
     /// Searches historical messages across all sessions.
     async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError>;
+
+    /// Queries the complete inspector model for a node.
+    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError>;
 }
 
 use tokio::net::UnixStream;
@@ -130,8 +137,10 @@ enum UdsStreamEvent {
         #[serde(rename = "streamId")]
         _stream_id: String,
         sequence: u64,
+        /// Daemon-echoed context_used lives here. Using serde(default) means
+        /// old daemons that send `metadata: {}` still parse cleanly.
         #[serde(default)]
-        _metadata: serde_json::Value,
+        metadata: serde_json::Value,
     },
     #[serde(rename = "stream_cancelled")]
     Cancelled {
@@ -150,12 +159,15 @@ struct UdsErrorResponse {
     body: Option<String>,
 }
 
-fn map_uds_event(uds_ev: UdsStreamEvent) -> CoreStreamEvent {
+/// Maps a single UDS wire event to one or more core stream events.
+/// Returns a Vec because `stream_end` may yield both `WorkspaceContextUsed`
+/// and `Finished` when the daemon echoes `context_used`.
+fn map_uds_event(uds_ev: UdsStreamEvent) -> Vec<CoreStreamEvent> {
     let execution_id = Uuid::new_v4();
     let timestamp = std::time::SystemTime::now();
 
     match uds_ev {
-        UdsStreamEvent::Start { .. } => CoreStreamEvent {
+        UdsStreamEvent::Start { .. } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence: 0,
@@ -165,8 +177,8 @@ fn map_uds_event(uds_ev: UdsStreamEvent) -> CoreStreamEvent {
                 name: "Start".to_string(),
                 active: true,
             },
-        },
-        UdsStreamEvent::Progress { sequence, progress, message, .. } => CoreStreamEvent {
+        }],
+        UdsStreamEvent::Progress { sequence, progress, message, .. } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence,
@@ -176,33 +188,60 @@ fn map_uds_event(uds_ev: UdsStreamEvent) -> CoreStreamEvent {
                 message,
                 percentage: Some(progress as f32),
             },
-        },
-        UdsStreamEvent::Chunk { sequence, content, .. } => CoreStreamEvent {
+        }],
+        UdsStreamEvent::Chunk { sequence, content, .. } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence,
                 timestamp,
             },
             kind: StreamEventKind::Token(content),
-        },
-        UdsStreamEvent::End { sequence, .. } => CoreStreamEvent {
-            metadata: EventMetadata {
-                execution_id,
-                sequence,
-                timestamp,
-            },
-            kind: StreamEventKind::Finished {
-                response: "".to_string(),
-            },
-        },
-        UdsStreamEvent::Cancelled { sequence, .. } => CoreStreamEvent {
+        }],
+        UdsStreamEvent::End { sequence, metadata, .. } => {
+            // Extract context_used from stream_end metadata. Old daemons that
+            // send `metadata: {}` produce an empty Vec here and only Finished
+            // is emitted, so the path is backward-compatible.
+            let context_used: Vec<String> = metadata
+                .get("context_used")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            let finished = CoreStreamEvent {
+                metadata: EventMetadata {
+                    execution_id,
+                    sequence,
+                    timestamp,
+                },
+                kind: StreamEventKind::Finished {
+                    response: "".to_string(),
+                },
+            };
+
+            if context_used.is_empty() {
+                vec![finished]
+            } else {
+                // WorkspaceContextUsed emitted first so the main loop can set the
+                // transient message before the stream closes.
+                let ctx_event = CoreStreamEvent {
+                    metadata: EventMetadata {
+                        execution_id,
+                        sequence,
+                        timestamp,
+                    },
+                    kind: StreamEventKind::WorkspaceContextUsed(context_used),
+                };
+                vec![ctx_event, finished]
+            }
+        }
+        UdsStreamEvent::Cancelled { sequence, .. } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence,
                 timestamp,
             },
             kind: StreamEventKind::Cancelled,
-        },
+        }],
     }
 }
 
@@ -241,14 +280,21 @@ impl ExecutionClient for UdsClient {
             }
         })?;
 
-        let payload = serde_json::json!({
+        // Build wire payload. `body` remains a plain String for backward compat.
+        // `workspace_context` is added as a top-level sibling only when present;
+        // old daemons that do not recognise the field will ignore it safely.
+        let mut payload = serde_json::json!({
             "version": "1.0",
             "type": "Request",
             "id": 1,
             "action": "query",
             "body": req.prompt
         });
-        
+        if let Some(ref node_ids) = req.workspace_context {
+            let ids: Vec<String> = node_ids.iter().map(|id| id.to_string()).collect();
+            payload["workspace_context"] = serde_json::json!(ids);
+        }
+
         let mut payload_str = serde_json::to_string(&payload).unwrap();
         payload_str.push('\n');
         
@@ -285,10 +331,17 @@ impl ExecutionClient for UdsClient {
                                 let trim_line = line.trim();
                                 if !trim_line.is_empty() {
                                     if let Ok(uds_ev) = serde_json::from_str::<UdsStreamEvent>(trim_line) {
-                                        let core_ev = map_uds_event(uds_ev);
-                                        let is_finished = matches!(core_ev.kind, StreamEventKind::Finished { .. }) || matches!(core_ev.kind, StreamEventKind::Cancelled);
-                                        let _ = tx.send(Ok(core_ev));
-                                        if is_finished {
+                                        let core_events = map_uds_event(uds_ev);
+                                        let mut should_break = false;
+                                        for core_ev in core_events {
+                                            let is_finished = matches!(core_ev.kind, StreamEventKind::Finished { .. })
+                                                || matches!(core_ev.kind, StreamEventKind::Cancelled);
+                                            let _ = tx.send(Ok(core_ev));
+                                            if is_finished {
+                                                should_break = true;
+                                            }
+                                        }
+                                        if should_break {
                                             break;
                                         }
                                     } else if let Ok(err_resp) = serde_json::from_str::<UdsErrorResponse>(trim_line) {
@@ -344,6 +397,69 @@ impl ExecutionClient for UdsClient {
     async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
         Ok(vec![])
     }
+
+    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        let mut stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
+            BrainError::Network {
+                message: format!("Failed to connect to UDS daemon: {}", e),
+                url: None,
+            }
+        })?;
+
+        let payload = serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": 1,
+            "action": "inspect_node",
+            "body": id.to_string()
+        });
+        
+        let mut payload_str = serde_json::to_string(&payload).unwrap();
+        payload_str.push('\n');
+        
+        stream.write_all(payload_str.as_bytes()).await.map_err(|e| {
+            BrainError::Storage {
+                message: format!("Failed to send inspect_node request: {}", e),
+                source: None,
+            }
+        })?;
+        stream.flush().await.map_err(|e| {
+            BrainError::Storage {
+                message: format!("Failed to flush UDS stream: {}", e),
+                source: None,
+            }
+        })?;
+
+        let (reader, _) = stream.split();
+        let mut buf_reader = BufReader::new(reader);
+        let mut line = String::new();
+        
+        if buf_reader.read_line(&mut line).await.is_ok() {
+            let trim_line = line.trim();
+            if !trim_line.is_empty() {
+                #[derive(serde::Deserialize)]
+                struct UdsResponse {
+                    status: String,
+                    body: String,
+                }
+                if let Ok(resp) = serde_json::from_str::<UdsResponse>(trim_line) {
+                    if resp.status == "success" {
+                        if let Ok(model) = serde_json::from_str::<brain_domain::query::inspector::InspectorModel>(&resp.body) {
+                            return Ok(model);
+                        }
+                    }
+                }
+                if let Ok(err_resp) = serde_json::from_str::<UdsErrorResponse>(trim_line) {
+                    if err_resp.status == "error" {
+                        let msg = err_resp.body.or(err_resp.message).unwrap_or_else(|| "Unknown daemon error".to_string());
+                        return Err(BrainError::Internal { message: msg });
+                    }
+                }
+            }
+        }
+        
+        Err(BrainError::Internal { message: "Failed to read inspection details from daemon".to_string() })
+    }
 }
 
 #[cfg(test)]
@@ -394,6 +510,28 @@ mod tests {
         async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
             Ok(vec![])
         }
+
+        async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+            let entity = brain_domain::dtos::NodeDTO::new(
+                id.to_string(),
+                "Mock Node".to_string(),
+                "Technology".to_string(),
+                serde_json::Value::Null,
+            );
+            Ok(brain_domain::query::inspector::InspectorModel {
+                entity,
+                metadata: std::collections::HashMap::new(),
+                relationships: vec![],
+                provenance: brain_domain::query::inspector::ProvenanceDTO {
+                    source: "Mock".to_string(),
+                    location: "Mock Location".to_string(),
+                    timestamp: 0,
+                    extra_info: std::collections::HashMap::new(),
+                },
+                retrieval_explanation: None,
+                recent_activity: vec![],
+            })
+        }
     }
 
     #[tokio::test]
@@ -405,6 +543,7 @@ mod tests {
             prompt: "Hi".to_string(),
             options: ExecutionOptions::default(),
             cancellation_token: token,
+            workspace_context: None,
         };
         let mut receiver = client.execute(req).await.unwrap();
         let first = receiver.recv().await.unwrap().unwrap();

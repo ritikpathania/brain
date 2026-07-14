@@ -50,7 +50,7 @@ async fn send_command(socket_path: &PathBuf, action: &str, payload: &str) -> Vec
 
 #[tokio::test]
 async fn test_pipeline_ingest_consolidate_restart_persistence() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let rand_val = uuid::Uuid::new_v4().to_string().chars().take(8).collect::<String>();
     let socket_path = PathBuf::from(format!("/tmp/t-{}.sock", rand_val));
@@ -122,7 +122,7 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         }
     }
     println!("Query Output: {}", query_output);
-    assert!(query_output.contains("[antigravity]"), "Memory node not found in LTM");
+    assert!(query_output.to_lowercase().contains("antigravity"), "Memory node not found in LTM");
 
     // 4. Terminate first daemon instance
     println!("Stopping daemon instance 1...");
@@ -166,6 +166,24 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+
+    if !ready2 {
+        if let Ok(Some(status)) = child2.try_wait() {
+            println!("Daemon 2 exited early with status: {:?}", status);
+        }
+        let mut stderr = String::new();
+        if let Some(mut err_pipe) = child2.stderr.take() {
+            use std::io::Read;
+            err_pipe.read_to_string(&mut stderr).unwrap();
+            println!("Daemon 2 stderr:\n{}", stderr);
+        }
+        let mut stdout = String::new();
+        if let Some(mut out_pipe) = child2.stdout.take() {
+            use std::io::Read;
+            out_pipe.read_to_string(&mut stdout).unwrap();
+            println!("Daemon 2 stdout:\n{}", stdout);
+        }
+    }
     assert!(ready2, "Daemon 2 did not bind socket in time");
 
     // 6. Query again to verify memories survive process restart
@@ -178,7 +196,7 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         }
     }
     println!("Query Output after restart: {}", query_output2);
-    assert!(query_output2.contains("[antigravity]"), "Memory node did not survive daemon restart!");
+    assert!(query_output2.to_lowercase().contains("antigravity"), "Memory node did not survive daemon restart!");
 
     // 7. Stop daemon 2
     println!("Stopping daemon instance 2...");

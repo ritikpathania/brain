@@ -30,6 +30,11 @@ impl SqliteStorage {
         Ok(Self { pool })
     }
 
+    /// Constructs a storage instance directly from an existing pool.
+    pub fn from_pool(pool: r2d2::Pool<crate::connection::SqliteConnectionManager>) -> Self {
+        Self { pool }
+    }
+
     /// Exposes the underlying connection pool.
     pub fn pool(&self) -> &r2d2::Pool<crate::connection::SqliteConnectionManager> {
         &self.pool

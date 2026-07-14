@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "schema_version": 1,
+  "corpus_version": 1,
+  "status": "frozen",
+  "queries": [
+    {
+      "query_id": "q_001",
+      "text": "How do I configure TypeScript client UDS?",
+      "tags": ["sdk", "typescript", "uds"]
+    },
+    {
+      "query_id": "q_002",
+      "text": "typescript clent socket configuration path",
+      "tags": ["sdk", "typescript", "typo"]
+    },
+    {
+      "query_id": "q_003",
+      "text": "configure TS UDS",
+      "tags": ["sdk", "partial"]
+    },
+    {
+      "query_id": "q_004",
+      "text": "How does the Python plugin loader scan files?",
+      "tags": ["plugins", "python"]
+    },
+    {
+      "query_id": "q_005",
+      "text": "loading external scripts via pyo3 modules",
+      "tags": ["plugins", "ambiguous"]
+    },
+    {
+      "query_id": "q_006",
+      "text": "parse daemon command line arguments",
+      "tags": ["cli", "arguments"]
+    },
+    {
+      "query_id": "q_007",
+      "text": "What happens during background daemon lifecycle?",
+      "tags": ["daemon", "lifecycle", "broad"]
+    },
+    {
+      "query_id": "q_008",
+      "text": "handling SIGTERM signal in daemon main",
+      "tags": ["daemon", "sigterm", "narrow"]
+    },
+    {
+      "query_id": "q_009",
+      "text": "DaemonCleanupGuard",
+      "tags": ["daemon", "entity"]
+    },
+    {
+      "query_id": "q_010",
+      "text": "removing stale file on start",
+      "tags": ["daemon", "recovery", "ambiguous"]
+    },
+    {
+      "query_id": "q_011",
+      "text": "damon cleanp gard drop",
+      "tags": ["daemon", "typo"]
+    },
+    {
+      "query_id": "q_012",
+      "text": "tokio uds connection timeout error",
+      "tags": ["uds", "timeout"]
+    },
+    {
+      "query_id": "q_013",
+      "text": "increase connect timeout",
+      "tags": ["uds", "partial"]
+    },
+    {
+      "query_id": "q_014",
+      "text": "blanket implementation macro for capability deserialization",
+      "tags": ["capability", "macro"]
+    },
+    {
+      "query_id": "q_015",
+      "text": "ErasedCapability",
+      "tags": ["capability", "entity"]
+    },
+    {
+      "query_id": "q_016",
+      "text": "how do extensions work",
+      "tags": ["plugins", "broad"]
+    },
+    {
+      "query_id": "q_017",
+      "text": "duckdb analytics database initialization error",
+      "tags": ["analytics", "duckdb"]
+    },
+    {
+      "query_id": "q_018",
+      "text": "relational memory engine",
+      "tags": ["ltm", "broad"]
+    },
+    {
+      "query_id": "q_019",
+      "text": "recent sqlite graph changes",
+      "tags": ["ltm", "sqlite", "temporal"]
+    },
+    {
+      "query_id": "q_020",
+      "text": "sqllite ltm databse",
+      "tags": ["ltm", "sqlite", "typo"]
+    },
+    {
+      "query_id": "q_021",
+      "text": "type erased registration dynamic mapping",
+      "tags": ["capability", "ambiguous"]
+    },
+    {
+      "query_id": "q_022",
+      "text": "FuzzyRetrieval",
+      "tags": ["search", "entity"]
+    },
+    {
+      "query_id": "q_023",
+      "text": "graceful worker draining check sleep",
+      "tags": ["daemon", "shutdown", "ambiguous"]
+    },
+    {
+      "query_id": "q_024",
+      "text": "how are messages exchanged over UDS IPC",
+      "tags": ["uds", "ipc", "broad"]
+    }
+  ]
+}

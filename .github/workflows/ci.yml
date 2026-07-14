@@ -34,10 +34,6 @@ jobs:
         run: |
           cargo fmt --all -- --check
 
-      - name: Run Clippy
-        run: |
-          cargo clippy --workspace --all-targets -- -D warnings
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -52,6 +48,10 @@ jobs:
         run: |
           cd daemon
           uv sync
+
+      - name: Run Clippy
+        run: |
+          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Check Python Format (Ruff)
         run: |

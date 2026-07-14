@@ -11,6 +11,9 @@ pub struct PromptView {
     pub cursor_position: usize,
     /// Whether the editor currently has focus.
     pub has_focus: bool,
+    /// When true, the next submission will include the Active Workspace context.
+    /// Renders as `[With WS]` in the prompt border title.
+    pub submit_with_workspace: bool,
 }
 
 /// Renders the input prompt bar widget.
@@ -21,8 +24,14 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
         theme.border
     };
 
+    let title = if view.submit_with_workspace {
+        " Prompt  [With WS] "
+    } else {
+        " Prompt "
+    };
+
     let block = Block::default()
-        .title(" Prompt ")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(border_style);
 

@@ -157,6 +157,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
                 } else {
                     theme.inactive.add_modifier(ratatui::style::Modifier::REVERSED)
                 }
+            } else if s.active {
+                theme.primary.add_modifier(ratatui::style::Modifier::BOLD)
             } else {
                 theme.text
             };

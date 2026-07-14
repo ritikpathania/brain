@@ -1,0 +1,205 @@
+{
+  "version": 1,
+  "schema_version": 1,
+  "corpus_version": 1,
+  "status": "frozen",
+  "nodes": [
+    {
+      "node_id": "00000000-0000-0000-0000-000000000001",
+      "content": "Configure the TypeScript client UDS transport by specifying socket path configuration for UdsTransport.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000002",
+      "content": "Python plugin loader: searches and dynamically instantiates pyo3 modules from plugins/ directory scripts.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000003",
+      "content": "Command line arguments parser handles daemon run, start, stop, and status subcommands.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000004",
+      "content": "Background daemon lifecycle signals: SIGINT and SIGTERM trigger worker draining and cleanup.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000005",
+      "content": "DaemonCleanupGuard implements Drop to remove stale PID and socket files dynamically on startup.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000006",
+      "content": "Test socket connections timeout increased to 10s to prevent parallel CPU test latency UDS IPC flake.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000007",
+      "content": "ErasedCapability uses blanket implementation macros to dynamically deserialize JSON arguments for type-erased registration.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000008",
+      "content": "DuckDB analytics database is used to export metrics and query telemetry data.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000009",
+      "content": "SQLite LTM database serves as the persistent Long-Term Memory graph storage for relational memory engine.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000010",
+      "content": "FuzzyRetrieval implements keyword matching using the fuzzy-matcher crate.",
+      "type": "Concept"
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000011",
+      "content": "Graceful worker draining checks active workers and sleeps in 100ms increments up to 5s check.",
+      "type": "Concept"
+    }
+  ],
+  "ground_truth": {
+    "q_001": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000001"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000001": 1
+      }
+    },
+    "q_002": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000001"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_003": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000001"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_004": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000002"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000002": 1
+      }
+    },
+    "q_005": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000002"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_006": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000003"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000003": 1
+      }
+    },
+    "q_007": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000004"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000005", "00000000-0000-0000-0000-000000000011"],
+      "minimum_rank": {}
+    },
+    "q_008": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000004"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000004": 1
+      }
+    },
+    "q_009": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000005"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000005": 1
+      }
+    },
+    "q_010": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000005"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_011": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000005"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_012": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000006"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000006": 1
+      }
+    },
+    "q_013": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000006"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_014": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000007"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000007": 1
+      }
+    },
+    "q_015": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000007"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000007": 1
+      }
+    },
+    "q_016": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000002"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_017": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000008"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000008": 1
+      }
+    },
+    "q_018": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000009"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000008"],
+      "minimum_rank": {}
+    },
+    "q_019": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000009"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_020": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000009"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_021": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000007"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_022": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000010"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {
+        "00000000-0000-0000-0000-000000000010": 1
+      }
+    },
+    "q_023": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000011"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000004"],
+      "minimum_rank": {}
+    },
+    "q_024": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000006"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000001"],
+      "minimum_rank": {}
+    }
+  }
+}

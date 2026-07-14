@@ -13,7 +13,13 @@ pub struct VersionedRequest {
     pub msg_type: String, // "Request"
     pub id: u64,
     pub action: String,
+    /// Plain prompt text. Type unchanged for backward compatibility with old daemons.
     pub body: String,
+    /// Optional workspace node IDs supplied by the TUI client.
+    /// Old daemons that do not know this field will ignore it (serde default = empty Vec).
+    /// Omitted from serialisation when empty to keep clean wire frames for old clients.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workspace_context: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -303,6 +309,7 @@ mod tests {
             id: 101,
             action: "ingest".to_string(),
             body: "postgres config".to_string(),
+            workspace_context: vec![],
         });
         let json_versioned_req = serde_json::to_value(&versioned_req).unwrap();
         assert!(req_validator.validate(&json_versioned_req).is_ok());
@@ -433,5 +440,47 @@ mod tests {
         let mut bad_versioned_err = json_versioned_err.clone();
         bad_versioned_err.as_object_mut().unwrap().insert("version".to_string(), serde_json::json!("2.0"));
         assert!(resp_validator.validate(&bad_versioned_err).is_err());
+    }
+
+    // --- RFC-007 workspace_context serialization tests ---
+
+    #[test]
+    fn test_workspace_context_absent_when_empty() {
+        // When workspace_context is empty (not supplied), it MUST NOT appear in
+        // the serialised JSON so old daemons receive a clean wire frame.
+        let req = VersionedRequest {
+            version: "1.0".to_string(),
+            msg_type: "Request".to_string(),
+            id: 1,
+            action: "query".to_string(),
+            body: "hello".to_string(),
+            workspace_context: vec![],
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        assert!(
+            !json.contains("workspace_context"),
+            "workspace_context must not appear in JSON when empty; got: {}",
+            json
+        );
+    }
+
+    #[test]
+    fn test_workspace_context_serializes_when_present() {
+        // When workspace_context is non-empty, it MUST appear as a top-level
+        // sibling array of strings.
+        let req = VersionedRequest {
+            version: "1.0".to_string(),
+            msg_type: "Request".to_string(),
+            id: 1,
+            action: "query".to_string(),
+            body: "hello".to_string(),
+            workspace_context: vec!["node-aaa".to_string(), "node-bbb".to_string()],
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let ctx = parsed["workspace_context"].as_array().expect("workspace_context must be an array");
+        assert_eq!(ctx.len(), 2);
+        assert_eq!(ctx[0].as_str().unwrap(), "node-aaa");
+        assert_eq!(ctx[1].as_str().unwrap(), "node-bbb");
     }
 }

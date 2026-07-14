@@ -33,6 +33,28 @@ impl ExecutionClient for MockSearchClient {
         let m1 = Message::new(DomainMessageId::new(), MessageRole::User, format!("Found message: {}", query));
         Ok(vec![m1])
     }
+
+    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        let entity = brain_domain::dtos::NodeDTO::new(
+            id.to_string(),
+            "Mock Node".to_string(),
+            "Technology".to_string(),
+            serde_json::Value::Null,
+        );
+        Ok(brain_domain::query::inspector::InspectorModel {
+            entity,
+            metadata: std::collections::HashMap::new(),
+            relationships: vec![],
+            provenance: brain_domain::query::inspector::ProvenanceDTO {
+                source: "Mock".to_string(),
+                location: "Mock Location".to_string(),
+                timestamp: 0,
+                extra_info: std::collections::HashMap::new(),
+            },
+            retrieval_explanation: None,
+            recent_activity: vec![],
+        })
+    }
 }
 
 struct MockEventSink {

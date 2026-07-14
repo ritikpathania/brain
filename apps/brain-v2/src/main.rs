@@ -46,6 +46,28 @@ impl ExecutionClient for EmbeddedClient {
     async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
         Ok(vec![])
     }
+
+    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        let entity = brain_domain::dtos::NodeDTO::new(
+            id.to_string(),
+            "Embedded Node".to_string(),
+            "Technology".to_string(),
+            serde_json::Value::Null,
+        );
+        Ok(brain_domain::query::inspector::InspectorModel {
+            entity,
+            metadata: std::collections::HashMap::new(),
+            relationships: vec![],
+            provenance: brain_domain::query::inspector::ProvenanceDTO {
+                source: "Embedded".to_string(),
+                location: "Local Process".to_string(),
+                timestamp: 0,
+                extra_info: std::collections::HashMap::new(),
+            },
+            retrieval_explanation: None,
+            recent_activity: vec![],
+        })
+    }
 }
 
 #[tokio::main]

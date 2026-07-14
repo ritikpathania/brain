@@ -64,9 +64,9 @@ pub async fn handle_connection(
                 .or_insert_with(stm::SessionContext::new);
         }
 
-        let (action, payload, req_id, is_versioned) = match request {
-            ClientRequest::Versioned(req) => (req.action, req.body, Some(req.id), true),
-            ClientRequest::Legacy(req) => (req.action, req.payload, None, false),
+        let (action, payload, req_id, is_versioned, workspace_context) = match request {
+            ClientRequest::Versioned(req) => (req.action, req.body, Some(req.id), true, req.workspace_context),
+            ClientRequest::Legacy(req) => (req.action, req.payload, None, false, Vec::new()),
         };
 
         let response = match action.as_str() {
@@ -228,6 +228,37 @@ pub async fn handle_connection(
                     }
                 }
 
+                // --- Workspace boost + context_used derivation ---
+                //
+                // Conceptual pipeline step order:
+                //   retrieve candidates  [run_retrieval_pipeline — done above]
+                //   → apply workspace boost  [partition/prepend workspace hits]
+                //   → rank  [existing reranker, unchanged]
+                //   → produce final matches
+                //   → derive context_used  [intersection of workspace IDs and final matches]
+                //
+                // context_used contract: workspace nodes that materially influenced
+                // retrieval for this query. The first implementation approximates
+                // "material influence" as appearance in the final match list. This is an
+                // implementation detail — future versions may refine this definition.
+                let ws_set: std::collections::HashSet<String> =
+                    workspace_context.iter().cloned().collect();
+
+                if !ws_set.is_empty() && resp_msg.is_empty() {
+                    // Step: apply workspace boost — move workspace-pinned nodes to front.
+                    let (mut ws_matches, other_matches): (Vec<_>, Vec<_>) =
+                        matches.into_iter().partition(|n| ws_set.contains(&n.id));
+                    ws_matches.extend(other_matches);
+                    matches = ws_matches;
+                }
+
+                // Step: derive context_used — workspace nodes present in the final match list.
+                let context_used: Vec<String> = matches
+                    .iter()
+                    .filter(|n| ws_set.contains(&n.id))
+                    .map(|n| n.id.clone())
+                    .collect();
+
                 let mut hit_type = "None";
                 if resp_msg.is_empty() {
                     if !matches.is_empty() {
@@ -250,10 +281,12 @@ pub async fn handle_connection(
 
                         // Send header chunk
                         seq += 1;
+                        // Show a clean, user-facing header listing result count and source.
+                        let plural = if matches.len() == 1 { "result" } else { "results" };
                         let header_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
                             stream_id: stream_id.clone(),
                             sequence: seq,
-                            content: format!("Found {} matches via Hybrid Retrieval:", matches.len()),
+                            content: format!("Found {} {} from your memory graph:\n", matches.len(), plural),
                             metadata: serde_json::json!({}),
                         });
                         let mut chunk_json = serde_json::to_string(&header_chunk)?;
@@ -266,14 +299,72 @@ pub async fn handle_connection(
 
                         for node in matches {
                             seq += 1;
-                            let attrs_str = serde_json::to_string(&node.attributes).unwrap_or_default();
+
+                            // Map numeric RRF score (0–10000) to a human-readable confidence tier.
+                            let confidence = if node.score >= 7000 {
+                                "High"
+                            } else if node.score >= 3000 {
+                                "Medium"
+                            } else {
+                                "Low"
+                            };
+
+                            // Truncate long content for a clean preview.
+                            let preview: String = node.content
+                                .lines()
+                                .next()
+                                .unwrap_or(&node.content)
+                                .chars()
+                                .take(120)
+                                .collect();
+
+                            // Strip empty json objects "{}" and trim
+                            let mut clean_preview = preview.replace("{}", "");
+                            // Strip redundant label + node type (e.g. "Google (organization)")
+                            let redundant_pattern = format!("{} ({})", node.label, node.node_type);
+                            if clean_preview.contains(&redundant_pattern) {
+                                clean_preview = clean_preview.replace(&redundant_pattern, "");
+                            }
+                            let mut clean_preview = clean_preview.trim().to_string();
+                            // If anything like "google organization" is left, clean it
+                            if clean_preview.starts_with(&node.label) {
+                                clean_preview = clean_preview.trim_start_matches(&node.label).trim().to_string();
+                            }
+                            if clean_preview.starts_with(&node.node_type) {
+                                clean_preview = clean_preview.trim_start_matches(&node.node_type).trim().to_string();
+                            }
+                            clean_preview = clean_preview.trim_start_matches(|c| c == ' ' || c == '-' || c == '>' || c == '(' || c == ')').trim().to_string();
+
+                            // In debug mode expose raw identifiers for diagnostics.
+                            let debug_mode = std::env::var("BRAIN_DEBUG").is_ok();
+
+                            let mut entry = format!(
+                                "**{}** — {} ({} confidence)",
+                                node.label, node.node_type, confidence
+                            );
+                            if debug_mode {
+                                entry.push_str(&format!(" `[{}]`", node.id));
+                            }
+                            
+                            // Only append preview line if there is clean unique content
+                            if !clean_preview.is_empty() {
+                                entry.push_str(&format!("\n> {}\n", clean_preview));
+                            } else {
+                                entry.push_str("\n");
+                            }
+
+                            if !node.connections.is_empty() {
+                                let related: Vec<String> = node.connections.iter()
+                                    .map(|r| format!("{} ({})", r.target, r.relation))
+                                    .take(5)
+                                    .collect();
+                                entry.push_str(&format!("  Related: {}\n", related.join(" · ")));
+                            }
+
                             let match_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
                                 stream_id: stream_id.clone(),
                                 sequence: seq,
-                                content: format!(
-                                    "\n  • [{}] source='{}' score={} label='{}' type='{}' attributes='{}'",
-                                    node.id, node.source, node.score, node.label, node.node_type, attrs_str
-                                ),
+                                content: entry,
                                 metadata: serde_json::json!({}),
                             });
                             let mut chunk_json = serde_json::to_string(&match_chunk)?;
@@ -283,28 +374,6 @@ pub async fn handle_connection(
                             if pacing_ms > 0 {
                                 tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
                             }
-
-                            if !node.connections.is_empty() {
-                                for rel in node.connections {
-                                    seq += 1;
-                                    let rel_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
-                                        stream_id: stream_id.clone(),
-                                        sequence: seq,
-                                        content: format!(
-                                            "\n    └── [Graph Relation]: [{}] --({})--> [{}]",
-                                            rel.source, rel.relation, rel.target
-                                        ),
-                                        metadata: serde_json::json!({}),
-                                    });
-                                    let mut chunk_json = serde_json::to_string(&rel_chunk)?;
-                                    chunk_json.push('\n');
-                                    writer.write_all(chunk_json.as_bytes()).await?;
-                                    writer.flush().await?;
-                                    if pacing_ms > 0 {
-                                        tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
-                                    }
-                                }
-                            }
                         }
                     } else {
                         metrics.cache_misses.fetch_add(1, Ordering::Relaxed);
@@ -312,7 +381,7 @@ pub async fn handle_connection(
                         let empty_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
                             stream_id: stream_id.clone(),
                             sequence: seq,
-                            content: "No matching nodes found in STM or LTM persistent database.".to_string(),
+                            content: "No memories matched your search. You can add memories using the adapter or ingest data from the CLI.".to_string(),
                             metadata: serde_json::json!({}),
                         });
                         let mut chunk_json = serde_json::to_string(&empty_chunk)?;
@@ -369,12 +438,13 @@ pub async fn handle_connection(
                         execution_time_us: query_elapsed,
                     });
 
-                    // Send StreamEvent::End
+                    // Emit stream_end carrying context_used in metadata.
+                    // Old TUI clients that do not read stream_end.metadata are unaffected.
                     seq += 1;
                     let end_ev = ServerResponse::Stream(crate::server::protocol::StreamEvent::End {
                         stream_id: stream_id.clone(),
                         sequence: seq,
-                        metadata: serde_json::json!({}),
+                        metadata: serde_json::json!({ "context_used": context_used }),
                     });
                     let mut end_json = serde_json::to_string(&end_ev)?;
                     end_json.push('\n');
@@ -707,6 +777,147 @@ pub async fn handle_connection(
                         status: "ok".to_string(),
                         message: "{\"uptime_ms\":1000}".to_string(),
                     })
+                };
+                Some(response)
+            }
+            "inspect_node" => {
+                let response = match plugin_registry.get_storage() {
+                    Ok(active_storage) => {
+                        match active_storage.get_nodes_by_ids(&[payload.clone()]) {
+                            Ok(nodes) if !nodes.is_empty() => {
+                                let node = &nodes[0];
+                                let entity = brain_domain::dtos::NodeDTO::new(
+                                    node.id.clone(),
+                                    node.label.clone(),
+                                    node.node_type.clone(),
+                                    node.attributes.clone(),
+                                );
+
+                                let mut metadata = std::collections::HashMap::new();
+                                metadata.insert("node_type".to_string(), node.node_type.clone());
+                                metadata.insert("id".to_string(), node.id.clone());
+
+                                let mut relationships = Vec::new();
+                                match active_storage.get_connections(&[node.id.clone()]) {
+                                    Ok(connections) => {
+                                        for edge in connections {
+                                            let is_outgoing = edge.source == node.id;
+                                            let neighbor_id = if is_outgoing { edge.target.clone() } else { edge.source.clone() };
+                                            if let Ok(neighbors) = active_storage.get_nodes_by_ids(&[neighbor_id.clone()]) {
+                                                if !neighbors.is_empty() {
+                                                    let neighbor = &neighbors[0];
+                                                    relationships.push(brain_domain::query::inspector::RelationshipDTO {
+                                                        target_id: neighbor.id.clone(),
+                                                        target_label: neighbor.label.clone(),
+                                                        target_type: neighbor.node_type.clone(),
+                                                        relation: edge.relation.clone(),
+                                                        direction: if is_outgoing { "outgoing".to_string() } else { "incoming".to_string() },
+                                                        weight: 1.0,
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to get edges connections for node inspection: {}", e);
+                                    }
+                                }
+
+                                let provenance = brain_domain::query::inspector::ProvenanceDTO {
+                                    source: "System Ingest".to_string(),
+                                    location: "System Ingest".to_string(),
+                                    timestamp: 0,
+                                    extra_info: std::collections::HashMap::new(),
+                                };
+
+                                let mut recent_activity = Vec::new();
+                                recent_activity.push(brain_domain::query::inspector::ActivityLogEntry {
+                                    timestamp: 0,
+                                    action: "Ingested".to_string(),
+                                    details: format!("Entity extracted from source location by system."),
+                                });
+
+                                let model = brain_domain::query::inspector::InspectorModel {
+                                    entity,
+                                    metadata,
+                                    relationships,
+                                    provenance,
+                                    retrieval_explanation: None,
+                                    recent_activity,
+                                };
+
+                                match serde_json::to_string(&model) {
+                                    Ok(response_body) => {
+                                        if is_versioned {
+                                            ServerResponse::Response(VersionedResponse {
+                                                version: "1.0".to_string(),
+                                                msg_type: "Response".to_string(),
+                                                id: req_id.unwrap_or(0),
+                                                status: "success".to_string(),
+                                                body: response_body,
+                                            })
+                                        } else {
+                                            ServerResponse::Legacy(LegacyResponse {
+                                                status: "ok".to_string(),
+                                                message: response_body,
+                                            })
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let msg = format!("Failed to serialize InspectorModel JSON: {}", e);
+                                        if is_versioned {
+                                            ServerResponse::Error(VersionedError {
+                                                version: "1.0".to_string(),
+                                                msg_type: "Error".to_string(),
+                                                id: req_id.unwrap_or(0),
+                                                status: "error".to_string(),
+                                                body: msg,
+                                            })
+                                        } else {
+                                            ServerResponse::Legacy(LegacyResponse {
+                                                status: "error".to_string(),
+                                                message: msg,
+                                            })
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {
+                                let msg = format!("Entity not found for node ID: {}", payload);
+                                if is_versioned {
+                                    ServerResponse::Error(VersionedError {
+                                        version: "1.0".to_string(),
+                                        msg_type: "Error".to_string(),
+                                        id: req_id.unwrap_or(0),
+                                        status: "error".to_string(),
+                                        body: msg,
+                                    })
+                                } else {
+                                    ServerResponse::Legacy(LegacyResponse {
+                                        status: "error".to_string(),
+                                        message: msg,
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!("Storage backend not configured: {}", e);
+                        if is_versioned {
+                            ServerResponse::Error(VersionedError {
+                                version: "1.0".to_string(),
+                                msg_type: "Error".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "error".to_string(),
+                                body: msg,
+                            })
+                        } else {
+                            ServerResponse::Legacy(LegacyResponse {
+                                status: "error".to_string(),
+                                message: msg,
+                            })
+                        }
+                    }
                 };
                 Some(response)
             }

@@ -14,9 +14,14 @@ fn test_layout_partitions_verification() {
     // 1. Standard Desktop Size (120x30)
     let backend = TestBackend::new(120, 30);
     let mut terminal = Terminal::new(backend).unwrap();
+    let mut state = UiState::new();
+    state.terminal_width = 120;
+    state.terminal_height = 30;
+    
+    let state_ref = &state;
     terminal.draw(|f| {
         let area = f.size();
-        let (h, sb, c, p, s) = renderer.compute_layout(area);
+        let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_ref);
         assert_eq!(h.height, 3);
         assert_eq!(p.height, 3);
         assert_eq!(s.height, 1);
@@ -24,15 +29,20 @@ fn test_layout_partitions_verification() {
         assert_eq!(c.height, 23);
         assert_eq!(sb.height, 23);
         
-        renderer.draw(f, area, &state, &theme);
+        renderer.draw(f, area, state_ref, &theme);
     }).unwrap();
 
     // 2. Compact View Width (70x30) - Sidebar should hide
     let backend = TestBackend::new(70, 30);
     let mut terminal = Terminal::new(backend).unwrap();
+    let mut state_compact = UiState::new();
+    state_compact.terminal_width = 70;
+    state_compact.terminal_height = 30;
+    
+    let state_compact_ref = &state_compact;
     terminal.draw(|f| {
         let area = f.size();
-        let (h, sb, c, p, s) = renderer.compute_layout(area);
+        let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_compact_ref);
         assert_eq!(h.height, 3);
         assert_eq!(p.height, 3);
         assert_eq!(s.height, 1);
@@ -40,7 +50,7 @@ fn test_layout_partitions_verification() {
         assert_eq!(c.width, 70); // chat uses full width
         assert_eq!(c.height, 23);
 
-        renderer.draw(f, area, &state, &theme);
+        renderer.draw(f, area, state_compact_ref, &theme);
     }).unwrap();
 }
 
@@ -89,10 +99,15 @@ fn test_rapid_resize_stress() {
     for i in 10..110 {
         let backend = TestBackend::new(i as u16, (i / 3 + 10) as u16);
         let mut terminal = Terminal::new(backend).unwrap();
+        let mut state_resized = UiState::new();
+        state_resized.terminal_width = i as u16;
+        state_resized.terminal_height = (i / 3 + 10) as u16;
+        let state_resized_ref = &state_resized;
+        
         terminal.draw(|f| {
             let area = f.size();
-            let _ = renderer.compute_layout(area);
-            renderer.draw(f, area, &state, &theme);
+            let _ = renderer.compute_layout(area, state_resized_ref);
+            renderer.draw(f, area, state_resized_ref, &theme);
         }).unwrap();
     }
 }

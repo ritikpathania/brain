@@ -8,15 +8,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         match args[1].as_str() {
             "generate-contracts" => generate_contracts()?,
             "verify-contracts" => verify_contracts()?,
+            "regenerate-retrieval-baselines" => regenerate_retrieval_baselines()?,
             _ => {
-                eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts]");
+                eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts | regenerate-retrieval-baselines]");
                 std::process::exit(1);
             }
         }
     } else {
-        eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts]");
+        eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts | regenerate-retrieval-baselines]");
         std::process::exit(1);
     }
+    Ok(())
+}
+
+fn regenerate_retrieval_baselines() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Regenerating retrieval baselines via cargo test...");
+    let status = Command::new("cargo")
+        .args(&[
+            "test",
+            "-p",
+            "brain-services",
+            "--test",
+            "fts_benchmark_tests",
+            "--",
+            "test_fts_benchmark_cold_and_warm_cache",
+        ])
+        .env("REGENERATE_BASELINES", "1")
+        .env("DYLD_FRAMEWORK_PATH", "/Library/Developer/CommandLineTools/Library/Frameworks")
+        .env("LIBRARY_PATH", "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib")
+        .status()?;
+
+    if !status.success() {
+        return Err("Failed to regenerate baselines via cargo test".into());
+    }
+
+    println!("Retrieval baselines successfully regenerated!");
     Ok(())
 }
 

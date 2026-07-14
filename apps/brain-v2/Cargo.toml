@@ -11,3 +11,4 @@ brain-services = { path = "../../crates/brain-services" }
 brain-config = { path = "../../crates/brain-config" }
 brain-tui = { path = "../../crates/brain-tui" }
 async-trait = "0.1"
+serde_json = { workspace = true }

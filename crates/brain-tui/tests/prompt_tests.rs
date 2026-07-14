@@ -17,6 +17,7 @@ fn test_prompt_minimized_rendering_no_panic() {
             prompt_text: "hello".to_string(),
             cursor_position: 2,
             has_focus: true,
+            submit_with_workspace: false,
         };
         prompt::draw(f, area, &view, &theme);
     }).unwrap();
@@ -30,6 +31,7 @@ fn test_prompt_minimized_rendering_no_panic() {
             prompt_text: "hello".to_string(),
             cursor_position: 2,
             has_focus: true,
+            submit_with_workspace: false,
         };
         prompt::draw(f, area, &view, &theme);
     }).unwrap();
@@ -43,6 +45,7 @@ fn test_prompt_minimized_rendering_no_panic() {
             prompt_text: "hello".to_string(),
             cursor_position: 2,
             has_focus: true,
+            submit_with_workspace: false,
         };
         prompt::draw(f, area, &view, &theme);
     }).unwrap();

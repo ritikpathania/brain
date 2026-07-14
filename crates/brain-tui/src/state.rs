@@ -569,6 +569,10 @@ pub struct UiState {
     pub pinned_nodes: Vec<PinnedNode>,
     /// Selected index inside the pinned overlay.
     pub pinned_overlay_cursor: usize,
+    /// When true, the next prompt submission will include pinned node IDs as
+    /// workspace context sent to the daemon. Resets to false after the request
+    /// is confirmed dispatched. Has no effect if the workspace is empty.
+    pub submit_with_workspace: bool,
     /// Transient message with timestamp for display timeouts.
     pub transient_message: Option<(String, std::time::Instant)>,
     /// Active engine connection mode.
@@ -829,6 +833,15 @@ pub enum Action {
     PinnedOverlayDown,
     /// Inspect the pinned node at the given index.
     InspectPinnedNode(usize),
+    /// Toggle whether the next prompt submission includes workspace context.
+    /// No-op if the workspace is empty; no-op if already toggled on with no
+    /// change in workspace contents.
+    ToggleSubmitWithWorkspace,
+    /// Clear submit_with_workspace after a query was successfully dispatched.
+    /// Must be called by the caller only after client.execute() returns Ok.
+    ResetSubmitWithWorkspace,
+    /// Set a transient status-bar message (clears on next tick if stale).
+    SetTransientMessage(String),
 }
 
 /// Pure status indicator returning from state updates.
@@ -857,6 +870,7 @@ impl UiState {
             active_inspector: None,
             pinned_nodes: Vec::new(),
             pinned_overlay_cursor: 0,
+            submit_with_workspace: false,
             transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
             session_id: SessionId::new(),
@@ -905,6 +919,7 @@ impl UiState {
             active_inspector: None,
             pinned_nodes: Vec::new(),
             pinned_overlay_cursor: 0,
+            submit_with_workspace: false,
             transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
             session_id: SessionId::new(),
@@ -1730,6 +1745,10 @@ impl UiState {
                         let node_label = model.entity.label.clone();
                         let node_type: brain_domain::NodeType = model.entity.node_type.parse().unwrap_or(brain_domain::NodeKind::Unknown);
 
+                        // Deduplication guard: if already pinned, toggle off (unpin).
+                        // A second PinCurrentNode on the same node is treated as "unpin",
+                        // consistent with the Phase 2 toggle UX. Programmatic callers that
+                        // must not unpin should check pinned_nodes before dispatching.
                         if let Some(pos) = self.pinned_nodes.iter().position(|pn| pn.node_id == node_id) {
                             self.pinned_nodes.remove(pos);
                             self.transient_message = Some((
@@ -1823,6 +1842,27 @@ impl UiState {
                 } else {
                     UpdateResult::NoChange
                 }
+            }
+            Action::ToggleSubmitWithWorkspace => {
+                // No-op when the workspace is empty — the indicator would be
+                // meaningless and sending an empty context_used confuses the protocol.
+                if self.pinned_nodes.is_empty() {
+                    UpdateResult::NoChange
+                } else {
+                    self.submit_with_workspace = !self.submit_with_workspace;
+                    UpdateResult::Changed
+                }
+            }
+            Action::ResetSubmitWithWorkspace => {
+                // Called by lib.rs only after client.execute() returns Ok.
+                // Keeps the flag alive through failed dispatches so the user
+                // can retry without re-toggling.
+                self.submit_with_workspace = false;
+                UpdateResult::Changed
+            }
+            Action::SetTransientMessage(msg) => {
+                self.transient_message = Some((msg, std::time::Instant::now()));
+                UpdateResult::Changed
             }
         }
     }
@@ -2738,6 +2778,113 @@ mod tests {
         assert!(active.breadcrumbs.is_empty()); // Fresh session, no restored breadcrumbs
         assert_eq!(active.scroll_offset, 0);
         assert_eq!(active.selected_relation_idx, 0);
+    }
+
+    // --- RFC-007 Active Workspace tests ---
+
+    fn make_pinned_state() -> UiState {
+        let mut state = UiState::new();
+        state.pinned_nodes.push(PinnedNode {
+            node_id: brain_domain::NodeId(uuid::Uuid::new_v4()),
+            label: "Alpha".to_string(),
+            node_type: brain_domain::NodeKind::Concept,
+            pinned_at: 0,
+        });
+        state
+    }
+
+    #[test]
+    fn test_toggle_submit_with_workspace_empty() {
+        // Toggling when workspace is empty must be a no-op.
+        let mut state = UiState::new();
+        assert!(state.pinned_nodes.is_empty());
+        let res = state.update(Action::ToggleSubmitWithWorkspace);
+        assert_eq!(res, UpdateResult::NoChange);
+        assert!(!state.submit_with_workspace);
+    }
+
+    #[test]
+    fn test_toggle_submit_with_workspace_with_pins() {
+        // Toggling when workspace has nodes must set the flag.
+        let mut state = make_pinned_state();
+        assert!(!state.submit_with_workspace);
+        let res = state.update(Action::ToggleSubmitWithWorkspace);
+        assert_eq!(res, UpdateResult::Changed);
+        assert!(state.submit_with_workspace);
+    }
+
+    #[test]
+    fn test_toggle_submit_with_workspace_double() {
+        // Toggling twice must return the flag to false.
+        let mut state = make_pinned_state();
+        state.update(Action::ToggleSubmitWithWorkspace);
+        assert!(state.submit_with_workspace);
+        let res = state.update(Action::ToggleSubmitWithWorkspace);
+        assert_eq!(res, UpdateResult::Changed);
+        assert!(!state.submit_with_workspace);
+    }
+
+    #[test]
+    fn test_reset_submit_with_workspace() {
+        // ResetSubmitWithWorkspace must clear the flag regardless of workspace contents.
+        let mut state = make_pinned_state();
+        state.submit_with_workspace = true;
+        let res = state.update(Action::ResetSubmitWithWorkspace);
+        assert_eq!(res, UpdateResult::Changed);
+        assert!(!state.submit_with_workspace);
+    }
+
+    #[test]
+    fn test_pin_deduplication_via_toggle() {
+        // PinCurrentNode acts as a toggle: pinning the same node twice removes it.
+        // Programmatic callers must guard externally if they want idempotent pinning.
+        let mut state = UiState::new();
+        let node_id = brain_domain::NodeId(uuid::Uuid::new_v4());
+        state.mode = TuiMode::Exploration;
+        let model = brain_domain::query::inspector::InspectorModel {
+            entity: brain_domain::dtos::NodeDTO::new(
+                node_id.to_string(),
+                "Beta Node".to_string(),
+                "concept".to_string(),
+                serde_json::Value::Null,
+            ),
+            metadata: std::collections::HashMap::new(),
+            relationships: vec![],
+            provenance: brain_domain::query::inspector::ProvenanceDTO {
+                source: "s".to_string(),
+                location: "l".to_string(),
+                timestamp: 0,
+                extra_info: std::collections::HashMap::new(),
+            },
+            retrieval_explanation: None,
+            recent_activity: vec![],
+        };
+        state.active_inspector = Some(InspectorSession {
+            node_id,
+            load_state: InspectorLoadState::Loaded(model),
+            breadcrumbs: vec![],
+            scroll_offset: 0,
+            selected_relation_idx: 0,
+        });
+
+        // First pin
+        state.update(Action::PinCurrentNode);
+        assert_eq!(state.pinned_nodes.len(), 1);
+
+        // Second pin on same node = unpin (toggle behaviour)
+        state.update(Action::PinCurrentNode);
+        assert_eq!(state.pinned_nodes.len(), 0);
+    }
+
+    #[test]
+    fn test_set_transient_message() {
+        // SetTransientMessage must update the transient_message field.
+        let mut state = UiState::new();
+        assert!(state.transient_message.is_none());
+        let res = state.update(Action::SetTransientMessage("📌 Context used: Alpha".to_string()));
+        assert_eq!(res, UpdateResult::Changed);
+        let (msg, _) = state.transient_message.unwrap();
+        assert_eq!(msg, "📌 Context used: Alpha");
     }
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "brain"
+name = "brain-daemon"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,7 @@ name = "daemon_bridge"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "brain"
+name = "brain-daemon"
 path = "src/main.rs"
 
 [dependencies]

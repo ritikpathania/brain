@@ -96,6 +96,10 @@ pub enum StreamEventKind {
     },
     /// Retrieval phase completed.
     RetrievalCompleted,
+    /// Workspace node IDs that materially influenced retrieval or generation for
+    /// this query. Emitted by the TUI client when the daemon echoes `context_used`
+    /// in `stream_end.metadata`. Rendered as a transient confirmation in the UI.
+    WorkspaceContextUsed(Vec<String>),
 }
 
 /// Type-safe opaque identifier for a tool execution call.

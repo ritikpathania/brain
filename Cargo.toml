@@ -23,8 +23,9 @@ members = [
     "crates/brain-a2a-adapter",
     "apps/brain-v2",
     "xtask",
+    "daemon",
 ]
-exclude = ["daemon"]
+
 
 
 [workspace.dependencies]

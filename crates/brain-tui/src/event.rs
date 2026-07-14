@@ -42,7 +42,23 @@ pub enum AppEvent {
     },
     /// Unified global search event emitted by a provider.
     Search(crate::ui::search::types::SearchEvent),
+    /// Graph node inspection model details loaded.
+    InspectNodeLoaded(brain_domain::query::inspector::InspectorModel),
+    /// Graph node inspection failed.
+    InspectNodeFailed(String),
+    /// Daemon socket closed without sending a Finished or Cancelled event.
+    /// Signals unexpected disconnection (daemon crash, process killed, etc.).
+    StreamEof,
+    /// Explicit connectivity probe confirmed daemon is reachable.
+    Connected,
+    /// Explicit connectivity probe confirmed daemon is unreachable.
+    Disconnected,
+    /// Workspace nodes that materially influenced retrieval, echoed from
+    /// `stream_end.metadata.context_used` by the daemon. Used to display a
+    /// transient confirmation message after a workspace-attached query.
+    ContextUsed(Vec<String>),
 }
+
 
 
 /// Combined event stream container.
@@ -67,13 +83,13 @@ impl EventHandler {
         let (tx, rx) = unbounded_channel();
         let tx_clone = tx.clone();
 
-        // Spawn Crossterm polling task
-        tokio::spawn(async move {
+        // Spawn Crossterm polling task on a native OS thread to avoid starving Tokio workers
+        std::thread::spawn(move || {
             loop {
                 if tx_clone.is_closed() {
                     break;
                 }
-                match crossterm::event::poll(Duration::from_millis(10)) {
+                match crossterm::event::poll(Duration::from_millis(100)) {
                     Ok(true) => {
                         match crossterm::event::read() {
                             Ok(crossterm::event::Event::Key(key)) => {
@@ -100,7 +116,6 @@ impl EventHandler {
                     Ok(false) => {}
                     Err(_) => break,
                 }
-                tokio::time::sleep(Duration::from_millis(5)).await;
             }
         });
 

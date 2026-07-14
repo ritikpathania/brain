@@ -52,6 +52,9 @@ fn map_span_for_test(span: &VisualSpan, theme: &Style, is_selected: bool) -> rat
         VisualStyle::Selected => {
             style = style.bg(Color::LightBlue).fg(Color::Black);
         }
+        VisualStyle::EntityReference(_) => {
+            style = style.fg(Color::Cyan).add_modifier(Modifier::UNDERLINED);
+        }
         VisualStyle::Normal => {
             style = *theme;
         }

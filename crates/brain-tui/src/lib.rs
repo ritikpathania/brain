@@ -303,6 +303,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             crossterm::event::KeyCode::Char('n') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
                                 Some(Action::NewSession)
                             }
+                            // SHORTCUT-TBD: Ctrl+W is confirmed unused in all existing branches.
+                            // Verify against iTerm2, Terminal.app, and tmux before accepting.
+                            // Replace with Alt+W or F2 if any emulator intercepts Ctrl+W.
+                            crossterm::event::KeyCode::Char('w') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                                Some(Action::ToggleSubmitWithWorkspace)
+                            }
                             crossterm::event::KeyCode::PageUp => {
                                 let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
                                 Some(Action::ScrollUp(page))
@@ -435,13 +441,35 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 active_cancel = Some(cancellation_token.clone());
                                 tokenizer = crate::state::IncrementalTokenizer::new();
 
+                                // Capture workspace context before the request is dispatched.
+                                // The flag is reset ONLY after client.execute() returns Ok so
+                                // that a failed dispatch can be retried with the same context.
+                                let workspace_context = if state.submit_with_workspace
+                                    && !state.pinned_nodes.is_empty()
+                                {
+                                    Some(
+                                        state
+                                            .pinned_nodes
+                                            .iter()
+                                            .map(|pn| pn.node_id)
+                                            .collect::<Vec<_>>(),
+                                    )
+                                } else {
+                                    None
+                                };
+
                                 let req = crate::client::ExecutionRequest {
                                     session_id: state.session_id,
                                     prompt,
                                     options: crate::client::ExecutionOptions::default(),
                                     cancellation_token,
+                                    workspace_context,
                                 };
                                 if let Ok(mut event_receiver) = client.execute(req).await {
+                                    // Dispatch succeeded — safe to reset the flag.
+                                    // The user must re-toggle to attach context again.
+                                    state.update(Action::ResetSubmitWithWorkspace);
+
                                     // Only show Connecting if we were previously Disconnected —
                                     // avoids flickering the header on every query when already Daemon.
                                     if state.connection_mode == crate::state::ConnectionMode::Disconnected {
@@ -627,6 +655,13 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             state.update(Action::RetrievalCompleted {
                                 message: crate::ui::interaction::MessageId(0),
                             });
+                        }
+                        brain_core::events::StreamEventKind::WorkspaceContextUsed(context_used) => {
+                            if !context_used.is_empty() {
+                                let labels = context_used.join(", ");
+                                let msg = format!("\u{1f4cc} Context used: {}", labels);
+                                state.update(Action::SetTransientMessage(msg));
+                            }
                         }
                         _ => {}
                     }

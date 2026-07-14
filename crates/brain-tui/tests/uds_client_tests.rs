@@ -11,6 +11,7 @@ async fn test_uds_client_execute() {
         prompt: "test query".to_string(),
         options: ExecutionOptions::default(),
         cancellation_token: token,
+        workspace_context: None,
     };
 
     match client.execute(req).await {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Data Transfer Object representing a node, decoupling storage/internal representations from API/UI.
 #[non_exhaustive]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeDTO {
     /// Stringified unique node identifier (standardized UUID).
     pub id: String,

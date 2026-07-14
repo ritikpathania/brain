@@ -24,6 +24,8 @@ pub mod evaluator;
 pub mod experiment;
 /// Deserializer and dynamic factory resolution for ranking models.
 pub mod model_resolver;
+/// Retrieval evaluation and benchmarking harness.
+pub mod eval_harness;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;

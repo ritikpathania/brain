@@ -23,7 +23,7 @@ fn get_free_port() -> u16 {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_graceful_shutdown() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
@@ -83,7 +83,7 @@ async fn test_daemon_lifecycle_graceful_shutdown() {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_repeated_signals() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
@@ -132,7 +132,7 @@ async fn test_daemon_lifecycle_repeated_signals() {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_stale_socket_recovery() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
@@ -172,7 +172,7 @@ async fn test_daemon_lifecycle_stale_socket_recovery() {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_double_start_prevention() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
@@ -224,7 +224,7 @@ async fn test_daemon_lifecycle_double_start_prevention() {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
@@ -255,7 +255,7 @@ async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
 
 #[tokio::test]
 async fn test_daemon_lifecycle_crash_during_worker_execution() {
-    let bin_path = env!("CARGO_BIN_EXE_brain");
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");

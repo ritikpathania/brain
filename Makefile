@@ -31,16 +31,16 @@ type-check:
 
 # Build standalone Rust daemon binary and copy to root
 build-brain:
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --manifest-path daemon/Cargo.toml --bin brain
-	rm -f ./brain
-	cp daemon/target/debug/brain ./brain
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --manifest-path daemon/Cargo.toml --bin brain-daemon
+	rm -f ./brain-daemon
+	cp daemon/target/debug/brain-daemon ./brain-daemon
 
 
 # Stop running daemon if active, then start a new instance
 restart-daemon:
 	@echo "Restarting daemon..."
-	-./brain daemon stop || true
-	./brain daemon start
+	-./brain-daemon daemon stop || true
+	./brain-daemon daemon start
 
 # Run UDS IPC integration and schema conformance tests
 test-ipc:

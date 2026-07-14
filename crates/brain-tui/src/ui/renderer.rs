@@ -245,6 +245,7 @@ impl AppRenderer {
             prompt_text: state.editor.text(),
             cursor_position: state.editor.cursor(),
             has_focus: state.focus == FocusRegion::Editor,
+            submit_with_workspace: state.submit_with_workspace,
         };
 
         // 5. Build Status ViewModel — message derives from runtime state so users

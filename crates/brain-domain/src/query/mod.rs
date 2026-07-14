@@ -13,6 +13,10 @@ pub mod validation;
 pub mod analytics;
 /// Temporal explainability and recency context builders.
 pub mod temporal_explanation;
+/// Consolidated single-turn inspector queries.
+pub mod inspector;
+
+pub use inspector::{InspectorModel, RelationshipDTO, ProvenanceDTO, RetrievalExplanationDTO, ActivityLogEntry};
 
 pub use path::{PathQueryService};
 pub use explanation::{ExplanationQueryService};
