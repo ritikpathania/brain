@@ -20,7 +20,7 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
         "brain-core" => vec!["brain-domain"],
         "brain-events" => vec!["brain-domain", "brain-core"],
         "brain-session" => vec!["brain-domain", "brain-core"],
-        "brain-storage" => vec!["brain-domain", "brain-core"],
+        "brain-storage" => vec!["brain-domain", "brain-core", "brain-integrations"],
         "brain-config" => vec!["brain-domain", "brain-core"],
         "brain-tools" => vec!["brain-domain", "brain-core"],
         "brain-plugins" => vec!["brain-domain", "brain-core"],
