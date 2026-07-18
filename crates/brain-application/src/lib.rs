@@ -7,10 +7,10 @@
 pub mod application;
 /// Execution contexts and progress sinks.
 pub mod context;
-/// Semantic application error classifications.
-pub mod errors;
 /// Application data transfer objects.
 pub mod dto;
+/// Semantic application error classifications.
+pub mod errors;
 
 pub use application::{BrainApplication, IngestionResponse};
 pub use context::{

@@ -1,7 +1,7 @@
 use brain_adapter_core::Capability;
+use brain_application::dto::v1::SearchSummary;
 use brain_application::{ApplicationError, BrainApplication, ExecutionContext, IngestionResponse};
 use brain_integrations::IngestionEnvelope;
-use brain_application::dto::v1::SearchSummary;
 use brain_services::query::SearchQuery;
 use futures_util::future::BoxFuture;
 use std::sync::Arc;

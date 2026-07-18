@@ -214,9 +214,15 @@ impl BrainApplication {
             projections_executed: metrics.projections_executed,
             retrieval_queries: metrics.retrieval_queries,
             last_ingest_duration_ms: metrics.last_ingest_duration.map(|d| d.as_millis() as u64),
-            last_projection_duration_ms: metrics.last_projection_duration.map(|d| d.as_millis() as u64),
-            avg_canonicalization_duration_ms: metrics.avg_canonicalization_duration.map(|d| d.as_millis() as u64),
-            avg_reflection_duration_ms: metrics.avg_reflection_duration.map(|d| d.as_millis() as u64),
+            last_projection_duration_ms: metrics
+                .last_projection_duration
+                .map(|d| d.as_millis() as u64),
+            avg_canonicalization_duration_ms: metrics
+                .avg_canonicalization_duration
+                .map(|d| d.as_millis() as u64),
+            avg_reflection_duration_ms: metrics
+                .avg_reflection_duration
+                .map(|d| d.as_millis() as u64),
             avg_dispatch_duration_ms: metrics.avg_dispatch_duration.map(|d| d.as_millis() as u64),
         }
     }

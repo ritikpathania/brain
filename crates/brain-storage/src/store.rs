@@ -766,7 +766,10 @@ impl<'a> ActiveConnection<'a> {
         self.conn.prepare(sql)
     }
 
-    pub fn prepare_cached(&self, sql: &str) -> Result<rusqlite::CachedStatement<'_>, rusqlite::Error> {
+    pub fn prepare_cached(
+        &self,
+        sql: &str,
+    ) -> Result<rusqlite::CachedStatement<'_>, rusqlite::Error> {
         self.conn.prepare_cached(sql)
     }
 
@@ -2194,15 +2197,15 @@ impl<'a> SessionRepository for ActiveConnection<'a> {
 
 fn save_config_key_conn(db: &ActiveConnection<'_>, key: &str, val: &str) -> Result<(), BrainError> {
     db.prepare_cached("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)")
-    .map_err(|e| BrainError::Storage {
-        message: format!("Failed to prepare config save statement: {}", e),
-        source: Some(Box::new(e)),
-    })?
-    .execute((key, val))
-    .map_err(|e| BrainError::Storage {
-        message: format!("Failed to save config key {}: {}", key, e),
-        source: Some(Box::new(e)),
-    })?;
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare config save statement: {}", e),
+            source: Some(Box::new(e)),
+        })?
+        .execute((key, val))
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to save config key {}: {}", key, e),
+            source: Some(Box::new(e)),
+        })?;
     Ok(())
 }
 

@@ -1,3 +1,4 @@
+use crate::query::SearchQuery;
 use crate::{
     InMemoryEventDispatcher, SqliteCanonicalizer, SqliteProjectionManager, SqliteReflectionEngine,
 };
@@ -11,7 +12,6 @@ use brain_core::{
 use brain_domain::{EpochId, NodeId, SearchDocument};
 use brain_observability::{timeline::OperationSpan, CorrelationIndex, ObservabilitySubscriber};
 use brain_storage::{SqliteSearchRepository, SqliteStorage};
-use crate::query::SearchQuery;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
@@ -285,7 +285,8 @@ impl BrainRuntime {
         capabilities.register(CapabilityDescriptor {
             name: "evolution",
             version: 1,
-            description: "Observation validation, canonicalization, and relationship reflection pipeline",
+            description:
+                "Observation validation, canonicalization, and relationship reflection pipeline",
             state: CapabilityState::Active,
             is_enabled: true,
             is_experimental: false,
@@ -311,9 +312,8 @@ impl BrainRuntime {
 
         // 1. Storage — hold concrete type first so pool can be shared with search repository
         let sqlite_storage = Arc::new(SqliteStorage::new(db_path, 4, true)?);
-        let search_repository = Arc::new(SqliteSearchRepository::new(
-            sqlite_storage.pool().clone(),
-        ));
+        let search_repository =
+            Arc::new(SqliteSearchRepository::new(sqlite_storage.pool().clone()));
         let storage: Arc<dyn Storage> = Arc::clone(&sqlite_storage) as Arc<dyn Storage>;
 
         // 2. Event dispatcher — concrete type held privately; exposed only via trait object
@@ -367,18 +367,33 @@ impl BrainRuntime {
     /// Primary Ingestion boundary. Coordinates validation, canonicalization, and reflection.
     pub fn ingest(&self, obs: Observation) -> Result<IngestionResult, BrainError> {
         let start = Instant::now();
-        self.metrics.observations_ingested.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .observations_ingested
+            .fetch_add(1, Ordering::Relaxed);
 
         match self.canonicalizer.canonicalize(obs) {
             Ok(result) => {
                 let duration = start.elapsed();
-                self.metrics.canonicalization_successes.fetch_add(1, Ordering::Relaxed);
-                self.metrics.last_ingest_duration_ns.store(duration.as_nanos() as u64, Ordering::Release);
+                self.metrics
+                    .canonicalization_successes
+                    .fetch_add(1, Ordering::Relaxed);
+                self.metrics
+                    .last_ingest_duration_ns
+                    .store(duration.as_nanos() as u64, Ordering::Release);
 
                 // Accumulate durations
-                self.metrics.canonicalization_duration_ns.fetch_add(result.stage_timings.canonicalization.as_nanos() as u64, Ordering::Relaxed);
-                self.metrics.reflection_duration_ns.fetch_add(result.stage_timings.reflection.as_nanos() as u64, Ordering::Relaxed);
-                self.metrics.dispatch_duration_ns.fetch_add(result.stage_timings.dispatch.as_nanos() as u64, Ordering::Relaxed);
+                self.metrics.canonicalization_duration_ns.fetch_add(
+                    result.stage_timings.canonicalization.as_nanos() as u64,
+                    Ordering::Relaxed,
+                );
+                self.metrics.reflection_duration_ns.fetch_add(
+                    result.stage_timings.reflection.as_nanos() as u64,
+                    Ordering::Relaxed,
+                );
+                self.metrics.dispatch_duration_ns.fetch_add(
+                    result.stage_timings.dispatch.as_nanos() as u64,
+                    Ordering::Relaxed,
+                );
 
                 Ok(IngestionResult {
                     epoch: result.epoch,
@@ -387,7 +402,9 @@ impl BrainRuntime {
                 })
             }
             Err(err) => {
-                self.metrics.canonicalization_failures.fetch_add(1, Ordering::Relaxed);
+                self.metrics
+                    .canonicalization_failures
+                    .fetch_add(1, Ordering::Relaxed);
 
                 // Add to diagnostics ring buffer
                 let failure = RuntimeFailure {
@@ -414,10 +431,16 @@ impl BrainRuntime {
         correlation_id: CorrelationId,
     ) -> P {
         let start = Instant::now();
-        let res = self.projection_manager.project(projector, query, correlation_id);
+        let res = self
+            .projection_manager
+            .project(projector, query, correlation_id);
         let duration = start.elapsed();
-        self.metrics.projections_executed.fetch_add(1, Ordering::Relaxed);
-        self.metrics.last_projection_duration_ns.store(duration.as_nanos() as u64, Ordering::Release);
+        self.metrics
+            .projections_executed
+            .fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .last_projection_duration_ns
+            .store(duration.as_nanos() as u64, Ordering::Release);
         res
     }
 
@@ -463,8 +486,14 @@ impl BrainRuntime {
     /// Query the current quantitative metrics snapshot. Cheap and non-blocking.
     pub fn metrics(&self) -> RuntimeMetrics {
         let observations_ingested = self.metrics.observations_ingested.load(Ordering::Acquire);
-        let canonicalization_successes = self.metrics.canonicalization_successes.load(Ordering::Acquire);
-        let canonicalization_failures = self.metrics.canonicalization_failures.load(Ordering::Acquire);
+        let canonicalization_successes = self
+            .metrics
+            .canonicalization_successes
+            .load(Ordering::Acquire);
+        let canonicalization_failures = self
+            .metrics
+            .canonicalization_failures
+            .load(Ordering::Acquire);
         let reflections_executed = self.metrics.reflections_executed.load(Ordering::Acquire);
         let projections_executed = self.metrics.projections_executed.load(Ordering::Acquire);
 
@@ -475,7 +504,10 @@ impl BrainRuntime {
             None
         };
 
-        let projection_ns = self.metrics.last_projection_duration_ns.load(Ordering::Acquire);
+        let projection_ns = self
+            .metrics
+            .last_projection_duration_ns
+            .load(Ordering::Acquire);
         let last_projection_duration = if projection_ns > 0 {
             Some(Duration::from_nanos(projection_ns))
         } else {
@@ -485,7 +517,10 @@ impl BrainRuntime {
         let retrieval_queries = self.metrics.retrieval_queries.load(Ordering::Acquire);
 
         let avg_canonicalization_duration = if canonicalization_successes > 0 {
-            let total_ns = self.metrics.canonicalization_duration_ns.load(Ordering::Acquire);
+            let total_ns = self
+                .metrics
+                .canonicalization_duration_ns
+                .load(Ordering::Acquire);
             Some(Duration::from_nanos(total_ns / canonicalization_successes))
         } else {
             None
@@ -539,7 +574,9 @@ impl BrainRuntime {
 
     /// Runs a search query over the relational knowledge database, returning pure domain-level documents.
     pub fn search(&self, query: SearchQuery) -> Result<Vec<SearchDocument>, BrainError> {
-        self.metrics.retrieval_queries.fetch_add(1, Ordering::Relaxed);
+        self.metrics
+            .retrieval_queries
+            .fetch_add(1, Ordering::Relaxed);
         let storage_query = brain_storage::SearchQuery {
             text: query.text,
             kinds: query.kinds,
@@ -559,7 +596,8 @@ impl BrainRuntime {
     /// 3. Release/drop the SQLite storage connection pool.
     pub fn shutdown(mut self) -> Result<ShutdownSummary, BrainError> {
         let start = Instant::now();
-        self.health.store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
+        self.health
+            .store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
 
         // 1. Close all event channels — thread unblocks from recv(), sees Disconnected, exits
         self.dispatcher.shutdown();
@@ -573,7 +611,8 @@ impl BrainRuntime {
         drop(self.storage);
 
         let duration = start.elapsed();
-        self.health.store(RuntimeHealth::Stopped as u8, Ordering::Release);
+        self.health
+            .store(RuntimeHealth::Stopped as u8, Ordering::Release);
 
         let summary = ShutdownSummary { duration };
         if let Ok(mut diag) = self.diagnostics.lock() {

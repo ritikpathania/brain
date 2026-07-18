@@ -132,7 +132,9 @@ pub async fn handle_connection(
                     // It is safe to call from async context — it completes quickly
                     // and does not block the executor for a meaningful duration.
                     let rt_start = Instant::now();
-                    metrics.runtime_ingest_attempts.fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .runtime_ingest_attempts
+                        .fetch_add(1, Ordering::Relaxed);
 
                     match brain_runtime.ingest(obs) {
                         Ok(result) => {
@@ -144,15 +146,18 @@ pub async fn handle_connection(
                                 .runtime_ingest_latency_us
                                 .fetch_add(rt_elapsed, Ordering::Relaxed);
 
-                            metrics
-                                .runtime_canonicalization_latency_us
-                                .fetch_add(result.stage_timings.canonicalization.as_micros() as u64, Ordering::Relaxed);
-                            metrics
-                                .runtime_reflection_latency_us
-                                .fetch_add(result.stage_timings.reflection.as_micros() as u64, Ordering::Relaxed);
-                            metrics
-                                .runtime_dispatch_latency_us
-                                .fetch_add(result.stage_timings.dispatch.as_micros() as u64, Ordering::Relaxed);
+                            metrics.runtime_canonicalization_latency_us.fetch_add(
+                                result.stage_timings.canonicalization.as_micros() as u64,
+                                Ordering::Relaxed,
+                            );
+                            metrics.runtime_reflection_latency_us.fetch_add(
+                                result.stage_timings.reflection.as_micros() as u64,
+                                Ordering::Relaxed,
+                            );
+                            metrics.runtime_dispatch_latency_us.fetch_add(
+                                result.stage_timings.dispatch.as_micros() as u64,
+                                Ordering::Relaxed,
+                            );
 
                             if let Ok(mut reservoir) = metrics.runtime_latency_reservoir.lock() {
                                 reservoir.observe(rt_elapsed);

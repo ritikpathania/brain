@@ -124,26 +124,36 @@ pub async fn start_health_server(
                         };
 
                         let rt_canon_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_canonicalization_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
                         let rt_reflect_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_reflection_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
                         let rt_dispatch_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_dispatch_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
 
-                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
-                            reservoir.percentiles()
-                        } else {
-                            (0, 0, 0)
-                        };
+                        let (p50, p95, p99) =
+                            if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                                reservoir.percentiles()
+                            } else {
+                                (0, 0, 0)
+                            };
 
                         let response_body = format!(
                             r#"{{"cache_hit_rate":{},"cache_hits":{},"cache_misses":{},"total_queries":{},"total_ingests":{},"active_workers":{},"queue_depth":{},"avg_query_latency_us":{},"avg_ingest_latency_us":{},"avg_extraction_latency_us":{},"avg_sqlite_latency_us":{},"avg_ipc_latency_us":{},"runtime_ingest_attempts":{},"runtime_ingest_successes":{},"runtime_ingest_failures":{},"runtime_ingest_success_rate":{},"runtime_avg_ingest_latency_us":{},"legacy_avg_ingest_latency_us":{},"runtime_ingest_latency_ratio":{},"runtime_avg_canonicalization_us":{},"runtime_avg_reflection_us":{},"runtime_avg_dispatch_us":{},"runtime_p50_latency_us":{},"runtime_p95_latency_us":{},"runtime_p99_latency_us":{}}}"#,
@@ -255,26 +265,39 @@ pub async fn start_health_server(
                         };
 
                         let rt_canon_lat_sec = if rt_successes > 0 {
-                            (metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                            (metrics_ref
+                                .runtime_canonicalization_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64)
+                                / 1_000_000.0
                         } else {
                             0.0
                         };
                         let rt_reflect_lat_sec = if rt_successes > 0 {
-                            (metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                            (metrics_ref
+                                .runtime_reflection_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64)
+                                / 1_000_000.0
                         } else {
                             0.0
                         };
                         let rt_dispatch_lat_sec = if rt_successes > 0 {
-                            (metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                            (metrics_ref
+                                .runtime_dispatch_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64)
+                                / 1_000_000.0
                         } else {
                             0.0
                         };
 
-                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
-                            reservoir.percentiles()
-                        } else {
-                            (0, 0, 0)
-                        };
+                        let (p50, p95, p99) =
+                            if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                                reservoir.percentiles()
+                            } else {
+                                (0, 0, 0)
+                            };
                         let p50_sec = p50 as f64 / 1_000_000.0;
                         let p95_sec = p95 as f64 / 1_000_000.0;
                         let p99_sec = p99 as f64 / 1_000_000.0;
@@ -401,26 +424,36 @@ brain_runtime_p99_latency_seconds {}
                             0.0
                         };
                         let rt_canon_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_canonicalization_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
                         let rt_reflect_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_reflection_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
                         let rt_dispatch_lat_us = if rt_successes > 0 {
-                            metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                            metrics_ref
+                                .runtime_dispatch_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
                         } else {
                             0.0
                         };
 
-                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
-                            reservoir.percentiles()
-                        } else {
-                            (0, 0, 0)
-                        };
+                        let (p50, p95, p99) =
+                            if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                                reservoir.percentiles()
+                            } else {
+                                (0, 0, 0)
+                            };
 
                         let response_body = format!(
                             r#"{{"status":"ok","ingests":{{"attempts":{},"successes":{},"failures":{},"success_rate":{}}},"latency":{{"avg_us":{},"p50_us":{},"p95_us":{},"p99_us":{}}},"stages":{{"canonicalization_avg_us":{},"reflection_avg_us":{},"dispatch_avg_us":{}}},"note":"Sampled from independent atomics. Use trends, not single scrapes."}}"#,

@@ -83,7 +83,10 @@ fn test_runtime_harness_lifecycle() {
         assert_eq!(m.observations_ingested, 1);
         assert_eq!(m.canonicalization_successes, 1);
         assert_eq!(m.canonicalization_failures, 0);
-        assert_eq!(m.reflections_executed, 1, "Reflection must fire once per ingest");
+        assert_eq!(
+            m.reflections_executed, 1,
+            "Reflection must fire once per ingest"
+        );
         assert!(
             m.last_ingest_duration.is_some(),
             "last_ingest_duration must be recorded after a successful ingest"
