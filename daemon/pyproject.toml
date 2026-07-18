@@ -39,8 +39,12 @@ select = ["E", "F", "I", "N", "UP", "RUF"]
 ignore = []
 
 
+[tool.ty.environment]
+extra-paths = ["."]
+
 [tool.ty.src]
 include = ["brain/**/*.py", "tests/**/*.py"]
 exclude = []
 
 [tool.pyrefly]
+search_path = ["."]
