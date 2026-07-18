@@ -40,7 +40,7 @@ impl ProjectionManager {
         let epoch_lock = self.epoch.lock().unwrap();
 
         let context = ProjectionContext {
-            graph: &*graph_lock,
+            graph: &graph_lock,
             epoch: *epoch_lock,
             query,
             correlation_id,

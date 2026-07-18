@@ -1,8 +1,4 @@
-use async_trait::async_trait;
-use brain_core::errors::BrainError;
-use brain_domain::Message;
 use brain_services::runtime::{ApplicationRuntime, RuntimeObserver};
-use brain_tui::client::{EventReceiver, ExecutionClient, ExecutionRequest, SessionSummary};
 use std::sync::Arc;
 
 struct LogObserver;
@@ -18,64 +14,9 @@ impl RuntimeObserver for LogObserver {
     }
 }
 
-struct EmbeddedClient;
+// Additional implementations (e.g. EmbeddedClient) can be added in the future
+// if an in-process runtime mode is introduced.
 
-#[async_trait]
-impl ExecutionClient for EmbeddedClient {
-    async fn execute(&self, req: ExecutionRequest) -> Result<EventReceiver, BrainError> {
-        let (_, rx) = tokio::sync::mpsc::unbounded_channel();
-        Ok(EventReceiver::new(rx, req.cancellation_token))
-    }
-
-    async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> {
-        Ok(vec![])
-    }
-
-    async fn load_session(&self, _id: brain_domain::SessionId) -> Result<Vec<Message>, BrainError> {
-        Ok(vec![])
-    }
-
-    async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> {
-        Ok(())
-    }
-
-    async fn approve_tool_call(
-        &self,
-        _call_id: brain_core::events::ToolCallId,
-        _approved: bool,
-    ) -> Result<(), BrainError> {
-        Ok(())
-    }
-
-    async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
-        Ok(vec![])
-    }
-
-    async fn inspect_node(
-        &self,
-        id: brain_domain::NodeId,
-    ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
-        let entity = brain_domain::dtos::NodeDTO::new(
-            id.to_string(),
-            "Embedded Node".to_string(),
-            "Technology".to_string(),
-            serde_json::Value::Null,
-        );
-        Ok(brain_domain::query::inspector::InspectorModel {
-            entity,
-            metadata: std::collections::HashMap::new(),
-            relationships: vec![],
-            provenance: brain_domain::query::inspector::ProvenanceDTO {
-                source: "Embedded".to_string(),
-                location: "Local Process".to_string(),
-                timestamp: 0,
-                extra_info: std::collections::HashMap::new(),
-            },
-            retrieval_explanation: None,
-            recent_activity: vec![],
-        })
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

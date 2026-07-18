@@ -73,13 +73,13 @@ impl TimeInterval {
 
     /// Checks if a given `TimePoint` lies within this interval `[start, end)`.
     pub fn contains(&self, point: TimePoint) -> bool {
-        point >= self.start && self.end.map_or(true, |e| point < e)
+        point >= self.start && self.end.is_none_or(|e| point < e)
     }
 
     /// Checks if this interval overlaps with another interval.
     pub fn overlaps(&self, other: &Self) -> bool {
-        let cond1 = other.end.map_or(true, |e2| self.start < e2);
-        let cond2 = self.end.map_or(true, |e1| other.start < e1);
+        let cond1 = other.end.is_none_or(|e2| self.start < e2);
+        let cond2 = self.end.is_none_or(|e1| other.start < e1);
         cond1 && cond2
     }
 
@@ -265,9 +265,7 @@ impl RecencyPolicy {
                 }
             }
             Self::Linear { horizon_secs } => {
-                if *horizon_secs <= 0.0 {
-                    0.0
-                } else if elapsed >= *horizon_secs {
+                if *horizon_secs <= 0.0 || elapsed >= *horizon_secs {
                     0.0
                 } else {
                     base_weight * (1.0 - elapsed / *horizon_secs)

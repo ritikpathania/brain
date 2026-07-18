@@ -85,7 +85,7 @@ fn test_commands_provider() {
     assert!(matches!(events[0], SearchEvent::Started { .. }));
 
     if let SearchEvent::Results { results, .. } = &events[1] {
-        assert!(results.len() > 0);
+        assert!(!results.is_empty());
         assert_eq!(results[0].kind, SearchResultKind::Command);
         assert!(results[0].title.to_lowercase().contains("theme"));
     } else {

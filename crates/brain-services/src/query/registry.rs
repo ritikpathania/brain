@@ -148,11 +148,11 @@ impl QuerySubscriptionRegistry {
         let mut to_invalidate = Vec::new();
 
         for (key, state) in states.iter_mut() {
-            if key.matches_projection(notification.projection_id) {
-                if notification.sequence > state.latest_sequence {
-                    state.latest_sequence = notification.sequence;
-                    to_invalidate.push(key.clone());
-                }
+            if key.matches_projection(notification.projection_id)
+                && notification.sequence > state.latest_sequence
+            {
+                state.latest_sequence = notification.sequence;
+                to_invalidate.push(key.clone());
             }
         }
 
@@ -256,11 +256,11 @@ impl QuerySubscriptionRegistry {
 
 impl SubscriptionKey {
     fn matches_projection(&self, projection_id: ProjectionId) -> bool {
-        match (self, projection_id) {
-            (SubscriptionKey::Session(_), ProjectionId::Sessions) => true,
-            (SubscriptionKey::Job(_), ProjectionId::Jobs) => true,
-            (SubscriptionKey::Search(_), ProjectionId::Search) => true,
-            _ => false,
-        }
+        matches!(
+            (self, projection_id),
+            (SubscriptionKey::Session(_), ProjectionId::Sessions)
+                | (SubscriptionKey::Job(_), ProjectionId::Jobs)
+                | (SubscriptionKey::Search(_), ProjectionId::Search)
+        )
     }
 }

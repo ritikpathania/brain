@@ -29,17 +29,17 @@ pub enum JobState {
 impl JobState {
     /// Returns true if transitioning from `self` to `next` is allowed by invariants.
     pub fn can_transition_to(self, next: Self) -> bool {
-        match (self, next) {
-            (JobState::Pending, JobState::Running) => true,
-            (JobState::Pending, JobState::Cancelled) => true,
-            (JobState::Running, JobState::Waiting) => true,
-            (JobState::Running, JobState::Completed) => true,
-            (JobState::Running, JobState::Failed) => true,
-            (JobState::Running, JobState::Cancelled) => true,
-            (JobState::Waiting, JobState::Running) => true,
-            (JobState::Waiting, JobState::Cancelled) => true,
-            _ => false,
-        }
+        matches!(
+            (self, next),
+            (JobState::Pending, JobState::Running)
+                | (JobState::Pending, JobState::Cancelled)
+                | (JobState::Running, JobState::Waiting)
+                | (JobState::Running, JobState::Completed)
+                | (JobState::Running, JobState::Failed)
+                | (JobState::Running, JobState::Cancelled)
+                | (JobState::Waiting, JobState::Running)
+                | (JobState::Waiting, JobState::Cancelled)
+        )
     }
 }
 

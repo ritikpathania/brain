@@ -95,11 +95,17 @@ impl InMemoryReplayStrategy {
     }
 }
 
+impl Default for InMemoryReplayStrategy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait::async_trait]
 impl ReplayStrategy for InMemoryReplayStrategy {
     async fn record(&self, envelope: IngestionEnvelope) -> Result<(), BrainSdkError> {
         let mut guard = self.pending.lock().await;
-        guard.insert(envelope.identity.event_id.clone(), envelope);
+        guard.insert(envelope.identity.event_id, envelope);
         Ok(())
     }
 
@@ -250,8 +256,8 @@ impl BrainClient {
                 workspace_id: self.config.workspace_id.clone(),
                 client_id: self.config.client_id.clone(),
                 adapter_id: self.config.adapter_id.clone(),
-                session_id: self.config.session_id.clone(),
-                conversation_id: self.config.conversation_id.clone(),
+                session_id: self.config.session_id,
+                conversation_id: self.config.conversation_id,
                 timestamp: chrono::Utc::now(),
             },
             event,
@@ -423,7 +429,7 @@ impl ClientRuntime {
                                     if let Some(r_ref) = buf_reader.as_mut() {
                                         if r_ref.read_line(&mut hs_line).await.is_ok() {
                                             if let Ok(resp_json) = serde_json::from_str::<serde_json::Value>(&hs_line) {
-                                                if resp_json.get("status").map_or(false, |s| s == "ok" || s == "success") {
+                                                if resp_json.get("status").is_some_and(|s| s == "ok" || s == "success") {
                                                     println!("[SDK UDS] Handshake successful!");
                                                     handshake_ok = true;
                                                 }
@@ -493,14 +499,14 @@ impl ClientRuntime {
                                     workspace_id: self.config.workspace_id.clone(),
                                     client_id: self.config.client_id.clone(),
                                     adapter_id: self.config.adapter_id.clone(),
-                                    session_id: self.config.session_id.clone(),
-                                    conversation_id: self.config.conversation_id.clone(),
+                                    session_id: self.config.session_id,
+                                    conversation_id: self.config.conversation_id,
                                     timestamp: chrono::Utc::now(),
                                 },
                                 event,
                             };
 
-                            let event_id = envelope.identity.event_id.clone();
+                            let event_id = envelope.identity.event_id;
                             let _ = self.replay_strategy.record(envelope.clone()).await;
                             self.pending_acks.insert(event_id, tx);
 

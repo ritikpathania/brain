@@ -83,7 +83,7 @@ fn test_retrieval_service_stm_and_ltm() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -150,7 +150,7 @@ fn test_cache_precedence_over_ltm() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -202,7 +202,7 @@ fn test_retrieval_cache_miss_db_hit_populates_cache() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -327,7 +327,7 @@ fn test_pipeline_deduplication() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -419,7 +419,7 @@ fn test_pipeline_empty_first_source() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -560,7 +560,7 @@ fn test_retrieval_natural_language_and_expansion() {
         Arc::new(StubDomainEventPublisher::new()),
     );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let provider = Arc::new(NoopEmbeddingProvider);
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         repos.clone(),
@@ -571,7 +571,7 @@ fn test_retrieval_natural_language_and_expansion() {
 
     let session_id = session_service.create_session().unwrap();
 
-    let mut ids = vec![NodeId::new(), NodeId::new(), NodeId::new(), NodeId::new()];
+    let mut ids = [NodeId::new(), NodeId::new(), NodeId::new(), NodeId::new()];
     ids.sort_by_key(|id| id.0);
     let brain_id = ids[0];
     let sqlite_id = ids[1];

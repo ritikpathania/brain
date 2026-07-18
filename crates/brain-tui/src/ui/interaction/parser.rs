@@ -33,8 +33,7 @@ impl MarkdownParser {
                 let text_line = lines.next().unwrap();
                 let heading_trimmed = text_line.trim_start_matches('#');
                 let level = (text_line.len() - heading_trimmed.len()) as u8;
-                if level >= 1
-                    && level <= 6
+                if (1..=6).contains(&level)
                     && (heading_trimmed.starts_with(' ') || heading_trimmed.is_empty())
                 {
                     let content = parse_inline(heading_trimmed.trim());
@@ -85,11 +84,7 @@ impl MarkdownParser {
                     let quote_trimmed = quote_line.trim();
                     if quote_trimmed.starts_with('>') {
                         let content = quote_line.strip_prefix('>').unwrap_or(quote_line);
-                        let content = if content.starts_with(' ') {
-                            &content[1..]
-                        } else {
-                            content
-                        };
+                        let content = content.strip_prefix(' ').unwrap_or(content);
                         quote_content.push(content.to_string());
                         lines.next();
                     } else {

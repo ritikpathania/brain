@@ -143,8 +143,8 @@ pub fn sort_results_deterministically(results: &mut [RetrievalResult]) {
     let has_ranked = results.iter().any(|r| r.ranking_score.is_some());
     if has_ranked {
         results.sort_by(|a, b| {
-            let score_a = a.ranking_score.unwrap_or(std::f64::NEG_INFINITY);
-            let score_b = b.ranking_score.unwrap_or(std::f64::NEG_INFINITY);
+            let score_a = a.ranking_score.unwrap_or(f64::NEG_INFINITY);
+            let score_b = b.ranking_score.unwrap_or(f64::NEG_INFINITY);
 
             match score_b.partial_cmp(&score_a) {
                 Some(std::cmp::Ordering::Equal) | None => a.node_id.cmp(&b.node_id),
@@ -175,8 +175,8 @@ pub fn sort_results_deterministically(results: &mut [RetrievalResult]) {
 
     if let Some(channel) = common_channel {
         results.sort_by(|a, b| {
-            let score_a = a.score(channel).unwrap_or(std::f64::NEG_INFINITY);
-            let score_b = b.score(channel).unwrap_or(std::f64::NEG_INFINITY);
+            let score_a = a.score(channel).unwrap_or(f64::NEG_INFINITY);
+            let score_b = b.score(channel).unwrap_or(f64::NEG_INFINITY);
 
             match score_b.partial_cmp(&score_a) {
                 Some(std::cmp::Ordering::Equal) | None => a.node_id.cmp(&b.node_id),
@@ -184,7 +184,7 @@ pub fn sort_results_deterministically(results: &mut [RetrievalResult]) {
             }
         });
     } else {
-        results.sort_by(|a, b| a.node_id.cmp(&b.node_id));
+        results.sort_by_key(|r| r.node_id);
     }
 }
 

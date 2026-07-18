@@ -350,15 +350,17 @@ async fn test_sidebar_event_loop_orchestration() {
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
     // Verify command was sent to client
-    let cmds = commands.lock().unwrap();
-    assert_eq!(cmds.len(), 1);
-    assert_eq!(
-        cmds[0],
-        BackendCommand::RenameSession {
-            session_id: test_id,
-            title: Some("New Title".to_string())
-        }
-    );
+    {
+        let cmds = commands.lock().unwrap();
+        assert_eq!(cmds.len(), 1);
+        assert_eq!(
+            cmds[0],
+            BackendCommand::RenameSession {
+                session_id: test_id,
+                title: Some("New Title".to_string())
+            }
+        );
+    }
 
     cancellation.cancel();
     let _ = handle.await.unwrap();

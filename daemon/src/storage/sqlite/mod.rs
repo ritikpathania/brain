@@ -71,7 +71,7 @@ impl LtmDatabase {
         let workspace_id_str = envelope.identity.workspace_id.to_string();
         let conversation_id_str = envelope.identity.conversation_id.map(|id| id.to_string());
         let event_model_version = envelope.event_model_version.clone();
-        let event_type = serde_json::to_value(&envelope.event.kind())
+        let event_type = serde_json::to_value(envelope.event.kind())
             .map(|v| v.as_str().unwrap_or("unknown").to_string())
             .unwrap_or_else(|_| "unknown".to_string());
         let payload = brain_integrations::to_canonical_json(envelope)

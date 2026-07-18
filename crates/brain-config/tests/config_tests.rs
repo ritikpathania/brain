@@ -239,7 +239,6 @@ fn test_validation_semantic_rules() {
             ranking_policy: Some(RankingPolicy::DefaultRrf),
             model_path: None,
         }),
-        ..Default::default()
     };
 
     let settings = BrainSettings::try_from(bad_db).unwrap();
@@ -269,7 +268,6 @@ fn test_validation_semantic_rules() {
             ranking_policy: Some(RankingPolicy::DefaultRrf),
             model_path: None,
         }),
-        ..Default::default()
     };
 
     let settings = BrainSettings::try_from(bad_ttl).unwrap();

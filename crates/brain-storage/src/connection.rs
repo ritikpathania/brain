@@ -15,6 +15,12 @@ impl r2d2::CustomizeConnection<Connection, rusqlite::Error> for SqliteConnection
         if self.enable_wal {
             conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         }
+        if std::env::var("BRAIN_SQLITE_SYNCHRONOUS_NORMAL").is_ok() {
+            conn.execute_batch("PRAGMA synchronous = NORMAL;")?;
+        }
+        if std::env::var("BRAIN_SQLITE_TEMP_STORE_MEMORY").is_ok() {
+            conn.execute_batch("PRAGMA temp_store = MEMORY;")?;
+        }
         Ok(())
     }
 }

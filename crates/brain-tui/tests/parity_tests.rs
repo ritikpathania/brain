@@ -9,7 +9,7 @@ use ratatui::Terminal;
 
 #[test]
 fn test_layout_partitions_verification() {
-    let state = UiState::new();
+
     let theme = Theme::default();
     let renderer = AppRenderer::new();
 
@@ -106,7 +106,7 @@ fn test_session_switching_stress() {
 
 #[test]
 fn test_rapid_resize_stress() {
-    let state = UiState::new();
+
     let theme = Theme::default();
     let renderer = AppRenderer::new();
 

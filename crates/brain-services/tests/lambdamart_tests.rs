@@ -419,13 +419,13 @@ fn test_production_corpus_lambdamart_comparison() {
     md.push_str("\n## Research Conclusion\n\n");
     md.push_str("> [NOTE]\n");
     if lambdamart_score > baseline_score {
-        md.push_str(&format!(
+        md.push_str(
             "> LambdaMART successfully outperformed the calibrated Linear Baseline on the validation split queries. This verifies that optimizing listwise ranking metrics via LambdaRank gradients achieves stable generalization and avoids overfitting on unseen evaluation corpora.\n"
-        ));
+        );
     } else {
-        md.push_str(&format!(
+        md.push_str(
             "> LambdaMART did not outperform the calibrated Linear Baseline on validation queries. This suggests that the current calibration baseline represents a highly robust model for this controlled vocabulary scope.\n"
-        ));
+        );
     }
 
     let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");

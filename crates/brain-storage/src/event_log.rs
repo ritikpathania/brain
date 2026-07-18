@@ -37,6 +37,7 @@ impl SqliteEventLog {
     }
 
     /// Appends a raw event to the database event log.
+    #[allow(clippy::too_many_arguments)]
     pub fn append(
         &self,
         event_id: Uuid,

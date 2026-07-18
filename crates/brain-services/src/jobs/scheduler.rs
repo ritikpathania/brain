@@ -82,7 +82,7 @@ impl PartialOrd for RunnableJob {
 
 enum SchedulerCommand {
     Submit {
-        job: Job,
+        job: Box<Job>,
         dependencies: BTreeSet<JobId>,
         reply: oneshot::Sender<Result<(), SchedulerError>>,
     },
@@ -155,7 +155,7 @@ impl JobScheduler {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(SchedulerCommand::Submit {
-                job,
+                job: Box::new(job),
                 dependencies,
                 reply: reply_tx,
             })
@@ -207,6 +207,7 @@ async fn scheduler_actor_loop(
                 dependencies,
                 reply,
             } => {
+                let job = *job;
                 let job_id = job.id();
                 let job_kind = job.kind();
 

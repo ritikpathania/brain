@@ -612,7 +612,7 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     match client_clone.inspect_node(node_id).await {
                                         Ok(model) => {
                                             let _ = tx.send(Event::App(
-                                                AppEvent::InspectNodeLoaded(model),
+                                                AppEvent::InspectNodeLoaded(Box::new(model)),
                                             ));
                                         }
                                         Err(e) => {
@@ -774,12 +774,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 message: crate::ui::interaction::MessageId(0),
                             });
                         }
-                        brain_core::events::StreamEventKind::WorkspaceContextUsed(context_used) => {
-                            if !context_used.is_empty() {
-                                let labels = context_used.join(", ");
-                                let msg = format!("\u{1f4cc} Context used: {}", labels);
-                                state.update(Action::SetTransientMessage(msg));
-                            }
+                        brain_core::events::StreamEventKind::WorkspaceContextUsed(context_used)
+                            if !context_used.is_empty() =>
+                        {
+                            let labels = context_used.join(", ");
+                            let msg = format!("\u{1f4cc} Context used: {}", labels);
+                            state.update(Action::SetTransientMessage(msg));
                         }
                         _ => {}
                     }

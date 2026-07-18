@@ -281,7 +281,7 @@ fn test_three_stage_parity_via_extractor() {
     );
 
     // Stage 3: Ordering parity - a sorted Vec reflects the score ordering
-    let mut candidates = vec![("b", score_b), ("a", score_a)];
+    let mut candidates = [("b", score_b), ("a", score_a)];
     candidates.sort_by(|x, y| y.1.partial_cmp(&x.1).unwrap_or(std::cmp::Ordering::Equal));
     assert_eq!(
         candidates[0].0, "a",

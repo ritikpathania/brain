@@ -267,10 +267,10 @@ fn get_predefined_centroids() -> &'static [Vec<f32>] {
         for c in 0..8 {
             let mut v = vec![0.0f32; 384];
             let mut norm_sq = 0.0f32;
-            for i in 0..384 {
+            for (i, slot) in v.iter_mut().enumerate() {
                 let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0)
                     .sin() as f32;
-                v[i] = val;
+                *slot = val;
                 norm_sq += val * val;
             }
             let norm = norm_sq.sqrt();
@@ -307,10 +307,10 @@ fn compute_closest_centroid(vector: &[f32]) -> i32 {
 fn deterministic_vector(index: usize) -> Vec<f32> {
     let mut v = vec![0.0f32; 384];
     let mut norm_sq = 0.0f32;
-    for i in 0..384 {
+    for (i, slot) in v.iter_mut().enumerate() {
         let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (index + 1) as f64) / 384.0).sin()
             as f32;
-        v[i] = val;
+        *slot = val;
         norm_sq += val * val;
     }
     let norm = norm_sq.sqrt();
@@ -414,7 +414,7 @@ impl EmbeddingProvider for BenchEmbeddingProvider {
 // ============================================================================
 fn get_git_commit() -> String {
     std::process::Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|_| "unknown".to_string())
@@ -432,7 +432,7 @@ fn get_cpu_info() -> String {
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("sysctl")
-            .args(&["-n", "machdep.cpu.brand_string"])
+            .args(["-n", "machdep.cpu.brand_string"])
             .output()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
             .unwrap_or_else(|_| "unknown macos cpu".to_string())

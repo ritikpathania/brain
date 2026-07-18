@@ -47,11 +47,9 @@ async fn test_daemon_lifecycle_graceful_shutdown() {
     // Wait for the socket to be bound
     let mut ready = false;
     for _ in 0..50 {
-        if socket_path.exists() {
-            if UnixStream::connect(&socket_path).await.is_ok() {
-                ready = true;
-                break;
-            }
+        if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
+            ready = true;
+            break;
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }

@@ -34,19 +34,11 @@ impl ObservabilitySubscriber {
         let handle = thread::Builder::new()
             .name("brain-observability-subscriber".to_string())
             .spawn(move || {
-                loop {
-                    match rx.recv() {
-                        Ok(event) => {
-                            // Downcast to TaskProgress; silently ignore other event types
-                            if let Some(progress) = event.as_any().downcast_ref::<TaskProgress>() {
-                                if let Ok(mut idx) = index_clone.lock() {
-                                    idx.ingest(progress);
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            // Channel closed — sender dropped. Exit cleanly.
-                            break;
+                while let Ok(event) = rx.recv() {
+                    // Downcast to TaskProgress; silently ignore other event types
+                    if let Some(progress) = event.as_any().downcast_ref::<TaskProgress>() {
+                        if let Ok(mut idx) = index_clone.lock() {
+                            idx.ingest(progress);
                         }
                     }
                 }

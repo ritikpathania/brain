@@ -20,7 +20,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 has_focus: true,
                 submit_with_workspace: false,
             };
-            prompt::draw(f, area, &view, &theme);
+            prompt::draw(f, area, &view, theme);
         })
         .unwrap();
 
@@ -36,7 +36,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 has_focus: true,
                 submit_with_workspace: false,
             };
-            prompt::draw(f, area, &view, &theme);
+            prompt::draw(f, area, &view, theme);
         })
         .unwrap();
 
@@ -52,7 +52,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 has_focus: true,
                 submit_with_workspace: false,
             };
-            prompt::draw(f, area, &view, &theme);
+            prompt::draw(f, area, &view, theme);
         })
         .unwrap();
 }

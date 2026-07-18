@@ -149,7 +149,7 @@ impl FeaturePipelineReporter {
                 node_id: nodes[i].id,
                 raw_features: raw[i].clone(),
                 normalization_context: context.clone(),
-                normalized_signals: normalized[i].clone(),
+                normalized_signals: normalized[i],
             });
         }
         reports

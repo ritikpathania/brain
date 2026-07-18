@@ -24,7 +24,7 @@ impl Projector<MemoryListProjection, MemoryListQuery> for MemoryListProjector {
     fn project(&self, context: &ProjectionContext<MemoryListQuery>) -> MemoryListProjection {
         let mut nodes: Vec<Node> = context.graph.nodes.values().cloned().collect();
         // Sort deterministically to satisfy the Projection Determinism invariant
-        nodes.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string()));
+        nodes.sort_by_key(|a| a.id.to_string());
 
         let limit = context.query.limit;
         if nodes.len() > limit {

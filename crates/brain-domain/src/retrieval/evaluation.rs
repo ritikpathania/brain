@@ -16,7 +16,7 @@ macro_rules! define_metric_score {
                 if !val.is_finite() {
                     return Err(MetricConstructionError::NotFinite { val });
                 }
-                if val < 0.0 || val > 1.0 {
+                if !(0.0..=1.0).contains(&val) {
                     return Err(MetricConstructionError::OutOfRange {
                         val,
                         min: 0.0,

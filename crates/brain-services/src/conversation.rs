@@ -1116,7 +1116,7 @@ impl ConversationManager for ConversationManagerImpl {
                     "conversation_service".to_string(),
                     brain_events::DomainEvent::Core(event),
                 );
-                let _ = publ.publish(envelope);
+                publ.publish(envelope);
             }
         }
 
@@ -1419,7 +1419,7 @@ impl ConversationManager for ConversationManagerImpl {
                     .unwrap_or_default()
                     .as_secs(),
             );
-            let _event = conversation.archive(timestamp)?;
+            conversation.archive(timestamp)?;
             repos.sessions().save_session(session_id, &conversation)?;
 
             // Publish event

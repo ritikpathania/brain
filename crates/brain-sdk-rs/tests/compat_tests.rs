@@ -27,7 +27,7 @@ fn test_protocol_compatibility() {
     for entry in std::fs::read_dir(valid_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "json") {
+        if path.extension().is_some_and(|ext| ext == "json") {
             let fixture_str = std::fs::read_to_string(&path).unwrap();
             let fixture_val: serde_json::Value = serde_json::from_str(&fixture_str).unwrap();
 
@@ -63,7 +63,7 @@ fn test_protocol_compatibility() {
     for entry in std::fs::read_dir(invalid_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "json") {
+        if path.extension().is_some_and(|ext| ext == "json") {
             let fixture_str = std::fs::read_to_string(&path).unwrap();
             let fixture_val: serde_json::Value = serde_json::from_str(&fixture_str).unwrap();
 

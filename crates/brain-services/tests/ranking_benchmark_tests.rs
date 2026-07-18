@@ -222,7 +222,7 @@ fn test_feature_provider_loading() {
     assert_eq!(ctx1.updated_at, Some(500));
     assert_eq!(ctx1.provenance_confidence, Some(0.75));
     assert_eq!(ctx1.importance, Some(0.8));
-    assert_eq!(ctx1.pinned, true);
+    assert!(ctx1.pinned);
     assert_eq!(ctx1.graph_degree, Some(1));
     assert_eq!(ctx1.access_count, Some(1));
     assert_eq!(ctx1.last_observed_at, Some(900));
@@ -231,7 +231,7 @@ fn test_feature_provider_loading() {
     assert_eq!(ctx2.updated_at, Some(800));
     assert_eq!(ctx2.provenance_confidence, Some(0.95));
     assert_eq!(ctx2.importance, None);
-    assert_eq!(ctx2.pinned, false);
+    assert!(!ctx2.pinned);
     assert_eq!(ctx2.graph_degree, Some(1));
     assert_eq!(ctx2.access_count, Some(0));
     assert_eq!(ctx2.last_observed_at, Some(900));

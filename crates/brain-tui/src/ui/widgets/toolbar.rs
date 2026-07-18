@@ -46,7 +46,7 @@ impl<'a> BrainWidget for Toolbar<'a> {
         let layout = ToolbarLayout::compute(area, self.view);
         let tab_areas = layout.tab_areas();
 
-        for idx in 0..tab_areas.len() {
+        for (idx, tab_area) in tab_areas.iter().enumerate() {
             let tab = &self.view.tabs[idx];
             let token = if tab.active {
                 ThemeToken::Accent
@@ -57,7 +57,7 @@ impl<'a> BrainWidget for Toolbar<'a> {
                 label: tab.title,
                 token,
             };
-            badge.draw(tab_areas[idx], buf, ctx);
+            badge.draw(*tab_area, buf, ctx);
         }
     }
 }

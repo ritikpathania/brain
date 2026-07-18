@@ -57,7 +57,7 @@ impl<'a, 'b> CycleDetector<'a, 'b> {
         let adjacency = self.context.adjacency();
         for &next in adjacency.neighbors(curr) {
             if next == start {
-                if path.len() >= 1 {
+                if !path.is_empty() {
                     all_cycles.push(path.clone());
                 }
             } else if next > start && !visited.contains(&next) {

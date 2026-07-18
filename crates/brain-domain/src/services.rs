@@ -53,7 +53,7 @@ impl MemoryMergePolicy {
         let merged_node = Node {
             id: a.id,
             label: newer.label.clone(),
-            node_type: a.node_type.clone(),
+            node_type: a.node_type,
             properties: merged_properties,
             provenance: newer.provenance.clone(),
             updated_at,

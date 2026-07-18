@@ -55,7 +55,7 @@ impl Clipboard for SystemClipboard {
                 .map_err(|e| ClipboardError::OperationFailed(Box::new(e)))?;
         } else {
             return Err(ClipboardError::OperationFailed(Box::new(
-                std::io::Error::new(std::io::ErrorKind::Other, "Failed to open pbcopy stdin"),
+                std::io::Error::other("Failed to open pbcopy stdin"),
             )));
         }
 

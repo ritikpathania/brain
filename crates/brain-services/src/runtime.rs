@@ -790,7 +790,7 @@ impl StartupPhase for ServicesReadyPhase {
         let query_embedding_service =
             locator.query_embedding_service.clone().unwrap_or_else(|| {
                 let default_provider =
-                    Arc::new(brain_core::retrieval::NoopEmbeddingProvider::default());
+                    Arc::new(brain_core::retrieval::NoopEmbeddingProvider);
                 Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
                     default_provider,
                 ))

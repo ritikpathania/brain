@@ -389,11 +389,6 @@ impl Node {
     }
 }
 
-/// Represents a directed relationship edge between two nodes in the knowledge graph.
-///
-/// Invariants:
-/// - Edge ID (source, target, relation) is strictly immutable once persisted.
-/// - Provenance information is intrinsic and immutable.
 /// Typed identifier representing an inference rule.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -454,7 +449,7 @@ impl Edge {
 
     /// Strengthens the relationship weight by 0.1, capped at 1.0.
     pub fn strengthen(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
-        if self.weight < 0.0 || self.weight > 1.0 {
+        if !(0.0..=1.0).contains(&self.weight) {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(
                 self.weight.to_string(),
             ));
@@ -482,12 +477,12 @@ impl Edge {
         new_evidence_weight: f64,
         strategy: crate::relations::ConfidenceStrategy,
     ) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
-        if self.weight < 0.0 || self.weight > 1.0 {
+        if !(0.0..=1.0).contains(&self.weight) {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(
                 self.weight.to_string(),
             ));
         }
-        if new_evidence_weight < 0.0 || new_evidence_weight > 1.0 {
+        if !(0.0..=1.0).contains(&new_evidence_weight) {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
                 "new_evidence_weight={}",
                 new_evidence_weight
@@ -522,7 +517,7 @@ impl Edge {
             )));
         }
         let lambda = 2.0f64.ln() / half_life_secs;
-        self.weight = self.weight * (-lambda * delta_t_secs).exp();
+        self.weight *= (-lambda * delta_t_secs).exp();
         self.updated_at = current_unix_timestamp();
         Ok(())
     }

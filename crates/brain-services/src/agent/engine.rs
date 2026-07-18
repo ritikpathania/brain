@@ -262,24 +262,20 @@ impl ExecutionStage for ToolStage {
                 arguments: tool_call.arguments.clone(),
             });
 
-            match ctx.tool_executor.execute(
+            let res = ctx.tool_executor.execute(
                 &ctx.session_id,
                 &tool_call.tool_name,
                 &tool_call.arguments,
                 ctx.deadline,
-            ) {
-                Ok(res) => {
-                    state
-                        .tool_outputs
-                        .insert(tool_call.tool_name.clone(), res.value().clone());
-                    ctx.sink.emit(AgentExecutionEventPayload::ToolCompleted {
-                        session_id: ctx.session_id,
-                        tool_name: tool_call.tool_name.clone(),
-                        result: res.value().clone(),
-                    });
-                }
-                Err(e) => return Err(e),
-            }
+            )?;
+            state
+                .tool_outputs
+                .insert(tool_call.tool_name.clone(), res.value().clone());
+            ctx.sink.emit(AgentExecutionEventPayload::ToolCompleted {
+                session_id: ctx.session_id,
+                tool_name: tool_call.tool_name.clone(),
+                result: res.value().clone(),
+            });
         }
         Ok(StageOutcome::Continue)
     }

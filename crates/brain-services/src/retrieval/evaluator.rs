@@ -188,8 +188,8 @@ impl OfflineEvaluator {
         };
 
         Ok(EvaluationReport {
-            candidate_version: candidate.metadata.version.clone(),
-            baseline_version: baseline.metadata.version.clone(),
+            candidate_version: candidate.metadata.version,
+            baseline_version: baseline.metadata.version,
             comparison,
             recommendation,
             metadata,

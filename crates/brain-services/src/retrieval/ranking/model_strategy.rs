@@ -92,12 +92,10 @@ impl RankingStrategy for ModelRankingStrategy {
                     source: Some(Box::new(e)),
                 })?;
 
-            for row in rows {
-                if let Ok((uuid_str, score)) = row {
-                    if let Ok(uuid) = uuid::Uuid::parse_str(&uuid_str) {
-                        // Negate it to match FtsRetriever behavior (higher score = better match)
-                        fts_scores.insert(NodeId(uuid), -score);
-                    }
+            for (uuid_str, score) in rows.flatten() {
+                if let Ok(uuid) = uuid::Uuid::parse_str(&uuid_str) {
+                    // Negate it to match FtsRetriever behavior (higher score = better match)
+                    fts_scores.insert(NodeId(uuid), -score);
                 }
             }
         }

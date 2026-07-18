@@ -1,4 +1,3 @@
-use brain_core::events::StreamEventKind;
 use serde_json::json;
 
 // Since UdsStreamEvent is not public in client.rs, we can re-declare or verify the DTO serialization / deserialization mappings directly against representative JSON values.

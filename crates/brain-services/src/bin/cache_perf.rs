@@ -85,6 +85,7 @@ struct PerformanceReport {
     capabilities: Vec<BackendCapability>,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum PerformanceReportBuildError {
     MissingEnvironmentMetadata,
@@ -420,8 +421,8 @@ fn seed_db_fast(conn: &rusqlite::Connection, table_name: &str, count: usize) {
     ))
     .unwrap();
 
-    conn.pragma_update(None, "synchronous", &"OFF").unwrap();
-    conn.pragma_update(None, "journal_mode", &"MEMORY").unwrap();
+    conn.pragma_update(None, "synchronous", "OFF").unwrap();
+    conn.pragma_update(None, "journal_mode", "MEMORY").unwrap();
     conn.execute("BEGIN TRANSACTION", []).unwrap();
 
     let query = format!(
@@ -655,7 +656,7 @@ fn run_endurance_test(db_path: &Path) {
 
     {
         let conn = rusqlite::Connection::open(db_path).unwrap();
-        conn.pragma_update(None, "synchronous", &"OFF").unwrap();
+        conn.pragma_update(None, "synchronous", "OFF").unwrap();
     }
 
     let start_rss = get_peak_rss();
@@ -798,7 +799,7 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
         "SQLite (WAL + Tuned)",
         &report.sqlite_wal_tuned_results,
     ));
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## Scaling Curves (Lookup vs Database Size)\n\n");
     md.push_str(
@@ -814,7 +815,7 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
             pt.insert_latency_p50_us
         ));
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## Concurrency & saturation Matrix\n\n");
     md.push_str("| Threads | Workload Mix | p50 (ms) | p99 (ms) | Throughput (ops/sec) |\n");
@@ -825,7 +826,7 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
             pt.threads, pt.workload, pt.p50_ms, pt.p99_ms, pt.throughput_ops_sec
         ));
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## Canonical Backend Capability Matrix\n\n");
     md.push_str("| Capability | InMemory | SQLite |\n");
@@ -836,7 +837,7 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
             cap.capability, cap.in_memory, cap.sqlite
         ));
     }
-    md.push_str("\n");
+    md.push('\n');
 
     std::fs::write(&md_path, md).unwrap();
 

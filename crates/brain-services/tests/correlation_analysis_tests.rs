@@ -194,7 +194,7 @@ fn test_correlation_analysis_pearson_and_spearman() {
             let r_ij = pearson_report.matrix.values[i][j];
             let r_ji = pearson_report.matrix.values[j][i];
             assert!((r_ij - r_ji).abs() < 1e-9);
-            assert!(r_ij >= -1.0 && r_ij <= 1.0);
+            assert!((-1.0..=1.0).contains(&r_ij));
         }
     }
 
@@ -220,7 +220,7 @@ fn test_correlation_analysis_pearson_and_spearman() {
             let r_ij = spearman_report.matrix.values[i][j];
             let r_ji = spearman_report.matrix.values[j][i];
             assert!((r_ij - r_ji).abs() < 1e-9);
-            assert!(r_ij >= -1.0 && r_ij <= 1.0);
+            assert!((-1.0..=1.0).contains(&r_ij));
         }
     }
 

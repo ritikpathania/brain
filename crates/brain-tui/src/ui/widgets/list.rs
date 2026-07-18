@@ -47,9 +47,9 @@ impl<'a> BrainWidget for List<'a> {
         let layout = ListLayout::compute(area, self.view);
         let item_areas = layout.item_areas();
 
-        for idx in 0..item_areas.len() {
+        for (idx, item_area) in item_areas.iter().enumerate() {
             let item = &self.view.items[idx];
-            let item_area = item_areas[idx];
+            let item_area = *item_area;
             if item_area.width < 2 {
                 continue;
             }

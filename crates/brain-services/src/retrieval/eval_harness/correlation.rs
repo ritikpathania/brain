@@ -316,7 +316,7 @@ impl CorrelationReportWriter {
         for _ in 0..=report.matrix.features.len() {
             md.push_str(" :--- |");
         }
-        md.push_str("\n");
+        md.push('\n');
 
         // Format rows
         for (i, row_f) in report.matrix.features.iter().enumerate() {
@@ -324,7 +324,7 @@ impl CorrelationReportWriter {
             for j in 0..report.matrix.features.len() {
                 md.push_str(&format!(" {:.4} |", report.matrix.values[i][j]));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md.push_str("\n## Redundancy Alerts\n\n");

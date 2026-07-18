@@ -190,6 +190,7 @@ pub trait SyntaxHighlighter {
 }
 
 /// Default syntax highlighter highlighting common keyword tokens.
+#[derive(Default)]
 pub struct KeywordSyntaxHighlighter;
 
 impl KeywordSyntaxHighlighter {
@@ -794,8 +795,8 @@ fn layout_table(table: &TableNode, max_width: usize) -> Vec<Vec<VisualSpan>> {
             available_width
         };
         for w in &mut col_widths {
-            if sum_widths > 0 {
-                *w = (*w * available_width) / sum_widths;
+            if let Some(val) = (*w * available_width).checked_div(sum_widths) {
+                *w = val;
                 if *w == 0 {
                     *w = 1;
                 }
@@ -818,9 +819,8 @@ fn layout_table(table: &TableNode, max_width: usize) -> Vec<Vec<VisualSpan>> {
     for row in &table.rows {
         let mut row_spans = Vec::new();
         row_spans.push(VisualSpan::new("| ", VisualStyle::TableCell));
-        for i in 0..col_count {
+        for (i, &width) in col_widths.iter().enumerate().take(col_count) {
             let cell_val = row.get(i).map(|s| s.as_str()).unwrap_or("");
-            let width = col_widths[i];
             let cell_text = truncate_or_pad(cell_val, width);
             row_spans.push(VisualSpan::new(cell_text, VisualStyle::TableCell));
             row_spans.push(VisualSpan::new(" | ", VisualStyle::TableCell));

@@ -129,7 +129,7 @@ impl SqliteProjection {
             }
         }
 
-        for (old_id, _) in &old_nodes {
+        for old_id in old_nodes.keys() {
             if !new_graph.nodes.iter().any(|n| &n.id == *old_id) {
                 ops.push(SqliteOp::Node(ProjectionDelta::Delete((*old_id).clone())));
             }
@@ -160,7 +160,7 @@ impl SqliteProjection {
             }
         }
 
-        for (old_id, _) in &old_edges {
+        for old_id in old_edges.keys() {
             if !new_graph.edges.iter().any(|e| &e.id == *old_id) {
                 ops.push(SqliteOp::Edge(ProjectionDelta::Delete((*old_id).clone())));
             }

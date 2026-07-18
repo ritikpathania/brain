@@ -83,9 +83,8 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
 fn clean_comments(content: &str) -> String {
     let mut result = String::new();
     let mut in_block_comment = false;
-    let mut lines = content.lines();
 
-    while let Some(line) = lines.next() {
+    for line in content.lines() {
         let mut cleaned_line = String::new();
         let mut chars = line.chars().peekable();
 
@@ -194,7 +193,7 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
                 verify_dir(&path);
             } else if path
                 .extension()
-                .map_or(false, |ext| ext == "rust" || ext == "rs")
+                .is_some_and(|ext| ext == "rust" || ext == "rs")
             {
                 let raw_content = fs::read_to_string(&path).expect("Failed to read source file");
                 let content = clean_comments(&raw_content);
@@ -324,7 +323,7 @@ fn test_core_crate_no_upward_infrastructure_imports() {
                 verify_dir(&path);
             } else if path
                 .extension()
-                .map_or(false, |ext| ext == "rust" || ext == "rs")
+                .is_some_and(|ext| ext == "rust" || ext == "rs")
             {
                 let raw_content = fs::read_to_string(&path).expect("Failed to read source file");
                 let content = clean_comments(&raw_content);
@@ -387,7 +386,7 @@ fn test_event_publishing_boundary_enforcement() {
                         verify_no_event_envelope(&path, crate_name);
                     } else if path
                         .extension()
-                        .map_or(false, |ext| ext == "rust" || ext == "rs")
+                        .is_some_and(|ext| ext == "rust" || ext == "rs")
                     {
                         let raw_content =
                             fs::read_to_string(&path).expect("Failed to read source file");

@@ -44,7 +44,7 @@ async fn replay_strategy_ack_all_random_order() {
 
     // Record all
     for id in &ids {
-        let env = make_envelope(id.clone());
+        let env = make_envelope(*id);
         strategy.record(env).await.unwrap();
     }
     assert_eq!(strategy.get_unacknowledged().await.len(), 50);
@@ -74,7 +74,7 @@ async fn replay_strategy_partial_ack() {
     let ids: Vec<EventId> = (0..100).map(|_| EventId::new()).collect();
 
     for id in &ids {
-        strategy.record(make_envelope(id.clone())).await.unwrap();
+        strategy.record(make_envelope(*id)).await.unwrap();
     }
 
     // Acknowledge ~50% randomly
@@ -82,14 +82,14 @@ async fn replay_strategy_partial_ack() {
     for id in &ids {
         if rand::random::<bool>() {
             strategy.acknowledge(id).await.unwrap();
-            acked.insert(id.clone());
+            acked.insert(*id);
         }
     }
 
     let remaining = strategy.get_unacknowledged().await;
     let remaining_ids: std::collections::HashSet<EventId> = remaining
         .iter()
-        .map(|e| e.identity.event_id.clone())
+        .map(|e| e.identity.event_id)
         .collect();
 
     let expected: std::collections::HashSet<EventId> = ids
@@ -106,7 +106,7 @@ async fn replay_strategy_partial_ack() {
 async fn replay_strategy_ack_nonexistent() {
     let strategy = InMemoryReplayStrategy::new();
     let id = EventId::new();
-    strategy.record(make_envelope(id.clone())).await.unwrap();
+    strategy.record(make_envelope(id)).await.unwrap();
 
     let bogus = EventId::new();
     strategy.acknowledge(&bogus).await.unwrap();
@@ -119,8 +119,8 @@ async fn replay_strategy_ack_nonexistent() {
 async fn replay_strategy_duplicate_record() {
     let strategy = InMemoryReplayStrategy::new();
     let id = EventId::new();
-    strategy.record(make_envelope(id.clone())).await.unwrap();
-    strategy.record(make_envelope(id.clone())).await.unwrap();
+    strategy.record(make_envelope(id)).await.unwrap();
+    strategy.record(make_envelope(id)).await.unwrap();
 
     assert_eq!(strategy.get_unacknowledged().await.len(), 1);
 }
@@ -132,13 +132,13 @@ async fn replay_strategy_reconcile() {
     let ids: Vec<EventId> = (0..10).map(|_| EventId::new()).collect();
 
     for id in &ids {
-        strategy.record(make_envelope(id.clone())).await.unwrap();
+        strategy.record(make_envelope(*id)).await.unwrap();
     }
 
     // Server knows about the first 5
     let server_known: Vec<IngestionEnvelope> = ids[..5]
         .iter()
-        .map(|id| make_envelope(id.clone()))
+        .map(|id| make_envelope(*id))
         .collect();
 
     let replay_resp = brain_sdk_rs::ReplayResponse {
@@ -151,7 +151,7 @@ async fn replay_strategy_reconcile() {
 
     let remaining_ids: std::collections::HashSet<EventId> = remaining
         .iter()
-        .map(|e| e.identity.event_id.clone())
+        .map(|e| e.identity.event_id)
         .collect();
     for id in &ids[5..] {
         assert!(remaining_ids.contains(id));

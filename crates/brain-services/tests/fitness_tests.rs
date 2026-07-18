@@ -61,7 +61,7 @@ mod tests {
                 let path = entry.path();
                 if path.is_dir() {
                     assert_no_forbidden_imports_recursive(&path, forbidden);
-                } else if path.extension().map_or(false, |ext| ext == "rs") {
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
                     let content = fs::read_to_string(&path).unwrap();
                     for line in content.lines() {
                         let trimmed = line.trim();

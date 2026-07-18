@@ -252,39 +252,33 @@ impl Dispatcher {
                         return DispatchResult::render();
                     }
                     Command::ScrollUp => {
-                        match &ctx.command_palette.stage {
-                            PaletteStage::Search => {
-                                let count = if ctx.command_palette.search_aggregator.is_some() {
-                                    ctx.command_palette.results().len()
+                        if ctx.command_palette.stage == PaletteStage::Search {
+                            let count = if ctx.command_palette.search_aggregator.is_some() {
+                                ctx.command_palette.results().len()
+                            } else {
+                                ctx.command_palette.matches().count()
+                            };
+                            if count > 0 {
+                                if ctx.command_palette.selected_index == 0 {
+                                    ctx.command_palette.selected_index = count - 1;
                                 } else {
-                                    ctx.command_palette.matches().count()
-                                };
-                                if count > 0 {
-                                    if ctx.command_palette.selected_index == 0 {
-                                        ctx.command_palette.selected_index = count - 1;
-                                    } else {
-                                        ctx.command_palette.selected_index -= 1;
-                                    }
+                                    ctx.command_palette.selected_index -= 1;
                                 }
                             }
-                            _ => {}
                         }
                         return DispatchResult::render();
                     }
                     Command::ScrollDown => {
-                        match &ctx.command_palette.stage {
-                            PaletteStage::Search => {
-                                let count = if ctx.command_palette.search_aggregator.is_some() {
-                                    ctx.command_palette.results().len()
-                                } else {
-                                    ctx.command_palette.matches().count()
-                                };
-                                if count > 0 {
-                                    ctx.command_palette.selected_index =
-                                        (ctx.command_palette.selected_index + 1) % count;
-                                }
+                        if ctx.command_palette.stage == PaletteStage::Search {
+                            let count = if ctx.command_palette.search_aggregator.is_some() {
+                                ctx.command_palette.results().len()
+                            } else {
+                                ctx.command_palette.matches().count()
+                            };
+                            if count > 0 {
+                                ctx.command_palette.selected_index =
+                                    (ctx.command_palette.selected_index + 1) % count;
                             }
-                            _ => {}
                         }
                         return DispatchResult::render();
                     }
@@ -513,8 +507,8 @@ impl Dispatcher {
             )
             .count();
             if count > 0 {
-                match action {
-                    InputAction::Command(cmd) => match cmd {
+                if let InputAction::Command(cmd) = action {
+                    match cmd {
                         Command::ScrollUp => {
                             if ctx.slash_completion.selected_index == 0 {
                                 ctx.slash_completion.selected_index = count - 1;
@@ -550,8 +544,7 @@ impl Dispatcher {
                             return DispatchResult::render();
                         }
                         _ => {}
-                    },
-                    _ => {}
+                    }
                 }
             }
         }

@@ -32,7 +32,7 @@ impl LayoutEngine {
     /// Solves geometry for the StatusBar widget.
     pub fn status_bar(area: Rect, measure: &StatusBarMeasure) -> StatusBarGeometry {
         let spinner_w = if measure.show_spinner { 2 } else { 0 };
-        let parts = Layout::horizontal(&[
+        let parts = Layout::horizontal([
             Constraint::Length(measure.title_width.0),
             Constraint::Length(spinner_w),
             Constraint::Min(0),

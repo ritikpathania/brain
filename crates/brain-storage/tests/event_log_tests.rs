@@ -136,7 +136,7 @@ fn test_ingestion_event_log_repository() {
     let envelope1 = IngestionEnvelope {
         event_model_version: "1.0".to_string(),
         identity: EventIdentity {
-            event_id: event_id1.clone(),
+            event_id: event_id1,
             parent_event_id: None,
             workspace_id: brain_domain::WorkspaceId::new("workspace-1"),
             client_id: brain_domain::ClientId::new("client-1"),
@@ -172,7 +172,7 @@ fn test_ingestion_event_log_repository() {
     let envelope2 = IngestionEnvelope {
         event_model_version: "1.0".to_string(),
         identity: EventIdentity {
-            event_id: event_id2.clone(),
+            event_id: event_id2,
             parent_event_id: None,
             workspace_id: brain_domain::WorkspaceId::new("workspace-1"),
             client_id: brain_domain::ClientId::new("client-1"),

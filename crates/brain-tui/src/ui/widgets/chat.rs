@@ -35,11 +35,9 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
         .border_style(theme.border);
 
     let mut items = Vec::new();
-    let mut line_idx = view.scroll_offset;
-
-    for visible in &view.visible_lines {
+    for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {
         let is_sel = view.selection.is_selected(line_idx);
-
+        
         if let Some(ref sender) = visible.sender_header {
             let sender_style = if is_sel {
                 Style::default().bg(Color::LightBlue).fg(Color::Black)
@@ -59,7 +57,6 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 .collect();
             items.push(ListItem::new(Line::from(spans)));
         }
-        line_idx += 1;
     }
 
     let list = List::new(items).block(block);

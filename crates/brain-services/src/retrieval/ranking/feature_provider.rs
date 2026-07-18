@@ -45,7 +45,7 @@ impl FeatureVector {
         let json_bytes = serde_json::to_vec(self).unwrap_or_default();
         let mut hasher = Sha256::new();
         // Version prefix: must match FEATURE_SCHEMA_VERSION
-        hasher.update(&[FEATURE_SCHEMA_VERSION as u8]);
+        hasher.update([FEATURE_SCHEMA_VERSION as u8]);
         hasher.update(&json_bytes);
         let result = hasher.finalize();
         let mut hex = String::with_capacity(64);
@@ -249,40 +249,38 @@ impl FeatureProvider for SqliteFeatureProvider {
                 source: Some(Box::new(e)),
             })?;
 
-        for row in rows {
-            if let Ok((
-                id_str,
-                updated_at,
-                properties_json,
-                graph_degree,
-                access_count,
-                last_observed_at,
-            )) = row
-            {
-                if let Ok(uuid) = uuid::Uuid::parse_str(&id_str) {
-                    let node_id = NodeId(uuid);
+        for (
+            id_str,
+            updated_at,
+            properties_json,
+            graph_degree,
+            access_count,
+            last_observed_at,
+        ) in rows.flatten()
+        {
+            if let Ok(uuid) = uuid::Uuid::parse_str(&id_str) {
+                let node_id = NodeId(uuid);
 
-                    let mut pinned = false;
-                    let mut importance = None;
-                    if let Ok(props) = serde_json::from_str::<serde_json::Value>(&properties_json) {
-                        pinned = props
-                            .get("pinned")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
-                        importance = props.get("importance").and_then(|v| v.as_f64());
-                    }
-
-                    let ctx = FeatureContext {
-                        updated_at: Some(updated_at),
-                        importance,
-                        pinned,
-                        provenance_confidence: None,
-                        graph_degree: Some(graph_degree),
-                        access_count: Some(access_count),
-                        last_observed_at: Some(last_observed_at),
-                    };
-                    contexts.insert(node_id, ctx);
+                let mut pinned = false;
+                let mut importance = None;
+                if let Ok(props) = serde_json::from_str::<serde_json::Value>(&properties_json) {
+                    pinned = props
+                        .get("pinned")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    importance = props.get("importance").and_then(|v| v.as_f64());
                 }
+
+                let ctx = FeatureContext {
+                    updated_at: Some(updated_at),
+                    importance,
+                    pinned,
+                    provenance_confidence: None,
+                    graph_degree: Some(graph_degree),
+                    access_count: Some(access_count),
+                    last_observed_at: Some(last_observed_at),
+                };
+                contexts.insert(node_id, ctx);
             }
         }
 

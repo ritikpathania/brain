@@ -410,9 +410,7 @@ fn compile_table_layout(table: &TableNode, max_width: usize) -> Vec<VisualLine> 
     // Simple width allocation: divide max_width evenly
     let cell_width = max_width.saturating_sub(col_count * 3 + 1) / col_count;
     let cell_width = if cell_width < 2 { 2 } else { cell_width };
-    for w in &mut col_widths {
-        *w = cell_width;
-    }
+    col_widths.fill(cell_width);
 
     let mut lines = Vec::new();
 
@@ -458,8 +456,7 @@ fn compile_table_layout(table: &TableNode, max_width: usize) -> Vec<VisualLine> 
             None,
             SpanAction::None,
         ));
-        for i in 0..col_count {
-            let width = col_widths[i];
+        for (i, width) in col_widths.iter().enumerate().take(col_count) {
             let cell = row.get(i);
             let cell_text = if let Some(c) = cell {
                 let spans = compile_inlines(&c.content, VisualStyle::TableCell);
@@ -472,7 +469,7 @@ fn compile_table_layout(table: &TableNode, max_width: usize) -> Vec<VisualLine> 
                 "".to_string()
             };
             row_spans.push(VisualSpan::new(
-                truncate_or_pad(&cell_text, width),
+                truncate_or_pad(&cell_text, *width),
                 VisualStyle::TableCell,
                 None,
                 SpanAction::None,

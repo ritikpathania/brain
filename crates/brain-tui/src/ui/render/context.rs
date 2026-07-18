@@ -119,7 +119,7 @@ impl RenderCapabilities {
 }
 
 /// Set of user-desired capability policy overrides.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct CapabilityPolicy {
     /// Force rendering using ASCII boundaries only.
     pub force_ascii: bool,
@@ -131,16 +131,6 @@ pub struct CapabilityPolicy {
     pub disable_motion: bool,
 }
 
-impl Default for CapabilityPolicy {
-    fn default() -> Self {
-        Self {
-            force_ascii: false,
-            force_colors: None,
-            disable_mouse: false,
-            disable_motion: false,
-        }
-    }
-}
 
 /// Immutable, resolved capability configuration utilized by the renderer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

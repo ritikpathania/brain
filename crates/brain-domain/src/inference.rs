@@ -77,9 +77,11 @@ impl InferenceEngine {
                     if inv_kind != RelationKind::Unknown {
                         let inv_edge_id = EdgeId::new(edge.target, edge.source, inv_kind.id());
 
-                        let mut prov = GraphProvenance::default();
-                        prov.source = ProvenanceSource::Inferred;
-                        prov.extractor_version = "inference-engine".to_string();
+                        let prov = GraphProvenance {
+                            source: ProvenanceSource::Inferred,
+                            extractor_version: "inference-engine".to_string(),
+                            ..GraphProvenance::default()
+                        };
 
                         let mut derived =
                             Edge::new(edge.target, edge.source, inv_kind, edge.weight);
@@ -106,9 +108,11 @@ impl InferenceEngine {
                             let target_edge_id = EdgeId::new(edge.target, z, edge.relation.id());
                             let combined_weight = def.confidence_strategy.combine(edge.weight, w2);
 
-                            let mut prov = GraphProvenance::default();
-                            prov.source = ProvenanceSource::Inferred;
-                            prov.extractor_version = "inference-engine".to_string();
+                            let prov = GraphProvenance {
+                                source: ProvenanceSource::Inferred,
+                                extractor_version: "inference-engine".to_string(),
+                                ..GraphProvenance::default()
+                            };
 
                             let mut supporting_edges = vec![source_edge_id.clone(), target_edge_id];
                             supporting_edges.sort();

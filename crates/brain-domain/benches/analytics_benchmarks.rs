@@ -12,9 +12,9 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 fn generate_cyclic_ring_graph(num_nodes: usize) -> (KnowledgeGraph, Vec<NodeId>) {
     let mut graph = KnowledgeGraph::new();
     let node_ids: Vec<NodeId> = (0..num_nodes).map(|_| NodeId::new()).collect();
-    for i in 0..num_nodes {
+    for (i, &id) in node_ids.iter().enumerate() {
         graph.add_node(Node::new(
-            node_ids[i],
+            id,
             format!("Node{}", i),
             NodeType::Concept,
         ));

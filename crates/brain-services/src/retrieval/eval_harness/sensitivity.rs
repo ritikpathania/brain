@@ -341,7 +341,7 @@ impl SensitivityReportWriter {
         } else {
             md.push_str("The following features are dormant (zero variance) and candidates for corpus enrichment:\n");
             md.push_str(&zero_vars.join("\n"));
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md

@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 
 pub mod palette;
 pub mod style;
+#[allow(clippy::module_inception)]
 pub mod theme;
 pub mod token;
 

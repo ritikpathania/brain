@@ -214,9 +214,9 @@ fn create_random_identity<R: Rng>(rng: &mut R) -> EventIdentity {
         } else {
             None
         },
-        workspace_id: WorkspaceId::new(&random_string(rng, 8)),
-        client_id: ClientId::new(&random_string(rng, 10)),
-        adapter_id: AdapterId::new(&random_string(rng, 10)),
+        workspace_id: WorkspaceId::new(random_string(rng, 8)),
+        client_id: ClientId::new(random_string(rng, 10)),
+        adapter_id: AdapterId::new(random_string(rng, 10)),
         session_id: SessionId::new(),
         conversation_id: if rng.gen() {
             Some(ConversationId::new())

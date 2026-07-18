@@ -69,14 +69,10 @@ impl Default for SessionTitle {
 }
 
 /// Value object representing a domain timestamp.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct SessionTimestamp(pub u64);
 
-impl Default for SessionTimestamp {
-    fn default() -> Self {
-        Self(0)
-    }
-}
+
 
 /// Strongly-typed identifier for an agent execution run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

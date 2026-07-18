@@ -19,7 +19,7 @@ impl<'a> BrainWidget for Dialog<'a> {
     fn render<T: ActiveTheme>(&self, area: Rect, buf: &mut Buffer, ctx: &RenderContext<'_, T>) {
         let mut button_widths = [CellWidth(0); MAX_DIALOG_BUTTONS];
         let buttons_len = self.view.buttons.len().min(MAX_DIALOG_BUTTONS);
-        for idx in 0..buttons_len {
+        for (idx, _) in self.view.buttons[..buttons_len].iter().enumerate() {
             button_widths[idx] = CellWidth::measure(self.view.buttons[idx].label);
         }
         let measure = DialogMeasure {
@@ -43,9 +43,9 @@ impl<'a> BrainWidget for Dialog<'a> {
         label.draw(geometry.message_area, buf, ctx);
 
         // Draw choices
-        for idx in 0..button_areas.len() {
+        for (idx, choice_area) in button_areas.iter().enumerate() {
             let button = &self.view.buttons[idx];
-            let choice_area = button_areas[idx];
+            let choice_area = *choice_area;
             let active = idx == self.view.selected_index;
 
             let token = if !button.enabled {

@@ -892,7 +892,7 @@ impl LambdaMartTrainer {
             let tree = tree_trainer.fit(&reg_dataset);
 
             // 3. Update current predictions for ALL examples (train + validation)
-            for i in 0..n {
+            for (i, score) in current_scores.iter_mut().enumerate().take(n) {
                 let x = [
                     dataset.examples[i].features.access_frequency.unwrap_or(0.0),
                     dataset.examples[i].features.freshness_decay.unwrap_or(0.0),
@@ -912,7 +912,7 @@ impl LambdaMartTrainer {
                         .semantic_similarity
                         .unwrap_or(0.0),
                 ];
-                current_scores[i] += config.learning_rate * tree.predict(&x);
+                *score += config.learning_rate * tree.predict(&x);
             }
 
             // 4. Compute metrics at the end of epoch
@@ -1029,10 +1029,10 @@ impl FeatureImportanceAnalyzer {
         };
 
         let mut entries = Vec::with_capacity(8);
-        for i in 0..8 {
+        for (i, &gain) in normalized_gains.iter().enumerate().take(8) {
             entries.push(FeatureImportance {
                 feature: map_idx_to_feature(i),
-                gain: normalized_gains[i],
+                gain,
             });
         }
 

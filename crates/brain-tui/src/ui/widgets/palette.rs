@@ -41,7 +41,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
             f.render_widget(query_p, chunks[0]);
 
             // Draw typing cursor in input bar
-            let cursor_x = chunks[0].x + state.editor.cursor().visual_col as u16;
+            let cursor_x = chunks[0].x + state.editor.cursor().visual_col;
             let cursor_y = chunks[0].y;
             if cursor_x < chunks[0].right() {
                 f.set_cursor(cursor_x, cursor_y);

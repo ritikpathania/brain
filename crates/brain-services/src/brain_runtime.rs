@@ -516,29 +516,26 @@ impl BrainRuntime {
 
         let retrieval_queries = self.metrics.retrieval_queries.load(Ordering::Acquire);
 
-        let avg_canonicalization_duration = if canonicalization_successes > 0 {
-            let total_ns = self
-                .metrics
-                .canonicalization_duration_ns
-                .load(Ordering::Acquire);
-            Some(Duration::from_nanos(total_ns / canonicalization_successes))
-        } else {
-            None
-        };
+        let avg_canonicalization_duration = self
+            .metrics
+            .canonicalization_duration_ns
+            .load(Ordering::Acquire)
+            .checked_div(canonicalization_successes)
+            .map(Duration::from_nanos);
 
-        let avg_reflection_duration = if canonicalization_successes > 0 {
-            let total_ns = self.metrics.reflection_duration_ns.load(Ordering::Acquire);
-            Some(Duration::from_nanos(total_ns / canonicalization_successes))
-        } else {
-            None
-        };
+        let avg_reflection_duration = self
+            .metrics
+            .reflection_duration_ns
+            .load(Ordering::Acquire)
+            .checked_div(canonicalization_successes)
+            .map(Duration::from_nanos);
 
-        let avg_dispatch_duration = if canonicalization_successes > 0 {
-            let total_ns = self.metrics.dispatch_duration_ns.load(Ordering::Acquire);
-            Some(Duration::from_nanos(total_ns / canonicalization_successes))
-        } else {
-            None
-        };
+        let avg_dispatch_duration = self
+            .metrics
+            .dispatch_duration_ns
+            .load(Ordering::Acquire)
+            .checked_div(canonicalization_successes)
+            .map(Duration::from_nanos);
 
         RuntimeMetrics {
             observations_ingested,

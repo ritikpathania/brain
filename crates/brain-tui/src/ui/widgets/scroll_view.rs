@@ -47,13 +47,13 @@ impl<'a> BrainWidget for ScrollViewWidget<'a> {
         let line_areas = layout.line_areas();
         let start = self.view.scroll_offset.min(self.view.lines.len());
 
-        for idx in 0..line_areas.len() {
+        for (idx, line_area) in line_areas.iter().enumerate() {
             let line = self.view.lines[start + idx];
             let label = Label {
                 text: line,
                 token: ThemeToken::Muted,
             };
-            label.draw(line_areas[idx], buf, ctx);
+            label.draw(*line_area, buf, ctx);
         }
     }
 }

@@ -17,9 +17,9 @@ fn get_workspace_root() -> PathBuf {
 fn clean_comments(content: &str) -> String {
     let mut result = String::new();
     let mut in_block_comment = false;
-    let mut lines = content.lines();
+    let lines = content.lines();
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         let mut cleaned_line = String::new();
         let mut chars = line.chars().peekable();
 
@@ -121,7 +121,7 @@ fn test_storage_cannot_depend_on_traversal() {
             let path = entry.path();
             if path.is_dir() {
                 verify_dir(&path);
-            } else if path.extension().map_or(false, |ext| ext == "rs") {
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let raw = fs::read_to_string(&path).unwrap();
                 let clean = clean_comments(&raw);
                 assert!(
@@ -152,7 +152,7 @@ fn test_domain_cannot_depend_on_services_or_retrieval() {
             let path = entry.path();
             if path.is_dir() {
                 verify_dir(&path);
-            } else if path.extension().map_or(false, |ext| ext == "rs") {
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let raw = fs::read_to_string(&path).unwrap();
                 let clean = clean_comments(&raw);
                 let forbidden = [
@@ -252,7 +252,7 @@ fn test_extractor_impls_never_invoke_storage_directly() {
                 let path = entry.path();
                 if path.is_dir() {
                     stack.push(path);
-                } else if path.extension().map_or(false, |ext| ext == "rs") {
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
                     let raw = fs::read_to_string(&path).unwrap();
                     let clean = clean_comments(&raw);
                     let blocks = extract_impl_blocks(&clean, "MemoryExtractor");
@@ -292,7 +292,7 @@ fn test_repository_impls_never_invoke_extraction() {
             let path = entry.path();
             if path.is_dir() {
                 verify_dir(&path);
-            } else if path.extension().map_or(false, |ext| ext == "rs") {
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let raw = fs::read_to_string(&path).unwrap();
                 let clean = clean_comments(&raw);
 

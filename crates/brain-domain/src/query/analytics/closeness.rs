@@ -7,20 +7,15 @@ use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
 /// Supported closeness centrality measurement variants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ClosenessVariant {
     /// Classic Bavelas closeness centrality: (V - 1) / sum(d(u, v)). Returns 0 if any node is unreachable.
     Classic,
     /// Harmonic closeness centrality: sum(1 / d(u, v)) / (V - 1). Naturally handles disconnected components.
+    #[default]
     Harmonic,
     /// Wasserman-Faust normalization: classic closeness scaled by (reachable_count - 1) / (V - 1).
     WassermanFaust,
-}
-
-impl Default for ClosenessVariant {
-    fn default() -> Self {
-        Self::Harmonic
-    }
 }
 
 /// Configuration settings for Closeness Centrality.
@@ -64,7 +59,7 @@ impl<'a, 'b, W: EdgeWeightProvider> Closeness<'a, 'b, W> {
         impl Eq for State {}
         impl PartialOrd for State {
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                other.cost.partial_cmp(&self.cost)
+                Some(self.cmp(other))
             }
         }
         impl Ord for State {

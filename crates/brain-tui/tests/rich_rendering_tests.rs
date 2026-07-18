@@ -1,15 +1,14 @@
 mod common;
 
 use brain_tui::ui::interaction::markdown::{
-    CitationNode, InlineNode, KeywordSyntaxHighlighter, MarkdownBlock, MarkdownLayout,
-    MarkdownParser, SelectionState, TableNode, VisualLine, VisualLineKind, VisualSpan, VisualStyle,
+    KeywordSyntaxHighlighter, MarkdownBlock, MarkdownLayout,
+    MarkdownParser, SelectionState, VisualLine, VisualLineKind, VisualSpan, VisualStyle,
 };
 use brain_tui::ui::render::{IconSet, RenderContext};
-use brain_tui::ui::theme::{dark_theme, ActiveTheme};
+use brain_tui::ui::theme::dark_theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use std::borrow::Cow;
 
 fn map_span_for_test(
     span: &VisualSpan,
@@ -77,11 +76,11 @@ fn render_visual_lines(
     theme: &Style,
     selection: &SelectionState,
 ) {
-    let mut y = area.y;
     for (idx, visual_line) in lines.iter().enumerate() {
-        if y >= area.y + area.height {
+        if idx as u16 >= area.height {
             break;
         }
+        let y = area.y + idx as u16;
         let is_sel = selection.is_selected(idx);
         let mut x = area.x;
         for span in &visual_line.spans {
@@ -95,7 +94,6 @@ fn render_visual_lines(
             buf.set_string(x, y, text.as_ref(), style);
             x += chars_count as u16;
         }
-        y += 1;
     }
 }
 
@@ -179,7 +177,7 @@ Line 2
 Line 3";
     let ast = MarkdownParser::parse(text);
     let highlighter = KeywordSyntaxHighlighter::new();
-    let layout = MarkdownLayout::layout(&ast, 80, &highlighter);
+    let _layout = MarkdownLayout::layout(&ast, 80, &highlighter);
 
     let mut selection = SelectionState::new();
     selection.select(1, 2);
@@ -195,7 +193,7 @@ fn test_rich_rendering_snapshots() {
     let icons = IconSet::new(true);
     let capabilities = common::mock_capabilities();
     let ctx = RenderContext {
-        theme: theme.clone(),
+        theme,
         icons: &icons,
         capabilities,
         tick: 0,

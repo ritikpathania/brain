@@ -32,8 +32,8 @@ impl SearchProvider for CommandsProvider {
         let mut matches = Vec::new();
 
         for cmd in crate::ui::command::COMMANDS {
-            if cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly {
-                if term.is_empty()
+            if cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly
+                && (term.is_empty()
                     || cmd.title.to_lowercase().contains(&term)
                     || cmd
                         .aliases
@@ -42,16 +42,15 @@ impl SearchProvider for CommandsProvider {
                     || cmd
                         .keywords
                         .iter()
-                        .any(|kw| kw.to_lowercase().contains(&term))
-                {
-                    matches.push(SearchResult {
-                        title: cmd.title.to_string(),
-                        subtitle: cmd.description.to_string(),
-                        kind: SearchResultKind::Command,
-                        provider_score: 1,
-                        action: SearchResultAction::InvokeCommand(cmd.id),
-                    });
-                }
+                        .any(|kw| kw.to_lowercase().contains(&term)))
+            {
+                matches.push(SearchResult {
+                    title: cmd.title.to_string(),
+                    subtitle: cmd.description.to_string(),
+                    kind: SearchResultKind::Command,
+                    provider_score: 1,
+                    action: SearchResultAction::InvokeCommand(cmd.id),
+                });
             }
         }
 

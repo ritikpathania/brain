@@ -97,7 +97,7 @@ impl ObservationParser for DefaultObservationParser {
         for line in text.lines() {
             let line = line.trim();
             if line.starts_with("entity:") {
-                let parts: Vec<&str> = line["entity:".len()..].split('[').collect();
+                let parts: Vec<&str> = line.strip_prefix("entity:").unwrap_or("").split('[').collect();
                 if !parts.is_empty() {
                     let name = parts[0].trim().to_string();
                     let entity_type = if parts.len() > 1 {
@@ -119,7 +119,7 @@ impl ObservationParser for DefaultObservationParser {
                     }
                 }
             } else if line.starts_with("relation:") {
-                let content = line["relation:".len()..].trim();
+                let content = line.strip_prefix("relation:").unwrap_or("").trim();
                 let parts: Vec<&str> = content.split("->").collect();
                 if parts.len() == 2 {
                     let source = parts[0].trim();

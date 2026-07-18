@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use brain_tui::ui::render::RenderContext;
 use brain_tui::ui::render::{
     ColorSupport, EffectiveCapabilities, MotionPreference, NerdFontsSupport, UnicodeSupport,

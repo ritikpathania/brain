@@ -91,6 +91,12 @@ pub struct CommandPaletteState {
     pub view_state: crate::ui::search::types::SearchViewState,
 }
 
+impl Default for CommandPaletteState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommandPaletteState {
     /// Instantiates a new CommandPaletteState in the closed search stage.
     pub fn new() -> Self {

@@ -462,9 +462,8 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             // Spawn speculative expansion step if applicable
             if runs_speculation {
-                if let Some((dep_idx, dep_step)) = dependent_step {
-                    if let PhysicalStep::ExpandNeighbors { policy, .. } = dep_step {
-                        let policy = policy.clone();
+                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) = dependent_step {
+                    let policy = policy.clone();
                         let seeds = speculative_seeds.clone();
                         let handle_spec = s.spawn(move || {
                             let mut candidates = Vec::new();
@@ -485,7 +484,6 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             }
                         });
                         handles.push(handle_spec);
-                    }
                 }
             }
 
@@ -517,10 +515,8 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         // Perform validation check
         let mut decision = SpeculationDecision::Discard;
-        if runs_speculation {
-            if speculative_seeds == merged.seed_nodes {
-                decision = SpeculationDecision::Reuse;
-            }
+        if runs_speculation && speculative_seeds == merged.seed_nodes {
+            decision = SpeculationDecision::Reuse;
         }
 
         match decision {
@@ -934,9 +930,8 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             // Spawn speculative expansion step if applicable
             if runs_speculation {
-                if let Some((dep_idx, dep_step)) = dependent_step {
-                    if let PhysicalStep::ExpandNeighbors { policy, .. } = dep_step {
-                        let policy = policy.clone();
+                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) = dependent_step {
+                    let policy = policy.clone();
                         let seeds = speculative_seeds.clone();
                         let handle_spec = s.spawn(move || {
                             let mut candidates = Vec::new();
@@ -957,7 +952,6 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             }
                         });
                         handles.push(handle_spec);
-                    }
                 }
             }
 
@@ -1038,10 +1032,8 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         // Perform validation check
         let mut decision = SpeculationDecision::Discard;
-        if runs_speculation {
-            if speculative_seeds == merged.seed_nodes {
-                decision = SpeculationDecision::Reuse;
-            }
+        if runs_speculation && speculative_seeds == merged.seed_nodes {
+            decision = SpeculationDecision::Reuse;
         }
 
         match decision {

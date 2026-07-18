@@ -223,6 +223,7 @@ impl TemporalRetrievalService {
     }
 
     /// Evaluates and runs memory retrieval under target historical/visibility constraints.
+    #[allow(clippy::type_complexity)]
     pub fn retrieve_temporal(
         &self,
         session_id: &SessionId,
@@ -428,7 +429,7 @@ impl RankingStrategy for LearnedTemporalScorer {
             &brain_domain::temporal::TemporalQuery {
                 reference_time: self.reference_time,
                 visibility: brain_domain::temporal::TemporalVisibility::Historical,
-                recency_policy: self.recency_policy.clone(),
+                recency_policy: self.recency_policy,
             },
         );
         let projected_repos =
@@ -436,7 +437,7 @@ impl RankingStrategy for LearnedTemporalScorer {
 
         // 2. Extract raw features using FeatureExtractor
         let extractor =
-            DefaultFeatureExtractor::new(self.reference_time, self.recency_policy.clone());
+            DefaultFeatureExtractor::new(self.reference_time, self.recency_policy);
         let raw_features = extractor.extract(request, &nodes, &temp_edges, &projected_repos)?;
 
         // 3. Normalize features using FeatureNormalizer & NormalizationContext

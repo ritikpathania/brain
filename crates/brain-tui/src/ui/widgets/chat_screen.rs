@@ -73,7 +73,7 @@ impl<'a> Screen for ChatScreen<'a> {
             buf.set_stringn(
                 chat_inner.x,
                 chat_inner.y,
-                &format!("Messages count: {}", self.view.message_count),
+                format!("Messages count: {}", self.view.message_count),
                 chat_inner.width as usize,
                 ctx.theme.style(ThemeToken::Muted),
             );

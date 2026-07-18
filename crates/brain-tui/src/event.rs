@@ -43,7 +43,7 @@ pub enum AppEvent {
     /// Unified global search event emitted by a provider.
     Search(crate::ui::search::types::SearchEvent),
     /// Graph node inspection model details loaded.
-    InspectNodeLoaded(brain_domain::query::inspector::InspectorModel),
+    InspectNodeLoaded(Box<brain_domain::query::inspector::InspectorModel>),
     /// Graph node inspection failed.
     InspectNodeFailed(String),
     /// Daemon socket closed without sending a Finished or Cancelled event.

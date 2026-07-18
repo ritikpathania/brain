@@ -2,7 +2,7 @@
 //! token → typewriter → drain → layout → render cycle with realistic data.
 
 use brain_tui::state::{
-    Action, GenerationState, RenderToken, TypewriterQueue, UiState, UpdateResult,
+    GenerationState, TypewriterQueue, UiState,
 };
 use brain_tui::ui::renderer::AppRenderer;
 use brain_tui::ui::theme::Theme;

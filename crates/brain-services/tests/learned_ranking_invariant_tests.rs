@@ -192,8 +192,8 @@ fn test_feature_pipeline_invariants() {
 
     // Invariant 2: Feature Ordering
     // Index 0 maps to Node A, Index 1 maps to Node B
-    assert_eq!(raw_after[0].semantic > 0.0, true); // Node A matches query
-    assert_eq!(raw_after[1].semantic == 0.0, true); // Node B doesn't match query
+    assert!(raw_after[0].semantic > 0.0); // Node A matches query
+    assert!(raw_after[1].semantic == 0.0); // Node B doesn't match query
 
     // Invariant 3: Normalization Stability
     let normalizer = MinMaxNormalizer;

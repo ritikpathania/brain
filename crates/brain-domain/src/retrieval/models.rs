@@ -912,7 +912,7 @@ impl NormalizedSignal {
         if !val.is_finite() {
             return Err(crate::consolidation::MetricConstructionError::NotFinite { val });
         }
-        if val < 0.0 || val > 1.0 {
+        if !(0.0..=1.0).contains(&val) {
             return Err(crate::consolidation::MetricConstructionError::OutOfRange {
                 val,
                 min: 0.0,

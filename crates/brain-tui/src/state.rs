@@ -538,7 +538,7 @@ pub enum InspectorLoadState {
     /// In-flight RPC request loading.
     Loading,
     /// Successfully loaded model details.
-    Loaded(brain_domain::query::inspector::InspectorModel),
+    Loaded(Box<brain_domain::query::inspector::InspectorModel>),
     /// Failed query error.
     Error(String),
 }
@@ -811,7 +811,7 @@ pub enum Action {
     /// Navigate/inspect node details.
     InspectNode(brain_domain::NodeId),
     /// Inspector details loaded successfully.
-    NodeDetailsLoaded(brain_domain::query::inspector::InspectorModel),
+    NodeDetailsLoaded(Box<brain_domain::query::inspector::InspectorModel>),
     /// Inspector details query failed.
     NodeDetailsFailed(String),
     /// Backspace pops breadcrumb navigation history.
@@ -2912,7 +2912,7 @@ mod tests {
         };
         state.active_inspector = Some(InspectorSession {
             node_id,
-            load_state: InspectorLoadState::Loaded(model),
+            load_state: InspectorLoadState::Loaded(Box::new(model)),
             breadcrumbs: vec![],
             scroll_offset: 0,
             selected_relation_idx: 0,
@@ -3100,7 +3100,7 @@ mod tests {
         };
         state.active_inspector = Some(InspectorSession {
             node_id,
-            load_state: InspectorLoadState::Loaded(model),
+            load_state: InspectorLoadState::Loaded(Box::new(model)),
             breadcrumbs: vec![],
             scroll_offset: 0,
             selected_relation_idx: 0,

@@ -318,6 +318,7 @@ where
     }
 
     /// Executes the entire retrieval pipeline with layered cache check and short-circuiting.
+    #[allow(clippy::too_many_arguments)]
     pub fn execute_cached<F, R>(
         &self,
         context: &brain_domain::retrieval::RetrievalExecutionContext,

@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn regenerate_retrieval_baselines() -> Result<(), Box<dyn std::error::Error>> {
     println!("Regenerating retrieval baselines via cargo test...");
     let status = Command::new("cargo")
-        .args(&[
+        .args([
             "test",
             "-p",
             "brain-services",
@@ -164,20 +164,18 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
     let output_file_path = Path::new("generated/typescript/types.ts");
     let sdk_file_path = Path::new("sdks/typescript/src/generated/types.ts");
     if !output_file_path.exists() || !sdk_file_path.exists() {
-        return Err(format!(
-            "Freshness check failed: generated types files do not exist.\n\
+        return Err("Freshness check failed: generated types files do not exist.\n\
              Action required:\n\
              Run:\n\
                  cargo xtask generate-contracts\n"
-        )
+        .to_string()
         .into());
     }
 
     let on_disk_root = fs::read_to_string(output_file_path)?;
     let on_disk_sdk = fs::read_to_string(sdk_file_path)?;
     if in_memory.trim() != on_disk_root.trim() || in_memory.trim() != on_disk_sdk.trim() {
-        return Err(format!(
-            "\n======================================================================\n\
+        return Err("\n======================================================================\n\
              VERIFICATION ERROR: Generated artifacts differ from the committed contract.\n\n\
              Action required:\n\
              Run:\n\
@@ -186,7 +184,7 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
                  git diff generated/ sdks/typescript/src/generated/\n\n\
              Then commit the updated generated artifacts if the change is intentional.\n\
              ======================================================================"
-        )
+        .to_string()
         .into());
     }
     println!("  Freshness verification check: PASSED");
@@ -194,7 +192,7 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
     // 3. Repository cleanliness check (convenience check via git)
     println!("Running repository cleanliness check...");
     let git_status = Command::new("git")
-        .args(&[
+        .args([
             "diff",
             "--exit-code",
             "generated/",

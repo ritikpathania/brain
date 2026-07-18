@@ -153,7 +153,7 @@ impl Clipboard for FailingClipboard {
     }
     fn set(&mut self, _text: &str) -> Result<(), brain_tui::clipboard::ClipboardError> {
         Err(brain_tui::clipboard::ClipboardError::OperationFailed(
-            Box::new(std::io::Error::new(std::io::ErrorKind::Other, "error")),
+            Box::new(std::io::Error::other("error")),
         ))
     }
 }

@@ -337,7 +337,7 @@ fn disable_feature_in_grid(options: &CalibrationOptions, feature: Feature) -> Ca
             let modified = list
                 .iter()
                 .map(|w| {
-                    let mut mw = w.clone();
+                    let mut mw = *w;
                     match feature {
                         Feature::LexicalSimilarity => mw.lexical = 0.0,
                         Feature::SemanticSimilarity => mw.semantic = 0.0,

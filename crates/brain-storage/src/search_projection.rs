@@ -185,7 +185,7 @@ impl SqliteSearchRepository {
                     })
                     .collect();
                 sql.push_str(&placeholders.join(", "));
-                sql.push_str(")");
+                sql.push(')');
             }
         }
 
@@ -254,6 +254,7 @@ impl SqliteSearchRepository {
 
         Ok(docs)
     }
+
 
     /// Clears all entries in the search projection.
     pub fn clear_all(&self) -> Result<(), BrainError> {

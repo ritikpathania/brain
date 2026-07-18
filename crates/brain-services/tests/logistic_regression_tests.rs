@@ -217,7 +217,7 @@ fn test_logistic_regression_training_and_comparison() {
             let score = brain_services::retrieval::eval_harness::models::ScoreRanker::score(
                 &model, &features,
             );
-            assert!(score >= 0.0 && score <= 1.0);
+            assert!((0.0..=1.0).contains(&score));
         }
     }
 
