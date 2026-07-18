@@ -7,16 +7,16 @@
       "cache_mode": "cold"
     },
     "metrics": {
-      "mean_recall_at_1": 0.9583333333333334,
-      "mean_recall_at_5": 0.9583333333333334,
-      "mean_recall_at_10": 0.9583333333333334,
-      "mean_precision_at_5": 0.6888888888888888,
-      "mean_precision_at_10": 0.6888888888888888,
-      "mean_mrr": 0.9583333333333334,
-      "mean_ndcg_at_5": 0.9332906424963111,
-      "mean_ndcg_at_10": 0.9332906424963111,
-      "total_queries": 24,
-      "successful_queries": 24,
+      "mean_recall_at_1": 0.8846153846153846,
+      "mean_recall_at_5": 0.8846153846153846,
+      "mean_recall_at_10": 0.8846153846153846,
+      "mean_precision_at_5": 0.6358974358974359,
+      "mean_precision_at_10": 0.6358974358974359,
+      "mean_mrr": 0.8846153846153846,
+      "mean_ndcg_at_5": 0.8614990546119794,
+      "mean_ndcg_at_10": 0.8614990546119794,
+      "total_queries": 26,
+      "successful_queries": 26,
       "failed_queries": 0
     },
     "query_results": [
@@ -379,19 +379,49 @@
         "ndcg_at_5": 1.0,
         "ndcg_at_10": 1.0,
         "retrieved_count": 2
+      },
+      {
+        "query_id": "q_025",
+        "text": "olap dashboard instrumentation reporter",
+        "status": "success",
+        "error": null,
+        "recall_at_1": 0.0,
+        "recall_at_5": 0.0,
+        "recall_at_10": 0.0,
+        "precision_at_5": 0.0,
+        "precision_at_10": 0.0,
+        "mrr": 0.0,
+        "ndcg_at_5": 0.0,
+        "ndcg_at_10": 0.0,
+        "retrieved_count": 0
+      },
+      {
+        "query_id": "q_026",
+        "text": "graceful termination handler shutdown routine",
+        "status": "success",
+        "error": null,
+        "recall_at_1": 0.0,
+        "recall_at_5": 0.0,
+        "recall_at_10": 0.0,
+        "precision_at_5": 0.0,
+        "precision_at_10": 0.0,
+        "mrr": 0.0,
+        "ndcg_at_5": 0.0,
+        "ndcg_at_10": 0.0,
+        "retrieved_count": 1
       }
     ]
   },
   "measured": {
     "latency": {
-      "p50_latency_ms": 0.26241699999999996,
-      "p95_latency_ms": 0.415792,
-      "max_latency_ms": 1.115125
+      "p50_latency_ms": 0.180375,
+      "p95_latency_ms": 0.285375,
+      "max_latency_ms": 0.6512920000000001
     },
     "diagnostics": [
       {
         "query_id": "q_001",
-        "latency_ms": 1.115125,
+        "latency_ms": 0.6512920000000001,
         "normalized_query": "how do i configure typescript client uds",
         "executed_query": "how OR do OR i OR configure OR typescript OR client OR uds",
         "candidates": [
@@ -417,7 +447,7 @@
       },
       {
         "query_id": "q_002",
-        "latency_ms": 0.285292,
+        "latency_ms": 0.19820800000000002,
         "normalized_query": "typescript clent socket configuration path",
         "executed_query": "typescript OR clent OR socket OR configuration OR path",
         "candidates": [
@@ -452,7 +482,7 @@
       },
       {
         "query_id": "q_003",
-        "latency_ms": 0.178875,
+        "latency_ms": 0.124666,
         "normalized_query": "configure ts uds",
         "executed_query": "configure OR ts OR uds",
         "candidates": [
@@ -478,7 +508,7 @@
       },
       {
         "query_id": "q_004",
-        "latency_ms": 0.415792,
+        "latency_ms": 0.285375,
         "normalized_query": "how does the python plugin loader scan files",
         "executed_query": "how OR does OR the OR python OR plugin OR loader OR scan OR files",
         "candidates": [
@@ -531,7 +561,7 @@
       },
       {
         "query_id": "q_005",
-        "latency_ms": 0.307083,
+        "latency_ms": 0.211125,
         "normalized_query": "loading external scripts via pyo3 modules",
         "executed_query": "loading OR external OR scripts OR via OR pyo3 OR modules",
         "candidates": [
@@ -548,7 +578,7 @@
       },
       {
         "query_id": "q_006",
-        "latency_ms": 0.263833,
+        "latency_ms": 0.183417,
         "normalized_query": "parse daemon command line arguments",
         "executed_query": "parse OR daemon OR command OR line OR arguments",
         "candidates": [
@@ -583,7 +613,7 @@
       },
       {
         "query_id": "q_007",
-        "latency_ms": 0.304208,
+        "latency_ms": 0.211166,
         "normalized_query": "what happens during background daemon lifecycle",
         "executed_query": "what OR happens OR during OR background OR daemon OR lifecycle",
         "candidates": [
@@ -609,7 +639,7 @@
       },
       {
         "query_id": "q_008",
-        "latency_ms": 0.329458,
+        "latency_ms": 0.214834,
         "normalized_query": "handling sigterm signal in daemon main",
         "executed_query": "handling OR sigterm OR signal OR in OR daemon OR main",
         "candidates": [
@@ -644,7 +674,7 @@
       },
       {
         "query_id": "q_009",
-        "latency_ms": 0.077916,
+        "latency_ms": 0.055167,
         "normalized_query": "daemoncleanupguard",
         "executed_query": "daemoncleanupguard",
         "candidates": [
@@ -661,7 +691,7 @@
       },
       {
         "query_id": "q_010",
-        "latency_ms": 0.283125,
+        "latency_ms": 0.188333,
         "normalized_query": "removing stale file on start",
         "executed_query": "removing OR stale OR file OR on OR start",
         "candidates": [
@@ -687,7 +717,7 @@
       },
       {
         "query_id": "q_011",
-        "latency_ms": 0.203708,
+        "latency_ms": 0.165667,
         "normalized_query": "damon cleanp gard drop",
         "executed_query": "damon OR cleanp OR gard OR drop",
         "candidates": [
@@ -704,7 +734,7 @@
       },
       {
         "query_id": "q_012",
-        "latency_ms": 0.264459,
+        "latency_ms": 0.214167,
         "normalized_query": "tokio uds connection timeout error",
         "executed_query": "tokio OR uds OR connection OR timeout OR error",
         "candidates": [
@@ -730,7 +760,7 @@
       },
       {
         "query_id": "q_013",
-        "latency_ms": 0.167916,
+        "latency_ms": 0.124375,
         "normalized_query": "increase connect timeout",
         "executed_query": "increase OR connect OR timeout",
         "candidates": [
@@ -747,7 +777,7 @@
       },
       {
         "query_id": "q_014",
-        "latency_ms": 0.307917,
+        "latency_ms": 0.220209,
         "normalized_query": "blanket implementation macro for capability deserialization",
         "executed_query": "blanket OR implementation OR macro OR for OR capability OR deserialization",
         "candidates": [
@@ -782,7 +812,7 @@
       },
       {
         "query_id": "q_015",
-        "latency_ms": 0.077,
+        "latency_ms": 0.056584,
         "normalized_query": "erasedcapability",
         "executed_query": "erasedcapability",
         "candidates": [
@@ -799,14 +829,14 @@
       },
       {
         "query_id": "q_016",
-        "latency_ms": 0.114708,
+        "latency_ms": 0.081375,
         "normalized_query": "how do extensions work",
         "executed_query": "how OR do OR extensions OR work",
         "candidates": []
       },
       {
         "query_id": "q_017",
-        "latency_ms": 0.258542,
+        "latency_ms": 0.180375,
         "normalized_query": "duckdb analytics database initialization error",
         "executed_query": "duckdb OR analytics OR database OR initialization OR error",
         "candidates": [
@@ -832,7 +862,7 @@
       },
       {
         "query_id": "q_018",
-        "latency_ms": 0.167667,
+        "latency_ms": 0.117709,
         "normalized_query": "relational memory engine",
         "executed_query": "relational OR memory OR engine",
         "candidates": [
@@ -849,7 +879,7 @@
       },
       {
         "query_id": "q_019",
-        "latency_ms": 0.20879199999999998,
+        "latency_ms": 0.14675,
         "normalized_query": "recent sqlite graph changes",
         "executed_query": "recent OR sqlite OR graph OR changes",
         "candidates": [
@@ -866,7 +896,7 @@
       },
       {
         "query_id": "q_020",
-        "latency_ms": 0.167375,
+        "latency_ms": 0.115666,
         "normalized_query": "sqllite ltm databse",
         "executed_query": "sqllite OR ltm OR databse",
         "candidates": [
@@ -883,7 +913,7 @@
       },
       {
         "query_id": "q_021",
-        "latency_ms": 0.258,
+        "latency_ms": 0.17975,
         "normalized_query": "type erased registration dynamic mapping",
         "executed_query": "type OR erased OR registration OR dynamic OR mapping",
         "candidates": [
@@ -900,7 +930,7 @@
       },
       {
         "query_id": "q_022",
-        "latency_ms": 0.075959,
+        "latency_ms": 0.053458000000000006,
         "normalized_query": "fuzzyretrieval",
         "executed_query": "fuzzyretrieval",
         "candidates": [
@@ -917,7 +947,7 @@
       },
       {
         "query_id": "q_023",
-        "latency_ms": 0.26241699999999996,
+        "latency_ms": 0.1825,
         "normalized_query": "graceful worker draining check sleep",
         "executed_query": "graceful OR worker OR draining OR check OR sleep",
         "candidates": [
@@ -943,7 +973,7 @@
       },
       {
         "query_id": "q_024",
-        "latency_ms": 0.346333,
+        "latency_ms": 0.242208,
         "normalized_query": "how are messages exchanged over uds ipc",
         "executed_query": "how OR are OR messages OR exchanged OR over OR uds OR ipc",
         "candidates": [
@@ -959,6 +989,30 @@
           {
             "node_id": "00000000-0000-0000-0000-000000000001",
             "lexical_score": 1.3425767348285516,
+            "semantic_score": null,
+            "ranked_score": null,
+            "retrieval_channels": [
+              "fts"
+            ]
+          }
+        ]
+      },
+      {
+        "query_id": "q_025",
+        "latency_ms": 0.081042,
+        "normalized_query": "olap dashboard instrumentation reporter",
+        "executed_query": "olap OR dashboard OR instrumentation OR reporter",
+        "candidates": []
+      },
+      {
+        "query_id": "q_026",
+        "latency_ms": 0.177958,
+        "normalized_query": "graceful termination handler shutdown routine",
+        "executed_query": "graceful OR termination OR handler OR shutdown OR routine",
+        "candidates": [
+          {
+            "node_id": "00000000-0000-0000-0000-000000000011",
+            "lexical_score": 1.8419742953965725,
             "semantic_score": null,
             "ranked_score": null,
             "retrieval_channels": [

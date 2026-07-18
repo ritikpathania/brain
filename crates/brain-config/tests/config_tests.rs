@@ -235,6 +235,11 @@ fn test_validation_semantic_rules() {
             volatile_ttl_secs: Some(3600),
             max_sliding_window_size: Some(100),
         }),
+        retrieval: Some(PartialRetrievalSettings {
+            ranking_policy: Some(RankingPolicy::DefaultRrf),
+            model_path: None,
+        }),
+        ..Default::default()
     };
 
     let settings = BrainSettings::try_from(bad_db).unwrap();
@@ -260,6 +265,11 @@ fn test_validation_semantic_rules() {
             volatile_ttl_secs: Some(0), // Fails validation: TTL must be >= 1
             max_sliding_window_size: Some(100),
         }),
+        retrieval: Some(PartialRetrievalSettings {
+            ranking_policy: Some(RankingPolicy::DefaultRrf),
+            model_path: None,
+        }),
+        ..Default::default()
     };
 
     let settings = BrainSettings::try_from(bad_ttl).unwrap();

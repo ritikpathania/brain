@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{EmbeddingProvider, RankingStrategy, RetrievalRequest};
+use brain_core::retrieval::{EmbeddingProvider, RankingStrategy, RetrievalRequest, DefaultQueryEmbeddingService};
 use brain_domain::{Edge, Embedding, Node, NodeId, SessionId, RelationKind};
 use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, GraphRanking, RrfRanking};
 use brain_storage::TestStorage;
@@ -60,7 +60,8 @@ fn test_embedding_ranking() {
     let provider = Arc::new(CustomEmbeddingProvider {
         emb: vec![1.0, 0.0],
     });
-    let strategy = EmbeddingRanking::new(provider, store.clone());
+    let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let strategy = EmbeddingRanking::new(embed_service, store.clone() as Arc<dyn brain_core::retrieval::EmbeddingLookup>);
 
     let node1 = make_node(1, "first node");
     let node2 = make_node(2, "second node");

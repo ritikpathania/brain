@@ -115,3 +115,48 @@ impl<T: EmbeddingLookup + ?Sized> EmbeddingLookup for std::sync::Arc<T> {
         (**self).lookup(node_id)
     }
 }
+
+/// Trait defining the contract for converting user queries into embedding vectors.
+pub trait QueryEmbeddingService: Send + Sync {
+    /// Generates a vector embedding for the given search query.
+    fn embed_query(&self, query: &str) -> Result<Vec<f32>, BrainError>;
+}
+
+/// A default implementation of `QueryEmbeddingService` that wraps an `EmbeddingProvider`.
+pub struct DefaultQueryEmbeddingService {
+    provider: std::sync::Arc<dyn EmbeddingProvider>,
+}
+
+impl std::fmt::Debug for DefaultQueryEmbeddingService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultQueryEmbeddingService")
+            .field("provider", &self.provider.name())
+            .finish()
+    }
+}
+
+impl DefaultQueryEmbeddingService {
+    /// Creates a new `DefaultQueryEmbeddingService`.
+    pub fn new(provider: std::sync::Arc<dyn EmbeddingProvider>) -> Self {
+        Self { provider }
+    }
+}
+
+impl QueryEmbeddingService for DefaultQueryEmbeddingService {
+    fn embed_query(&self, query: &str) -> Result<Vec<f32>, BrainError> {
+        let start = std::time::Instant::now();
+        let result = self.provider.embed(query);
+        let duration = start.elapsed();
+        let success = result.is_ok();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "embedding",
+            duration_ms = duration.as_millis(),
+            query_len = query.len(),
+            success = success,
+            "Retrieval stage completed: embedding"
+        );
+        result
+    }
+}
+

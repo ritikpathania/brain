@@ -21,7 +21,7 @@ members = [
     "crates/brain-acp-adapter",
     "crates/brain-adapter-core",
     "crates/brain-a2a-adapter",
-    "apps/brain-v2",
+    "apps/brain",
     "xtask",
     "daemon",
 ]

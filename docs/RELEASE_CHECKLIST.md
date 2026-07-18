@@ -6,7 +6,7 @@ This document lists the official quality checks and acceptance criteria required
 
 ## 1. Core Daemon & Connection Status
 - [ ] **Daemon Lifecycle**: Starting `./brain daemon start` creates a socket at `~/.brain/daemon.sock` and stops cleanly with `./brain daemon stop`.
-- [ ] **Startup Connection Mode**: Launching the TUI (`brain-v2`) with the daemon stopped starts the TUI in `[Disconnected]` mode without crashing or hanging.
+- [ ] **Startup Connection Mode**: Launching the TUI (`brain`) with the daemon stopped starts the TUI in `[Disconnected]` mode without crashing or hanging.
 - [ ] **Dynamic Reconnection**:
   - Start the TUI with the daemon offline.
   - Start the daemon in the background.

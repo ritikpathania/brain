@@ -12,7 +12,7 @@ Ensure the following are installed and available on your system `PATH`:
 ---
 
 ## 1. Install via `cargo install` (Recommended)
-You can compile and install `brain-v2` directly from source:
+You can compile and install `brain` directly from source:
 
 ```bash
 # Clone the repository
@@ -21,7 +21,7 @@ cd brain-engine
 
 # Build and install the binary globally
 # Note: Ensure PYO3_PYTHON points to your python3 interpreter
-PYO3_PYTHON=$(which python3) cargo install --path apps/brain-v2 --bin brain
+PYO3_PYTHON=$(which python3) cargo install --path apps/brain --bin brain
 ```
 
 Once installed, the binary `brain` will be available in your Cargo bin directory (usually `~/.cargo/bin/`).

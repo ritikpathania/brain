@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "nodes": [],
+  "ground_truth": {
+    "q_ctrl_lexical_vs_semantic": {
+      "feature_under_test": "semantic_similarity",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000102"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000101"],
+      "minimum_rank": {}
+    },
+    "q_ctrl_importance_vs_recency": {
+      "feature_under_test": "importance",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000104"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000103"],
+      "minimum_rank": {}
+    },
+    "q_ctrl_graph_degree_vs_isolated": {
+      "feature_under_test": "graph_degree",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000106"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000105"],
+      "minimum_rank": {}
+    },
+    "q_ctrl_frequently_vs_never_accessed": {
+      "feature_under_test": "access_frequency",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000108"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000107"],
+      "minimum_rank": {}
+    },
+    "q_ctrl_freshness_decay_vs_stale": {
+      "feature_under_test": "freshness_decay",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000110"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000109"],
+      "minimum_rank": {}
+    },
+    "q_ctrl_provenance_confidence_vs_low": {
+      "feature_under_test": "provenance_confidence",
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000112"],
+      "acceptable_alternatives": ["00000000-0000-0000-0000-000000000111"],
+      "minimum_rank": {}
+    }
+  }
+}

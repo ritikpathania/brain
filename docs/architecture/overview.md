@@ -200,7 +200,7 @@ The codebase is organized in a monorepo structure, cleanly isolating the client,
 ```
 brain/
 ├── apps/
-│   └── brain-v2/               # Main unified entrypoint app composition root
+│   └── brain/                  # Main unified entrypoint app composition root
 ├── crates/
 │   ├── brain-tui/              # Native Rust Ratatui TUI Client
 │   │   ├── src/

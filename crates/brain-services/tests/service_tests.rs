@@ -2,7 +2,7 @@ use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::{
     CacheHydrationPolicy, IdentityRanking, MemorySource, MemorySourceResult, RankingStrategy,
-    RetrievalRequest, SourceMetadata,
+    RetrievalRequest, SourceMetadata, DefaultQueryEmbeddingService, NoopEmbeddingProvider,
 };
 use brain_core::services::{RetrievalService, SessionService};
 use brain_domain::{
@@ -79,15 +79,22 @@ fn test_retrieval_service_stm_and_ltm() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
-    // Setup: Node A in STM and LTM, Node B in LTM only
-    let node_a_id = NodeId::new();
+    let (node_a_id, node_b_id) = {
+        let id1 = NodeId::new();
+        let id2 = NodeId::new();
+        if id1.0 < id2.0 {
+            (id1, id2)
+        } else {
+            (id2, id1)
+        }
+    };
     let node_a = Node::new(node_a_id, "Apple Juice".to_string(), NodeType::Concept);
-
-    let node_b_id = NodeId::new();
     let node_b = Node::new(node_b_id, "Orange Juice".to_string(), NodeType::Concept);
 
     // Save Node B to LTM directly (not in cache)
@@ -130,7 +137,9 @@ fn test_cache_precedence_over_ltm() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
@@ -171,7 +180,9 @@ fn test_retrieval_cache_miss_db_hit_populates_cache() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
@@ -285,7 +296,9 @@ fn test_pipeline_deduplication() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
@@ -316,9 +329,13 @@ fn test_pipeline_early_exit() {
 
     let node_id = NodeId::new();
     let node = Node::new(node_id, "Early Exit Node".to_string(), NodeType::Concept);
+    let node2 = Node::new(NodeId::new(), "Early Node 2".to_string(), NodeType::Concept);
+    let node3 = Node::new(NodeId::new(), "Early Node 3".to_string(), NodeType::Concept);
     {
         let ctx = cache_manager.get_or_create(session_id);
         ctx.write().unwrap().ingest(node);
+        ctx.write().unwrap().ingest(node2);
+        ctx.write().unwrap().ingest(node3);
     }
 
     let spy_called = Arc::new(Mutex::new(false));
@@ -358,7 +375,9 @@ fn test_pipeline_empty_first_source() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
@@ -488,29 +507,34 @@ fn test_retrieval_natural_language_and_expansion() {
 
     let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry);
+    let provider = Arc::new(NoopEmbeddingProvider::default());
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
 
     let session_id = session_service.create_session().unwrap();
 
-    let brain_id = NodeId::new();
+    let mut ids = vec![NodeId::new(), NodeId::new(), NodeId::new(), NodeId::new()];
+    ids.sort_by_key(|id| id.0);
+    let brain_id = ids[0];
+    let sqlite_id = ids[1];
+    let duckdb_id = ids[2];
+    let dev_id = ids[3];
+
     let brain_node = Node::new(
         brain_id,
         "Brain".to_string(),
         NodeType::Project,
     );
-    let sqlite_id = NodeId::new();
     let sqlite_node = Node::new(
         sqlite_id,
         "SQLite".to_string(),
         NodeType::Database,
     );
-    let duckdb_id = NodeId::new();
     let duckdb_node = Node::new(
         duckdb_id,
         "DuckDB".to_string(),
         NodeType::Database,
     );
-    let dev_id = NodeId::new();
     let dev_node = Node::new(
         dev_id,
         "ritikpathania".to_string(),

@@ -5,6 +5,8 @@
 
 #![deny(missing_docs)]
 
+extern crate tracing;
+
 /// Unified custom system error definitions.
 pub mod errors;
 
@@ -26,6 +28,15 @@ pub mod retrieval;
 /// Canonical stream event models.
 pub mod events;
 
+/// Semantic views/projections contracts.
+pub mod projection;
+
+/// Ingestion and canonicalization evolution contracts.
+pub mod evolution;
+
+/// Reflection engine contracts for post-canonicalization entity examination.
+pub mod reflection;
+
 pub use agents::*;
 pub use errors::*;
 pub use extensibility::*;
@@ -33,3 +44,6 @@ pub use repositories::*;
 pub use retrieval::*;
 pub use services::*;
 pub use events::*;
+pub use projection::*;
+pub use evolution::*;
+pub use reflection::*;

@@ -47,6 +47,7 @@ impl Default for RankingWeights {
 }
 
 /// A deterministic ranker that computes a score based on a linear combination of features.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LinearRanker {
     weights: RankingWeights,
 }
@@ -85,6 +86,16 @@ impl LinearRanker {
             total += fresh * self.weights.freshness_decay;
         }
         total
+    }
+}
+
+impl crate::retrieval::eval_harness::models::ScoreRanker for LinearRanker {
+    fn name(&self) -> &'static str {
+        "linear-ranker"
+    }
+
+    fn score(&self, features: &FeatureVector) -> f64 {
+        self.score(features)
     }
 }
 

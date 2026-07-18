@@ -55,7 +55,7 @@ impl FeatureExtractor for DefaultFeatureExtractor {
 
         let mut raw_vectors = Vec::with_capacity(nodes.len());
         for node in nodes {
-            let semantic = crate::retrieval::source::calculate_node_match_score(node, &request.query) as f64;
+            let semantic = crate::retrieval::source::calculate_token_overlap_score(node, &request.query) as f64;
             
             // Query graph connections via RepositorySet abstraction
             let graph = repos.edges().get_connections(&node.id)?.len() as f64;

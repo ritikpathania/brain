@@ -140,7 +140,134 @@ pub enum ToolProgressDetail {
     },
 }
 
+/// Strongly-typed identifier for a single execution run of an operation.
+pub type OperationId = uuid::Uuid;
+/// Strongly-typed identifier tracing the causal trigger of an execution tree.
+pub type CorrelationId = uuid::Uuid;
 
+/// Base trait representing any event flowing through the runtime.
+pub trait RuntimeEvent: Send + Sync + 'static {
+    /// Returns &dyn std::any::Any to enable dynamic type casting in subscribers and tests.
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+
+/// Contract for dispatching runtime events to all active subscribers.
+///
+/// Implementations are free to use in-memory channels, persisted queues,
+/// or distributed transports. The caller has no visibility into the mechanism.
+///
+/// NOTE: Subscription management (e.g. `subscribe()`) is intentionally *not* on this trait.
+/// It is an implementation detail of each dispatcher. Callers that only dispatch events
+/// should program against this trait. Callers that also need to subscribe keep a concrete
+/// reference alongside.
+pub trait RuntimeEventDispatcher: Send + Sync + 'static {
+    /// Dispatch an event to all active subscribers.
+    fn dispatch(&self, event: std::sync::Arc<dyn RuntimeEvent>);
+}
+
+/// Subsystems that can emit events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EventSource {
+    /// Core Domain subsystem.
+    Domain,
+    /// Projection and views layer.
+    Projection,
+    /// Cognitive Reflection engine.
+    Reflection,
+    /// Background Compaction worker.
+    Compaction,
+    /// Ingestion/observation handler.
+    Ingestion,
+    /// Client transport adapter.
+    Adapter,
+    /// Action Scheduler.
+    Scheduler,
+}
+
+/// High-level semantic stages for knowledge processing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SemanticStage {
+    /// Operation is registered and waiting to start.
+    Queued,
+    /// Raw observation ingress and validation.
+    Observation,
+    /// Entity and relationship extraction.
+    Extraction,
+    /// Normalization, deduplication, and merging.
+    Synthesis,
+    /// Graph reflection and clustering compaction.
+    Reflection,
+    /// Rebuilding and serving projections.
+    Projection,
+    /// Completing transaction steps.
+    Finalizing,
+}
+
+/// State machine boundaries for background tasks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskState {
+    /// Task has been registered in the coordinator.
+    Created,
+    /// Task execution has begun.
+    Started,
+    /// Task is currently running.
+    Progressing {
+        /// Current semantic stage of the operation.
+        stage: SemanticStage,
+        /// Optional completed item count.
+        completed_items: Option<usize>,
+        /// Optional total bounded item count.
+        total_items: Option<usize>,
+    },
+    /// Task completed successfully.
+    Completed,
+    /// Task aborted due to a failure error message.
+    Failed(String),
+    /// Task aborted via a cancel request.
+    Cancelled,
+}
+
+/// Ephemeral operational metadata for long-running processes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskProgress {
+    /// Unique execution identifier for the task.
+    pub operation_id: OperationId,
+    /// Causal tracing identifier.
+    pub correlation_id: CorrelationId,
+    /// Current task execution state boundaries.
+    pub state: TaskState,
+    /// Source emitter module.
+    pub source: EventSource,
+    /// Incremental monotonic task sequence number.
+    pub sequence: u64,
+    /// Event creation timestamp.
+    pub timestamp: SystemTime,
+}
+
+impl RuntimeEvent for TaskProgress {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+/// Signal to invalidate projection instances.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectionInstanceInvalidatedEvent {
+    /// Name identifier of the projection type.
+    pub projection_type: String,
+    /// Monotonic epoch state of the graph.
+    pub epoch: brain_domain::EpochId,
+    /// Source emitter module.
+    pub source: EventSource,
+    /// Causal tracing identifier.
+    pub correlation_id: CorrelationId,
+}
+
+impl RuntimeEvent for ProjectionInstanceInvalidatedEvent {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
 
 #[cfg(test)]
 mod tests {

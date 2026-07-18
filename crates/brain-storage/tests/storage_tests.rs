@@ -469,4 +469,63 @@ fn test_sqlite_learned_ranking_serialization() {
     test_store.assert_clean();
 }
 
+#[test]
+fn test_ivf_vector_indexing() {
+    let test_store = TestStorage::new();
+    let store = test_store.storage();
+
+    let node1_id = NodeId::new();
+    let node2_id = NodeId::new();
+
+    // 1. Create a node for each embedding to satisfy foreign key constraints
+    let n1 = Node::new(node1_id, "Node 1".to_string(), NodeType::Concept);
+    let n2 = Node::new(node2_id, "Node 2".to_string(), NodeType::Concept);
+    NodeRepository::save_batch(store, &[n1, n2]).unwrap();
+
+    // 2. Generate vectors that align perfectly with Centroid 0 and Centroid 4
+    // Centroid sinusoidal pattern for index c:
+    // v_c[i] = sin(2*pi * (i+1) * (c+1) / 384)
+    let mut vec1 = vec![0.0f32; 384];
+    let mut vec2 = vec![0.0f32; 384];
+    for i in 0..384 {
+        vec1[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (0 + 1) as f64) / 384.0).sin() as f32;
+        vec2[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (4 + 1) as f64) / 384.0).sin() as f32;
+    }
+
+    let emb1 = Embedding::new(node1_id, vec1);
+    let emb2 = Embedding::new(node2_id, vec2);
+
+    // 3. Save the embeddings
+    EmbeddingRepository::save(store, &emb1).unwrap();
+    EmbeddingRepository::save(store, &emb2).unwrap();
+
+    // 4. Verify find_by_node_id works
+    let loaded1 = EmbeddingRepository::find_by_node_id(store, &node1_id).unwrap().unwrap();
+    let loaded2 = EmbeddingRepository::find_by_node_id(store, &node2_id).unwrap().unwrap();
+    assert_eq!(loaded1.node_id, node1_id);
+    assert_eq!(loaded2.node_id, node2_id);
+
+    // 5. Query by centroids
+    // Node 1 should be mapped to Centroid 0.
+    let centroid0_results = EmbeddingRepository::find_by_centroids(store, &[0]).unwrap();
+    assert_eq!(centroid0_results.len(), 1);
+    assert_eq!(centroid0_results[0].node_id, node1_id);
+
+    // Node 2 should be mapped to Centroid 4.
+    let centroid4_results = EmbeddingRepository::find_by_centroids(store, &[4]).unwrap();
+    assert_eq!(centroid4_results.len(), 1);
+    assert_eq!(centroid4_results[0].node_id, node2_id);
+
+    // Querying both centroids should return both embeddings.
+    let combined_results = EmbeddingRepository::find_by_centroids(store, &[0, 4]).unwrap();
+    assert_eq!(combined_results.len(), 2);
+    let ids: Vec<NodeId> = combined_results.iter().map(|e| e.node_id).collect();
+    assert!(ids.contains(&node1_id));
+    assert!(ids.contains(&node2_id));
+
+    // Querying non-matching centroids should return empty.
+    let empty_results = EmbeddingRepository::find_by_centroids(store, &[2, 7]).unwrap();
+    assert!(empty_results.is_empty());
+}
+
 

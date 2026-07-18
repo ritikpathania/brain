@@ -20,7 +20,7 @@ Pull the latest source updates and re-run cargo install:
 ```bash
 cd brain-engine
 git pull
-PYO3_PYTHON=$(which python3) cargo install --path apps/brain-v2 --force --bin brain
+PYO3_PYTHON=$(which python3) cargo install --path apps/brain --force --bin brain
 ```
 
 ---

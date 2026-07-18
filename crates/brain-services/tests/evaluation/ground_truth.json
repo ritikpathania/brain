@@ -200,6 +200,17 @@
       "expected_node_ids": ["00000000-0000-0000-0000-000000000006"],
       "acceptable_alternatives": ["00000000-0000-0000-0000-000000000001"],
       "minimum_rank": {}
+    },
+    "q_025": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000008"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
+    },
+    "q_026": {
+      "expected_node_ids": ["00000000-0000-0000-0000-000000000004"],
+      "acceptable_alternatives": [],
+      "minimum_rank": {}
     }
   }
 }
+

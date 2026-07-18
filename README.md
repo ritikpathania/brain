@@ -118,7 +118,7 @@ To run the entire system locally:
    ```
 2. **Start the Rust daemon / interactive app**:
    ```bash
-   PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo run --package brain-v2
+   PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo run --package brain
    ```
 
 ---

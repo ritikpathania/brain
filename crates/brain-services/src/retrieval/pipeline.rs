@@ -115,7 +115,11 @@ impl RetrievalPipeline {
         let mut accumulator = PipelineAccumulator::new(request.exclude_ids.clone());
 
         for source in &self.sources {
-            if accumulator.len() >= request.limit {
+            if self.sources.len() > 1 {
+                if accumulator.len() >= request.limit * 3 {
+                    break;
+                }
+            } else if accumulator.len() >= request.limit {
                 break;
             }
 
@@ -131,6 +135,15 @@ impl RetrievalPipeline {
             let start = std::time::Instant::now();
             let source_result = source.retrieve(request)?;
             let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
+
+            tracing::info!(
+                target: "brain::telemetry::retrieval",
+                stage = "candidate_counts",
+                source_name = source_result.metadata.source_name,
+                count = source_result.nodes.len(),
+                duration_ms = duration_ms,
+                "Memory source returned candidates"
+            );
 
             accumulator.add_source_results(
                 source_result.metadata.source_name,
@@ -168,6 +181,15 @@ impl RetrievalPipeline {
                 }
             }
         }
+
+        let total_duration = pipeline_start.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "pipeline",
+            duration_ms = total_duration.as_millis(),
+            total_candidate_count = final_nodes.len(),
+            "Retrieval pipeline execution completed"
+        );
 
         Ok(RetrievalResponse { nodes: final_nodes })
     }

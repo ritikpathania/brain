@@ -42,6 +42,7 @@ impl CalibrationObjective {
 }
 
 /// Search configurations parameters for optimization.
+#[derive(Debug, Clone)]
 pub enum CalibrationOptions {
     /// Exhaustive grid search arrays.
     Grid {
@@ -84,6 +85,7 @@ pub struct CalibrationResult {
 }
 
 /// In-memory representation of a query's candidates and context.
+#[derive(Debug, Clone)]
 pub struct QueryEvaluationCache {
     /// The query identifier.
     pub query_id: String,
@@ -96,6 +98,7 @@ pub struct QueryEvaluationCache {
 }
 
 /// An in-memory evaluation session containing cached feature vectors and ground truths.
+#[derive(Debug, Clone)]
 pub struct EvaluationSession {
     /// Reference time point used to calculate age deltas.
     pub reference_time: u64,
@@ -208,6 +211,79 @@ impl EvaluationSession {
             for (res, ctx) in &query_cache.candidates {
                 let features = extractor.extract(res, ctx);
                 let score = ranker.score(&features);
+                let mut cloned_res = res.clone();
+                cloned_res.ranking_score = Some(score);
+                scored_results.push(cloned_res);
+            }
+
+            crate::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
+            let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
+
+            let recall_at_5 = compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+            let precision_at_5 = compute_precision_at_k(
+                &retrieved_ids,
+                &query_cache.expected_node_ids,
+                &query_cache.acceptable_alternatives,
+                5,
+            );
+            let mrr = compute_mrr(
+                &retrieved_ids,
+                &query_cache.expected_node_ids,
+                &query_cache.acceptable_alternatives,
+            );
+            let ndcg_at_5 = compute_ndcg_at_k(
+                &retrieved_ids,
+                &query_cache.expected_node_ids,
+                &query_cache.acceptable_alternatives,
+                5,
+            );
+            let ndcg_at_10 = compute_ndcg_at_k(
+                &retrieved_ids,
+                &query_cache.expected_node_ids,
+                &query_cache.acceptable_alternatives,
+                10,
+            );
+
+            sum_recall_at_5 += recall_at_5;
+            sum_precision_at_5 += precision_at_5;
+            sum_mrr += mrr;
+            sum_ndcg_at_5 += ndcg_at_5;
+            sum_ndcg_at_10 += ndcg_at_10;
+            success_count += 1;
+        }
+
+        let divisor = if success_count > 0 { success_count as f64 } else { 1.0 };
+
+        CalibrationResult {
+            weights,
+            mean_ndcg_at_5: sum_ndcg_at_5 / divisor,
+            mean_ndcg_at_10: sum_ndcg_at_10 / divisor,
+            mean_mrr: sum_mrr / divisor,
+            mean_recall_at_5: sum_recall_at_5 / divisor,
+            mean_precision_at_5: sum_precision_at_5 / divisor,
+        }
+    }
+
+    /// Evaluates in-memory candidate cache against a generic trained model.
+    pub fn evaluate_model<M: crate::retrieval::eval_harness::models::ScoreRanker>(&self, model: &M, weights: RankingWeights) -> CalibrationResult {
+        let extractor = FeatureExtractor::new(self.reference_time, self.decay);
+
+        let mut sum_recall_at_5 = 0.0;
+        let mut sum_precision_at_5 = 0.0;
+        let mut sum_mrr = 0.0;
+        let mut sum_ndcg_at_5 = 0.0;
+        let mut sum_ndcg_at_10 = 0.0;
+        let mut success_count = 0;
+
+        for query_cache in &self.cache {
+            if query_cache.candidates.is_empty() {
+                continue;
+            }
+
+            let mut scored_results = Vec::with_capacity(query_cache.candidates.len());
+            for (res, ctx) in &query_cache.candidates {
+                let features = extractor.extract(res, ctx);
+                let score = model.score(&features);
                 let mut cloned_res = res.clone();
                 cloned_res.ranking_score = Some(score);
                 scored_results.push(cloned_res);

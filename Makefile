@@ -11,11 +11,11 @@ build-bridge:
 
 # Compile the Rust daemon binary
 build-daemon:
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --package brain-v2
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --package brain
 
 # Start the background Rust IPC socket daemon
 run-daemon: build-daemon
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo run --package brain-v2 daemon
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo run --package brain daemon
 
 # Lint python code using Ruff
 lint:

@@ -18,6 +18,14 @@ pub mod provider;
 pub mod calibration;
 /// Sensitivity and feature diagnostics engine.
 pub mod sensitivity;
+/// Feature correlation and redundancy engine.
+pub mod correlation;
+/// Feature pruning experiments engine.
+pub mod pruning;
+/// Supervised ranking models and dataset utilities.
+pub mod models;
+/// Cross-validation framework.
+pub mod cv;
 
 pub use calibration::{
     CalibrationObjective, CalibrationOptions, CalibrationResult, EvaluationSession,
@@ -25,6 +33,27 @@ pub use calibration::{
 };
 pub use sensitivity::{
     run_sensitivity_analysis, FeatureImpact, SensitivityReport, SensitivityReportWriter,
+};
+pub use correlation::{
+    Feature, CorrelationMethod, RedundancyLevel, RedundantFeaturePair,
+    FeatureCorrelationMatrix, CorrelationReport, CorrelationEngine, CorrelationReportWriter,
+};
+pub use pruning::{
+    DegradationImpact, PruningFailureReason, PruningOutcome, PruningResult,
+    PruningExperimentReport, PruningExperimentRunner, PruningReportWriter,
+};
+pub use models::{
+    ScoreRanker, TrainingExample, TrainingDataset, LogisticRegressionModel,
+    LogisticTrainingConfig, TrainingSummary, LogisticTrainer,
+    RegressionTree, TreeNode, RegressionTreeTrainer, RegressionDataset, RegressionDatasetBuilder,
+    LambdaGradientComputer, LambdaMartTrainingConfig, LambdaMartMetadata,
+    EpochMetrics, SelectionReason, ModelSelectionResult, TrainingHistory, ModelSelector,
+    LambdaMartModel, LambdaMartTrainer, FeatureImportance, FeatureImportanceReport,
+    FeatureImportanceAnalyzer,
+};
+pub use cv::{
+    Fold, FoldAssigner, FoldEvaluationResult, MetricDistribution, EvaluationMetric,
+    CrossValidationSummary, CrossValidationResult, CrossValidationRunner,
 };
 
 pub use fts_retriever::FtsRetriever;
@@ -176,6 +205,9 @@ pub struct QueryItem {
     pub text: String,
     /// List of tags/categories (e.g. ["sdk", "typo"])
     pub tags: Vec<String>,
+    /// Optional embedding vector for deterministic semantic fixture mapping
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
 }
 
 /// JSON payload struct for ground_truth.json
@@ -210,6 +242,9 @@ pub struct GroundTruthItem {
     pub acceptable_alternatives: Vec<String>,
     /// Target minimum rank index constraint (optional)
     pub minimum_rank: HashMap<String, usize>,
+    /// Optional metadata specifying the feature under test in controlled scenarios
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feature_under_test: Option<String>,
 }
 
 /// Validates the structure and sanity constraints of the evaluation corpus.
@@ -270,134 +305,27 @@ pub fn validate_corpus(queries: &QueryCorpus, truth: &GroundTruthCorpus) -> Resu
     Ok(())
 }
 
-/// Representation of extracted features for a candidate retrieved memory node.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FeatureVector {
-    /// Score from lexical Full-Text Search, if discovered via FTS.
-    pub lexical_similarity: Option<f64>,
-    /// Score from vector semantic similarity, if discovered via Semantic search.
-    pub semantic_similarity: Option<f64>,
-    /// Temporal recency score (decayed updated_at delta).
-    pub recency: Option<f64>,
-    /// Combined static importance and pinning flag.
-    pub importance: Option<f64>,
-    /// Confidence of the source ingestion provenance.
-    pub provenance_confidence: Option<f64>,
-    /// Log-scaled graph degree.
-    pub graph_degree: Option<f64>,
-    /// Log-scaled access frequency.
-    pub access_frequency: Option<f64>,
-    /// Freshness decay (decayed last_observed_at delta).
-    pub freshness_decay: Option<f64>,
-}
-
-/// Half-life configuration parameters for exponential time decays.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct RankingDecay {
-    /// Half-life for updated_at recency decay in days.
-    pub recency_half_life_days: f64,
-    /// Half-life for freshness decay (based on last edge observation) in days.
-    pub freshness_half_life_days: f64,
-}
-
-impl Default for RankingDecay {
-    fn default() -> Self {
-        Self {
-            recency_half_life_days: 7.0,   // 1 week half-life
-            freshness_half_life_days: 1.0, // 1 day half-life
-        }
-    }
-}
-
-/// Immutable database snapshot context used to construct a feature vector.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FeatureContext {
-    /// Timestamp when the node was updated.
-    pub updated_at: Option<u64>,
-    /// Importance score assigned to the node.
-    pub importance: Option<f64>,
-    /// Pinned indicator.
-    pub pinned: bool,
-    /// Provenance confidence score.
-    pub provenance_confidence: Option<f64>,
-    /// Number of edges connected to this node in the graph.
-    pub graph_degree: Option<u32>,
-    /// Ingestion/Interaction selection count.
-    pub access_count: Option<u64>,
-    /// Most recent observed timestamp across all connecting edges.
-    pub last_observed_at: Option<u64>,
-}
+pub use crate::retrieval::ranking::feature_provider::{FeatureVector, RankingDecay, FeatureContext};
 
 /// Pure translation layer extracting raw channel-local features from candidate RetrievalResult.
 pub struct FeatureExtractor {
-    /// Reference time point used to calculate age deltas.
-    pub reference_time: u64,
-    /// Exponential decay parameters.
-    pub decay: RankingDecay,
+    inner: crate::retrieval::ranking::feature_provider::FeatureExtractor,
 }
 
 impl FeatureExtractor {
     /// Instantiates a new FeatureExtractor with reference time and decay parameters.
     pub fn new(reference_time: u64, decay: RankingDecay) -> Self {
-        Self { reference_time, decay }
+        Self {
+            inner: crate::retrieval::ranking::feature_provider::FeatureExtractor::new(reference_time, decay),
+        }
     }
 
     /// Purely extracts a FeatureVector from retrieval evidence and database context.
-    /// Feature extraction is pure: it derives features only from retrieval evidence and immutable metadata.
-    /// It must not perform additional retrieval, graph traversal, or ranking.
     pub fn extract(&self, result: &RetrievalResult, context: &FeatureContext) -> FeatureVector {
-        let lexical_similarity = result.score(RetrievalChannel::Fts);
-        let semantic_similarity = result.score(RetrievalChannel::Semantic);
-
-        // 1. Recency Decay
-        let recency = context.updated_at.map(|updated_at| {
-            let dt = (self.reference_time.saturating_sub(updated_at)) as f64;
-            let half_life_sec = self.decay.recency_half_life_days * 86400.0;
-            if half_life_sec <= 0.0 {
-                1.0
-            } else {
-                let tau = half_life_sec / 2.0f64.ln();
-                (-dt / tau).exp()
-            }
-        });
-
-        // 2. Importance
-        let importance = if context.pinned {
-            Some(1.0)
-        } else {
-            context.importance.or(Some(0.0))
-        };
-
-        // 3. Provenance Confidence
-        let provenance_confidence = context.provenance_confidence.or(Some(1.0));
-
-        // 4. Log-scaled Graph Degree
-        let graph_degree = context.graph_degree.map(|degree| (degree as f64 + 1.0).ln());
-
-        // 5. Log-scaled Access Frequency
-        let access_frequency = context.access_count.map(|count| (count as f64 + 1.0).ln());
-
-        // 6. Freshness Decay
-        let freshness_decay = context.last_observed_at.map(|last_observed| {
-            let dt = (self.reference_time.saturating_sub(last_observed)) as f64;
-            let half_life_sec = self.decay.freshness_half_life_days * 86400.0;
-            if half_life_sec <= 0.0 {
-                1.0
-            } else {
-                let tau = half_life_sec / 2.0f64.ln();
-                (-dt / tau).exp()
-            }
-        });
-
-        FeatureVector {
-            lexical_similarity,
-            semantic_similarity,
-            recency,
-            importance,
-            provenance_confidence,
-            graph_degree,
-            access_frequency,
-            freshness_decay,
-        }
+        self.inner.extract(
+            result.score(RetrievalChannel::Fts),
+            result.score(RetrievalChannel::Semantic),
+            context,
+        )
     }
 }

@@ -1002,6 +1002,174 @@ fn list_all_nodes_conn(db: &ActiveConnection<'_>) -> Result<Vec<Node>, BrainErro
     Ok(nodes)
 }
 
+fn find_nodes_by_tokens_conn(
+    db: &ActiveConnection<'_>,
+    tokens: &[String],
+) -> Result<Vec<Node>, BrainError> {
+    if tokens.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut clauses = Vec::with_capacity(tokens.len());
+    for i in 0..tokens.len() {
+        clauses.push(format!(
+            "(LOWER(label) LIKE ?{0} ESCAPE '\\' OR LOWER(properties) LIKE ?{0} ESCAPE '\\')",
+            i + 1
+        ));
+    }
+    let query_str = format!(
+        "SELECT id, label, node_type, properties, updated_at FROM nodes WHERE {}",
+        clauses.join(" OR ")
+    );
+
+    let mut stmt = db.prepare(&query_str).map_err(|e| BrainError::Storage {
+        message: format!("Failed to prepare search query: {}", e),
+        source: Some(Box::new(e)),
+    })?;
+
+    let params: Vec<String> = tokens
+        .iter()
+        .map(|t| {
+            let escaped = t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            format!("%{}%", escaped.to_lowercase())
+        })
+        .collect();
+
+    let param_refs: Vec<&dyn rusqlite::ToSql> = params
+        .iter()
+        .map(|s| s as &dyn rusqlite::ToSql)
+        .collect();
+
+    let iter = stmt
+        .query_map(&*param_refs, |row| {
+            let id_str: String = row.get(0)?;
+            let label: String = row.get(1)?;
+            let node_type_str: String = row.get(2)?;
+            let properties_str: String = row.get(3)?;
+            let updated_at: u64 = row.get(4)?;
+            Ok((id_str, label, node_type_str, properties_str, updated_at))
+        })
+        .map_err(|e| BrainError::Storage {
+            message: format!("Search query execution failed: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let mut nodes = Vec::new();
+    for item in iter {
+        let (id_str, label, node_type_str, properties_str, updated_at) = item.map_err(|e| BrainError::Storage {
+            message: format!("Failed to parse search row: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let id = uuid::Uuid::parse_str(&id_str)
+            .map(NodeId)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Invalid UUID: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+            message: format!("Failed to deserialize node type: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
+            message: format!("Failed to deserialize properties: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut node = Node::new(id, label, node_type).with_properties(properties);
+        node.updated_at = updated_at;
+        nodes.push(node);
+    }
+
+    Ok(nodes)
+}
+
+fn find_nodes_by_fts_conn(
+    db: &ActiveConnection<'_>,
+    query: &str,
+) -> Result<Vec<(Node, f64)>, BrainError> {
+    let terms: Vec<String> = query
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c.is_whitespace() {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect();
+
+    let sanitized = terms.join(" OR ");
+    if sanitized.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut stmt = db
+        .prepare(
+            "SELECT n.id, n.label, n.node_type, n.properties, n.updated_at, bm25(node_search) \
+             FROM nodes n \
+             JOIN node_search ns ON n.rowid = ns.rowid \
+             WHERE node_search MATCH ?1 \
+             ORDER BY bm25(node_search) ASC",
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare FTS search statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let iter = stmt
+        .query_map([&sanitized], |row| {
+            let id_str: String = row.get(0)?;
+            let label: String = row.get(1)?;
+            let node_type_str: String = row.get(2)?;
+            let properties_str: String = row.get(3)?;
+            let updated_at: u64 = row.get(4)?;
+            let bm25_score: f64 = row.get(5)?;
+            Ok((id_str, label, node_type_str, properties_str, updated_at, bm25_score))
+        })
+        .map_err(|e| BrainError::Storage {
+            message: format!("FTS query execution failed: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let mut results = Vec::new();
+    for item in iter {
+        let (id_str, label, node_type_str, properties_str, updated_at, bm25_score) =
+            item.map_err(|e| BrainError::Storage {
+                message: format!("Failed to parse FTS search row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let id = uuid::Uuid::parse_str(&id_str)
+            .map(NodeId)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Invalid UUID: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+            message: format!("Failed to deserialize node type: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
+            message: format!("Failed to deserialize properties: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        let mut node = Node::new(id, label, node_type).with_properties(properties);
+        node.updated_at = updated_at;
+        results.push((node, -bm25_score));
+    }
+
+    Ok(results)
+}
+
 impl NodeRepository for SqliteStorage {
     fn save(&self, node: &Node) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
@@ -1047,6 +1215,24 @@ impl NodeRepository for SqliteStorage {
         let active = ActiveConnection::new(&conn);
         list_all_nodes_conn(&active)
     }
+
+    fn find_by_tokens(&self, tokens: &[String]) -> Result<Vec<Node>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let active = ActiveConnection::new(&conn);
+        find_nodes_by_tokens_conn(&active, tokens)
+    }
+
+    fn find_by_fts(&self, query: &str) -> Result<Vec<(Node, f64)>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let active = ActiveConnection::new(&conn);
+        find_nodes_by_fts_conn(&active, query)
+    }
 }
 
 impl<'a> NodeRepository for ActiveConnection<'a> {
@@ -1068,6 +1254,14 @@ impl<'a> NodeRepository for ActiveConnection<'a> {
 
     fn list_all(&self) -> Result<Vec<Node>, BrainError> {
         list_all_nodes_conn(self)
+    }
+
+    fn find_by_tokens(&self, tokens: &[String]) -> Result<Vec<Node>, BrainError> {
+        find_nodes_by_tokens_conn(self, tokens)
+    }
+
+    fn find_by_fts(&self, query: &str) -> Result<Vec<(Node, f64)>, BrainError> {
+        find_nodes_by_fts_conn(self, query)
     }
 }
 

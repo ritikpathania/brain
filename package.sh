@@ -5,12 +5,12 @@ echo "=== Starting brain Release Packaging ==="
 
 # 1. Compile release Rust binary
 echo "Compiling Rust binary in release mode..."
-PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo build --release --package brain-v2
+PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo build --release --package brain
 
 # 2. Assemble release directory
 echo "Assembling package files..."
 mkdir -p release
-cp target/release/brain-v2 release/brain
+cp target/release/brain release/brain
 cp INSTALL.md release/INSTALL.md
 cp UPGRADE.md release/UPGRADE.md
 cp README.md release/README.md

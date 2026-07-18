@@ -117,6 +117,7 @@ pub(crate) trait StartupPhase {
 pub(crate) struct RuntimeServiceLocator {
     pub storage: Option<Arc<SqliteStorage>>,
     pub session_manager: Option<Arc<SessionCacheManager>>,
+    pub query_embedding_service: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
     pub retrieval_service: Option<Arc<crate::retrieval::RetrievalServiceImpl>>,
     pub conversation_manager: Option<Arc<dyn crate::conversation::ConversationManager>>,
     pub tool_registry: Option<Arc<ToolRegistryImpl>>,
@@ -147,34 +148,12 @@ impl HostContext for ApplicationRuntime {
             });
         }
         let locator = self.service_locator.read();
-        let storage = locator
-            .storage
+        let retrieval_service = locator
+            .retrieval_service
             .clone()
             .ok_or_else(|| BrainError::Validation {
-                message: "Storage not initialized".to_string(),
+                message: "Retrieval service not initialized".to_string(),
             })?;
-        let session_manager =
-            locator
-                .session_manager
-                .clone()
-                .ok_or_else(|| BrainError::Validation {
-                    message: "Session manager not initialized".to_string(),
-                })?;
-
-        let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-        let pipeline = crate::retrieval::pipeline::MemoryPipelineBuilder::new()
-            .register_source(Arc::new(crate::retrieval::source::StmMemorySource::new(
-                session_manager.clone(),
-                storage.clone(),
-                registry.clone(),
-            )))
-            .register_source(Arc::new(crate::retrieval::source::LtmMemorySource::new(
-                storage.clone(),
-                registry,
-            )))
-            .with_policy(brain_core::retrieval::CacheHydrationPolicy::OnHit)
-            .with_cache_manager(session_manager)
-            .build();
 
         let request = brain_core::retrieval::RetrievalRequest {
             session_id: *session_id,
@@ -183,7 +162,7 @@ impl HostContext for ApplicationRuntime {
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
         };
-        let response = pipeline.execute(&request)?;
+        let response = retrieval_service.execute_pipeline(&request)?;
         Ok(response.nodes)
     }
 
@@ -558,6 +537,7 @@ pub struct RuntimeBuilder {
     config: Option<BrainSettings>,
     storage: Option<Arc<SqliteStorage>>,
     session_manager: Option<Arc<SessionCacheManager>>,
+    query_embedding_service: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
     conversation_manager: Option<Arc<dyn crate::conversation::ConversationManager>>,
     tool_executor: Option<Arc<ToolExecutor>>,
     plugin_manager: Option<Arc<PluginManager>>,
@@ -577,6 +557,7 @@ impl RuntimeBuilder {
             config: None,
             storage: None,
             session_manager: None,
+            query_embedding_service: None,
             conversation_manager: None,
             tool_executor: None,
             plugin_manager: None,
@@ -629,6 +610,15 @@ impl RuntimeBuilder {
         self
     }
 
+    /// Configures a custom QueryEmbeddingService.
+    pub fn with_query_embedding_service(
+        mut self,
+        service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
+    ) -> Self {
+        self.query_embedding_service = Some(service);
+        self
+    }
+
     /// Builds the `ApplicationRuntime` instance without performing side effects.
     pub fn build(self) -> Result<ApplicationRuntime, BrainError> {
         let config = match self.config {
@@ -642,6 +632,7 @@ impl RuntimeBuilder {
         let service_locator = RuntimeServiceLocator {
             storage: self.storage,
             session_manager: self.session_manager,
+            query_embedding_service: self.query_embedding_service,
             retrieval_service: None,
             conversation_manager: self.conversation_manager,
             tool_registry: None,
@@ -795,10 +786,19 @@ impl StartupPhase for ServicesReadyPhase {
             })?;
         let session_manager = Arc::new(SessionCacheManager::new());
         let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-        let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new(
+        let query_embedding_service = locator
+            .query_embedding_service
+            .clone()
+            .unwrap_or_else(|| {
+                let default_provider = Arc::new(brain_core::retrieval::NoopEmbeddingProvider::default());
+                Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(default_provider))
+            });
+        let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new_with_config(
             storage.clone(),
+            &runtime.config,
             session_manager.clone(),
             registry.clone(),
+            query_embedding_service,
         ));
         let conversation_manager: Arc<dyn crate::conversation::ConversationManager> =
             Arc::new(crate::conversation::ConversationManagerImpl::new(

@@ -167,7 +167,7 @@ impl RankingStrategy for TemporalRankingStrategy {
             .into_iter()
             .map(|node| {
                 // Calculate match score
-                let base_score = crate::retrieval::source::calculate_node_match_score(&node, &request.query) as f64;
+                let base_score = crate::retrieval::source::calculate_token_overlap_score(&node, &request.query) as f64;
                 let obs_time = node_recency.get(&node.id).cloned().unwrap_or(0);
                 
                 let reference_secs = self.reference_time.unix_seconds();

@@ -1,10 +1,19 @@
+/// Feature provider and extractor contracts for contextual ranking.
+pub mod feature_provider;
+/// Scoring facade for machine learned models.
+pub mod score_ranker;
+/// Runtime ranking strategy using machine learned scoring models.
+pub mod model_strategy;
+
+pub use model_strategy::ModelRankingStrategy;
+
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::{
-    EmbeddingLookup, EmbeddingProvider, RankingStrategy, RetrievalRequest,
+    EmbeddingLookup, RankingStrategy, RetrievalRequest,
 };
 use brain_domain::Node;
 
@@ -226,18 +235,18 @@ impl RankingStrategy for Bm25Ranking {
 
 /// Semantic ranking strategy based on vector cosine similarity.
 pub struct EmbeddingRanking {
-    embedding_provider: Arc<dyn EmbeddingProvider>,
+    query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
     embedding_lookup: Arc<dyn EmbeddingLookup>,
 }
 
 impl EmbeddingRanking {
     /// Creates a new EmbeddingRanking strategy.
     pub fn new(
-        embedding_provider: Arc<dyn EmbeddingProvider>,
+        query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
         embedding_lookup: Arc<dyn EmbeddingLookup>,
     ) -> Self {
         Self {
-            embedding_provider,
+            query_embedding_service,
             embedding_lookup,
         }
     }
@@ -249,7 +258,7 @@ impl RankingStrategy for EmbeddingRanking {
             return Ok(nodes);
         }
 
-        let query_vector = self.embedding_provider.embed(&request.query)?;
+        let query_vector = self.query_embedding_service.embed_query(&request.query)?;
         let mut scored_nodes = Vec::with_capacity(nodes.len());
 
         for node in nodes {
@@ -383,6 +392,7 @@ impl RrfRanking {
 
 impl RankingStrategy for RrfRanking {
     fn rank(&self, request: &RetrievalRequest, nodes: Vec<Node>) -> Result<Vec<Node>, BrainError> {
+        let start = std::time::Instant::now();
         if nodes.is_empty() || self.strategies.is_empty() {
             return Ok(nodes);
         }
@@ -408,6 +418,15 @@ impl RankingStrategy for RrfRanking {
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.id.0.cmp(&b.id.0))
         });
+
+        let duration = start.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "RRF",
+            duration_ms = duration.as_millis(),
+            input_candidate_count = result.len(),
+            "Retrieval stage completed: RRF"
+        );
 
         Ok(result)
     }

@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "node_id": "00000000-0000-0000-0000-000000000101",
+      "content": "configure client transport",
+      "type": "Concept",
+      "properties": {
+        "embedding": [0.2, 0.9798, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000102",
+      "content": "UdsTransport socket channel setup",
+      "type": "Concept",
+      "properties": {
+        "embedding": [0.9, 0.4359, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000104",
+      "content": "daemon exit handling",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 500000,
+        "pinned": true,
+        "importance": 1.0,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000103",
+      "content": "daemon exit handling",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.0,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000106",
+      "content": "core LTM database",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": [
+          "00000000-0000-0000-0000-000000000105",
+          "00000000-0000-0000-0000-000000000107",
+          "00000000-0000-0000-0000-000000000108"
+        ]
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000105",
+      "content": "core LTM database",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000108",
+      "content": "configure TS UDS path",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 10,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000107",
+      "content": "configure TS UDS path",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000110",
+      "content": "stale socket recovery",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000109",
+      "content": "stale socket recovery",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.9,
+        "access_count": 0,
+        "last_observed_at": 100000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000112",
+      "content": "duckdb telemetry storage",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 1.0,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    },
+    {
+      "node_id": "00000000-0000-0000-0000-000000000111",
+      "content": "duckdb telemetry storage",
+      "type": "Concept",
+      "properties": {
+        "embedding": [1.0, 0.0, 0.0],
+        "updated_at": 1000000,
+        "pinned": false,
+        "importance": 0.5,
+        "provenance_confidence": 0.1,
+        "access_count": 0,
+        "last_observed_at": 1000000,
+        "edges": []
+      }
+    }
+  ]
+}

@@ -52,6 +52,8 @@ impl Retriever for PerfectRetriever {
             "FuzzyRetrieval" => "q_022",
             "graceful worker draining check sleep" => "q_023",
             "how are messages exchanged over UDS IPC" => "q_024",
+            "olap dashboard instrumentation reporter" => "q_025",
+            "graceful termination handler shutdown routine" => "q_026",
             _ => return Ok(vec![]),
         };
 
@@ -116,6 +118,8 @@ impl Retriever for PartialRetriever {
             "FuzzyRetrieval" => "q_022",
             "graceful worker draining check sleep" => "q_023",
             "how are messages exchanged over UDS IPC" => "q_024",
+            "olap dashboard instrumentation reporter" => "q_025",
+            "graceful termination handler shutdown routine" => "q_026",
             _ => return Ok(vec![]),
         };
 
@@ -191,8 +195,8 @@ fn test_harness_perfect_retriever() {
     let retriever = PerfectRetriever::new(&ground_truth);
     let report = run_benchmark(queries_json, ground_truth_json, &retriever, "mock").unwrap();
 
-    assert_eq!(report.stable.metrics.total_queries, 24);
-    assert_eq!(report.stable.metrics.successful_queries, 24);
+    assert_eq!(report.stable.metrics.total_queries, 26);
+    assert_eq!(report.stable.metrics.successful_queries, 26);
     assert_eq!(report.stable.metrics.failed_queries, 0);
 
     // Perfect retriever should hit exactly 1.0 on all metrics
@@ -222,9 +226,9 @@ fn test_harness_partial_retriever() {
     let retriever = PartialRetriever::new(&ground_truth);
     let report = run_benchmark(queries_json, ground_truth_json, &retriever, "mock").unwrap();
 
-    assert_eq!(report.stable.metrics.total_queries, 24);
-    // 23 succeeded, 1 failed (q_004)
-    assert_eq!(report.stable.metrics.successful_queries, 23);
+    assert_eq!(report.stable.metrics.total_queries, 26);
+    // 25 succeeded, 1 failed (q_004)
+    assert_eq!(report.stable.metrics.successful_queries, 25);
     assert_eq!(report.stable.metrics.failed_queries, 1);
 
     // Check partial error query status

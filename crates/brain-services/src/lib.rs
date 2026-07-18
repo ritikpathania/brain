@@ -45,3 +45,26 @@ pub use projections::{
     StateReducer, ProjectionRunner, ReducerRegistry, JobProjectionReducer, SessionProjectionReducer, SearchProjectionReducer,
     ProjectionId, ProjectionNotificationBus
 };
+
+/// Reference implementations for Sprint 1 event dispatch.
+pub mod event_dispatcher;
+/// Reference implementations for Sprint 1 knowledge evolution validator and canonicalizer.
+pub mod evolution_service;
+/// Reference implementations for Sprint 1 memory list projection structures.
+pub mod memory_list_projection;
+/// Reference implementations for Sprint 1 projection coordinator manager.
+pub mod projection_manager;
+/// Reference implementations for Sprint 2 SQLite persistent evolution.
+pub mod sqlite_evolution;
+/// Reference implementations for Sprint 2 SQLite persistent projections.
+pub mod sqlite_projection;
+/// Reference implementation for Sprint 3 reflection engine (emit-only).
+pub mod reflection_engine;
+
+pub use event_dispatcher::InMemoryEventDispatcher;
+pub use evolution_service::{StandardIngestionValidator, InMemoryCanonicalizer};
+pub use memory_list_projection::{MemoryListQuery, MemoryListProjection, MemoryListProjector};
+pub use projection_manager::ProjectionManager;
+pub use sqlite_evolution::SqliteCanonicalizer;
+pub use sqlite_projection::{SqliteProjector, SqliteProjectionManager};
+pub use reflection_engine::InMemoryReflectionEngine;

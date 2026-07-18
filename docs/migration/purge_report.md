@@ -12,7 +12,7 @@ The repository has been successfully transitioned to a unified native Rust archi
 * **Active Frontend Technology**: Ratatui TUI client (`crates/brain-tui`)
 * **Supported Build Toolchain**: Rust Cargo (version >= 1.70)
 * **Supported Package Managers**: Cargo (Rust) and UV (Python)
-* **Primary Application Entry Point**: `apps/brain-v2` (boots interactive TUI by default, background daemon via `daemon` arg)
+* **Primary Application Entry Point**: `apps/brain` (boots interactive TUI by default, background daemon via `daemon` arg)
 * **Supported Contributor Workflow**: cargo build, cargo test, and cargo clippy
 
 ---
@@ -38,7 +38,7 @@ The following obsolete directories and configurations have been purged from the 
 ---
 
 ## 🛡️ 4. Justification of Safety
-The React/Ink client was fully replaced by the native Rust Ratatui library (`crates/brain-tui`), compiled into the unified binary `apps/brain-v2`. Running the app with no arguments automatically boots the TUI, while running with the `daemon` argument starts the background relational memory database engine. All IPC communications are now handled in-process, eliminating socket parsing overhead.
+The React/Ink client was fully replaced by the native Rust Ratatui library (`crates/brain-tui`), compiled into the unified binary `apps/brain`. Running the app with no arguments automatically boots the TUI, while running with the `daemon` argument starts the background relational memory database engine. All IPC communications are now handled in-process, eliminating socket parsing overhead.
 
 ---
 

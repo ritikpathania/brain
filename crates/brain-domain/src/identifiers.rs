@@ -581,5 +581,34 @@ impl std::str::FromStr for SearchDocumentId {
     }
 }
 
+/// Strongly-typed transaction epoch identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct EpochId(pub u64);
+
+impl EpochId {
+    /// Generates the initial epoch (0).
+    pub fn initial() -> Self {
+        Self(0)
+    }
+
+    /// Increments the epoch.
+    pub fn next(&self) -> Self {
+        Self(self.0 + 1)
+    }
+}
+
+impl Default for EpochId {
+    fn default() -> Self {
+        Self::initial()
+    }
+}
+
+impl fmt::Display for EpochId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+
 
 

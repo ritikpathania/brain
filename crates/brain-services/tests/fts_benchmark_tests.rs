@@ -28,10 +28,10 @@ fn test_fts_benchmark_cold_and_warm_cache() {
 
     // 4. Verify that DB triggers automatically populated FTS table
     let conn = sqlite.pool().get().unwrap();
-    let count: i64 = conn
+    let count: usize = conn
         .query_row("SELECT COUNT(*) FROM node_search", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(count, 11);
+    assert_eq!(count, ground_truth.nodes.len());
 
     // 5. Instantiate FtsRetriever
     let retriever = FtsRetriever::new(sqlite.pool().clone());

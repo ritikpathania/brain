@@ -12,18 +12,50 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-struct MockEmbeddingProvider {
-    vector: Vec<f32>,
+struct FixtureQuery {
+    _query_id: String,
+    embedding: Vec<f32>,
 }
 
-impl EmbeddingProvider for MockEmbeddingProvider {
+struct FixtureEmbeddingProvider {
+    text_to_query: std::collections::HashMap<String, FixtureQuery>,
+}
+
+impl EmbeddingProvider for FixtureEmbeddingProvider {
     fn name(&self) -> &'static str {
-        "mock-provider"
+        "fixture-embedding-provider"
     }
 
-    fn embed(&self, _text: &str) -> Result<Vec<f32>, BrainError> {
-        Ok(self.vector.clone())
+    fn embed(&self, text: &str) -> Result<Vec<f32>, BrainError> {
+        let fq = self.text_to_query.get(text).ok_or_else(|| {
+            BrainError::Validation { message: format!("Query text not found in fixture: {}", text) }
+        })?;
+        Ok(fq.embedding.clone())
     }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct FixtureNode {
+    node_id: String,
+    content: String,
+    properties: FixtureProperties,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct FixtureProperties {
+    embedding: Vec<f32>,
+    updated_at: u64,
+    pinned: bool,
+    importance: f64,
+    provenance_confidence: f64,
+    access_count: u64,
+    last_observed_at: u64,
+    edges: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct FixtureCorpus {
+    nodes: Vec<FixtureNode>,
 }
 
 #[test]
@@ -32,46 +64,84 @@ fn test_sensitivity_analysis_execution_and_reporting() {
     let test_storage = TestStorage::new();
     let sqlite = test_storage.storage();
 
-    // 2. Load corpus
-    let queries_json = include_str!("evaluation/queries.json");
-    let ground_truth_json = include_str!("evaluation/ground_truth.json");
-    let ground_truth: GroundTruthCorpus = serde_json::from_str(ground_truth_json).unwrap();
-    let queries: QueryCorpus = serde_json::from_str(queries_json).unwrap();
+    // 2. Load controlled corpus files
+    let queries_json = include_str!("evaluation/controlled_queries.json");
+    let ground_truth_json = include_str!("evaluation/controlled_ground_truth.json");
+    let fixture_json = include_str!("evaluation/controlled_fixture.json");
 
-    // 3. Populate SQLite database with nodes
-    for (idx, corpus_node) in ground_truth.nodes.iter().enumerate() {
-        let node_id = NodeId(uuid::Uuid::parse_str(&corpus_node.node_id).unwrap());
-        let mut node = Node::new(node_id, corpus_node.content.clone(), NodeType::Concept);
-        // Vary updated_at to create non-zero variance for recency
-        node.updated_at = 1000000 - (idx as u64 * 10000);
-        node.properties.insert("importance".to_string(), serde_json::json!(idx as f64 * 0.1));
+    let queries: QueryCorpus = serde_json::from_str(queries_json).unwrap();
+    let ground_truth: GroundTruthCorpus = serde_json::from_str(ground_truth_json).unwrap();
+    let fixture: FixtureCorpus = serde_json::from_str(fixture_json).unwrap();
+
+    // 3. Populate database programmatically from fixture metadata (First pass: nodes, embeddings, events)
+    for n in &fixture.nodes {
+        let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
+        let mut node = Node::new(node_id, n.content.clone(), NodeType::Concept);
+        node.updated_at = n.properties.updated_at;
+        node.properties.insert("importance".to_string(), serde_json::json!(n.properties.importance));
+        node.properties.insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
+        node.properties.insert("provenance_confidence".to_string(), serde_json::json!(n.properties.provenance_confidence));
         sqlite.nodes().save(&node).unwrap();
 
-        // Save a mock embedding
+        // Save embedding
         sqlite
             .embeddings()
-            .save(&brain_domain::Embedding::new(node_id, vec![1.0, 0.0, 0.0]))
+            .save(&brain_domain::Embedding::new(node_id, n.properties.embedding.clone()))
             .unwrap();
+
+        // Save access feedback events
+        if n.properties.access_count > 0 {
+            let conn = sqlite.pool().get().unwrap();
+            for i in 0..n.properties.access_count {
+                conn.execute(
+                    "INSERT INTO feedback_events (id, schema_version, query, node_id, selected, timestamp, ranking_position, context) \
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    rusqlite::params![
+                        format!("event_{}_{}", n.node_id, i),
+                        1,
+                        "controlled query",
+                        n.node_id.clone(),
+                        1,
+                        n.properties.last_observed_at,
+                        0,
+                        "{}"
+                    ],
+                ).unwrap();
+            }
+        }
     }
 
-    // 4. Save a temporal edge
-    if ground_truth.nodes.len() >= 2 {
-        let node_id_1 = NodeId(uuid::Uuid::parse_str(&ground_truth.nodes[0].node_id).unwrap());
-        let node_id_2 = NodeId(uuid::Uuid::parse_str(&ground_truth.nodes[1].node_id).unwrap());
-        sqlite
-            .save_temporal_edge(&brain_domain::TemporalEdge {
-                edge: Edge::new(node_id_1, node_id_2, RelationKind::Uses, 1.0),
-                observed_at: brain_domain::TimePoint::from_unix_seconds(950000),
-                validity: brain_domain::temporal::TemporalValidity::new(vec![]),
-            })
-            .unwrap();
+    // Second pass: save all edges (guarantees target nodes exist to satisfy foreign keys)
+    for n in &fixture.nodes {
+        let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
+        for target_str in &n.properties.edges {
+            let target_id = NodeId(uuid::Uuid::parse_str(target_str).unwrap());
+            sqlite
+                .save_temporal_edge(&brain_domain::TemporalEdge {
+                    edge: Edge::new(node_id, target_id, RelationKind::Uses, 1.0),
+                    observed_at: brain_domain::TimePoint::from_unix_seconds(n.properties.last_observed_at),
+                    validity: brain_domain::temporal::TemporalValidity::new(vec![]),
+                })
+                .unwrap();
+        }
     }
 
-    // 5. Instantiate retrievers
+    // 4. Instantiate retrievers
     let fts = FtsRetriever::new(sqlite.pool().clone());
-    let embed_provider = Arc::new(MockEmbeddingProvider {
-        vector: vec![1.0, 0.0, 0.0],
-    });
+    let mut text_to_query = std::collections::HashMap::new();
+    for q in &queries.queries {
+        let embedding = q.embedding.clone().ok_or_else(|| {
+            BrainError::Validation { message: format!("Embedding not defined for query: {}", q.query_id) }
+        }).unwrap();
+        text_to_query.insert(
+            q.text.clone(),
+            FixtureQuery {
+                _query_id: q.query_id.clone(),
+                embedding,
+            },
+        );
+    }
+    let embed_provider = Arc::new(FixtureEmbeddingProvider { text_to_query });
     let semantic = SemanticRetriever::new(sqlite.pool().clone(), embed_provider);
     let hybrid = HybridRetriever::new(fts, semantic);
     let provider = FeatureProvider::new(sqlite.pool().clone());
@@ -81,7 +151,7 @@ fn test_sensitivity_analysis_execution_and_reporting() {
         freshness_half_life_days: 1.0,
     };
 
-    // 6. Build session
+    // 5. Build session
     let session = EvaluationSession::build(
         &queries,
         &ground_truth,
@@ -92,40 +162,47 @@ fn test_sensitivity_analysis_execution_and_reporting() {
     )
     .unwrap();
 
-    // 7. Define baseline weights
+    // 6. Define baseline weights where every feature has weight > 0
     let baseline = RankingWeights {
         lexical: 1.0,
-        semantic: 1.0,
-        recency: 0.5,
-        importance: 0.5,
-        provenance_confidence: 0.0,
-        graph_degree: 0.0,
-        access_frequency: 0.0,
-        freshness_decay: 0.0,
+        semantic: 15.0,
+        recency: 2.0,
+        importance: 2.0,
+        provenance_confidence: 2.0,
+        graph_degree: 2.0,
+        access_frequency: 2.0,
+        freshness_decay: 2.0,
     };
 
-    // 8. Run Sensitivity Analysis
+    // 7. Run Sensitivity Analysis
     let report = run_sensitivity_analysis(&session, baseline);
 
     assert_eq!(report.impacts.len(), 8);
 
-    // Verify alphabetical ordering of features
-    let mut last_name = String::new();
+    // Verify all features are active and none are zero variance
     for imp in &report.impacts {
-        assert!(imp.feature_name > last_name, "Features not sorted alphabetically: {} vs {}", imp.feature_name, last_name);
-        last_name = imp.feature_name.clone();
+        assert!(
+            !imp.zero_variance,
+            "Feature {} should not be zero variance under the controlled corpus!",
+            imp.feature_name
+        );
+        assert!(
+            imp.queries_changed >= 1,
+            "Feature {} should have measurable ranking influence (queries_changed >= 1)!",
+            imp.feature_name
+        );
+        assert!(
+            imp.avg_rank_shift > 0.0,
+            "Feature {} should have non-zero average rank shift!",
+            imp.feature_name
+        );
     }
 
-    // Verify zero variance flag behavior
-    // provenance_confidence should be zero variance because it is not set on nodes (defaults to None / zero std dev)
-    let prov = report.impacts.iter().find(|i| i.feature_name == "provenance_confidence").unwrap();
-    assert!(prov.zero_variance);
-
-    // 9. Generate Report using SensitivityReportWriter
+    // 8. Generate Report
     let report_content = SensitivityReportWriter::write_report(&report);
 
-    // Save report to tests/evaluation/sensitivity_report.md
+    // Save report to tests/evaluation/controlled_sensitivity_report.md
     let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
     fs::create_dir_all(&base_path).unwrap();
-    fs::write(base_path.join("sensitivity_report.md"), &report_content).unwrap();
+    fs::write(base_path.join("controlled_sensitivity_report.md"), &report_content).unwrap();
 }

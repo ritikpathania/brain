@@ -334,6 +334,8 @@ impl ContextBuilder {
         summary: Option<ConversationSummary>,
         retrieved_memories: Vec<MemoryDTO>,
     ) -> ContextWindow {
+        let start = std::time::Instant::now();
+        let input_memories_count = retrieved_memories.len();
         let mut budget_remaining = budget.max_tokens;
 
         // Reserve completion and system tokens
@@ -393,6 +395,18 @@ impl ContextBuilder {
 
         let mut final_messages = system_messages;
         final_messages.extend(included_history);
+
+        let duration = start.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "context_assembly",
+            duration_ms = duration.as_millis(),
+            input_history_count = history.len(),
+            input_memories_count = input_memories_count,
+            output_memories_count = included_memories.len(),
+            target_budget = budget.max_tokens,
+            "Retrieval stage completed: context assembly"
+        );
 
         ContextWindow::new(final_messages, included_summary, included_memories)
     }

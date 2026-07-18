@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "schema_version": 1,
+  "corpus_version": 1,
+  "status": "controlled",
+  "queries": [
+    {
+      "query_id": "q_ctrl_lexical_vs_semantic",
+      "text": "configure client transport",
+      "tags": ["controlled", "lexical_vs_semantic"],
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "query_id": "q_ctrl_importance_vs_recency",
+      "text": "daemon exit handling",
+      "tags": ["controlled", "importance_vs_recency"],
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "query_id": "q_ctrl_graph_degree_vs_isolated",
+      "text": "core LTM database",
+      "tags": ["controlled", "graph_degree_vs_isolated"],
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "query_id": "q_ctrl_frequently_vs_never_accessed",
+      "text": "configure TS UDS path",
+      "tags": ["controlled", "frequently_vs_never_accessed"],
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "query_id": "q_ctrl_freshness_decay_vs_stale",
+      "text": "stale socket recovery",
+      "tags": ["controlled", "freshness_decay_vs_stale"],
+      "embedding": [1.0, 0.0, 0.0]
+    },
+    {
+      "query_id": "q_ctrl_provenance_confidence_vs_low",
+      "text": "duckdb telemetry storage",
+      "tags": ["controlled", "provenance_confidence_vs_low"],
+      "embedding": [1.0, 0.0, 0.0]
+    }
+  ]
+}

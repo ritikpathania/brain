@@ -181,8 +181,63 @@ impl Merge for PartialSessionSettings {
         if let Some(ttl) = other.volatile_ttl_secs {
             self.volatile_ttl_secs = Some(ttl);
         }
-        if let Some(win) = other.max_sliding_window_size {
-            self.max_sliding_window_size = Some(win);
+        if let Some(w) = other.max_sliding_window_size {
+            self.max_sliding_window_size = Some(w);
+        }
+    }
+}
+
+/// Contextual ranking policy settings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RankingPolicy {
+    /// Default Reciprocal Rank Fusion of BM25, Semantic, and Graph.
+    DefaultRrf,
+    /// Learned scoring models (Linear or LambdaMART) resolved via ModelLoader.
+    LearnedModel,
+}
+
+/// Retrieval settings configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetrievalSettings {
+    /// The active ranking policy to execute.
+    pub(crate) ranking_policy: RankingPolicy,
+    /// Path to the serialized model file.
+    pub(crate) model_path: Option<String>,
+}
+
+impl RetrievalSettings {
+    /// Creates a new RetrievalSettings.
+    pub fn new(ranking_policy: RankingPolicy, model_path: Option<String>) -> Self {
+        Self { ranking_policy, model_path }
+    }
+
+    /// Returns the active ranking policy.
+    pub fn ranking_policy(&self) -> RankingPolicy {
+        self.ranking_policy
+    }
+
+    /// Returns the path to the serialized model file, if configured.
+    pub fn model_path(&self) -> Option<&str> {
+        self.model_path.as_deref()
+    }
+}
+
+/// Partial retrieval settings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PartialRetrievalSettings {
+    /// Optional ranking policy.
+    pub ranking_policy: Option<RankingPolicy>,
+    /// Optional model path.
+    pub model_path: Option<String>,
+}
+
+impl Merge for PartialRetrievalSettings {
+    fn merge(&mut self, other: Self) {
+        if let Some(policy) = other.ranking_policy {
+            self.ranking_policy = Some(policy);
+        }
+        if let Some(path) = other.model_path {
+            self.model_path = Some(path);
         }
     }
 }
@@ -198,6 +253,8 @@ pub struct BrainSettings {
     pub(crate) models: ModelSettings,
     /// Nested session settings.
     pub(crate) sessions: SessionSettings,
+    /// Nested retrieval settings.
+    pub(crate) retrieval: RetrievalSettings,
     /// Plugins installation directory path.
     pub(crate) plugins_directory: String,
 }
@@ -223,9 +280,20 @@ impl BrainSettings {
         &self.sessions
     }
 
+    /// Returns the nested retrieval settings.
+    pub fn retrieval(&self) -> &RetrievalSettings {
+        &self.retrieval
+    }
+
     /// Returns the plugins installation directory path.
     pub fn plugins_directory(&self) -> &str {
         &self.plugins_directory
+    }
+
+    /// Replaces the retrieval settings (useful for testing / runtime reconfiguration).
+    pub fn with_retrieval(mut self, retrieval: RetrievalSettings) -> Self {
+        self.retrieval = retrieval;
+        self
     }
 }
 
@@ -240,6 +308,8 @@ pub struct PartialBrainSettings {
     pub models: Option<PartialModelSettings>,
     /// Optional session settings block.
     pub sessions: Option<PartialSessionSettings>,
+    /// Optional retrieval settings block.
+    pub retrieval: Option<PartialRetrievalSettings>,
     /// Optional plugins directory path.
     pub plugins_directory: Option<String>,
 }
@@ -272,6 +342,13 @@ impl Merge for PartialBrainSettings {
             let mut sessions = self.sessions.take().unwrap_or_default();
             sessions.merge(other_sessions);
             self.sessions = Some(sessions);
+        }
+
+        // Merge retrieval
+        if let Some(other_retrieval) = other.retrieval {
+            let mut retrieval = self.retrieval.take().unwrap_or_default();
+            retrieval.merge(other_retrieval);
+            self.retrieval = Some(retrieval);
         }
     }
 }

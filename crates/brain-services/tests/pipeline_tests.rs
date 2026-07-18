@@ -95,6 +95,8 @@ fn test_pipeline_deterministic_execution_and_early_exit() {
     let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
     let node2 = Node::new(NodeId::new(), "Node 2".to_string(), NodeType::Concept);
     let node3 = Node::new(NodeId::new(), "Node 3".to_string(), NodeType::Concept);
+    let node4 = Node::new(NodeId::new(), "Node 4".to_string(), NodeType::Concept);
+    let node5 = Node::new(NodeId::new(), "Node 5".to_string(), NodeType::Concept);
 
     let source1 = Arc::new(MockMemorySource::new(
         "s1",
@@ -103,19 +105,20 @@ fn test_pipeline_deterministic_execution_and_early_exit() {
     ));
     let source2 = Arc::new(MockMemorySource::new(
         "s2",
-        vec![node1.clone(), node2.clone()],
+        vec![node1.clone(), node2.clone(), node3.clone(), node4.clone()],
         calls_s2.clone(),
     ));
     let source3 = Arc::new(MockMemorySource::new(
         "s3",
-        vec![node3.clone()],
+        vec![node5.clone()],
         calls_s3.clone(),
     ));
 
-    // Limit is 2.
-    // Source 1 gives Node 1 (accumulated: Node 1 -> count = 1). Limit not met.
-    // Source 2 gives Node 1 (duplicate) and Node 2 (new, accumulated: Node 1, Node 2 -> count = 2). Limit met!
-    // Source 3 should NOT be queried because the limit is met.
+    // Limit is 1. With 3 sources, the early-exit threshold is limit * 3 = 3.
+    // Source 1 gives Node 1 (accumulated: Node 1 -> count = 1).
+    // Source 2 gives Node 1 (duplicate), Node 2, Node 3, Node 4 (accumulated: 4 nodes).
+    // Since 4 >= 3, the limit * 3 break is triggered!
+    // Source 3 should NOT be queried.
     let pipeline = MemoryPipelineBuilder::new()
         .register_source(source1)
         .register_source(source2)
@@ -125,15 +128,14 @@ fn test_pipeline_deterministic_execution_and_early_exit() {
     let request = RetrievalRequest {
         session_id: SessionId::new(),
         query: "test".to_string(),
-        limit: 2,
+        limit: 1,
         exclude_ids: HashSet::new(),
         deadline: None,
     };
 
     let response = pipeline.execute(&request).unwrap();
-    assert_eq!(response.nodes.len(), 2);
+    assert_eq!(response.nodes.len(), 1);
     assert_eq!(response.nodes[0].id, node1.id);
-    assert_eq!(response.nodes[1].id, node2.id);
 
     assert_eq!(*calls_s1.lock().unwrap(), 1);
     assert_eq!(*calls_s2.lock().unwrap(), 1);

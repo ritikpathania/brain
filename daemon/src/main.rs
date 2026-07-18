@@ -324,25 +324,25 @@ fn print_config() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn find_brain_v2_path() -> std::path::PathBuf {
+fn find_brain_path() -> std::path::PathBuf {
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(parent) = current_exe.parent() {
-            let sibling = parent.join("brain-v2");
+            let sibling = parent.join("brain");
             if sibling.exists() {
                 return sibling;
             }
             if let Some(grandparent) = parent.parent() {
                 if let Some(great_grandparent) = grandparent.parent() {
-                    let target_debug = great_grandparent.join("target").join("debug").join("brain-v2");
+                    let target_debug = great_grandparent.join("target").join("debug").join("brain");
                     if target_debug.exists() {
                         return target_debug;
                     }
-                    let target_release = great_grandparent.join("target").join("release").join("brain-v2");
+                    let target_release = great_grandparent.join("target").join("release").join("brain");
                     if target_release.exists() {
                         return target_release;
                     }
                 }
-                let sibling_debug = grandparent.join("debug").join("brain-v2");
+                let sibling_debug = grandparent.join("debug").join("brain");
                 if sibling_debug.exists() {
                     return sibling_debug;
                 }
@@ -350,24 +350,24 @@ fn find_brain_v2_path() -> std::path::PathBuf {
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
-        let cwd_debug = cwd.join("target").join("debug").join("brain-v2");
+        let cwd_debug = cwd.join("target").join("debug").join("brain");
         if cwd_debug.exists() {
             return cwd_debug;
         }
-        let cwd_release = cwd.join("target").join("release").join("brain-v2");
+        let cwd_release = cwd.join("target").join("release").join("brain");
         if cwd_release.exists() {
             return cwd_release;
         }
     }
-    std::path::PathBuf::from("brain-v2")
+    std::path::PathBuf::from("brain")
 }
 
 fn launch_embedded_tui() -> Result<(), Box<dyn std::error::Error>> {
     println!("Launching native Ratatui TUI client...");
     let paths = config::resolve_paths();
-    let brain_v2_path = find_brain_v2_path();
+    let brain_path = find_brain_path();
 
-    let mut child = std::process::Command::new(brain_v2_path)
+    let mut child = std::process::Command::new(brain_path)
         .env("BRAIN_SOCKET_PATH", &paths.socket_path)
         .spawn()?;
 

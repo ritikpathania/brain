@@ -8,13 +8,34 @@
 
 ---
 
-Start here to understand the structural design of the project:
+## Architectural Governance Hierarchy
 
-* **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the Brain runtime.
+Brain uses a top-down architectural governance model. New design proposals, features, or integrations must proceed through this validation chain:
+
+```text
+       PHILOSOPHY.md         (Root axioms: Why Brain exists and core invariants)
+            │
+            ▼
+      STABILITY.md           (Policy boundaries: frozen vs. extensible modules)
+            │
+            ▼
+     adr/ (ADR-XXX)          (Decisions: permanent structural patterns)
+            │
+            ▼
+     rfc/ (RFC-XXX)          (Design specs: proposed changes under discussion)
+            │
+            ▼
+     Implementation          (Code commits matching the design contract)
+```
+
+Start here to understand the structural design and guidelines:
+
+* **[PHILOSOPHY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/PHILOSOPHY.md)** — Core design axioms, derived consequences, and architectural identity.
 * **[STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md)** — Stability contracts for frozen, extensible, and experimental code.
+* **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the Brain runtime.
 * **[contract-lifecycle.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md)** — Explanation of the DTO contract lifecycle.
 * **[GRAPH_SPEC.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md)** — Specification governing the Knowledge Graph schema and constraints.
-* **[relations.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md)** — Canoncial design specification for relationship semantics and the declarative taxonomy.
+* **[relations.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md)** — Canonical design specification for relationship semantics and the declarative taxonomy.
 
 
 ## Architectural Decision Records (ADRs)
@@ -63,6 +84,8 @@ flowchart TD
 * **[ADR-006: Retrieval Extension Philosophy](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-006.md)** (Accepted) — Two-path modularity rules freezing pipeline orchestration.
 * **[ADR-015: Strategy Interfaces](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)** (Accepted) — Decouples ranking models and routers behind trait interfaces.
 * **[ADR-017: Model Compilation](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-017-model-compilation.md)** (Accepted) — Decouples serializable models from optimized compiled evaluation trees.
+* **[ADR-024: IVF Vector Indexing](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-024-ivf-vector-indexing.md)** (Accepted) — Establish deterministic inverted file clustering for sub-linear similarity search in SQLite.
+* **[ADR-025: Hybrid Retrieval Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md)** (Proposed) — Defines independent channels and reciprocal rank fusion (RRF) for hybrid retrieval.
 
 ### Operational Lifecycle (Expected Stability: Evolutionary)
 * **[ADR-007: Streaming API Stability](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-007.md)** (Accepted) — Stability contract for client typewriter network event loops.
@@ -76,4 +99,28 @@ flowchart TD
 * **[ADR-008: Python Plugin Isolation](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-008.md)** (Accepted) — Standardizes virtual environment setups via `uv`.
 
 ## Specifications
-* **[rfc/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc)** — Design RFCs and proposals.
+
+The design RFCs and proposals are tracked in the **[rfc/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc)** directory. 
+
+### RFC Lifecycle
+
+Every RFC proceeds through a structured lifecycle to trace its validation from abstract design to verified code:
+
+| Status | Meaning |
+| :--- | :--- |
+| **Draft** | Initial proposal under active creation. |
+| **Proposed** | Formally submitted and open for architectural discussion. |
+| **Accepted** | Approved design and core contract guidelines. |
+| **Implementing** | Engineering work is currently active. |
+| **Implemented** | Core code features are committed to the codebase. |
+| **Verified** | Invariants validated via **Architectural Fitness Tests**. |
+| **Superseded** | Replaced or retired by a newer RFC. |
+
+---
+
+### Active Specifications Index
+
+* **[RFC-007: Active Workspace](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-007.md)** (Implemented) — Formalizes working sets and workspace boundaries inside the memory engine and TUI.
+* **[RFC-008: Projection Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-008.md)** (Implemented) — Defines projection models, read-only lifecycle states, caching metrics, and service-boundary generator interfaces.
+* **[RFC-009: Runtime Event & Progress Model](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-009.md)** (Implemented) — Establishes how the runtime communicates changes and background task stages over UDS to client adapters.
+* **[RFC-010: Canonical Knowledge Evolution](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-010.md)** (Implemented) — Defines how raw observations validate, canonicalize, and semantically enrich the canonical knowledge graph.

@@ -4,112 +4,28 @@ use brain_core::retrieval::{MemorySource, MemorySourceResult, RetrievalRequest, 
 use brain_session::SessionCacheManager;
 use std::sync::Arc;
 
-fn levenshtein_distance(s1: &str, s2: &str) -> usize {
-    let len1 = s1.chars().count();
-    let len2 = s2.chars().count();
-    if len1 == 0 { return len2; }
-    if len2 == 0 { return len1; }
-
-    let mut row: Vec<usize> = (0..=len2).collect();
-    for (i, c1) in s1.chars().enumerate() {
-        let mut prev = i + 1;
-        for (j, c2) in s2.chars().enumerate() {
-            let cost = if c1 == c2 { 0 } else { 1 };
-            let val = std::cmp::min(
-                row[j + 1] + 1,
-                std::cmp::min(prev + 1, row[j] + cost),
-            );
-            row[j] = prev;
-            prev = val;
-        }
-        row[len2] = prev;
-    }
-    row[len2]
-}
-
-fn word_similarity(q: &str, word: &str) -> f32 {
-    let q_lower = q.to_lowercase();
-    let w_lower = word.to_lowercase();
-    if q_lower == w_lower {
-        return 1.0;
-    }
-    if w_lower.contains(&q_lower) {
-        return q_lower.len() as f32 / w_lower.len() as f32;
-    }
-    let dist = levenshtein_distance(&q_lower, &w_lower);
-    let max_len = std::cmp::max(q_lower.len(), w_lower.len());
-    if max_len > 0 {
-        let sim = 1.0 - (dist as f32 / max_len as f32);
-        if sim >= 0.7 {
-            return sim;
-        }
-    }
-    0.0
-}
-
-fn tokenize(text: &str) -> std::collections::HashSet<String> {
-    let stop_words: std::collections::HashSet<&str> = [
-        "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in", "on",
-        "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it", "its",
-        "you", "your", "my", "up", "down", "out", "off",
-    ]
-    .iter()
-    .cloned()
-    .collect();
-
-    text.to_lowercase()
+pub(crate) fn calculate_token_overlap_score(node: &brain_domain::Node, query: &str) -> f32 {
+    let query_tokens: std::collections::HashSet<String> = query
+        .to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|s| !s.is_empty() && s.len() > 1 && !stop_words.contains(s))
+        .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
-        .collect()
-}
+        .collect();
 
-pub(crate) fn calculate_node_match_score(node: &brain_domain::Node, query: &str) -> f32 {
-    let query_lower = query.to_lowercase();
-    let label_lower = node.label.to_lowercase();
-    let mut score = 0.0;
+    let label_tokens: std::collections::HashSet<String> = node.label
+        .to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
 
-    // 1. Phrase Boosting
-    if label_lower == query_lower {
-        score += 150.0;
-    } else if label_lower.contains(&query_lower) || query_lower.contains(&label_lower) {
-        score += 80.0;
-    }
-
-    // 2. Token-level matching (OR semantics, partial, fuzzy)
-    let query_tokens = tokenize(query);
-    let label_tokens = tokenize(&node.label);
-
+    let mut overlap = 0;
     for q_tok in &query_tokens {
-        let mut best_sim = 0.0f32;
-        for l_tok in &label_tokens {
-            let sim = word_similarity(q_tok, l_tok);
-            if sim > best_sim {
-                best_sim = sim;
-            }
-        }
-        // Also scan properties (string values)
-        for val in node.properties.values() {
-            if let serde_json::Value::String(s) = val {
-                let prop_tokens = tokenize(s);
-                for p_tok in prop_tokens {
-                    let sim = word_similarity(q_tok, &p_tok);
-                    if sim > best_sim {
-                        best_sim = sim;
-                    }
-                }
-            }
-        }
-
-        if best_sim > 0.0 {
-            if best_sim == 1.0 {
-                score += 20.0;
-            } else {
-                score += 10.0 * best_sim;
-            }
+        if label_tokens.contains(q_tok) {
+            overlap += 1;
         }
     }
-    score
+    overlap as f32
 }
 
 /// Short-term memory (STM) source querying the active session cache.
@@ -148,7 +64,7 @@ impl MemorySource for StmMemorySource {
             if request.exclude_ids.contains(&node.id) {
                 continue;
             }
-            let score = calculate_node_match_score(&node, &request.query);
+            let score = calculate_token_overlap_score(&node, &request.query);
             if score > 0.0 {
                 candidates.insert(node.id, (node, score, idx));
             }
@@ -234,18 +150,25 @@ impl LtmMemorySource {
 
 impl MemorySource for LtmMemorySource {
     fn retrieve(&self, request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
-        let db_nodes = self.repos.nodes().list_all()?;
+        let start_lexical = std::time::Instant::now();
         let mut candidates = std::collections::HashMap::new();
 
-        for node in db_nodes {
+        let fts_nodes = self.repos.nodes().find_by_fts(&request.query)?;
+        for (node, score) in fts_nodes {
             if request.exclude_ids.contains(&node.id) {
                 continue;
             }
-            let score = calculate_node_match_score(&node, &request.query);
-            if score > 0.0 {
-                candidates.insert(node.id, (node, score));
-            }
+            candidates.insert(node.id, (node, score as f32));
         }
+
+        let lexical_duration = start_lexical.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "BM25",
+            duration_ms = lexical_duration.as_millis(),
+            candidate_count = candidates.len(),
+            "Retrieval stage completed: BM25"
+        );
 
         // Graph Expansion using GraphTraversalService
         let start_nodes: Vec<brain_domain::NodeId> = candidates.keys().cloned().collect();
@@ -258,13 +181,16 @@ impl MemorySource for LtmMemorySource {
             ..Default::default()
         };
 
+        let start_expand = std::time::Instant::now();
         let mut expansions = Vec::new();
+        let mut connections_count = 0;
         if let Ok(connections) = crate::retrieval::graph_service::Graph.expand_neighbors(
             self.repos.as_ref(),
             self.registry.as_ref(),
             &start_nodes,
             &traversal_budget,
         ) {
+            connections_count = connections.len();
             for edge in connections {
                 let (matched_id, neighbor_id) = if candidates.contains_key(&edge.source) {
                     (edge.source, edge.target)
@@ -293,6 +219,15 @@ impl MemorySource for LtmMemorySource {
                 }
             }
         }
+        let expand_duration = start_expand.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "graph_expansion",
+            duration_ms = expand_duration.as_millis(),
+            input_nodes_count = start_nodes.len(),
+            found_connections_count = connections_count,
+            "Retrieval stage completed: graph expansion"
+        );
 
         let mut sorted_candidates: Vec<_> = candidates.into_values().collect();
         sorted_candidates.sort_by(|a, b| {
@@ -307,6 +242,183 @@ impl MemorySource for LtmMemorySource {
             nodes,
             metadata: SourceMetadata {
                 source_name: "LtmMemorySource",
+            },
+        })
+    }
+}
+
+/// Predefined centroids for IVF vector partitioning.
+fn get_predefined_centroids() -> &'static [Vec<f32>] {
+    static CENTROIDS: std::sync::OnceLock<Vec<Vec<f32>>> = std::sync::OnceLock::new();
+    CENTROIDS.get_or_init(|| {
+        let mut centroids = Vec::with_capacity(8);
+        for c in 0..8 {
+            let mut v = vec![0.0f32; 384];
+            let mut norm_sq = 0.0f32;
+            for i in 0..384 {
+                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0).sin() as f32;
+                v[i] = val;
+                norm_sq += val * val;
+            }
+            let norm = norm_sq.sqrt();
+            if norm > 0.0 {
+                for val in v.iter_mut() {
+                    *val /= norm;
+                }
+            }
+            centroids.push(v);
+        }
+        centroids
+    })
+}
+
+/// Helper to compute cosine similarity between two normalized vectors.
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+    let mut dot = 0.0;
+    let mut norm_a = 0.0;
+    let mut norm_b = 0.0;
+    for (&x, &y) in a.iter().zip(b.iter()) {
+        dot += x * y;
+        norm_a += x * x;
+        norm_b += y * y;
+    }
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+    dot / (norm_a.sqrt() * norm_b.sqrt())
+}
+
+/// Semantic memory source implementing high-dimensional vector similarity retrieval.
+pub struct SemanticMemorySource {
+    repos: Arc<dyn RepositorySet>,
+    query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
+    /// Metric tracking IVF activations.
+    pub activation_count: std::sync::atomic::AtomicUsize,
+    /// Metric tracking IVF bypasses.
+    pub bypass_count: std::sync::atomic::AtomicUsize,
+    /// Metric tracking cosine computation count.
+    pub cosine_computations: std::sync::atomic::AtomicUsize,
+}
+
+impl SemanticMemorySource {
+    /// Creates a new `SemanticMemorySource`.
+    pub fn new(repos: Arc<dyn RepositorySet>, query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>) -> Self {
+        Self {
+            repos,
+            query_embedding_service,
+            activation_count: std::sync::atomic::AtomicUsize::new(0),
+            bypass_count: std::sync::atomic::AtomicUsize::new(0),
+            cosine_computations: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+}
+
+impl MemorySource for SemanticMemorySource {
+    fn retrieve(&self, request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
+        let start_vector = std::time::Instant::now();
+        // 1. Check early for empty query
+        if request.query.trim().is_empty() {
+            return Ok(MemorySourceResult {
+                nodes: vec![],
+                metadata: SourceMetadata {
+                    source_name: "SemanticMemorySource",
+                },
+            });
+        }
+
+        // 2. Generate embedding for query
+        let query_vector = self.query_embedding_service.embed_query(&request.query)?;
+
+        // 3. Fetch all embeddings to determine search strategy
+        let all_embeddings = self.repos.embeddings().list_all_embeddings()?;
+        let total_count = all_embeddings.len();
+
+        let comps_this_query;
+        let candidates = if total_count < 2000 {
+            // Bypass IVF: Flat brute force scan
+            self.bypass_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.cosine_computations.fetch_add(total_count, std::sync::atomic::Ordering::SeqCst);
+            comps_this_query = total_count;
+            tracing::info!(
+                target: "brain::telemetry::retrieval",
+                stage = "ivf_activation",
+                ivf_active = false,
+                probe_size = 0,
+                target_centroids = 0,
+                total_count = total_count,
+                "Retrieval stage: IVF activation check"
+            );
+            all_embeddings
+        } else {
+            // IVF Probing: Query centroids and retrieve top 2 partition subsets
+            self.activation_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let centroids = get_predefined_centroids();
+            let mut centroid_similarities = Vec::with_capacity(8);
+            for (c_id, centroid) in centroids.iter().enumerate() {
+                let sim = cosine_similarity(&query_vector, centroid);
+                centroid_similarities.push((c_id as i32, sim));
+            }
+            self.cosine_computations.fetch_add(8, std::sync::atomic::Ordering::SeqCst);
+
+            centroid_similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            let top_2_centroid_ids = vec![centroid_similarities[0].0, centroid_similarities[1].0];
+
+            let partitioned = self.repos.embeddings().find_by_centroids(&top_2_centroid_ids)?;
+            self.cosine_computations.fetch_add(partitioned.len(), std::sync::atomic::Ordering::SeqCst);
+            comps_this_query = 8 + partitioned.len();
+            tracing::info!(
+                target: "brain::telemetry::retrieval",
+                stage = "ivf_activation",
+                ivf_active = true,
+                probe_size = 2,
+                target_centroids = 8,
+                total_count = total_count,
+                "Retrieval stage: IVF activation check"
+            );
+            partitioned
+        };
+
+        // 4. Calculate cosine similarity for candidates
+        let mut node_scores = Vec::with_capacity(candidates.len());
+        for emb in candidates {
+            if request.exclude_ids.contains(&emb.node_id) {
+                continue;
+            }
+            let sim = cosine_similarity(&query_vector, &emb.vector);
+            if sim > 0.0 {
+                node_scores.push((emb.node_id, sim));
+            }
+        }
+
+        // 5. Sort candidates by score descending and limit results
+        node_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let limited_candidates: Vec<_> = node_scores.into_iter().take(request.limit * 2).collect();
+
+        // 6. Load matching nodes from database
+        let mut nodes = Vec::with_capacity(limited_candidates.len());
+        for (node_id, _) in limited_candidates {
+            if let Some(node) = self.repos.nodes().find_by_id(&node_id)? {
+                nodes.push(node);
+            }
+        }
+
+        let duration = start_vector.elapsed();
+        tracing::info!(
+            target: "brain::telemetry::retrieval",
+            stage = "vector",
+            duration_ms = duration.as_millis(),
+            candidate_count = nodes.len(),
+            cosine_computations = comps_this_query,
+            "Retrieval stage completed: vector"
+        );
+
+        Ok(MemorySourceResult {
+            nodes,
+            metadata: SourceMetadata {
+                source_name: "SemanticMemorySource",
             },
         })
     }

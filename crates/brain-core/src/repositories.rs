@@ -20,6 +20,14 @@ pub trait NodeRepository: Send + Sync {
     fn delete(&self, id: &NodeId) -> Result<(), BrainError>;
     /// Lists all nodes currently in the database.
     fn list_all(&self) -> Result<Vec<Node>, BrainError>;
+    /// Finds candidate nodes matching any of the specified tokens in their label or properties.
+    ///
+    /// This is a low-latency candidate generation/filtering API intended to narrow the search space,
+    /// rather than a precise search/ranking API. Clients should perform final scoring, ranking,
+    /// and filtering on the returned subset in memory.
+    fn find_by_tokens(&self, tokens: &[String]) -> Result<Vec<Node>, BrainError>;
+    /// Finds candidate nodes using SQLite FTS5 MATCH and returns them along with their negated BM25 score.
+    fn find_by_fts(&self, query: &str) -> Result<Vec<(Node, f64)>, BrainError>;
 }
 
 /// Trait defining atomic CRUD operations for graph Edges in the database.

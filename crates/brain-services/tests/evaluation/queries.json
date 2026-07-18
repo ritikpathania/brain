@@ -123,6 +123,17 @@
       "query_id": "q_024",
       "text": "how are messages exchanged over UDS IPC",
       "tags": ["uds", "ipc", "broad"]
+    },
+    {
+      "query_id": "q_025",
+      "text": "olap dashboard instrumentation reporter",
+      "tags": ["semantic_only"]
+    },
+    {
+      "query_id": "q_026",
+      "text": "graceful termination handler shutdown routine",
+      "tags": ["semantic_only"]
     }
   ]
 }
+
