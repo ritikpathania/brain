@@ -44,10 +44,18 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('daemon/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
       - name: Sync Dependencies
         run: |
           cd daemon
-          uv sync
+          uv sync --no-install-project
 
       - name: Run Clippy
         run: |
@@ -81,10 +89,18 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('daemon/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
       - name: Sync Dependencies
         run: |
           cd daemon
-          uv sync
+          uv sync --no-install-project
 
       - name: Run Type Checking
         run: |
@@ -104,6 +120,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -114,10 +144,18 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('daemon/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
       - name: Sync Dependencies
         run: |
           cd daemon
-          uv sync
+          uv sync --no-install-project
 
       - name: Build PyO3 Bridge (Maturin)
         run: |
@@ -136,4 +174,3 @@ jobs:
       - name: Verify Benchmark Compilation
         run: |
           PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo bench --workspace --no-run
-
