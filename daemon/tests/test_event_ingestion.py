@@ -1,9 +1,8 @@
-import socket
 import json
-import os
-import pytest
 import uuid
-from test_uds_ipc import run_uds_query
+
+from tests.test_uds_ipc import run_uds_query
+
 
 def generate_envelope(event_id, content="Hello Brain"):
     return {
@@ -16,17 +15,16 @@ def generate_envelope(event_id, content="Hello Brain"):
             "adapter_id": "vscode-ext",
             "session_id": "01H7X1F8Z9Y000000000000000",
             "conversation_id": "01H7X1F8Z9Y000000000000001",
-            "timestamp": "2026-06-29T15:30:00Z"
+            "timestamp": "2026-06-29T15:30:00Z",
         },
         "event": {
             "event_type": "message",
             "role": "user",
             "content": content,
-            "metadata": {
-                "provider.model": "claude-3-5"
-            }
-        }
+            "metadata": {"provider.model": "claude-3-5"},
+        },
     }
+
 
 def test_end_to_end_event_ingestion_and_deduplication():
     # 1. Generate unique event ID
@@ -38,7 +36,7 @@ def test_end_to_end_event_ingestion_and_deduplication():
     responses = run_uds_query("ingest_event", payload)
     assert len(responses) > 0
     assert responses[0]["status"] == "ok"
-    
+
     ack_data = json.loads(responses[0]["message"])
     assert "sequence" in ack_data
     assert ack_data["event_id"] == event_id
@@ -53,6 +51,7 @@ def test_end_to_end_event_ingestion_and_deduplication():
     ack_data_dup = json.loads(responses_dup[0]["message"])
     assert ack_data_dup["sequence"] == seq1
     assert ack_data_dup["event_id"] == event_id
+
 
 def test_end_to_end_event_replay():
     # 1. Ingest a new event
@@ -80,7 +79,7 @@ def test_end_to_end_event_replay():
         if ev["identity"]["event_id"] == event_id:
             matched_event = ev
             break
-    
+
     assert matched_event is not None
     assert matched_event["event_model_version"] == "1.0"
     assert matched_event["event"]["content"] == content

@@ -47,12 +47,12 @@ jobs:
       - name: Check Python Format (Ruff)
         run: |
           cd daemon
-          uv run ruff format --check .
+          uv run --no-sync ruff format --check .
 
       - name: Check Python Lint (Ruff)
         run: |
           cd daemon
-          uv run ruff check .
+          uv run --no-sync ruff check .
 
   type-check:
     name: Type Checking
@@ -79,8 +79,8 @@ jobs:
       - name: Run Type Checking
         run: |
           cd daemon
-          uv run ty check
-          uv run pyrefly check
+          uv run --no-sync ty check
+          uv run --no-sync pyrefly check
 
   test-and-bench:
     name: Tests & Benchmark Compiles (${{ matrix.os }})
@@ -127,7 +127,7 @@ jobs:
       - name: Run Python Test Suite
         run: |
           cd daemon
-          uv run pytest
+          uv run --no-sync pytest
 
       - name: Verify Benchmark Compilation
         run: |

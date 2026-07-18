@@ -149,31 +149,33 @@ def test_plugin_registration_contains_embeddings():
 
 
 def test_classification_and_property_extraction():
-    payload = json.dumps([
-        {
-            "id": "node-3",
-            "epoch": 0,
-            "content": "Brain is an AI agent engine. DuckDB is a SQL database engine.",
-            "timestamp": 1002,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-3",
+                "epoch": 0,
+                "content": "Brain is an AI agent engine. DuckDB is a SQL database engine.",
+                "timestamp": 1002,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     assert res["status"] == "success"
-    
+
     nodes_dict = {n["id"]: n for n in res["nodes"]}
     assert "brain" in nodes_dict
     assert "duckdb" in nodes_dict
-    
+
     # Verify attributes (category, type)
     assert nodes_dict["brain"]["attributes"].get("category") == "AI agent engine"
     assert nodes_dict["brain"]["attributes"].get("type") == "AI agent engine"
     assert nodes_dict["duckdb"]["attributes"].get("category") == "SQL database engine"
     assert nodes_dict["duckdb"]["attributes"].get("type") == "SQL database engine"
-    
+
     # Verify concept nodes were extracted
     assert "ai-agent-engine" in nodes_dict
     assert "sql-database-engine" in nodes_dict
-    
+
     # Verify edge was created
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("brain", "ai-agent-engine", "associated_with") in edges
@@ -181,64 +183,70 @@ def test_classification_and_property_extraction():
 
 
 def test_relation_sentence_parsing():
-    payload = json.dumps([
-        {
-            "id": "node-4",
-            "epoch": 0,
-            "content": "ritikpathania develops Brain. SQLite is stored in config.toml. Brain runs on Docker. Brain depends on Python.",
-            "timestamp": 1003,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-4",
+                "epoch": 0,
+                "content": "ritikpathania develops Brain. SQLite is stored in config.toml. Brain runs on Docker. Brain depends on Python.",
+                "timestamp": 1003,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     assert res["status"] == "success"
-    
+
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
-    
+
     # Check relation: develops (ritikpathania -> brain)
     assert ("ritikpathania", "brain", "develops") in edges
-    
+
     # Check relation: stored_in (sqlite -> config.toml)
     assert ("sqlite", "config.toml", "stored_in") in edges
-    
+
     # Check relation: runs_on (brain -> docker)
     assert ("brain", "docker", "runs_on") in edges
-    
+
     # Check relation: depends_on (brain -> python)
     assert ("brain", "python", "depends_on") in edges
 
 
 def test_synonym_normalization_and_merging():
-    payload = json.dumps([
-        {
-            "id": "node-5",
-            "epoch": 0,
-            "content": "We are using Postgres on the server. John was configuring PostgreSQL for the app.",
-            "timestamp": 1004,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-5",
+                "epoch": 0,
+                "content": "We are using Postgres on the server. John was configuring PostgreSQL for the app.",
+                "timestamp": 1004,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     assert res["status"] == "success"
-    
+
     # Verify that both 'Postgres' and 'PostgreSQL' normalise to 'postgresql'
     nodes_dict = {n["id"]: n for n in res["nodes"]}
     assert "postgresql" in nodes_dict
     assert nodes_dict["postgresql"]["label"] == "PostgreSQL"
     assert nodes_dict["postgresql"]["type"] == "technology"
-    
+
     # Should only have one 'postgresql' node (merged)
     postgres_nodes = [n for n in res["nodes"] if n["id"] == "postgresql"]
     assert len(postgres_nodes) == 1
 
 
 def test_sequential_associated_with_reproduction():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-1",
-            "epoch": 0,
-            "content": "We are migrating our services from Python to Rust.",
-            "timestamp": 1005,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-1",
+                "epoch": 0,
+                "content": "We are migrating our services from Python to Rust.",
+                "timestamp": 1005,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("python", "rust", "associated_with") in edges
@@ -248,14 +256,16 @@ def test_sequential_associated_with_reproduction():
 
 
 def test_sequential_associated_with_multiple():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-2",
-            "epoch": 0,
-            "content": "Python Rust Go",
-            "timestamp": 1006,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-2",
+                "epoch": 0,
+                "content": "Python Rust Go",
+                "timestamp": 1006,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("python", "rust", "associated_with") in edges
@@ -264,28 +274,32 @@ def test_sequential_associated_with_multiple():
 
 
 def test_sequential_associated_with_single():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-3",
-            "epoch": 0,
-            "content": "Rust",
-            "timestamp": 1007,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-3",
+                "epoch": 0,
+                "content": "Rust",
+                "timestamp": 1007,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert len(edges) == 0
 
 
 def test_sequential_associated_with_duplicate_cycle():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-4",
-            "epoch": 0,
-            "content": "Rust Python Rust",
-            "timestamp": 1008,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-4",
+                "epoch": 0,
+                "content": "Rust Python Rust",
+                "timestamp": 1008,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("rust", "python", "associated_with") in edges
@@ -295,14 +309,16 @@ def test_sequential_associated_with_duplicate_cycle():
 
 
 def test_predefined_relation_precedence():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-5",
-            "epoch": 0,
-            "content": "The Rust application communicates via a Unix Domain Socket.",
-            "timestamp": 1009,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-5",
+                "epoch": 0,
+                "content": "The Rust application communicates via a Unix Domain Socket.",
+                "timestamp": 1009,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("rust", "uds", "communicates_via") in edges
@@ -310,40 +326,44 @@ def test_predefined_relation_precedence():
 
 
 def test_multi_word_proper_noun_regression():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-6",
-            "epoch": 0,
-            "content": "Visual Studio Code Rust",
-            "timestamp": 1010,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-6",
+                "epoch": 0,
+                "content": "Visual Studio Code Rust",
+                "timestamp": 1010,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     nodes_dict = {n["id"]: n for n in res["nodes"]}
     assert "visual-studio-code" in nodes_dict
     assert "rust" in nodes_dict
-    
+
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
     assert ("visual-studio-code", "rust", "associated_with") in edges
 
 
 def test_multi_word_proper_noun_regression_vsc():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-7",
-            "epoch": 0,
-            "content": "The project uses Visual Studio Code.",
-            "timestamp": 1011,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-7",
+                "epoch": 0,
+                "content": "The project uses Visual Studio Code.",
+                "timestamp": 1011,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     nodes_dict = {n["id"]: n for n in res["nodes"]}
-    
+
     # Visual Studio Code should be extracted exactly as a single proper noun concept
     assert "visual-studio-code" in nodes_dict
     assert nodes_dict["visual-studio-code"]["label"] == "Visual Studio Code"
     assert nodes_dict["visual-studio-code"]["type"] == "concept"
-    
+
     # Ensure no duplicate nodes or fragment concepts were emitted
     assert "visual" not in nodes_dict
     assert "studio" not in nodes_dict
@@ -351,17 +371,19 @@ def test_multi_word_proper_noun_regression_vsc():
 
 
 def test_predefined_relation_dominance_suppresses_fallback():
-    payload = json.dumps([
-        {
-            "id": "node-reprod-8",
-            "epoch": 0,
-            "content": "The Rust application communicates via a Unix Domain Socket. The Unix Domain Socket Rust is fast.",
-            "timestamp": 1012,
-        }
-    ])
+    payload = json.dumps(
+        [
+            {
+                "id": "node-reprod-8",
+                "epoch": 0,
+                "content": "The Rust application communicates via a Unix Domain Socket. The Unix Domain Socket Rust is fast.",
+                "timestamp": 1012,
+            }
+        ]
+    )
     res = json.loads(extract_semantic_nodes(payload))
     edges = [(e["source"], e["target"], e["relation"]) for e in res["edges"]]
-    
+
     # We should have the predefined communicates_via edge
     assert ("rust", "uds", "communicates_via") in edges
     # We should NOT have a redundant fallback associated_with edge in the opposite direction
