@@ -269,6 +269,26 @@ impl RuntimeEvent for ProjectionInstanceInvalidatedEvent {
     }
 }
 
+/// Runtime event wrapping a domain-level relationship mutation fact.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeRelationshipEvent {
+    /// The nested domain event payload.
+    pub domain_event: brain_domain::events::DomainEvent,
+    /// Monotonic epoch state of the graph.
+    pub epoch: brain_domain::EpochId,
+    /// Causal tracing identifier.
+    pub correlation_id: CorrelationId,
+    /// Wall-clock timestamp of the emission.
+    pub timestamp: SystemTime,
+}
+
+impl RuntimeEvent for RuntimeRelationshipEvent {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -462,6 +462,37 @@ impl Edge {
         })
     }
 
+    /// Strengthens the relationship weight using a [`crate::relations::ConfidenceStrategy`] and an
+    /// explicit evidence weight, capped at 1.0.
+    ///
+    /// This is the preferred path for runtime-driven strengthening. The reflection engine consults
+    /// the ontology (`RelationDefinition.confidence_strategy`) and passes the policy and evidence
+    /// weight here — keeping confidence calculations inside the domain model, not in the engine.
+    ///
+    /// The reflection engine must call this method. It must never assign to `edge.weight` directly.
+    pub fn strengthen_with_evidence(
+        &mut self,
+        new_evidence_weight: f64,
+        strategy: crate::relations::ConfidenceStrategy,
+    ) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
+        if self.weight < 0.0 || self.weight > 1.0 {
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(self.weight.to_string()));
+        }
+        if new_evidence_weight < 0.0 || new_evidence_weight > 1.0 {
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(
+                format!("new_evidence_weight={}", new_evidence_weight),
+            ));
+        }
+        self.weight = strategy.combine(self.weight, new_evidence_weight).min(1.0);
+        self.updated_at = current_unix_timestamp();
+        Ok(crate::events::DomainEvent::RelationshipStrengthened {
+            source: self.source.to_string(),
+            target: self.target.to_string(),
+            relation: self.relation.to_string(),
+            new_weight: self.weight,
+        })
+    }
+
     /// Decays the relationship weight exponentially.
     pub fn decay(&mut self, half_life_secs: f64, delta_t_secs: f64) -> Result<(), crate::errors::DomainError> {
         if half_life_secs <= 0.0 {

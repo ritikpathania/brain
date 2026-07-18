@@ -224,4 +224,29 @@ mod tests {
             );
         }
     }
+
+    // --- FITNESS TEST 7: Reflection Engine Must Invoke Edge API ---
+    //
+    // Verifies that `SqliteReflectionEngine` does not mutate `edge.weight` directly.
+    // It must call `edge.strengthen_with_evidence` or `edge.strengthen` to mutate edge weights,
+    // respecting the architectural boundary: "Runtime services orchestrate; domain entities enforce invariants."
+    #[test]
+    fn test_fitness_reflection_invokes_edge_api() {
+        let crates_dir = get_crates_dir();
+        let parent_dir = crates_dir.parent().unwrap();
+        let reflection_file = parent_dir
+            .join("brain-services")
+            .join("src")
+            .join("sqlite_reflection.rs");
+
+        let source = fs::read_to_string(&reflection_file)
+            .unwrap_or_else(|_| panic!("Failed to read {}", reflection_file.display()));
+
+        assert!(
+            !source.contains(".weight =") && !source.contains(".weight +="),
+            "Architectural Violation: SqliteReflectionEngine must not mutate edge.weight directly. \
+             It must use the domain entity's API (e.g., strengthen_with_evidence)."
+        );
+    }
 }
+
