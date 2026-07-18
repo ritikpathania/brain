@@ -38,6 +38,9 @@ target-version = "py312"
 select = ["E", "F", "I", "N", "UP", "RUF"]
 ignore = []
 
+[tool.ty.environment]
+extra-paths = ["tests"]
+
 [tool.ty.src]
 include = ["brain/**/*.py", "tests/**/*.py"]
 exclude = []
