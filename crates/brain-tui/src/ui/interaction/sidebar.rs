@@ -317,11 +317,12 @@ impl SidebarInteraction {
             self.browse.selected = None;
             return;
         }
-        let current_pos = self.browse.selected
+        let current_pos = self
+            .browse
+            .selected
             .and_then(|id| visible_ids.iter().position(|&x| x == id))
             .unwrap_or(0);
-        let new_pos = (current_pos as i32 + delta)
-            .clamp(0, visible_ids.len() as i32 - 1) as usize;
+        let new_pos = (current_pos as i32 + delta).clamp(0, visible_ids.len() as i32 - 1) as usize;
         self.browse.selected = Some(visible_ids[new_pos]);
     }
 

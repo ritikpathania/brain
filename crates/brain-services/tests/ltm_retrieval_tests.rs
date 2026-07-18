@@ -1,15 +1,17 @@
-use std::sync::Arc;
-use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{MemorySource, RetrievalRequest, EmbeddingProvider, DefaultQueryEmbeddingService};
-use brain_domain::{Node, NodeId, NodeType};
-use brain_storage::TestStorage;
-use brain_services::retrieval::source::{LtmMemorySource, SemanticMemorySource};
-use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, RrfRanking};
-use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
-use brain_services::eval_harness::{
-    run_benchmark, GroundTruthCorpus, QueryCorpus, RetrievalResult, Retriever, RetrievalChannel,
-};
 use brain_core::errors::BrainError;
+use brain_core::repositories::RepositorySet;
+use brain_core::retrieval::{
+    DefaultQueryEmbeddingService, EmbeddingProvider, MemorySource, RetrievalRequest,
+};
+use brain_domain::{Node, NodeId, NodeType};
+use brain_services::eval_harness::{
+    run_benchmark, GroundTruthCorpus, QueryCorpus, RetrievalChannel, RetrievalResult, Retriever,
+};
+use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
+use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, RrfRanking};
+use brain_services::retrieval::source::{LtmMemorySource, SemanticMemorySource};
+use brain_storage::TestStorage;
+use std::sync::Arc;
 
 fn create_test_node(id: NodeId, label: &str) -> Node {
     Node::new(id, label.to_string(), NodeType::Concept)
@@ -59,7 +61,10 @@ fn test_ltm_retrieval_edge_cases() {
     };
     let res = source.retrieve(&req).unwrap();
     let ids: Vec<NodeId> = res.nodes.iter().map(|n| n.id).collect();
-    assert!(ids.contains(&node_punctuation), "Punctuation-rich query should match 'Rust Lang'");
+    assert!(
+        ids.contains(&node_punctuation),
+        "Punctuation-rich query should match 'Rust Lang'"
+    );
 
     // 2. Unicode
     let req = RetrievalRequest {
@@ -71,7 +76,10 @@ fn test_ltm_retrieval_edge_cases() {
     };
     let res = source.retrieve(&req).unwrap();
     let ids: Vec<NodeId> = res.nodes.iter().map(|n| n.id).collect();
-    assert!(ids.contains(&node_unicode), "Unicode query should match 'äëïöü'");
+    assert!(
+        ids.contains(&node_unicode),
+        "Unicode query should match 'äëïöü'"
+    );
 
     // 3. Mixed Case
     let req = RetrievalRequest {
@@ -83,19 +91,28 @@ fn test_ltm_retrieval_edge_cases() {
     };
     let res = source.retrieve(&req).unwrap();
     let ids: Vec<NodeId> = res.nodes.iter().map(|n| n.id).collect();
-    assert!(ids.contains(&node_mixed_case), "Mixed-case query should match 'rust'");
+    assert!(
+        ids.contains(&node_mixed_case),
+        "Mixed-case query should match 'rust'"
+    );
 
     // 4. SQL wildcard escaping (%) - Querying "100%" on NodeRepository directly
     let results = store.nodes().find_by_tokens(&["100%".to_string()]).unwrap();
     let matched_ids: Vec<NodeId> = results.iter().map(|n| n.id).collect();
     assert!(matched_ids.contains(&node_percent));
-    assert!(!matched_ids.contains(&node_wildcard_no_match), "SQL wildcard % escaping failed");
+    assert!(
+        !matched_ids.contains(&node_wildcard_no_match),
+        "SQL wildcard % escaping failed"
+    );
 
     // 5. SQL wildcard escaping (_) - Querying "a_b" on NodeRepository directly
     let results = store.nodes().find_by_tokens(&["a_b".to_string()]).unwrap();
     let matched_ids: Vec<NodeId> = results.iter().map(|n| n.id).collect();
     assert!(matched_ids.contains(&node_underscore));
-    assert!(!matched_ids.contains(&node_wildcard_single_no_match), "SQL wildcard _ escaping failed");
+    assert!(
+        !matched_ids.contains(&node_wildcard_single_no_match),
+        "SQL wildcard _ escaping failed"
+    );
 
     // 6. Duplicate Tokens
     let req = RetrievalRequest {
@@ -128,7 +145,10 @@ fn test_ltm_retrieval_edge_cases() {
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
-    assert!(res.nodes.is_empty(), "Query containing only stop words should return zero nodes");
+    assert!(
+        res.nodes.is_empty(),
+        "Query containing only stop words should return zero nodes"
+    );
 
     // 9. Zero-match query
     let req = RetrievalRequest {
@@ -159,7 +179,11 @@ fn test_ltm_retrieval_bm25_toggle() {
     let store = test_store.storage();
 
     let node_id = NodeId::new();
-    let node = Node::new(node_id, "special unique compile label".to_string(), NodeType::Concept);
+    let node = Node::new(
+        node_id,
+        "special unique compile label".to_string(),
+        NodeType::Concept,
+    );
     store.nodes().save(&node).unwrap();
 
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
@@ -175,7 +199,10 @@ fn test_ltm_retrieval_bm25_toggle() {
 
     let res = source.retrieve(&req).unwrap();
     let matched_ids: Vec<NodeId> = res.nodes.iter().map(|n| n.id).collect();
-    assert!(matched_ids.contains(&node_id), "BM25 retrieval failed to match FTS5 node");
+    assert!(
+        matched_ids.contains(&node_id),
+        "BM25 retrieval failed to match FTS5 node"
+    );
 }
 
 struct MemorySourceRetriever {
@@ -193,11 +220,15 @@ impl Retriever for MemorySourceRetriever {
             deadline: None,
         };
         let res = self.source.retrieve(&request)?;
-        Ok(res.nodes.into_iter().map(|node| RetrievalResult {
-            node_id: node.id,
-            channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 1.0)]),
-            ranking_score: None,
-        }).collect())
+        Ok(res
+            .nodes
+            .into_iter()
+            .map(|node| RetrievalResult {
+                node_id: node.id,
+                channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 1.0)]),
+                ranking_score: None,
+            })
+            .collect())
     }
 }
 
@@ -214,7 +245,11 @@ fn test_ltm_retrieval_ranking_quality() {
 
     for n in &ground_truth.nodes {
         let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
-        let node_type = if n.node_type == "Concept" { NodeType::Concept } else { NodeType::Technology };
+        let node_type = if n.node_type == "Concept" {
+            NodeType::Concept
+        } else {
+            NodeType::Technology
+        };
         let node = Node::new(node_id, n.content.clone(), node_type);
         sqlite.nodes().save(&node).unwrap();
     }
@@ -231,10 +266,12 @@ fn test_ltm_retrieval_ranking_quality() {
     let report_b = run_benchmark(queries_json, ground_truth_json, &retriever_b, "cold").unwrap();
 
     println!("=== Retrieval Quality (BM25) ===");
-    println!("BM25      - Precision@10: {:.4}, Recall@10: {:.4}, NDCG@10: {:.4}",
-             report_b.stable.metrics.mean_precision_at_10,
-             report_b.stable.metrics.mean_recall_at_10,
-             report_b.stable.metrics.mean_ndcg_at_10);
+    println!(
+        "BM25      - Precision@10: {:.4}, Recall@10: {:.4}, NDCG@10: {:.4}",
+        report_b.stable.metrics.mean_precision_at_10,
+        report_b.stable.metrics.mean_recall_at_10,
+        report_b.stable.metrics.mean_ndcg_at_10
+    );
 
     assert!(report_b.stable.metrics.mean_precision_at_10 > 0.0);
     assert!(report_b.stable.metrics.mean_recall_at_10 > 0.0);
@@ -250,26 +287,28 @@ impl brain_core::retrieval::EmbeddingProvider for HashingEmbeddingProvider {
     fn embed(&self, text: &str) -> Result<Vec<f32>, BrainError> {
         let mut v = vec![0.0f32; 384];
         let stop_words: std::collections::HashSet<&str> = [
-            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in", "on",
-            "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it", "its",
-            "you", "your", "my", "up", "down", "out", "off",
-        ].iter().cloned().collect();
+            "a", "an", "the", "and", "or", "but", "is", "are", "was", "were", "to", "of", "in",
+            "on", "at", "for", "with", "by", "about", "as", "this", "that", "these", "those", "it",
+            "its", "you", "your", "my", "up", "down", "out", "off",
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
-        let tokens: Vec<String> = text.to_lowercase()
+        let tokens: Vec<String> = text
+            .to_lowercase()
             .split(|c: char| !c.is_alphanumeric())
             .filter(|s| !s.is_empty() && !stop_words.contains(s))
-            .map(|s| {
-                match s {
-                    "olap" => "analytics".to_string(),
-                    "dashboard" => "metrics".to_string(),
-                    "instrumentation" => "telemetry".to_string(),
-                    "reporter" => "export".to_string(),
-                    "termination" => "sigterm".to_string(),
-                    "graceful" => "draining".to_string(),
-                    "shutdown" => "sigterm".to_string(),
-                    "routine" => "signals".to_string(),
-                    other => other.to_string(),
-                }
+            .map(|s| match s {
+                "olap" => "analytics".to_string(),
+                "dashboard" => "metrics".to_string(),
+                "instrumentation" => "telemetry".to_string(),
+                "reporter" => "export".to_string(),
+                "termination" => "sigterm".to_string(),
+                "graceful" => "draining".to_string(),
+                "shutdown" => "sigterm".to_string(),
+                "routine" => "signals".to_string(),
+                other => other.to_string(),
             })
             .collect();
 
@@ -315,23 +354,39 @@ fn test_ltm_hybrid_retrieval_metrics() {
     // Save nodes and generate embeddings
     for n in &ground_truth.nodes {
         let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
-        let node_type = if n.node_type == "Concept" { NodeType::Concept } else { NodeType::Technology };
+        let node_type = if n.node_type == "Concept" {
+            NodeType::Concept
+        } else {
+            NodeType::Technology
+        };
         let node = Node::new(node_id, n.content.clone(), node_type);
         sqlite.nodes().save(&node).unwrap();
 
         let vector = provider.embed(&n.content).unwrap();
-        sqlite.embeddings().save(&brain_domain::Embedding::new(node_id, vector)).unwrap();
+        sqlite
+            .embeddings()
+            .save(&brain_domain::Embedding::new(node_id, vector))
+            .unwrap();
     }
 
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
     // Build independent channels
-    let source_bm25 = Arc::new(LtmMemorySource::new(Arc::new(sqlite.clone()), registry.clone()));
-    let source_vector = Arc::new(SemanticMemorySource::new(Arc::new(sqlite.clone()), embed_service.clone()));
+    let source_bm25 = Arc::new(LtmMemorySource::new(
+        Arc::new(sqlite.clone()),
+        registry.clone(),
+    ));
+    let source_vector = Arc::new(SemanticMemorySource::new(
+        Arc::new(sqlite.clone()),
+        embed_service.clone(),
+    ));
 
     // Build RRF fused pipeline
     let strategy_bm25 = Arc::new(Bm25Ranking::default());
-    let strategy_vector = Arc::new(EmbeddingRanking::new(embed_service.clone(), Arc::new(sqlite.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
+    let strategy_vector = Arc::new(EmbeddingRanking::new(
+        embed_service.clone(),
+        Arc::new(sqlite.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+    ));
     let rrf_ranking = Arc::new(RrfRanking::new(
         vec![(strategy_bm25, 1.0), (strategy_vector, 1.0)],
         60.0,
@@ -365,8 +420,13 @@ fn test_ltm_hybrid_retrieval_metrics() {
         };
 
         // Get expected matching IDs
-        let expected_strs = &ground_truth.ground_truth.get(&q.query_id).unwrap().expected_node_ids;
-        let expected: std::collections::HashSet<NodeId> = expected_strs.iter()
+        let expected_strs = &ground_truth
+            .ground_truth
+            .get(&q.query_id)
+            .unwrap()
+            .expected_node_ids;
+        let expected: std::collections::HashSet<NodeId> = expected_strs
+            .iter()
             .map(|s| NodeId(uuid::Uuid::parse_str(s).unwrap()))
             .collect();
 
@@ -414,16 +474,37 @@ fn test_ltm_hybrid_retrieval_metrics() {
 
     println!("=== Hybrid Search Evaluation Metrics (26 Queries) ===");
     println!("Total Expected Ground-Truth Hits : {}", total_expected_hits);
-    println!("BM25-Only Hits                   : {} ({:.1}%)", bm25_only_hits, (bm25_only_hits as f64 / total_expected_hits as f64) * 100.0);
-    println!("Vector-Only Hits                 : {} ({:.1}%)", vector_only_hits, (vector_only_hits as f64 / total_expected_hits as f64) * 100.0);
-    println!("Overlapping Hits                 : {} ({:.1}%)", overlapping_hits, (overlapping_hits as f64 / total_expected_hits as f64) * 100.0);
+    println!(
+        "BM25-Only Hits                   : {} ({:.1}%)",
+        bm25_only_hits,
+        (bm25_only_hits as f64 / total_expected_hits as f64) * 100.0
+    );
+    println!(
+        "Vector-Only Hits                 : {} ({:.1}%)",
+        vector_only_hits,
+        (vector_only_hits as f64 / total_expected_hits as f64) * 100.0
+    );
+    println!(
+        "Overlapping Hits                 : {} ({:.1}%)",
+        overlapping_hits,
+        (overlapping_hits as f64 / total_expected_hits as f64) * 100.0
+    );
     println!("--------------------------------------------------");
     println!("Recall@10 comparison:");
     println!("  BM25-Only Channel              : {:.4}", mean_recall_bm25);
-    println!("  Vector-Only Channel            : {:.4}", mean_recall_vector);
+    println!(
+        "  Vector-Only Channel            : {:.4}",
+        mean_recall_vector
+    );
     println!("  RRF Fused Pipeline             : {:.4}", mean_recall_rrf);
 
-    assert!(mean_recall_rrf >= mean_recall_bm25, "RRF did not perform at least as well as BM25");
-    assert!(mean_recall_rrf >= mean_recall_vector, "RRF did not perform at least as well as Vector");
+    assert!(
+        mean_recall_rrf >= mean_recall_bm25,
+        "RRF did not perform at least as well as BM25"
+    );
+    assert!(
+        mean_recall_rrf >= mean_recall_vector,
+        "RRF did not perform at least as well as Vector"
+    );
     assert!(vector_only_hits > 0, "No semantic-only queries matched!");
 }

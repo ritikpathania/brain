@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use crate::projections::{ProjectionId, StateReducer};
 use brain_core::errors::BrainError;
-use brain_events::{EventEnvelope, DomainEvent};
-use brain_storage::{SqliteJobReadModelRepository, JobReadModel};
-use crate::projections::{StateReducer, ProjectionId};
+use brain_events::{DomainEvent, EventEnvelope};
+use brain_storage::{JobReadModel, SqliteJobReadModelRepository};
+use std::sync::Arc;
 
 /// Reducer implementing state reductions for background job state changes onto SQLite read models.
 pub struct JobProjectionReducer {
@@ -34,11 +34,18 @@ impl StateReducer for JobProjectionReducer {
         };
 
         match domain_event {
-            brain_domain::DomainEvent::JobCreated { job_id, kind, priority, owner } => {
+            brain_domain::DomainEvent::JobCreated {
+                job_id,
+                kind,
+                priority,
+                owner,
+            } => {
                 let owner_str = match owner {
                     brain_domain::jobs::JobOwner::System => "system".to_string(),
                     brain_domain::jobs::JobOwner::User { username } => format!("user:{}", username),
-                    brain_domain::jobs::JobOwner::Session { session_id } => format!("session:{}", session_id.0),
+                    brain_domain::jobs::JobOwner::Session { session_id } => {
+                        format!("session:{}", session_id.0)
+                    }
                 };
                 let kind_str = match kind {
                     brain_domain::jobs::JobKind::Tool => "tool".to_string(),
@@ -80,7 +87,9 @@ impl StateReducer for JobProjectionReducer {
             brain_domain::DomainEvent::JobProgressed { job_id, progress } => {
                 if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
                     let progress_pct = match progress {
-                        brain_domain::jobs::JobProgress::Determinate { completed, total, .. } => {
+                        brain_domain::jobs::JobProgress::Determinate {
+                            completed, total, ..
+                        } => {
                             if *total > 0 {
                                 (completed * 100 / total) as u32
                             } else {
@@ -110,7 +119,11 @@ impl StateReducer for JobProjectionReducer {
                     self.repo.save(&model)?;
                 }
             }
-            brain_domain::DomainEvent::JobFailed { job_id, reason, timestamp } => {
+            brain_domain::DomainEvent::JobFailed {
+                job_id,
+                reason,
+                timestamp,
+            } => {
                 if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
                     model.state = "failed".to_string();
                     model.completed_at = Some(timestamp.0);

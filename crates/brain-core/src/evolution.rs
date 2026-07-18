@@ -68,6 +68,17 @@ pub struct DomainEventDescriptor {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct ProjectionInstanceId(pub String);
 
+/// Detailed stage execution timings.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct StageTimings {
+    /// Duration of structural/semantic validation and graph canonicalization database transaction.
+    pub canonicalization: std::time::Duration,
+    /// Duration of post-canonicalization relationship reflection.
+    pub reflection: std::time::Duration,
+    /// Duration of projection invalidation event dispatching.
+    pub dispatch: std::time::Duration,
+}
+
 /// Rich feedback context returned when canonicalization completes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalizationResult {
@@ -79,6 +90,9 @@ pub struct CanonicalizationResult {
     pub affected_entities: Vec<NodeId>,
     /// Target projection instances invalidated.
     pub invalidated_projections: Vec<ProjectionInstanceId>,
+    /// Detailed stage execution timings.
+    #[serde(default)]
+    pub stage_timings: StageTimings,
 }
 
 /// Core interface for mutating the canonical graph.

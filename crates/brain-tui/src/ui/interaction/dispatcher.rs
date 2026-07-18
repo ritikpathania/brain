@@ -1,21 +1,21 @@
 //! Input dispatcher coordinating mutations on interaction context.
 
-use crate::ui::input::{InputAction, Command, TextInput};
+use crate::ui::command::completion::SlashCompletionState;
+use crate::ui::command::palette::{
+    CollectedParameter, CommandPaletteState, PaletteStage, ParameterCollectionState, ParameterValue,
+};
+use crate::ui::command::{
+    Availability, CommandAvailabilityContext, CommandInvocation, CommandPolicy, CommandRegistry,
+};
+use crate::ui::focus::FocusManager;
+use crate::ui::input::{Command, InputAction, TextInput};
 use crate::ui::interaction::editor::Editor;
 use crate::ui::interaction::scroll::ScrollState;
-use crate::ui::focus::FocusManager;
-use crate::ui::widgets::view_models::FocusTarget;
-use crate::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent, SessionLookup};
-use brain_domain::SessionId;
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
-use crate::ui::command::completion::SlashCompletionState;
-use crate::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState, CollectedParameter, ParameterValue};
-use crate::ui::command::{CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability, CommandInvocation};
+use crate::ui::interaction::sidebar::{SessionLookup, SidebarEvent, SidebarInteraction};
 use crate::ui::search::types::SearchResultAction;
-
-
-
-
+use crate::ui::widgets::view_models::FocusTarget;
+use brain_domain::SessionId;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Collection of interaction sub-systems.
 pub struct InteractionContext<'a> {
@@ -47,7 +47,6 @@ pub struct InteractionContext<'a> {
     pub active_messages: &'a [brain_domain::Message],
 }
 
-
 /// Abstract user interface intent events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UiEvent {
@@ -70,8 +69,6 @@ pub enum UiEvent {
     SearchSelect(crate::ui::search::types::SearchResultAction),
 }
 
-
-
 /// Dispatcher result codes representing TUI state changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchResult {
@@ -86,22 +83,38 @@ pub struct DispatchResult {
 impl DispatchResult {
     /// Instantiates a DispatchResult with no flags set.
     pub fn none() -> Self {
-        Self { needs_render: false, should_exit: false, ui_event: None }
+        Self {
+            needs_render: false,
+            should_exit: false,
+            ui_event: None,
+        }
     }
 
     /// Instantiates a DispatchResult requesting redraw.
     pub fn render() -> Self {
-        Self { needs_render: true, should_exit: false, ui_event: None }
+        Self {
+            needs_render: true,
+            should_exit: false,
+            ui_event: None,
+        }
     }
 
     /// Instantiates a DispatchResult requesting exit.
     pub fn exit() -> Self {
-        Self { needs_render: false, should_exit: true, ui_event: None }
+        Self {
+            needs_render: false,
+            should_exit: true,
+            ui_event: None,
+        }
     }
 
     /// Instantiates a DispatchResult wrapping a UI event.
     pub fn event(event: UiEvent) -> Self {
-        Self { needs_render: true, should_exit: false, ui_event: Some(event) }
+        Self {
+            needs_render: true,
+            should_exit: false,
+            ui_event: Some(event),
+        }
     }
 }
 
@@ -115,17 +128,31 @@ impl Dispatcher {
             if let Some(first_approval) = ctx.pending_approvals.first() {
                 let call_id = first_approval.call_id.clone();
                 match action {
-                    InputAction::Text(TextInput::Char('y')) | InputAction::Text(TextInput::Char('Y')) => {
-                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: true });
+                    InputAction::Text(TextInput::Char('y'))
+                    | InputAction::Text(TextInput::Char('Y')) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall {
+                            call_id,
+                            approved: true,
+                        });
                     }
-                    InputAction::Text(TextInput::Char('n')) | InputAction::Text(TextInput::Char('N')) => {
-                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: false });
+                    InputAction::Text(TextInput::Char('n'))
+                    | InputAction::Text(TextInput::Char('N')) => {
+                        return DispatchResult::event(UiEvent::ApproveToolCall {
+                            call_id,
+                            approved: false,
+                        });
                     }
                     InputAction::Command(Command::Submit) => {
-                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: true });
+                        return DispatchResult::event(UiEvent::ApproveToolCall {
+                            call_id,
+                            approved: true,
+                        });
                     }
                     InputAction::Command(Command::Exit) | InputAction::Command(Command::Escape) => {
-                        return DispatchResult::event(UiEvent::ApproveToolCall { call_id, approved: false });
+                        return DispatchResult::event(UiEvent::ApproveToolCall {
+                            call_id,
+                            approved: false,
+                        });
                     }
                     _ => {
                         return DispatchResult::none();
@@ -141,15 +168,23 @@ impl Dispatcher {
             let key_opt = match action {
                 InputAction::Command(cmd) => match cmd {
                     Command::ScrollUp => Some(KeyEvent::new(KeyCode::Up, KeyModifiers::empty())),
-                    Command::ScrollDown => Some(KeyEvent::new(KeyCode::Down, KeyModifiers::empty())),
+                    Command::ScrollDown => {
+                        Some(KeyEvent::new(KeyCode::Down, KeyModifiers::empty()))
+                    }
                     Command::Submit => Some(KeyEvent::new(KeyCode::Enter, KeyModifiers::empty())),
-                    Command::Backspace => Some(KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty())),
+                    Command::Backspace => {
+                        Some(KeyEvent::new(KeyCode::Backspace, KeyModifiers::empty()))
+                    }
                     Command::Delete => Some(KeyEvent::new(KeyCode::Delete, KeyModifiers::empty())),
                     Command::MoveLeft => Some(KeyEvent::new(KeyCode::Left, KeyModifiers::empty())),
-                    Command::MoveRight => Some(KeyEvent::new(KeyCode::Right, KeyModifiers::empty())),
+                    Command::MoveRight => {
+                        Some(KeyEvent::new(KeyCode::Right, KeyModifiers::empty()))
+                    }
                     _ => None,
                 },
-                InputAction::Text(TextInput::Char(c)) => Some(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty())),
+                InputAction::Text(TextInput::Char(c)) => {
+                    Some(KeyEvent::new(KeyCode::Char(c), KeyModifiers::empty()))
+                }
                 InputAction::None => None,
             };
 
@@ -193,7 +228,8 @@ impl Dispatcher {
                     sessions: ctx.sessions.to_vec(),
                     active_messages: ctx.active_messages.to_vec(),
                 };
-                ctx.command_palette.trigger_search("".to_string(), &search_context);
+                ctx.command_palette
+                    .trigger_search("".to_string(), &search_context);
             }
             return DispatchResult::render();
         }
@@ -244,7 +280,8 @@ impl Dispatcher {
                                     ctx.command_palette.matches().count()
                                 };
                                 if count > 0 {
-                                    ctx.command_palette.selected_index = (ctx.command_palette.selected_index + 1) % count;
+                                    ctx.command_palette.selected_index =
+                                        (ctx.command_palette.selected_index + 1) % count;
                                 }
                             }
                             _ => {}
@@ -256,27 +293,43 @@ impl Dispatcher {
                             PaletteStage::Search => {
                                 if ctx.command_palette.search_aggregator.is_some() {
                                     let results = ctx.command_palette.results();
-                                    let matched_res = results.get(ctx.command_palette.selected_index).cloned();
+                                    let matched_res =
+                                        results.get(ctx.command_palette.selected_index).cloned();
                                     if let Some(res) = matched_res {
                                         match res.action {
                                             SearchResultAction::InvokeCommand(command_id) => {
-                                                let matched_cmd = crate::ui::command::COMMANDS.iter().find(|c| c.id == command_id);
+                                                let matched_cmd = crate::ui::command::COMMANDS
+                                                    .iter()
+                                                    .find(|c| c.id == command_id);
                                                 if let Some(cmd) = matched_cmd {
-                                                    if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
+                                                    if let Availability::Enabled =
+                                                        CommandPolicy::availability(cmd, &avail_ctx)
+                                                    {
                                                         if !cmd.parameters.is_empty() {
-                                                            ctx.command_palette.stage = PaletteStage::CollectParameter(
-                                                                ParameterCollectionState::new(cmd.id)
-                                                            );
+                                                            ctx.command_palette.stage =
+                                                                PaletteStage::CollectParameter(
+                                                                    ParameterCollectionState::new(
+                                                                        cmd.id,
+                                                                    ),
+                                                                );
                                                             ctx.command_palette.editor.clear();
                                                             ctx.command_palette.selected_index = 0;
                                                         } else {
-                                                            let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
+                                                            let inv_opt = CommandInvocation::build(
+                                                                cmd.id,
+                                                                &[],
+                                                                ctx.sidebar.browse.selected,
+                                                            );
                                                             ctx.command_palette.reset();
-                                                            if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                            if let Some(saved) =
+                                                                ctx.focus.pop_saved_focus()
+                                                            {
                                                                 ctx.focus.set_focus(saved);
                                                             }
                                                             if let Some(inv) = inv_opt {
-                                                                return DispatchResult::event(UiEvent::Command(inv));
+                                                                return DispatchResult::event(
+                                                                    UiEvent::Command(inv),
+                                                                );
                                                             }
                                                         }
                                                     }
@@ -287,35 +340,55 @@ impl Dispatcher {
                                                 if let Some(saved) = ctx.focus.pop_saved_focus() {
                                                     ctx.focus.set_focus(saved);
                                                 }
-                                                return DispatchResult::event(UiEvent::Sidebar(SidebarEvent::Open(session_id)));
+                                                return DispatchResult::event(UiEvent::Sidebar(
+                                                    SidebarEvent::Open(session_id),
+                                                ));
                                             }
                                             SearchResultAction::JumpToMessage { message_id } => {
                                                 ctx.command_palette.reset();
                                                 if let Some(saved) = ctx.focus.pop_saved_focus() {
                                                     ctx.focus.set_focus(saved);
                                                 }
-                                                return DispatchResult::event(UiEvent::SearchSelect(SearchResultAction::JumpToMessage { message_id }));
+                                                return DispatchResult::event(
+                                                    UiEvent::SearchSelect(
+                                                        SearchResultAction::JumpToMessage {
+                                                            message_id,
+                                                        },
+                                                    ),
+                                                );
                                             }
                                         }
                                     }
                                 } else {
-                                    let matched_cmd = ctx.command_palette.matches().nth(ctx.command_palette.selected_index);
+                                    let matched_cmd = ctx
+                                        .command_palette
+                                        .matches()
+                                        .nth(ctx.command_palette.selected_index);
                                     if let Some(cmd) = matched_cmd {
-                                        if let Availability::Enabled = CommandPolicy::availability(cmd, &avail_ctx) {
+                                        if let Availability::Enabled =
+                                            CommandPolicy::availability(cmd, &avail_ctx)
+                                        {
                                             if !cmd.parameters.is_empty() {
-                                                ctx.command_palette.stage = PaletteStage::CollectParameter(
-                                                    ParameterCollectionState::new(cmd.id)
-                                                );
+                                                ctx.command_palette.stage =
+                                                    PaletteStage::CollectParameter(
+                                                        ParameterCollectionState::new(cmd.id),
+                                                    );
                                                 ctx.command_palette.editor.clear();
                                                 ctx.command_palette.selected_index = 0;
                                             } else {
-                                                let inv_opt = CommandInvocation::build(cmd.id, &[], ctx.sidebar.browse.selected);
+                                                let inv_opt = CommandInvocation::build(
+                                                    cmd.id,
+                                                    &[],
+                                                    ctx.sidebar.browse.selected,
+                                                );
                                                 ctx.command_palette.reset();
                                                 if let Some(saved) = ctx.focus.pop_saved_focus() {
                                                     ctx.focus.set_focus(saved);
                                                 }
                                                 if let Some(inv) = inv_opt {
-                                                    return DispatchResult::event(UiEvent::Command(inv));
+                                                    return DispatchResult::event(
+                                                        UiEvent::Command(inv),
+                                                    );
                                                 }
                                             }
                                         }
@@ -327,11 +400,18 @@ impl Dispatcher {
                                 let descriptor = CommandRegistry::find_by_id(state.command_id);
                                 if let Some(desc) = descriptor {
                                     if let Some(param_desc) = state.current_parameter(desc) {
-                                        let text = ctx.command_palette.editor.text().trim().to_string();
+                                        let text =
+                                            ctx.command_palette.editor.text().trim().to_string();
                                         if !text.is_empty() {
                                             let val = match param_desc.kind {
-                                                crate::ui::command::ParameterKind::String => Some(ParameterValue::String(text)),
-                                                crate::ui::command::ParameterKind::Theme => Some(ParameterValue::Theme(crate::ui::command::ThemeId("dark"))),
+                                                crate::ui::command::ParameterKind::String => {
+                                                    Some(ParameterValue::String(text))
+                                                }
+                                                crate::ui::command::ParameterKind::Theme => {
+                                                    Some(ParameterValue::Theme(
+                                                        crate::ui::command::ThemeId("dark"),
+                                                    ))
+                                                }
                                                 _ => Some(ParameterValue::String(text)),
                                             };
                                             if let Some(param_val) = val {
@@ -341,13 +421,20 @@ impl Dispatcher {
                                                 });
                                                 ctx.command_palette.editor.clear();
                                                 if state.collected.len() == desc.parameters.len() {
-                                                    let inv_opt = CommandInvocation::build(state.command_id, &state.collected, ctx.sidebar.browse.selected);
+                                                    let inv_opt = CommandInvocation::build(
+                                                        state.command_id,
+                                                        &state.collected,
+                                                        ctx.sidebar.browse.selected,
+                                                    );
                                                     ctx.command_palette.reset();
-                                                    if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    if let Some(saved) = ctx.focus.pop_saved_focus()
+                                                    {
                                                         ctx.focus.set_focus(saved);
                                                     }
                                                     if let Some(inv) = inv_opt {
-                                                        return DispatchResult::event(UiEvent::Command(inv));
+                                                        return DispatchResult::event(
+                                                            UiEvent::Command(inv),
+                                                        );
                                                     }
                                                 }
                                             }
@@ -373,7 +460,8 @@ impl Dispatcher {
                                 sessions: ctx.sessions.to_vec(),
                                 active_messages: ctx.active_messages.to_vec(),
                             };
-                            ctx.command_palette.trigger_search(query_text, &search_context);
+                            ctx.command_palette
+                                .trigger_search(query_text, &search_context);
                         }
                         return DispatchResult::render();
                     }
@@ -385,7 +473,8 @@ impl Dispatcher {
                                 sessions: ctx.sessions.to_vec(),
                                 active_messages: ctx.active_messages.to_vec(),
                             };
-                            ctx.command_palette.trigger_search(query_text, &search_context);
+                            ctx.command_palette
+                                .trigger_search(query_text, &search_context);
                         }
                         return DispatchResult::render();
                     }
@@ -407,7 +496,8 @@ impl Dispatcher {
                             sessions: ctx.sessions.to_vec(),
                             active_messages: ctx.active_messages.to_vec(),
                         };
-                        ctx.command_palette.trigger_search(query_text, &search_context);
+                        ctx.command_palette
+                            .trigger_search(query_text, &search_context);
                     }
                     return DispatchResult::render();
                 }
@@ -418,8 +508,10 @@ impl Dispatcher {
 
         // If Prompt is focused and slash completion is visible, Arrow keys and Tab interact with suggestions.
         if ctx.focus.current() == FocusTarget::Prompt && ctx.slash_completion.visible {
-
-            let count = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query).count();
+            let count = crate::ui::command::completion::SlashCompletionEngine::matches(
+                &ctx.slash_completion.query,
+            )
+            .count();
             if count > 0 {
                 match action {
                     InputAction::Command(cmd) => match cmd {
@@ -432,15 +524,20 @@ impl Dispatcher {
                             return DispatchResult::render();
                         }
                         Command::ScrollDown => {
-                            ctx.slash_completion.selected_index = (ctx.slash_completion.selected_index + 1) % count;
+                            ctx.slash_completion.selected_index =
+                                (ctx.slash_completion.selected_index + 1) % count;
                             return DispatchResult::render();
                         }
                         Command::FocusNext => {
-                            let matched_cmd = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query)
+                            let matched_cmd =
+                                crate::ui::command::completion::SlashCompletionEngine::matches(
+                                    &ctx.slash_completion.query,
+                                )
                                 .nth(ctx.slash_completion.selected_index);
                             if let Some(cmd_desc) = matched_cmd {
                                 ctx.editor.clear();
-                                let mut alias_text = format!("/{}", cmd_desc.aliases.first().unwrap_or(&""));
+                                let mut alias_text =
+                                    format!("/{}", cmd_desc.aliases.first().unwrap_or(&""));
                                 if !cmd_desc.parameters.is_empty() {
                                     alias_text.push(' ');
                                 }
@@ -460,7 +557,6 @@ impl Dispatcher {
         }
 
         let res = match action {
-
             InputAction::Command(cmd) => match cmd {
                 Command::Exit => DispatchResult::exit(),
                 Command::FocusNext => {
@@ -522,7 +618,10 @@ impl Dispatcher {
             if text.starts_with('/') && !text.contains(' ') {
                 ctx.slash_completion.visible = true;
                 ctx.slash_completion.query = text.to_string();
-                let count = crate::ui::command::completion::SlashCompletionEngine::matches(&ctx.slash_completion.query).count();
+                let count = crate::ui::command::completion::SlashCompletionEngine::matches(
+                    &ctx.slash_completion.query,
+                )
+                .count();
                 if count == 0 {
                     ctx.slash_completion.visible = false;
                 } else if ctx.slash_completion.selected_index >= count {
@@ -534,6 +633,5 @@ impl Dispatcher {
         }
 
         res
-
     }
 }

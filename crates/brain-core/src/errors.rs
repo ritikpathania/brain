@@ -115,7 +115,8 @@ pub enum BrainError {
 
 impl From<brain_domain::DomainError> for BrainError {
     fn from(err: brain_domain::DomainError) -> Self {
-        BrainError::Validation { message: err.to_string() }
+        BrainError::Validation {
+            message: err.to_string(),
+        }
     }
 }
-

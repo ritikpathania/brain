@@ -1,11 +1,13 @@
+use crate::consolidation::MetricConstructionError;
 use crate::identifiers::NodeId;
 use crate::retrieval::models::SnapshotVersion;
-use crate::consolidation::MetricConstructionError;
 
 macro_rules! define_metric_score {
     ($name:ident, $doc:expr) => {
         #[doc = $doc]
-        #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, PartialOrd, serde::Serialize, serde::Deserialize,
+        )]
         pub struct $name(f64);
 
         impl $name {
@@ -15,7 +17,11 @@ macro_rules! define_metric_score {
                     return Err(MetricConstructionError::NotFinite { val });
                 }
                 if val < 0.0 || val > 1.0 {
-                    return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+                    return Err(MetricConstructionError::OutOfRange {
+                        val,
+                        min: 0.0,
+                        max: 1.0,
+                    });
                 }
                 Ok(Self(val))
             }
@@ -28,7 +34,10 @@ macro_rules! define_metric_score {
     };
 }
 
-define_metric_score!(NdcgScore, "Normalized Discounted Cumulative Gain score scaled [0.0, 1.0].");
+define_metric_score!(
+    NdcgScore,
+    "Normalized Discounted Cumulative Gain score scaled [0.0, 1.0]."
+);
 define_metric_score!(MrrScore, "Mean Reciprocal Rank score scaled [0.0, 1.0].");
 define_metric_score!(RecallScore, "Recall score scaled [0.0, 1.0].");
 define_metric_score!(PrecisionScore, "Precision score scaled [0.0, 1.0].");
@@ -214,7 +223,10 @@ pub enum PublicationRecommendation {
 /// Trait defining candidate publication validation strategies.
 pub trait PublicationPolicy: Send + Sync {
     /// Evaluates comparison metrics and yields a recommendation decision.
-    fn evaluate_recommendation(&self, comparison: &EvaluationComparison) -> PublicationRecommendation;
+    fn evaluate_recommendation(
+        &self,
+        comparison: &EvaluationComparison,
+    ) -> PublicationRecommendation;
     /// Returns the policy identifier.
     fn name(&self) -> &'static str;
 }
@@ -224,12 +236,18 @@ pub trait PublicationPolicy: Send + Sync {
 pub struct NoRegressionPolicy;
 
 impl PublicationPolicy for NoRegressionPolicy {
-    fn evaluate_recommendation(&self, comparison: &EvaluationComparison) -> PublicationRecommendation {
+    fn evaluate_recommendation(
+        &self,
+        comparison: &EvaluationComparison,
+    ) -> PublicationRecommendation {
         if comparison.ndcg_improvement >= 0.0 {
             PublicationRecommendation::Approve
         } else {
             PublicationRecommendation::Reject {
-                reason: format!("Candidate NDCG degraded by {:.4}", -comparison.ndcg_improvement),
+                reason: format!(
+                    "Candidate NDCG degraded by {:.4}",
+                    -comparison.ndcg_improvement
+                ),
             }
         }
     }

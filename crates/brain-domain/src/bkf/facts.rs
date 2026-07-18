@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::bkf::ids::*;
 use crate::bkf::provenance::Provenance;
+use serde::{Deserialize, Serialize};
 
 /// Target reference to any BKF element.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]

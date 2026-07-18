@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use std::sync::Mutex;
-use brain_services::ApplicationRuntime;
-use brain_application::BrainApplication;
 use brain_a2a_adapter::{A2aAdapter, A2aRequest};
+use brain_application::BrainApplication;
 use brain_config::loader::{resolve, DefaultsSource, OverrideSource};
 use brain_config::schema::{BrainSettings, PartialBrainSettings, PartialDatabaseSettings};
+use brain_services::BrainRuntime;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 fn get_temp_db_path() -> String {
     let uuid_str = uuid::Uuid::new_v4().to_string();
@@ -14,39 +14,10 @@ fn get_temp_db_path() -> String {
         .to_string()
 }
 
-fn get_temp_plugins_path() -> String {
-    let uuid_str = uuid::Uuid::new_v4().to_string();
-    let path = std::env::temp_dir().join(format!("brain_test_a2a_plugins_{}", uuid_str));
-    std::fs::create_dir_all(&path).unwrap();
-    path.to_string_lossy().to_string()
-}
-
-fn create_valid_test_config(db_path: &str, plugins_path: &str) -> BrainSettings {
-    let defaults_src = DefaultsSource;
-    let partial = PartialBrainSettings {
-        database: Some(PartialDatabaseSettings {
-            path: Some(db_path.to_string()),
-            pool_size: Some(2),
-            enable_wal: Some(false),
-        }),
-        plugins_directory: Some(plugins_path.to_string()),
-        ..Default::default()
-    };
-    let override_src = OverrideSource::new(partial);
-    resolve(&[Box::new(defaults_src), Box::new(override_src)]).unwrap()
-}
-
 fn setup_app() -> Arc<BrainApplication> {
     pyo3::prepare_freethreaded_python();
     let db_path = get_temp_db_path();
-    let plugins_path = get_temp_plugins_path();
-    let config = create_valid_test_config(&db_path, &plugins_path);
-
-    let runtime = ApplicationRuntime::builder()
-        .with_config(config)
-        .build()
-        .unwrap();
-    runtime.start().unwrap();
+    let runtime = BrainRuntime::new(&db_path).unwrap();
     Arc::new(BrainApplication::new(Arc::new(runtime)))
 }
 
@@ -68,7 +39,14 @@ async fn test_a2a_handshake_and_message() {
 
     let result = handshake_res.result.unwrap();
     assert_eq!(result.get("version").unwrap().as_str().unwrap(), "1.0.0");
-    assert_eq!(result.get("applicationInterface").unwrap().as_str().unwrap(), "1.0.0");
+    assert_eq!(
+        result
+            .get("applicationInterface")
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "1.0.0"
+    );
     let capabilities = result.get("capabilities").unwrap().as_array().unwrap();
     assert!(capabilities.iter().any(|c| c.as_str().unwrap() == "search"));
 
@@ -88,7 +66,7 @@ async fn test_a2a_handshake_and_message() {
     let search_res = adapter.handle_request(search_req).await.unwrap();
     assert_eq!(search_res.id, serde_json::json!(2));
     assert!(search_res.error.is_none());
-    
+
     let search_result = search_res.result.unwrap();
     // Verify it is a valid list response
     assert!(search_result.is_array());
@@ -100,9 +78,12 @@ async fn test_a2a_progress_and_error_conformance() {
     let notifications = Arc::new(Mutex::new(Vec::new()));
     let notifications_clone = notifications.clone();
 
-    let adapter = A2aAdapter::new(app, Arc::new(move |notif| {
-        notifications_clone.lock().unwrap().push(notif);
-    }));
+    let adapter = A2aAdapter::new(
+        app,
+        Arc::new(move |notif| {
+            notifications_clone.lock().unwrap().push(notif);
+        }),
+    );
 
     // 1. Invalid payload DTO on ingest triggers A2A Validation Error (-32602)
     let bad_req = A2aRequest {
@@ -161,7 +142,7 @@ async fn test_a2a_cancellation_flow() {
 
     adapter_arc.handle_notification(
         "agent/cancel",
-        Some(serde_json::json!({ "sessionId": "a2a-cancel-test" }))
+        Some(serde_json::json!({ "sessionId": "a2a-cancel-test" })),
     );
 
     let res = handle.await.unwrap();

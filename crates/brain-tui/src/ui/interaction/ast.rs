@@ -1,7 +1,7 @@
 //! AST nodes for width-agnostic markdown representation.
 
-use std::hash::{Hash, Hasher};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// Stable block identifier within a message content revision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

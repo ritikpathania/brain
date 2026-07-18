@@ -1,12 +1,12 @@
 //! Job execution strategies, contexts, and registry mapping.
 
-use std::sync::Arc;
-use std::collections::HashMap;
-use parking_lot::Mutex;
 use async_trait::async_trait;
+use brain_domain::{Artifact, JobId, JobKind, JobTimestamp};
+use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use serde::{Serialize, Deserialize};
-use brain_domain::{JobId, JobKind, JobTimestamp, Artifact};
 
 /// Strongly-typed error payload indicating job execution failure.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,7 +45,7 @@ impl JobExecutionContext {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         self.logs.lock().push((timestamp, message));
     }

@@ -159,7 +159,10 @@ fn test_json_roundtrip_entities() {
         false,
         true,
         vec![msg1, msg2],
-        vec![Goal { id: GoalId::new(), text: "test goal".to_string() }],
+        vec![Goal {
+            id: GoalId::new(),
+            text: "test goal".to_string(),
+        }],
         SessionTimestamp(123456),
     );
 
@@ -178,8 +181,14 @@ fn test_json_roundtrip_entities() {
     assert_eq!(original_session.title, deserialized_session.title);
     assert_eq!(original_session.pinned, deserialized_session.pinned);
     assert_eq!(original_session.archived, deserialized_session.archived);
-    assert_eq!(original_session.goals.len(), deserialized_session.goals.len());
-    assert_eq!(original_session.goals[0].text, deserialized_session.goals[0].text);
+    assert_eq!(
+        original_session.goals.len(),
+        deserialized_session.goals.len()
+    );
+    assert_eq!(
+        original_session.goals[0].text,
+        deserialized_session.goals[0].text
+    );
     assert_eq!(original_session.updated_at, deserialized_session.updated_at);
 }
 
@@ -240,23 +249,23 @@ fn test_bkf_document_roundtrip() {
     use brain_domain::bkf::*;
     use std::collections::HashMap;
 
-    let mut builder = BKFDocumentBuilder::new(
-        BkfDocumentId::new(),
-        "bkf".to_string(),
-        "1.0.0".to_string(),
-    ).with_metadata(Metadata {
-        title: Some("Integration Spec".to_string()),
-        author: Some("Agent".to_string()),
-        checksum: Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()),
-        fingerprint: Some("fingerprint-123".to_string()),
-        language: Some("en".to_string()),
-        mime: Some("text/markdown".to_string()),
-        size: Some(1024),
-        created: Some(1700000000),
-        modified: Some(1700001000),
-        license: Some("MIT".to_string()),
-        extra: HashMap::new(),
-    });
+    let mut builder =
+        BKFDocumentBuilder::new(BkfDocumentId::new(), "bkf".to_string(), "1.0.0".to_string())
+            .with_metadata(Metadata {
+                title: Some("Integration Spec".to_string()),
+                author: Some("Agent".to_string()),
+                checksum: Some(
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+                ),
+                fingerprint: Some("fingerprint-123".to_string()),
+                language: Some("en".to_string()),
+                mime: Some("text/markdown".to_string()),
+                size: Some(1024),
+                created: Some(1700000000),
+                modified: Some(1700001000),
+                license: Some("MIT".to_string()),
+                extra: HashMap::new(),
+            });
 
     let block_id = BkfBlockId::new();
     builder.add_block(Block {
@@ -295,9 +304,12 @@ fn test_bkf_document_roundtrip() {
 
     let serialized = serde_json::to_string(&doc).unwrap();
     let deserialized: BKFDocument = serde_json::from_str(&serialized).unwrap();
-    
+
     assert_eq!(doc.id(), deserialized.id());
-    assert_eq!(deserialized.metadata().title.as_deref(), Some("Integration Spec"));
+    assert_eq!(
+        deserialized.metadata().title.as_deref(),
+        Some("Integration Spec")
+    );
     assert!(deserialized.capabilities().has_blocks);
     assert!(deserialized.capabilities().has_entities);
     assert!(deserialized.capabilities().has_relationships);
@@ -324,11 +336,9 @@ fn test_bkf_builder_validations() {
     };
 
     // 1. Referential integrity validation failure (missing source/target)
-    let mut builder = BKFDocumentBuilder::new(
-        BkfDocumentId::new(),
-        "bkf".to_string(),
-        "1.0.0".to_string(),
-    ).with_metadata(meta.clone());
+    let mut builder =
+        BKFDocumentBuilder::new(BkfDocumentId::new(), "bkf".to_string(), "1.0.0".to_string())
+            .with_metadata(meta.clone());
 
     builder.add_relationship(Relationship {
         id: BkfRelationshipId::new(),
@@ -338,15 +348,16 @@ fn test_bkf_builder_validations() {
         confidence: 0.8,
         provenance: vec![],
     });
-    assert!(matches!(builder.build(), Err(BkfError::MissingReference { .. })));
+    assert!(matches!(
+        builder.build(),
+        Err(BkfError::MissingReference { .. })
+    ));
 
     // 2. Duplicate ID validation failure
     let dup_id = BkfBlockId::new();
-    let mut builder2 = BKFDocumentBuilder::new(
-        BkfDocumentId::new(),
-        "bkf".to_string(),
-        "1.0.0".to_string(),
-    ).with_metadata(meta.clone());
+    let mut builder2 =
+        BKFDocumentBuilder::new(BkfDocumentId::new(), "bkf".to_string(), "1.0.0".to_string())
+            .with_metadata(meta.clone());
 
     builder2.add_block(Block {
         id: dup_id,
@@ -365,11 +376,9 @@ fn test_bkf_builder_validations() {
     // 3. Cyclic section hierarchy failure
     let sec1_id = BkfSectionId::new();
     let sec2_id = BkfSectionId::new();
-    let mut builder3 = BKFDocumentBuilder::new(
-        BkfDocumentId::new(),
-        "bkf".to_string(),
-        "1.0.0".to_string(),
-    ).with_metadata(meta.clone());
+    let mut builder3 =
+        BKFDocumentBuilder::new(BkfDocumentId::new(), "bkf".to_string(), "1.0.0".to_string())
+            .with_metadata(meta.clone());
 
     builder3.add_section(Section {
         id: sec1_id,
@@ -385,15 +394,16 @@ fn test_bkf_builder_validations() {
         parent_id: Some(sec1_id),
         block_ids: vec![],
     });
-    assert!(matches!(builder3.build(), Err(BkfError::CycleDetected { .. })));
+    assert!(matches!(
+        builder3.build(),
+        Err(BkfError::CycleDetected { .. })
+    ));
 
     // 4. Self-referencing relationship validation failure
     let ent_id = BkfEntityId::new();
-    let mut builder4 = BKFDocumentBuilder::new(
-        BkfDocumentId::new(),
-        "bkf".to_string(),
-        "1.0.0".to_string(),
-    ).with_metadata(meta);
+    let mut builder4 =
+        BKFDocumentBuilder::new(BkfDocumentId::new(), "bkf".to_string(), "1.0.0".to_string())
+            .with_metadata(meta);
 
     builder4.add_entity(Entity {
         id: ent_id,
@@ -411,7 +421,10 @@ fn test_bkf_builder_validations() {
         confidence: 0.9,
         provenance: vec![],
     });
-    assert!(matches!(builder4.build(), Err(BkfError::SelfReferencing { .. })));
+    assert!(matches!(
+        builder4.build(),
+        Err(BkfError::SelfReferencing { .. })
+    ));
 }
 
 #[test]
@@ -462,4 +475,3 @@ fn test_bkf_schema_evolution() {
     assert_eq!(doc.schema_version(), "0.1.0");
     assert_eq!(doc.metadata().title.as_deref(), Some("Old Doc"));
 }
-

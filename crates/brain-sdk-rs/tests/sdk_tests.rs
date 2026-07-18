@@ -31,7 +31,7 @@ async fn test_sdk_successful_ingestion() {
                     let (read, mut write) = stream.into_split();
                     let mut reader = BufReader::new(read);
                     let mut line = String::new();
-                    
+
                     // 1. Read handshake request
                     if let Ok(n) = reader.read_line(&mut line).await {
                         if n > 0 {
@@ -70,7 +70,7 @@ async fn test_sdk_successful_ingestion() {
                                         });
                                         let mut reply_str = serde_json::to_string(&reply).unwrap();
                                         reply_str.push('\n');
-                                        
+
                                         let _ = write.write_all(reply_str.as_bytes()).await;
                                         let _ = write.flush().await;
                                     }
@@ -87,8 +87,10 @@ async fn test_sdk_successful_ingestion() {
     // 2. Connect client and send a message event
     let mut config = ClientConfig::default_for_socket(socket_path.clone());
     config.flush_interval = Duration::from_millis(5); // Flush immediately for testing
-    
-    let client = BrainClient::connect(config).await.expect("Failed to connect client");
+
+    let client = BrainClient::connect(config)
+        .await
+        .expect("Failed to connect client");
 
     let event = IngestionEvent::Message {
         role: "user".to_string(),

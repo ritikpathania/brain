@@ -1,11 +1,10 @@
-use std::time::Duration;
-use brain_domain::temporal::{
-    TimePoint, TimeInterval, TimeIntervalError, TemporalValidity,
-    RecencyPolicy, TemporalVisibility, TemporalQuery, TemporalEdge,
-    TestClock, Clock, TemporalProjector
-};
 use brain_domain::entities::{Edge, RelationKind};
-use brain_domain::identifiers::{NodeId, EdgeId};
+use brain_domain::identifiers::{EdgeId, NodeId};
+use brain_domain::temporal::{
+    Clock, RecencyPolicy, TemporalEdge, TemporalProjector, TemporalQuery, TemporalValidity,
+    TemporalVisibility, TestClock, TimeInterval, TimeIntervalError, TimePoint,
+};
+use std::time::Duration;
 
 #[test]
 fn test_timepoint_opaque_construction_and_checked_ops() {
@@ -96,10 +95,18 @@ fn test_temporal_validity_matching() {
     assert!(validity.is_valid_at(TimePoint::from_unix_seconds(35)));
 
     // Intersects target interval
-    let int_15_25 = TimeInterval::new(TimePoint::from_unix_seconds(15), Some(TimePoint::from_unix_seconds(25))).unwrap();
+    let int_15_25 = TimeInterval::new(
+        TimePoint::from_unix_seconds(15),
+        Some(TimePoint::from_unix_seconds(25)),
+    )
+    .unwrap();
     assert!(validity.intersects_interval(&int_15_25));
 
-    let int_22_28 = TimeInterval::new(TimePoint::from_unix_seconds(22), Some(TimePoint::from_unix_seconds(28))).unwrap();
+    let int_22_28 = TimeInterval::new(
+        TimePoint::from_unix_seconds(22),
+        Some(TimePoint::from_unix_seconds(28)),
+    )
+    .unwrap();
     assert!(!validity.intersects_interval(&int_22_28));
 }
 
@@ -119,8 +126,10 @@ fn test_recency_policy_decay_calculations() {
     let ref_time_200 = TimePoint::from_unix_seconds(200);
 
     // Exponential Decay
-    let exp_policy = RecencyPolicy::Exponential { half_life_secs: 100.0 };
-    
+    let exp_policy = RecencyPolicy::Exponential {
+        half_life_secs: 100.0,
+    };
+
     // Elapsed = 0, weight should be unchanged
     let w0 = exp_policy.compute_weight(1.0, obs_time, ref_time_100);
     assert!((w0 - 1.0).abs() < 1e-9);
@@ -130,8 +139,10 @@ fn test_recency_policy_decay_calculations() {
     assert!((w1 - 0.5).abs() < 1e-9);
 
     // Linear Decay
-    let lin_policy = RecencyPolicy::Linear { horizon_secs: 200.0 };
-    
+    let lin_policy = RecencyPolicy::Linear {
+        horizon_secs: 200.0,
+    };
+
     // Elapsed = 0, weight = 1.0
     let wl0 = lin_policy.compute_weight(1.0, obs_time, ref_time_100);
     assert!((wl0 - 1.0).abs() < 1e-9);
@@ -151,12 +162,7 @@ fn create_dummy_temporal_edge(
     validity_intervals: Vec<TimeInterval>,
     observed_sec: u64,
 ) -> TemporalEdge {
-    let edge = Edge::new(
-        source,
-        target,
-        RelationKind::Uses,
-        1.0,
-    );
+    let edge = Edge::new(source, target, RelationKind::Uses, 1.0);
     TemporalEdge {
         edge,
         validity: TemporalValidity::new(validity_intervals),
@@ -186,7 +192,12 @@ fn test_temporal_snapshot_visibility_projection() {
         // Edge B: validity [20, 30), observed at 15
         create_dummy_temporal_edge(node_c, node_d, vec![int_20_30], 15),
         // Edge C: validity [10, 30), observed at 25 (observed in the future relative to T=20)
-        create_dummy_temporal_edge(node_e, node_f, vec![TimeInterval::new(t10, Some(t30)).unwrap()], 25),
+        create_dummy_temporal_edge(
+            node_e,
+            node_f,
+            vec![TimeInterval::new(t10, Some(t30)).unwrap()],
+            25,
+        ),
     ];
 
     // Current query at T = 15
@@ -218,7 +229,13 @@ fn test_temporal_snapshot_visibility_projection() {
     // Interval intersection query: looking at [15, 25) with reference T = 22
     let query_interval = TemporalQuery {
         reference_time: TimePoint::from_unix_seconds(22),
-        visibility: TemporalVisibility::Interval(TimeInterval::new(TimePoint::from_unix_seconds(15), Some(TimePoint::from_unix_seconds(25))).unwrap()),
+        visibility: TemporalVisibility::Interval(
+            TimeInterval::new(
+                TimePoint::from_unix_seconds(15),
+                Some(TimePoint::from_unix_seconds(25)),
+            )
+            .unwrap(),
+        ),
         recency_policy: RecencyPolicy::None,
     };
     let snap_interval = TemporalProjector::project(&edges, &query_interval);
@@ -243,14 +260,30 @@ fn test_visibility_equivalence_and_determinism_invariants() {
     let node_f = NodeId::new();
 
     let edges = vec![
-        create_dummy_temporal_edge(node_a, node_b, vec![TimeInterval::new(t10, Some(t20)).unwrap()], 5),
-        create_dummy_temporal_edge(node_c, node_d, vec![TimeInterval::new(t20, Some(t30)).unwrap()], 15),
-        create_dummy_temporal_edge(node_e, node_f, vec![TimeInterval::new(t10, Some(t30)).unwrap()], 8),
+        create_dummy_temporal_edge(
+            node_a,
+            node_b,
+            vec![TimeInterval::new(t10, Some(t20)).unwrap()],
+            5,
+        ),
+        create_dummy_temporal_edge(
+            node_c,
+            node_d,
+            vec![TimeInterval::new(t20, Some(t30)).unwrap()],
+            15,
+        ),
+        create_dummy_temporal_edge(
+            node_e,
+            node_f,
+            vec![TimeInterval::new(t10, Some(t30)).unwrap()],
+            8,
+        ),
     ];
 
-    let all_edge_ids: std::collections::HashSet<EdgeId> = edges.iter().map(|te| {
-        EdgeId::new(te.edge.source, te.edge.target, te.edge.relation.id())
-    }).collect();
+    let all_edge_ids: std::collections::HashSet<EdgeId> = edges
+        .iter()
+        .map(|te| EdgeId::new(te.edge.source, te.edge.target, te.edge.relation.id()))
+        .collect();
 
     // Invariant: Projection Idempotency & Determinism
     // Repeated projections must produce byte-for-byte identical snapshots.
@@ -286,7 +319,9 @@ fn test_visibility_equivalence_and_determinism_invariants() {
         let snap_historical = TemporalProjector::project(&edges, &q_historical);
 
         // Check subset inclusion: all elements in snap_current must exist in snap_historical
-        assert!(snap_current.active_edge_ids.is_subset(&snap_historical.active_edge_ids));
+        assert!(snap_current
+            .active_edge_ids
+            .is_subset(&snap_historical.active_edge_ids));
     }
 
     // Invariant: Snapshot Monotonicity

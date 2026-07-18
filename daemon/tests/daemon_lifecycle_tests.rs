@@ -64,12 +64,10 @@ async fn test_daemon_lifecycle_graceful_shutdown() {
     }
 
     // Wait for the daemon to exit
-    let status = tokio::time::timeout(Duration::from_secs(5), async {
-        child.wait()
-    })
-    .await
-    .expect("Daemon shutdown timed out")
-    .expect("Failed to wait on daemon");
+    let status = tokio::time::timeout(Duration::from_secs(5), async { child.wait() })
+        .await
+        .expect("Daemon shutdown timed out")
+        .expect("Failed to wait on daemon");
 
     assert!(status.success(), "Daemon did not exit cleanly");
 
@@ -118,12 +116,10 @@ async fn test_daemon_lifecycle_repeated_signals() {
         libc::kill(pid, libc::SIGTERM);
     }
 
-    let status = tokio::time::timeout(Duration::from_secs(5), async {
-        child.wait()
-    })
-    .await
-    .expect("Daemon shutdown timed out on repeated SIGTERM")
-    .expect("Failed to wait on daemon");
+    let status = tokio::time::timeout(Duration::from_secs(5), async { child.wait() })
+        .await
+        .expect("Daemon shutdown timed out on repeated SIGTERM")
+        .expect("Failed to wait on daemon");
 
     assert!(status.success(), "Daemon failed on repeated SIGTERM");
     assert!(!socket_path.exists());
@@ -165,7 +161,9 @@ async fn test_daemon_lifecycle_stale_socket_recovery() {
     assert!(ready, "Daemon did not recover from stale socket");
 
     let pid = child.id() as i32;
-    unsafe { libc::kill(pid, libc::SIGTERM); }
+    unsafe {
+        libc::kill(pid, libc::SIGTERM);
+    }
     let _ = child.wait();
     let _ = fs::remove_dir_all(&test_dir);
 }
@@ -213,11 +211,16 @@ async fn test_daemon_lifecycle_double_start_prevention() {
         .output()
         .unwrap();
 
-    assert!(!output2.status.success(), "Second daemon instance should have failed to start");
-    
+    assert!(
+        !output2.status.success(),
+        "Second daemon instance should have failed to start"
+    );
+
     // Stop daemon 1
     let pid1 = child1.id() as i32;
-    unsafe { libc::kill(pid1, libc::SIGTERM); }
+    unsafe {
+        libc::kill(pid1, libc::SIGTERM);
+    }
     let _ = child1.wait();
     let _ = fs::remove_dir_all(&test_dir);
 }
@@ -247,8 +250,14 @@ async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
     assert!(!status.success(), "Daemon should have failed to start");
 
     // Cleanup guard should delete the PID/socket files even on early exit
-    assert!(!socket_path.exists(), "Socket file was not cleaned up on startup failure");
-    assert!(!pid_path.exists(), "PID file was not cleaned up on startup failure");
+    assert!(
+        !socket_path.exists(),
+        "Socket file was not cleaned up on startup failure"
+    );
+    assert!(
+        !pid_path.exists(),
+        "PID file was not cleaned up on startup failure"
+    );
 
     let _ = fs::remove_dir_all(&test_dir);
 }
@@ -288,14 +297,22 @@ async fn test_daemon_lifecycle_crash_during_worker_execution() {
         let mut _stream = UnixStream::connect(&socket_path).await.unwrap();
         // Keep the stream open, then trigger SIGTERM
         let pid = child.id() as i32;
-        unsafe { libc::kill(pid, libc::SIGTERM); }
+        unsafe {
+            libc::kill(pid, libc::SIGTERM);
+        }
     }
 
     let _ = child.wait();
-    
+
     // Verify that the files were cleaned up successfully
-    assert!(!socket_path.exists(), "Socket file was not cleaned up on worker connection close");
-    assert!(!pid_path.exists(), "PID file was not cleaned up on worker connection close");
+    assert!(
+        !socket_path.exists(),
+        "Socket file was not cleaned up on worker connection close"
+    );
+    assert!(
+        !pid_path.exists(),
+        "PID file was not cleaned up on worker connection close"
+    );
 
     let _ = fs::remove_dir_all(&test_dir);
 }

@@ -44,6 +44,7 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
         ],
         "brain-application" => vec![
             "brain-domain",
+            "brain-core",
             "brain-services",
             "brain-integrations",
             "brain-storage",
@@ -156,7 +157,8 @@ fn test_no_violating_cargo_toml_dependencies() {
             let crate_path = entry.path();
             let cargo_toml_path = crate_path.join("Cargo.toml");
             if cargo_toml_path.exists() {
-                let content = fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
+                let content =
+                    fs::read_to_string(&cargo_toml_path).expect("Failed to read Cargo.toml");
                 let crate_name = crate_path.file_name().unwrap().to_str().unwrap();
                 let allowed = get_allowed_dependencies(crate_name);
 
@@ -190,7 +192,10 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
             let path = entry.path();
             if path.is_dir() {
                 verify_dir(&path);
-            } else if path.extension().map_or(false, |ext| ext == "rust" || ext == "rs") {
+            } else if path
+                .extension()
+                .map_or(false, |ext| ext == "rust" || ext == "rs")
+            {
                 let raw_content = fs::read_to_string(&path).expect("Failed to read source file");
                 let content = clean_comments(&raw_content);
 
@@ -221,7 +226,14 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
                     }
 
                     // 2. Assert no synchronization primitives
-                    let forbidden_sync = ["Mutex", "RwLock", "Arc", "AtomicBool", "AtomicU64", "AtomicI32"];
+                    let forbidden_sync = [
+                        "Mutex",
+                        "RwLock",
+                        "Arc",
+                        "AtomicBool",
+                        "AtomicU64",
+                        "AtomicI32",
+                    ];
                     for forbidden in &forbidden_sync {
                         if contains_word(line_stripped, forbidden) {
                             panic!(
@@ -271,10 +283,19 @@ fn test_domain_crate_purity_and_no_infrastructure_imports() {
                     }
 
                     // 6. Assert no database/repository leakage
-                    let forbidden_storage = ["Sqlite", "rusqlite", "DuckDb", "r2d2", "Connection", "Repository"];
+                    let forbidden_storage = [
+                        "Sqlite",
+                        "rusqlite",
+                        "DuckDb",
+                        "r2d2",
+                        "Connection",
+                        "Repository",
+                    ];
                     for forbidden in &forbidden_storage {
                         // Allow DomainError because it matches the word DomainError which contains "Error"
-                        if contains_word(line_stripped, forbidden) && !line_stripped.contains("DomainError") {
+                        if contains_word(line_stripped, forbidden)
+                            && !line_stripped.contains("DomainError")
+                        {
                             panic!(
                                 "Architecture Violation: Database/Repository type reference '{}' found in domain layer at {:?}:{}",
                                 forbidden, path, line_num + 1
@@ -301,7 +322,10 @@ fn test_core_crate_no_upward_infrastructure_imports() {
             let path = entry.path();
             if path.is_dir() {
                 verify_dir(&path);
-            } else if path.extension().map_or(false, |ext| ext == "rust" || ext == "rs") {
+            } else if path
+                .extension()
+                .map_or(false, |ext| ext == "rust" || ext == "rs")
+            {
                 let raw_content = fs::read_to_string(&path).expect("Failed to read source file");
                 let content = clean_comments(&raw_content);
 
@@ -345,7 +369,10 @@ fn test_event_publishing_boundary_enforcement() {
         let path = entry.path();
         let crate_name = path.file_name().unwrap().to_str().unwrap();
 
-        if crate_name == "brain-services" || crate_name == "brain-events" || crate_name == "brain-observability" {
+        if crate_name == "brain-services"
+            || crate_name == "brain-events"
+            || crate_name == "brain-observability"
+        {
             continue;
         }
 
@@ -358,13 +385,19 @@ fn test_event_publishing_boundary_enforcement() {
                     let path = entry.path();
                     if path.is_dir() {
                         verify_no_event_envelope(&path, crate_name);
-                    } else if path.extension().map_or(false, |ext| ext == "rust" || ext == "rs") {
-                        let raw_content = fs::read_to_string(&path).expect("Failed to read source file");
+                    } else if path
+                        .extension()
+                        .map_or(false, |ext| ext == "rust" || ext == "rs")
+                    {
+                        let raw_content =
+                            fs::read_to_string(&path).expect("Failed to read source file");
                         let content = clean_comments(&raw_content);
 
                         for (line_num, line) in content.lines().enumerate() {
                             let line_stripped = line.trim();
-                            if line_stripped.contains("EventEnvelope") && line_stripped.contains(".publish(") {
+                            if line_stripped.contains("EventEnvelope")
+                                && line_stripped.contains(".publish(")
+                            {
                                 panic!(
                                     "Architecture Violation: Crate '{}' publishes EventEnvelope directly. Only brain-services should act as publishing boundaries. Found in {:?}:{}",
                                     crate_name, path, line_num + 1

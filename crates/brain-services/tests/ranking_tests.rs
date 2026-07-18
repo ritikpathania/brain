@@ -2,8 +2,10 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{EmbeddingProvider, RankingStrategy, RetrievalRequest, DefaultQueryEmbeddingService};
-use brain_domain::{Edge, Embedding, Node, NodeId, SessionId, RelationKind};
+use brain_core::retrieval::{
+    DefaultQueryEmbeddingService, EmbeddingProvider, RankingStrategy, RetrievalRequest,
+};
+use brain_domain::{Edge, Embedding, Node, NodeId, RelationKind, SessionId};
 use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, GraphRanking, RrfRanking};
 use brain_storage::TestStorage;
 
@@ -61,7 +63,10 @@ fn test_embedding_ranking() {
         emb: vec![1.0, 0.0],
     });
     let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let strategy = EmbeddingRanking::new(embed_service, store.clone() as Arc<dyn brain_core::retrieval::EmbeddingLookup>);
+    let strategy = EmbeddingRanking::new(
+        embed_service,
+        store.clone() as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+    );
 
     let node1 = make_node(1, "first node");
     let node2 = make_node(2, "second node");
@@ -119,12 +124,22 @@ fn test_graph_ranking() {
     // node1 has total weight 5.0
     store
         .edges()
-        .save(&Edge::new(node1.id, node2.id, RelationKind::AssociatedWith, 5.0))
+        .save(&Edge::new(
+            node1.id,
+            node2.id,
+            RelationKind::AssociatedWith,
+            5.0,
+        ))
         .unwrap();
     // node2 has total weight 7.0 (5.0 + 2.0)
     store
         .edges()
-        .save(&Edge::new(node2.id, node3.id, RelationKind::AssociatedWith, 2.0))
+        .save(&Edge::new(
+            node2.id,
+            node3.id,
+            RelationKind::AssociatedWith,
+            2.0,
+        ))
         .unwrap();
 
     let request = RetrievalRequest {

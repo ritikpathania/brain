@@ -1,6 +1,6 @@
 use crate::retrieval::eval_harness::{
-    CalibrationEngine, CalibrationObjective, CalibrationOptions,
-    EvaluationSession, Feature, RankingWeights,
+    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession, Feature,
+    RankingWeights,
 };
 use brain_core::errors::BrainError;
 
@@ -160,12 +160,13 @@ impl PruningExperimentRunner {
         prune_list: &[Feature],
     ) -> Result<PruningExperimentReport, BrainError> {
         // 1. Run baseline calibration
-        let baseline_candidates = CalibrationEngine::run_calibration(session, options.clone(), objective);
-        let baseline_opt = baseline_candidates.first().ok_or_else(|| {
-            BrainError::Validation {
+        let baseline_candidates =
+            CalibrationEngine::run_calibration(session, options.clone(), objective);
+        let baseline_opt = baseline_candidates
+            .first()
+            .ok_or_else(|| BrainError::Validation {
                 message: "Baseline calibration produced no valid results.".to_string(),
-            }
-        })?;
+            })?;
 
         let baseline_composite = objective.score(baseline_opt);
         let baseline_ndcg_at_5 = baseline_opt.mean_ndcg_at_5;
@@ -188,7 +189,8 @@ impl PruningExperimentRunner {
                 continue;
             }
 
-            let ablated_candidates = CalibrationEngine::run_calibration(session, ablated_options, objective);
+            let ablated_candidates =
+                CalibrationEngine::run_calibration(session, ablated_options, objective);
             let ablated_opt = match ablated_candidates.first() {
                 Some(opt) => opt,
                 None => {
@@ -246,11 +248,20 @@ impl PruningExperimentRunner {
             match (a, b) {
                 (PruningOutcome::Success(ra), PruningOutcome::Success(rb)) => {
                     // Sort descending by degradation (i.e. ra.composite_delta ascending since negative delta is degradation)
-                    ra.composite_delta.partial_cmp(&rb.composite_delta).unwrap_or(std::cmp::Ordering::Equal)
+                    ra.composite_delta
+                        .partial_cmp(&rb.composite_delta)
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 }
-                (PruningOutcome::Success(_), PruningOutcome::Failure { .. }) => std::cmp::Ordering::Less,
-                (PruningOutcome::Failure { .. }, PruningOutcome::Success(_)) => std::cmp::Ordering::Greater,
-                (PruningOutcome::Failure { feature: fa, .. }, PruningOutcome::Failure { feature: fb, .. }) => {
+                (PruningOutcome::Success(_), PruningOutcome::Failure { .. }) => {
+                    std::cmp::Ordering::Less
+                }
+                (PruningOutcome::Failure { .. }, PruningOutcome::Success(_)) => {
+                    std::cmp::Ordering::Greater
+                }
+                (
+                    PruningOutcome::Failure { feature: fa, .. },
+                    PruningOutcome::Failure { feature: fb, .. },
+                ) => {
                     // Tie-break alphabetically on feature
                     fa.cmp(fb)
                 }
@@ -280,18 +291,48 @@ fn disable_feature_in_grid(options: &CalibrationOptions, feature: Feature) -> Ca
             graph_degree_weights,
             access_frequency_weights,
             freshness_decay_weights,
-        } => {
-            CalibrationOptions::Grid {
-                lexical_weights: if feature == Feature::LexicalSimilarity { vec![0.0] } else { lexical_weights.clone() },
-                semantic_weights: if feature == Feature::SemanticSimilarity { vec![0.0] } else { semantic_weights.clone() },
-                recency_weights: if feature == Feature::Recency { vec![0.0] } else { recency_weights.clone() },
-                importance_weights: if feature == Feature::Importance { vec![0.0] } else { importance_weights.clone() },
-                provenance_weights: if feature == Feature::ProvenanceConfidence { vec![0.0] } else { provenance_weights.clone() },
-                graph_degree_weights: if feature == Feature::GraphDegree { vec![0.0] } else { graph_degree_weights.clone() },
-                access_frequency_weights: if feature == Feature::AccessFrequency { vec![0.0] } else { access_frequency_weights.clone() },
-                freshness_decay_weights: if feature == Feature::FreshnessDecay { vec![0.0] } else { freshness_decay_weights.clone() },
-            }
-        }
+        } => CalibrationOptions::Grid {
+            lexical_weights: if feature == Feature::LexicalSimilarity {
+                vec![0.0]
+            } else {
+                lexical_weights.clone()
+            },
+            semantic_weights: if feature == Feature::SemanticSimilarity {
+                vec![0.0]
+            } else {
+                semantic_weights.clone()
+            },
+            recency_weights: if feature == Feature::Recency {
+                vec![0.0]
+            } else {
+                recency_weights.clone()
+            },
+            importance_weights: if feature == Feature::Importance {
+                vec![0.0]
+            } else {
+                importance_weights.clone()
+            },
+            provenance_weights: if feature == Feature::ProvenanceConfidence {
+                vec![0.0]
+            } else {
+                provenance_weights.clone()
+            },
+            graph_degree_weights: if feature == Feature::GraphDegree {
+                vec![0.0]
+            } else {
+                graph_degree_weights.clone()
+            },
+            access_frequency_weights: if feature == Feature::AccessFrequency {
+                vec![0.0]
+            } else {
+                access_frequency_weights.clone()
+            },
+            freshness_decay_weights: if feature == Feature::FreshnessDecay {
+                vec![0.0]
+            } else {
+                freshness_decay_weights.clone()
+            },
+        },
         CalibrationOptions::Candidates(list) => {
             let modified = list
                 .iter()
@@ -353,10 +394,7 @@ impl PruningReportWriter {
         md.push_str("> Disabling a critical feature followed by optimal grid recalibration measures the maximum degradation risk.\n\n");
 
         md.push_str("## Baseline Calibrated Setup\n\n");
-        md.push_str(&format!(
-            "- Objective Metric: **{:?}**\n",
-            report.objective
-        ));
+        md.push_str(&format!("- Objective Metric: **{:?}**\n", report.objective));
         md.push_str(&format!(
             "- Baseline Composite Score: **{:.4}** (nDCG@5: **{:.4}**, MRR: **{:.4}**, Recall@5: **{:.4}**)\n",
             report.baseline_composite, report.baseline_ndcg_at_5, report.baseline_mrr, report.baseline_recall_at_5
@@ -393,7 +431,11 @@ impl PruningReportWriter {
                         res.impact.as_str()
                     ));
                 }
-                PruningOutcome::Failure { feature, reason, message } => {
+                PruningOutcome::Failure {
+                    feature,
+                    reason,
+                    message,
+                } => {
                     md.push_str(&format!(
                         "| **{}** | *N/A* | *N/A* | *N/A* | *N/A* | *N/A* | *N/A* | 0 | ❌ Failure ({}: {}) |\n",
                         feature.as_str(),

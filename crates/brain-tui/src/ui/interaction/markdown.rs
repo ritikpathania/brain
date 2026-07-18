@@ -213,15 +213,40 @@ impl SyntaxHighlighter for KeywordSyntaxHighlighter {
             let trimmed_word = word.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_');
             let is_keyword = matches!(
                 trimmed_word,
-                "fn" | "let" | "pub" | "struct" | "impl" | "match" | "return" | "mut"
-                    | "use" | "mod" | "crate" | "enum" | "self" | "if" | "else" | "for"
-                    | "in" | "loop" | "while" | "as" | "static" | "const" | "dyn" | "trait"
-                    | "async" | "await" | "type"
+                "fn" | "let"
+                    | "pub"
+                    | "struct"
+                    | "impl"
+                    | "match"
+                    | "return"
+                    | "mut"
+                    | "use"
+                    | "mod"
+                    | "crate"
+                    | "enum"
+                    | "self"
+                    | "if"
+                    | "else"
+                    | "for"
+                    | "in"
+                    | "loop"
+                    | "while"
+                    | "as"
+                    | "static"
+                    | "const"
+                    | "dyn"
+                    | "trait"
+                    | "async"
+                    | "await"
+                    | "type"
             );
 
             if is_keyword {
                 let spacing = &word[trimmed_word.len()..];
-                spans.push(VisualSpan::new(trimmed_word.to_string(), VisualStyle::CodeKeyword));
+                spans.push(VisualSpan::new(
+                    trimmed_word.to_string(),
+                    VisualStyle::CodeKeyword,
+                ));
                 if !spacing.is_empty() {
                     spans.push(VisualSpan::new(spacing.to_string(), VisualStyle::Normal));
                 }
@@ -260,7 +285,11 @@ impl SelectionState {
     /// Verifies if index resides within the active selected bounds.
     pub fn is_selected(&self, idx: usize) -> bool {
         if let Some((start, end)) = self.range {
-            let (min, max) = if start <= end { (start, end) } else { (end, start) };
+            let (min, max) = if start <= end {
+                (start, end)
+            } else {
+                (end, start)
+            };
             idx >= min && idx <= max
         } else {
             false
@@ -372,7 +401,11 @@ impl MarkdownParser {
                 // Consume separator row if present
                 if let Some(&sep_line) = lines.peek() {
                     let sep_trimmed = sep_line.trim();
-                    if sep_trimmed.starts_with('|') && sep_trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace()) {
+                    if sep_trimmed.starts_with('|')
+                        && sep_trimmed
+                            .chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace())
+                    {
                         lines.next();
                     }
                 }
@@ -561,7 +594,7 @@ fn parse_inline(text: &str) -> Vec<InlineNode> {
                         idx = start_paren;
                     }
                 }
-                
+
                 if !is_link {
                     if cit_content.chars().all(|c| c.is_numeric()) || cit_content.starts_with('^') {
                         nodes.push(InlineNode::Citation(cit_content));
@@ -591,7 +624,11 @@ pub struct MarkdownLayout;
 
 impl MarkdownLayout {
     /// Maps AST blocks into visual formatted lines based on column width boundary.
-    pub fn layout(ast: &MarkdownAst, max_width: usize, highlighter: &dyn SyntaxHighlighter) -> Vec<VisualLine> {
+    pub fn layout(
+        ast: &MarkdownAst,
+        max_width: usize,
+        highlighter: &dyn SyntaxHighlighter,
+    ) -> Vec<VisualLine> {
         let mut visual_lines = Vec::new();
         let max_width = if max_width < 5 { 5 } else { max_width };
 
@@ -620,7 +657,9 @@ impl MarkdownLayout {
                             InlineNode::Italic(t) => (t.clone(), VisualStyle::Italic),
                             InlineNode::InlineCode(t) => (t.clone(), VisualStyle::InlineCode),
                             InlineNode::Citation(t) => (format!("[{}]", t), VisualStyle::Citation),
-                            InlineNode::EntityReference { label, node_id } => (label.clone(), VisualStyle::EntityReference(*node_id)),
+                            InlineNode::EntityReference { label, node_id } => {
+                                (label.clone(), VisualStyle::EntityReference(*node_id))
+                            }
                         };
                         spans.push(VisualSpan::new(text, style));
                     }
@@ -711,15 +750,22 @@ fn wrap_spans(spans: Vec<VisualSpan>, max_width: usize) -> Vec<Vec<VisualSpan>> 
 fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
     let spans = vec![VisualSpan::new(text.to_string(), VisualStyle::Normal)];
     let wrapped = wrap_spans(spans, max_width);
-    wrapped.into_iter().map(|line_spans| {
-        line_spans.into_iter().map(|s| s.text.to_string()).collect::<Vec<_>>().join("")
-    }).collect()
+    wrapped
+        .into_iter()
+        .map(|line_spans| {
+            line_spans
+                .into_iter()
+                .map(|s| s.text.to_string())
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .collect()
 }
 
 fn layout_table(table: &TableNode, max_width: usize) -> Vec<Vec<VisualSpan>> {
     let col_count = std::cmp::max(
         table.headers.len(),
-        table.rows.iter().map(|r| r.len()).max().unwrap_or(0)
+        table.rows.iter().map(|r| r.len()).max().unwrap_or(0),
     );
     if col_count == 0 {
         return Vec::new();
@@ -742,11 +788,17 @@ fn layout_table(table: &TableNode, max_width: usize) -> Vec<Vec<VisualSpan>> {
 
     if sum_widths + total_padding > max_width {
         let available_width = max_width.saturating_sub(total_padding);
-        let available_width = if available_width < col_count { col_count } else { available_width };
+        let available_width = if available_width < col_count {
+            col_count
+        } else {
+            available_width
+        };
         for w in &mut col_widths {
             if sum_widths > 0 {
                 *w = (*w * available_width) / sum_widths;
-                if *w == 0 { *w = 1; }
+                if *w == 0 {
+                    *w = 1;
+                }
             }
         }
     }
@@ -842,7 +894,11 @@ impl ViewportIndex {
         };
 
         if idx < self.cumulative_heights.len() {
-            let previous_sum = if idx > 0 { self.cumulative_heights[idx - 1] } else { 0 };
+            let previous_sum = if idx > 0 {
+                self.cumulative_heights[idx - 1]
+            } else {
+                0
+            };
             let local_offset = global_offset - previous_sum;
             Some((idx, local_offset))
         } else {

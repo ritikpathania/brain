@@ -3,10 +3,10 @@
 mod models;
 pub use models::*;
 
-use std::collections::BTreeSet;
-use serde::{Serialize, Deserialize};
-use thiserror::Error;
 use crate::events::DomainEvent;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
+use thiserror::Error;
 
 /// Lifecycle state machine phase of a background job.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -210,7 +210,11 @@ impl Job {
     }
 
     /// Helper to transition job state if valid.
-    fn transition_to(&mut self, next: JobState, timestamp: Option<JobTimestamp>) -> Result<(), JobError> {
+    fn transition_to(
+        &mut self,
+        next: JobState,
+        timestamp: Option<JobTimestamp>,
+    ) -> Result<(), JobError> {
         if !self.state.can_transition_to(next) {
             return Err(JobError::InvalidTransition {
                 from: self.state,
@@ -271,7 +275,11 @@ impl Job {
     }
 
     /// Transition to failed state.
-    pub fn fail(&mut self, reason: JobFailureReason, timestamp: JobTimestamp) -> Result<(), JobError> {
+    pub fn fail(
+        &mut self,
+        reason: JobFailureReason,
+        timestamp: JobTimestamp,
+    ) -> Result<(), JobError> {
         self.transition_to(JobState::Failed, Some(timestamp))?;
         self.events.push(DomainEvent::JobFailed {
             job_id: self.id,
@@ -298,7 +306,8 @@ impl Job {
         }
         let next_idx = (self.logs.len() + 1) as u64;
         let entry_id = LogEntryId(std::num::NonZeroU64::new(next_idx).unwrap());
-        self.logs.push(LogEntry::new(entry_id, timestamp, message.clone()));
+        self.logs
+            .push(LogEntry::new(entry_id, timestamp, message.clone()));
         self.events.push(DomainEvent::LogAppended {
             job_id: self.id,
             entry_id,
@@ -308,7 +317,12 @@ impl Job {
     }
 
     /// Produce and write output artifact.
-    pub fn produce_artifact(&mut self, id: ArtifactId, kind: ArtifactKind, payload: Vec<u8>) -> Result<(), JobError> {
+    pub fn produce_artifact(
+        &mut self,
+        id: ArtifactId,
+        kind: ArtifactKind,
+        payload: Vec<u8>,
+    ) -> Result<(), JobError> {
         if is_terminal(self.state) {
             return Err(JobError::TerminalStateMutation { state: self.state });
         }
@@ -332,5 +346,8 @@ impl Job {
 }
 
 fn is_terminal(state: JobState) -> bool {
-    matches!(state, JobState::Completed | JobState::Failed | JobState::Cancelled)
+    matches!(
+        state,
+        JobState::Completed | JobState::Failed | JobState::Cancelled
+    )
 }

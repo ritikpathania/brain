@@ -81,9 +81,7 @@ pub fn run_sensitivity_analysis(
 
         total_candidates += candidates.len();
 
-        processed_queries.push(QueryData {
-            candidates,
-        });
+        processed_queries.push(QueryData { candidates });
     }
 
     let mut impacts = Vec::with_capacity(feature_names.len());

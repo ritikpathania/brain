@@ -6,16 +6,15 @@ use brain_core::extensibility::CancellationToken;
 use brain_domain::{ConversationId, SessionId};
 use brain_tools::CancellationTokenImpl;
 
-use brain_core::extensibility::DecisionEngine;
+use crate::agent::streaming::StreamingRuntime;
 use crate::agent::{
     AgentExecutionEventPayload, AgentToolExecutor, DefaultEventSink, ExecutionContext,
     ExecutionHandle, ExecutionId, ExecutionPolicy, ExecutionResult, ExecutionState,
-    ExecutionStatus, ExecutionStep, StageOutcome, StageIdentifier, ReflectionContext,
-    ReflectionOutcome, ReflectionDecision, VerificationContext, VerificationOutcome,
-    VerificationDecision,
+    ExecutionStatus, ExecutionStep, ReflectionContext, ReflectionDecision, ReflectionOutcome,
+    StageIdentifier, StageOutcome, VerificationContext, VerificationDecision, VerificationOutcome,
 };
-use crate::agent::streaming::StreamingRuntime;
 use crate::conversation::ConversationManager;
+use brain_core::extensibility::DecisionEngine;
 /// Interface for replaceable reflection policies.
 pub trait ReflectionPolicy: Send + Sync {
     /// Evaluates generated output against reflection criteria.
@@ -40,7 +39,9 @@ pub struct ReflectionEngineImpl<P> {
     pub policy: P,
 }
 
-impl<P: ReflectionPolicy> DecisionEngine<ReflectionContext, ReflectionDecision> for ReflectionEngineImpl<P> {
+impl<P: ReflectionPolicy> DecisionEngine<ReflectionContext, ReflectionDecision>
+    for ReflectionEngineImpl<P>
+{
     fn evaluate(&self, context: &ReflectionContext) -> Result<ReflectionDecision, BrainError> {
         self.policy.evaluate(context)
     }
@@ -64,7 +65,9 @@ impl<PV: VerificationPolicy, PC: ConfidencePolicy> VerificationEngineImpl<PV, PC
     }
 }
 
-impl<PV: VerificationPolicy, PC: ConfidencePolicy> DecisionEngine<VerificationContext, VerificationDecision> for VerificationEngineImpl<PV, PC> {
+impl<PV: VerificationPolicy, PC: ConfidencePolicy>
+    DecisionEngine<VerificationContext, VerificationDecision> for VerificationEngineImpl<PV, PC>
+{
     fn evaluate(&self, context: &VerificationContext) -> Result<VerificationDecision, BrainError> {
         let verified = self.verification_policy.verify(context)?;
         let confidence_score = self.confidence_policy.calculate_confidence(context)?;
@@ -304,7 +307,10 @@ impl ExecutionStage for ReasoningStage {
         }
 
         let prompt = if let Some(ref fb) = state.feedback_prompt {
-            format!("Original Prompt: {}\nFeedback: {}\nCorrected Response:", ctx.prompt, fb)
+            format!(
+                "Original Prompt: {}\nFeedback: {}\nCorrected Response:",
+                ctx.prompt, fb
+            )
         } else {
             ctx.prompt.clone()
         };
@@ -398,10 +404,11 @@ impl ExecutionStage for ReflectionStage {
 
         let decision = ctx.reflection_engine.evaluate(&ref_ctx)?;
 
-        ctx.sink.emit(AgentExecutionEventPayload::ReflectionEvaluated {
-            session_id: ctx.session_id,
-            outcome: decision.outcome.clone(),
-        });
+        ctx.sink
+            .emit(AgentExecutionEventPayload::ReflectionEvaluated {
+                session_id: ctx.session_id,
+                outcome: decision.outcome.clone(),
+            });
 
         match decision.outcome {
             ReflectionOutcome::Accept => Ok(StageOutcome::Continue),
@@ -439,11 +446,12 @@ impl ExecutionStage for VerificationStage {
 
         let decision = ctx.verification_engine.evaluate(&ver_ctx)?;
 
-        ctx.sink.emit(AgentExecutionEventPayload::VerificationCompleted {
-            session_id: ctx.session_id,
-            outcome: decision.outcome.clone(),
-            confidence_score: decision.confidence_score,
-        });
+        ctx.sink
+            .emit(AgentExecutionEventPayload::VerificationCompleted {
+                session_id: ctx.session_id,
+                outcome: decision.outcome.clone(),
+                confidence_score: decision.confidence_score,
+            });
 
         match decision.outcome {
             VerificationOutcome::Passed => Ok(StageOutcome::Continue),
@@ -501,7 +509,10 @@ impl ExecutionRunner {
                     Some(n) => n,
                     None => {
                         return Err(BrainError::Validation {
-                            message: format!("Stage {:?} not found in graph during execution", exec_state.current_stage),
+                            message: format!(
+                                "Stage {:?} not found in graph during execution",
+                                exec_state.current_stage
+                            ),
                         });
                     }
                 };
@@ -528,12 +539,19 @@ impl ExecutionRunner {
 
                 // Increment retry counter ONLY on StageOutcome::Retry outcomes
                 if let StageOutcome::Retry { .. } = &outcome {
-                    let attempt_count = exec_state.attempts.entry(exec_state.current_stage).or_insert(0);
+                    let attempt_count = exec_state
+                        .attempts
+                        .entry(exec_state.current_stage)
+                        .or_insert(0);
                     *attempt_count += 1;
                 }
 
                 // Retrieve attempt count
-                let attempt_count = exec_state.attempts.get(&exec_state.current_stage).cloned().unwrap_or(0);
+                let attempt_count = exec_state
+                    .attempts
+                    .get(&exec_state.current_stage)
+                    .cloned()
+                    .unwrap_or(0);
 
                 // Evaluate policies in insertion order (short-circuiting on failure)
                 let policy_ctx = crate::agent::graph::PolicyContext {
@@ -544,7 +562,9 @@ impl ExecutionRunner {
                 };
 
                 for policy in &node.policies {
-                    if let crate::agent::graph::PolicyDecision::Fail { message } = policy.evaluate(&policy_ctx)? {
+                    if let crate::agent::graph::PolicyDecision::Fail { message } =
+                        policy.evaluate(&policy_ctx)?
+                    {
                         return Err(BrainError::Validation { message });
                     }
                 }
@@ -593,41 +613,64 @@ impl Default for ExecutionRunner {
     fn default() -> Self {
         let graph = crate::agent::graph::WorkflowGraphBuilder::new()
             .start_node(StageIdentifier::Planning)
-            .node(StageIdentifier::Planning, crate::agent::graph::WorkflowNode {
-                stage: Box::new(PlanningStage),
-                next_stage: Some(StageIdentifier::Retrieval),
-                policies: vec![],
-            })
-            .node(StageIdentifier::Retrieval, crate::agent::graph::WorkflowNode {
-                stage: Box::new(RetrievalStage),
-                next_stage: Some(StageIdentifier::ToolExecution),
-                policies: vec![],
-            })
-            .node(StageIdentifier::ToolExecution, crate::agent::graph::WorkflowNode {
-                stage: Box::new(ToolStage),
-                next_stage: Some(StageIdentifier::Reasoning),
-                policies: vec![],
-            })
-            .node(StageIdentifier::Reasoning, crate::agent::graph::WorkflowNode {
-                stage: Box::new(ReasoningStage),
-                next_stage: Some(StageIdentifier::Reflection),
-                policies: vec![],
-            })
-            .node(StageIdentifier::Reflection, crate::agent::graph::WorkflowNode {
-                stage: Box::new(ReflectionStage),
-                next_stage: Some(StageIdentifier::Verification),
-                policies: vec![Box::new(crate::agent::graph::RetryPolicy { max_attempts: 3 })],
-            })
-            .node(StageIdentifier::Verification, crate::agent::graph::WorkflowNode {
-                stage: Box::new(VerificationStage),
-                next_stage: Some(StageIdentifier::Commit),
-                policies: vec![],
-            })
-            .node(StageIdentifier::Commit, crate::agent::graph::WorkflowNode {
-                stage: Box::new(CommitStage),
-                next_stage: None,
-                policies: vec![],
-            })
+            .node(
+                StageIdentifier::Planning,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(PlanningStage),
+                    next_stage: Some(StageIdentifier::Retrieval),
+                    policies: vec![],
+                },
+            )
+            .node(
+                StageIdentifier::Retrieval,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(RetrievalStage),
+                    next_stage: Some(StageIdentifier::ToolExecution),
+                    policies: vec![],
+                },
+            )
+            .node(
+                StageIdentifier::ToolExecution,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(ToolStage),
+                    next_stage: Some(StageIdentifier::Reasoning),
+                    policies: vec![],
+                },
+            )
+            .node(
+                StageIdentifier::Reasoning,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(ReasoningStage),
+                    next_stage: Some(StageIdentifier::Reflection),
+                    policies: vec![],
+                },
+            )
+            .node(
+                StageIdentifier::Reflection,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(ReflectionStage),
+                    next_stage: Some(StageIdentifier::Verification),
+                    policies: vec![Box::new(crate::agent::graph::RetryPolicy {
+                        max_attempts: 3,
+                    })],
+                },
+            )
+            .node(
+                StageIdentifier::Verification,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(VerificationStage),
+                    next_stage: Some(StageIdentifier::Commit),
+                    policies: vec![],
+                },
+            )
+            .node(
+                StageIdentifier::Commit,
+                crate::agent::graph::WorkflowNode {
+                    stage: Box::new(CommitStage),
+                    next_stage: None,
+                    policies: vec![],
+                },
+            )
             .build()
             .expect("Default workflow graph should be valid");
         Self::new(graph)
@@ -686,7 +729,8 @@ impl AgentExecutionEngine {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let (result_tx, result_rx) = tokio::sync::oneshot::channel();
 
-        self.streaming_runtime.register(execution_id, rx, cancellation.clone());
+        self.streaming_runtime
+            .register(execution_id, rx, cancellation.clone());
 
         let sink = Arc::new(DefaultEventSink::new(execution_id, tx));
         let deadline = Some(Instant::now() + self.policy.timeout);
@@ -720,10 +764,11 @@ impl AgentExecutionEngine {
                 match &res {
                     Ok(result) => {
                         *final_status = ExecutionStatus::Succeeded;
-                        ctx.sink.emit(AgentExecutionEventPayload::ExecutionFinished {
-                            session_id: ctx.session_id,
-                            response: result.response_text().to_string(),
-                        });
+                        ctx.sink
+                            .emit(AgentExecutionEventPayload::ExecutionFinished {
+                                session_id: ctx.session_id,
+                                response: result.response_text().to_string(),
+                            });
                     }
                     Err(e) => {
                         *final_status = ExecutionStatus::Failed;
@@ -734,9 +779,10 @@ impl AgentExecutionEngine {
                     }
                 }
             } else if *final_status == ExecutionStatus::Cancelled {
-                ctx.sink.emit(AgentExecutionEventPayload::ExecutionCancelled {
-                    session_id: ctx.session_id,
-                });
+                ctx.sink
+                    .emit(AgentExecutionEventPayload::ExecutionCancelled {
+                        session_id: ctx.session_id,
+                    });
             }
 
             let _ = result_tx.send(res);

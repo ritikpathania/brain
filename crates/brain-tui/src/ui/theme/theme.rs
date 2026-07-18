@@ -1,9 +1,9 @@
 //! Active theme definitions.
 
-use ratatui::style::Style;
-use crate::ui::theme::token::ThemeToken;
 use crate::ui::theme::palette::Palette;
 use crate::ui::theme::style::ActiveTheme;
+use crate::ui::theme::token::ThemeToken;
+use ratatui::style::Style;
 
 /// Theme structure mapping semantic tokens and legacy fields to style values.
 pub struct Theme {
@@ -55,7 +55,7 @@ impl Theme {
         let success = Style::default().fg(palette.success);
         let warning = Style::default().fg(palette.warning);
         let error = Style::default().fg(palette.danger);
-        
+
         Self {
             primary,
             secondary: Style::default().fg(palette.secondary),
@@ -78,9 +78,13 @@ impl Theme {
             border_active: primary,
             inactive: Style::default().fg(palette.muted),
             text: Style::default().fg(ratatui::style::Color::White),
-            header: Style::default().fg(ratatui::style::Color::White).add_modifier(ratatui::style::Modifier::BOLD),
+            header: Style::default()
+                .fg(ratatui::style::Color::White)
+                .add_modifier(ratatui::style::Modifier::BOLD),
             status: Style::default().fg(palette.muted),
-            cursor: Style::default().bg(ratatui::style::Color::White).fg(ratatui::style::Color::Black),
+            cursor: Style::default()
+                .bg(ratatui::style::Color::White)
+                .fg(ratatui::style::Color::Black),
             error,
         }
     }

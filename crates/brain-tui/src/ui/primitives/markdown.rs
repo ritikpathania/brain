@@ -1,9 +1,9 @@
 //! Pre-tokenized Markdown AST renderer.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// Pre-tokenized AST structure node.
 pub enum MarkdownNode<'a> {

@@ -1,12 +1,12 @@
 //! Tab-based navigation Toolbar widget.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::RenderContext;
 use crate::ui::primitives::Badge;
+use crate::ui::render::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::{ToolbarView, MAX_TABS};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// Precomputed layout bounds for the Toolbar tab elements.
 pub struct ToolbarLayout {
@@ -45,11 +45,18 @@ impl<'a> BrainWidget for Toolbar<'a> {
     fn render<T: ActiveTheme>(&self, area: Rect, buf: &mut Buffer, ctx: &RenderContext<'_, T>) {
         let layout = ToolbarLayout::compute(area, self.view);
         let tab_areas = layout.tab_areas();
-        
+
         for idx in 0..tab_areas.len() {
             let tab = &self.view.tabs[idx];
-            let token = if tab.active { ThemeToken::Accent } else { ThemeToken::Muted };
-            let badge = Badge { label: tab.title, token };
+            let token = if tab.active {
+                ThemeToken::Accent
+            } else {
+                ThemeToken::Muted
+            };
+            let badge = Badge {
+                label: tab.title,
+                token,
+            };
             badge.draw(tab_areas[idx], buf, ctx);
         }
     }

@@ -13,7 +13,11 @@ impl RankingEngine {
     /// 2. Prefix Boost (+100) if the title starts with the query.
     /// 3. Word Boundary Boost (+50) if a word boundary in the title matches the query.
     /// 4. Kind Boost (+10 for Session, +5 for Command, +0 for Message).
-    pub fn rank(&self, query: &str, results: impl IntoIterator<Item = SearchResult>) -> Vec<SearchResult> {
+    pub fn rank(
+        &self,
+        query: &str,
+        results: impl IntoIterator<Item = SearchResult>,
+    ) -> Vec<SearchResult> {
         let trimmed_query = query.trim().to_lowercase();
         let mut scored_results = Vec::new();
 
@@ -38,7 +42,7 @@ impl RankingEngine {
             match res.kind {
                 SearchResultKind::Session => score += 10,
                 SearchResultKind::Command => score += 5,
-                SearchResultKind::Message => {},
+                SearchResultKind::Message => {}
             }
 
             scored_results.push((score, res));

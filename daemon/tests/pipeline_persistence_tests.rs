@@ -2,8 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
-use tokio::net::UnixStream;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixStream;
 
 fn get_temp_dir() -> PathBuf {
     let rand_val = uuid::Uuid::new_v4().to_string();
@@ -12,8 +12,14 @@ fn get_temp_dir() -> PathBuf {
     path
 }
 
-async fn send_command(socket_path: &PathBuf, action: &str, payload: &str) -> Vec<serde_json::Value> {
-    let stream = UnixStream::connect(socket_path).await.expect("Failed to connect to UDS socket");
+async fn send_command(
+    socket_path: &PathBuf,
+    action: &str,
+    payload: &str,
+) -> Vec<serde_json::Value> {
+    let stream = UnixStream::connect(socket_path)
+        .await
+        .expect("Failed to connect to UDS socket");
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
 
@@ -52,7 +58,11 @@ async fn send_command(socket_path: &PathBuf, action: &str, payload: &str) -> Vec
 async fn test_pipeline_ingest_consolidate_restart_persistence() {
     let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
-    let rand_val = uuid::Uuid::new_v4().to_string().chars().take(8).collect::<String>();
+    let rand_val = uuid::Uuid::new_v4()
+        .to_string()
+        .chars()
+        .take(8)
+        .collect::<String>();
     let socket_path = PathBuf::from(format!("/tmp/t-{}.sock", rand_val));
     let pid_path = test_dir.join("brain.pid");
     let db_path = test_dir.join("brain.db");
@@ -66,7 +76,10 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
-        .env("PYO3_PYTHON", std::env::var("PYO3_PYTHON").unwrap_or_default())
+        .env(
+            "PYO3_PYTHON",
+            std::env::var("PYO3_PYTHON").unwrap_or_default(),
+        )
         .env("BRAIN_HEALTH_PORT", "0")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -104,9 +117,21 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
 
     // 1. Ingest event
     println!("Ingesting test memory event...");
-    let ingest_responses = send_command(&socket_path, "ingest", "Antigravity is Google Deepmind's powerful coding assistant.").await;
-    assert!(!ingest_responses.is_empty(), "No response from daemon on ingest");
-    assert_eq!(ingest_responses[0].get("status").and_then(|s| s.as_str()), Some("ok"), "Ingest failed");
+    let ingest_responses = send_command(
+        &socket_path,
+        "ingest",
+        "Antigravity is Google Deepmind's powerful coding assistant.",
+    )
+    .await;
+    assert!(
+        !ingest_responses.is_empty(),
+        "No response from daemon on ingest"
+    );
+    assert_eq!(
+        ingest_responses[0].get("status").and_then(|s| s.as_str()),
+        Some("ok"),
+        "Ingest failed"
+    );
 
     // 2. Wait for background consolidation (ticks every 30 seconds)
     println!("Waiting 32 seconds for background consolidation tick...");
@@ -122,7 +147,10 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         }
     }
     println!("Query Output: {}", query_output);
-    assert!(query_output.to_lowercase().contains("antigravity"), "Memory node not found in LTM");
+    assert!(
+        query_output.to_lowercase().contains("antigravity"),
+        "Memory node not found in LTM"
+    );
 
     // 4. Terminate first daemon instance
     println!("Stopping daemon instance 1...");
@@ -150,7 +178,10 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
-        .env("PYO3_PYTHON", std::env::var("PYO3_PYTHON").unwrap_or_default())
+        .env(
+            "PYO3_PYTHON",
+            std::env::var("PYO3_PYTHON").unwrap_or_default(),
+        )
         .env("BRAIN_HEALTH_PORT", "0")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -196,7 +227,10 @@ async fn test_pipeline_ingest_consolidate_restart_persistence() {
         }
     }
     println!("Query Output after restart: {}", query_output2);
-    assert!(query_output2.to_lowercase().contains("antigravity"), "Memory node did not survive daemon restart!");
+    assert!(
+        query_output2.to_lowercase().contains("antigravity"),
+        "Memory node did not survive daemon restart!"
+    );
 
     // 7. Stop daemon 2
     println!("Stopping daemon instance 2...");

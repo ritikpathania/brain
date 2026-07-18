@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{HostContext, PluginLifecycle};
-use brain_domain::{Session, Node, NodeId, NodeType, PluginId, PluginState, SessionId};
+use brain_domain::{Node, NodeId, NodeType, PluginId, PluginState, Session, SessionId};
 use brain_plugins::{InstalledPlugin, LoaderKind};
 use brain_python::loader::PythonPluginLoader;
 

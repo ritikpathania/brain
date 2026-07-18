@@ -1,5 +1,5 @@
 use crate::retrieval::eval_harness::metrics::{
-    compute_mrr, compute_precision_at_k, compute_recall_at_k, compute_ndcg_at_k,
+    compute_mrr, compute_ndcg_at_k, compute_precision_at_k, compute_recall_at_k,
 };
 use crate::retrieval::eval_harness::{
     sort_results_deterministically, validate_corpus, GroundTruthCorpus, QueryCorpus,
@@ -201,7 +201,7 @@ pub fn run_benchmark(
 
     for query in &queries.queries {
         let truth = ground_truth.ground_truth.get(&query.query_id).unwrap();
-        
+
         let expected_node_ids = truth
             .expected_node_ids
             .iter()
@@ -340,10 +340,10 @@ pub fn run_benchmark(
     if !latencies.is_empty() {
         latencies.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         max = latencies[latencies.len() - 1];
-        
+
         let p50_idx = (0.50 * (latencies.len() - 1) as f64).round() as usize;
         p50 = latencies[p50_idx];
-        
+
         let p95_idx = (0.95 * (latencies.len() - 1) as f64).round() as usize;
         p95 = latencies[p95_idx];
     }

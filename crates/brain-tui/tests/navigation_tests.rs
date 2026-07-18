@@ -1,12 +1,12 @@
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers};
 use brain_tui::ui::focus::{FocusManager, FocusProfile, FocusScope};
+use brain_tui::ui::input::{Command, InputAction, InputRouter, TextInput};
 use brain_tui::ui::widgets::view_models::FocusTarget;
-use brain_tui::ui::input::{InputRouter, InputAction, Command, TextInput};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[test]
 fn test_focus_manager_cyclic_traversal() {
     let mut fm = FocusManager::new(FocusTarget::Sidebar, FocusProfile::Chat);
-    
+
     assert_eq!(fm.current(), FocusTarget::Sidebar);
     assert_eq!(fm.scope(), FocusScope::Screen);
 
@@ -24,7 +24,7 @@ fn test_focus_manager_cyclic_traversal() {
 #[test]
 fn test_focus_manager_traversal_inversion() {
     let mut fm = FocusManager::new(FocusTarget::Sidebar, FocusProfile::Chat);
-    
+
     // next then prev should be identity
     fm.next();
     fm.prev();
@@ -43,7 +43,7 @@ fn test_input_router_referential_transparency() {
     let key = KeyEvent::new(KeyCode::Tab, KeyModifiers::empty());
     let action1 = InputRouter::handle(key);
     let action2 = InputRouter::handle(key);
-    
+
     assert_eq!(action1, action2);
 }
 

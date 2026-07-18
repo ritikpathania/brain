@@ -1,10 +1,10 @@
 //! Transport-agnostic publisher interface and concrete system event bus mappings.
 
-use std::sync::Arc;
 use brain_core::errors::BrainError;
 use brain_domain::DomainEvent;
-use brain_events::{EventEnvelope, EventPublisher, EventLog};
+use brain_events::{EventEnvelope, EventLog, EventPublisher};
 use brain_storage::SqliteEventLog;
+use std::sync::Arc;
 
 /// Interface for publishing core domain events to downstream subscribers.
 pub trait DomainEventPublisher: Send + Sync {
@@ -47,10 +47,11 @@ impl SystemEventLog {
 
 impl EventLog for SystemEventLog {
     fn append(&self, envelope: &EventEnvelope) -> Result<u64, BrainError> {
-        let payload_json = serde_json::to_string(&envelope.payload).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize event payload: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let payload_json =
+            serde_json::to_string(&envelope.payload).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize event payload: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         // Extract topic as topic name for diagnostics
         let topic_str = match &envelope.payload {
@@ -74,14 +75,19 @@ impl EventLog for SystemEventLog {
         )
     }
 
-    fn read_from(&self, start_sequence: u64, limit: usize) -> Result<Vec<EventEnvelope>, BrainError> {
+    fn read_from(
+        &self,
+        start_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<EventEnvelope>, BrainError> {
         let stored = self.inner.read_from(start_sequence, limit)?;
         let mut results = Vec::new();
         for s in stored {
-            let payload: brain_events::DomainEvent = serde_json::from_str(&s.payload_json).map_err(|e| BrainError::Storage {
-                message: format!("Failed to deserialize event payload: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let payload: brain_events::DomainEvent = serde_json::from_str(&s.payload_json)
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize event payload: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
 
             results.push(EventEnvelope {
                 sequence: Some(s.sequence),
@@ -110,12 +116,12 @@ pub struct PersistentDomainEventPublisher {
 
 impl PersistentDomainEventPublisher {
     /// Creates a new `PersistentDomainEventPublisher` instance.
-    pub fn new(
-        event_log: Arc<dyn EventLog>,
-        bus: Arc<dyn EventPublisher>,
-        source: String,
-    ) -> Self {
-        Self { event_log, bus, source }
+    pub fn new(event_log: Arc<dyn EventLog>, bus: Arc<dyn EventPublisher>, source: String) -> Self {
+        Self {
+            event_log,
+            bus,
+            source,
+        }
     }
 }
 
@@ -134,7 +140,10 @@ impl DomainEventPublisher for PersistentDomainEventPublisher {
             }
             Err(e) => {
                 // Discard publication on storage failure to prevent partial state skew
-                tracing::error!("Event log persistence failed, skipping event publication: {:?}", e);
+                tracing::error!(
+                    "Event log persistence failed, skipping event publication: {:?}",
+                    e
+                );
             }
         }
     }

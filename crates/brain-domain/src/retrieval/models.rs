@@ -1,7 +1,7 @@
-use crate::identifiers::NodeId;
 use crate::entities::KnowledgeGraph;
-use crate::relations::RelationRegistry;
+use crate::identifiers::NodeId;
 use crate::query::analytics::GraphAnalyticsContext;
+use crate::relations::RelationRegistry;
 use crate::validation::ValidationReport;
 use std::collections::HashMap;
 
@@ -42,8 +42,6 @@ impl SnapshotId {
         self.0
     }
 }
-
-
 
 /// Immutable execution context containing all graph details, relationships, and validations.
 ///
@@ -321,7 +319,12 @@ impl CompilerPhase {
 
     /// Returns a list of all compiler phase variants.
     pub fn all_phases() -> &'static [Self] {
-        &[Self::Lexical, Self::Semantic, Self::Optimization, Self::Validation]
+        &[
+            Self::Lexical,
+            Self::Semantic,
+            Self::Optimization,
+            Self::Validation,
+        ]
     }
 }
 
@@ -471,7 +474,11 @@ pub struct EstimatedCost {
 impl EstimatedCost {
     /// Computes the overall consolidated sum of all cost components.
     pub fn total_cost(&self) -> f64 {
-        self.vector_cost + self.keyword_cost + self.expansion_cost + self.fusion_cost + self.ranking_cost
+        self.vector_cost
+            + self.keyword_cost
+            + self.expansion_cost
+            + self.fusion_cost
+            + self.ranking_cost
     }
 }
 
@@ -601,11 +608,29 @@ pub enum Evidence {
 impl PartialEq for Evidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::SemanticMatch { similarity: a }, Self::SemanticMatch { similarity: b }) => eq_f64(*a, *b),
-            (Self::GraphTraversal { depth: d1, from: f1 }, Self::GraphTraversal { depth: d2, from: f2 }) => d1 == d2 && f1 == f2,
-            (Self::KeywordHit { occurrences: o1 }, Self::KeywordHit { occurrences: o2 }) => o1 == o2,
-            (Self::FusionContribution { rrf_rank: r1 }, Self::FusionContribution { rrf_rank: r2 }) => r1 == r2,
-            (Self::RankingAdjustment { boost: b1 }, Self::RankingAdjustment { boost: b2 }) => eq_f64(*b1, *b2),
+            (Self::SemanticMatch { similarity: a }, Self::SemanticMatch { similarity: b }) => {
+                eq_f64(*a, *b)
+            }
+            (
+                Self::GraphTraversal {
+                    depth: d1,
+                    from: f1,
+                },
+                Self::GraphTraversal {
+                    depth: d2,
+                    from: f2,
+                },
+            ) => d1 == d2 && f1 == f2,
+            (Self::KeywordHit { occurrences: o1 }, Self::KeywordHit { occurrences: o2 }) => {
+                o1 == o2
+            }
+            (
+                Self::FusionContribution { rrf_rank: r1 },
+                Self::FusionContribution { rrf_rank: r2 },
+            ) => r1 == r2,
+            (Self::RankingAdjustment { boost: b1 }, Self::RankingAdjustment { boost: b2 }) => {
+                eq_f64(*b1, *b2)
+            }
             (
                 Self::TemporalVisibility {
                     observed_at: o1,
@@ -854,7 +879,11 @@ impl RankingWeight {
             return Err(crate::consolidation::MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 {
-            return Err(crate::consolidation::MetricConstructionError::OutOfRange { val, min: 0.0, max: f64::MAX });
+            return Err(crate::consolidation::MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: f64::MAX,
+            });
         }
         Ok(Self(val))
     }
@@ -884,7 +913,11 @@ impl NormalizedSignal {
             return Err(crate::consolidation::MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 || val > 1.0 {
-            return Err(crate::consolidation::MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+            return Err(crate::consolidation::MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         Ok(Self(val))
     }
@@ -904,7 +937,9 @@ impl std::hash::Hash for NormalizedSignal {
 impl Eq for NormalizedSignal {}
 
 /// Monotonically incrementing snapshot identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct SnapshotVersion(u64);
 
 impl SnapshotVersion {
@@ -1093,7 +1128,9 @@ impl RankingSignals {
 }
 
 /// Version tag for calibration policies.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct CalibrationPolicyVersion(u32);
 
 impl CalibrationPolicyVersion {
@@ -1305,7 +1342,12 @@ impl CompiledDecisionTree {
     fn evaluate_node(node: &DecisionTreeNode, signals: &RankingSignals) -> f64 {
         match node {
             DecisionTreeNode::Leaf { score } => score.value(),
-            DecisionTreeNode::Split { feature, threshold, left, right } => {
+            DecisionTreeNode::Split {
+                feature,
+                threshold,
+                left,
+                right,
+            } => {
                 let val = match feature {
                     FeatureId::Semantic => signals.semantic.value(),
                     FeatureId::GraphCentrality => signals.graph.value(),
@@ -1321,10 +1363,19 @@ impl CompiledDecisionTree {
         }
     }
 
-    fn evaluate_node_with_path(node: &DecisionTreeNode, signals: &RankingSignals, path: &mut Vec<FeatureId>) -> f64 {
+    fn evaluate_node_with_path(
+        node: &DecisionTreeNode,
+        signals: &RankingSignals,
+        path: &mut Vec<FeatureId>,
+    ) -> f64 {
         match node {
             DecisionTreeNode::Leaf { score } => score.value(),
-            DecisionTreeNode::Split { feature, threshold, left, right } => {
+            DecisionTreeNode::Split {
+                feature,
+                threshold,
+                left,
+                right,
+            } => {
                 path.push(*feature);
                 let val = match feature {
                     FeatureId::Semantic => signals.semantic.value(),
@@ -1353,7 +1404,10 @@ impl DecisionTreeRankingModel {
     /// Creates a new `DecisionTreeRankingModel`.
     pub fn new(definition: DecisionTreeDefinition) -> Self {
         let compiled = DecisionTreeCompiler::compile(&definition);
-        Self { definition, compiled }
+        Self {
+            definition,
+            compiled,
+        }
     }
 
     /// Access the underlying immutable definition.
@@ -1376,6 +1430,3 @@ impl RankingModel for DecisionTreeRankingModel {
         self.compiled.evaluate(signals)
     }
 }
-
-
-

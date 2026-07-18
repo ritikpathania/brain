@@ -1,10 +1,12 @@
-use std::sync::{Arc, Mutex};
+use crate::event_dispatcher::InMemoryEventDispatcher;
 use brain_core::{
-    events::{CorrelationId, EventSource, ProjectionInstanceInvalidatedEvent, RuntimeEventDispatcher},
-    projection::{Projector, ProjectionContext, ProjectionQuery}
+    events::{
+        CorrelationId, EventSource, ProjectionInstanceInvalidatedEvent, RuntimeEventDispatcher,
+    },
+    projection::{ProjectionContext, ProjectionQuery, Projector},
 };
 use brain_domain::{EpochId, KnowledgeGraph};
-use crate::event_dispatcher::InMemoryEventDispatcher;
+use std::sync::{Arc, Mutex};
 
 /// Coordinator of projectors that provides direct on-demand projection building and invalidation dispatching.
 pub struct ProjectionManager {
@@ -52,11 +54,12 @@ impl ProjectionManager {
         let epoch_lock = self.epoch.lock().unwrap();
         let current_epoch = *epoch_lock;
 
-        self.event_dispatcher.dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
-            projection_type,
-            epoch: current_epoch,
-            source: EventSource::Projection,
-            correlation_id,
-        }));
+        self.event_dispatcher
+            .dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
+                projection_type,
+                epoch: current_epoch,
+                source: EventSource::Projection,
+                correlation_id,
+            }));
     }
 }

@@ -1,12 +1,14 @@
-use std::sync::Arc;
-use futures_util::future::BoxFuture;
-use brain_application::{BrainApplication, ExecutionContext, ApplicationError, IngestionResponse};
-use brain_integrations::IngestionEnvelope;
-use brain_services::query::{SearchQuery, SearchSummary};
 use brain_adapter_core::Capability;
+use brain_application::{ApplicationError, BrainApplication, ExecutionContext, IngestionResponse};
+use brain_integrations::IngestionEnvelope;
+use brain_application::dto::v1::SearchSummary;
+use brain_services::query::SearchQuery;
+use futures_util::future::BoxFuture;
+use std::sync::Arc;
 
 /// Type alias for the Brain Capability Registry.
-pub type CapabilityRegistry = brain_adapter_core::CapabilityRegistry<BrainApplication, ExecutionContext, ApplicationError>;
+pub type CapabilityRegistry =
+    brain_adapter_core::CapabilityRegistry<BrainApplication, ExecutionContext, ApplicationError>;
 /// Type alias for ACP capability registry compatibility.
 pub type CapabilityExposureRegistry = CapabilityRegistry;
 

@@ -1,6 +1,6 @@
-use std::sync::{Arc, RwLock};
 use brain_core::errors::BrainError;
 use brain_domain::retrieval::models::WeightSnapshot;
+use std::sync::{Arc, RwLock};
 
 /// Provides thread-safe access to the currently active weight snapshot.
 pub trait ActiveWeightProvider: Send + Sync {

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::bkf::lifecycle::{KnowledgeLifecycle, KnowledgeValidity, KnowledgeVersionState};
+use serde::{Deserialize, Serialize};
 
 /// Node element in the KPP intermediate representation graph.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,4 +68,3 @@ impl CompiledKnowledge {
         }
     }
 }
-

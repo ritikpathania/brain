@@ -1,12 +1,10 @@
-use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, List, ListItem};
-use ratatui::text::{Line, Span};
-use ratatui::style::{Style, Modifier, Color};
-use ratatui::Frame;
+use crate::ui::interaction::markdown::{SelectionState, VisualLine, VisualSpan, VisualStyle};
 use crate::ui::theme::Theme;
-use crate::ui::interaction::markdown::{
-    VisualSpan, VisualStyle, SelectionState, VisualLine
-};
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::Frame;
 
 /// Individual visual line element carrying slicing details.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,20 +46,23 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
             } else {
                 theme.accent.add_modifier(Modifier::BOLD)
             };
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled(format!("{}:", sender), sender_style)
-            ])));
+            items.push(ListItem::new(Line::from(vec![Span::styled(
+                format!("{}:", sender),
+                sender_style,
+            )])));
         } else {
-            let spans: Vec<Span> = visible.line.spans.iter().map(|span| {
-                map_span(span, theme, is_sel)
-            }).collect();
+            let spans: Vec<Span> = visible
+                .line
+                .spans
+                .iter()
+                .map(|span| map_span(span, theme, is_sel))
+                .collect();
             items.push(ListItem::new(Line::from(spans)));
         }
         line_idx += 1;
     }
 
-    let list = List::new(items)
-        .block(block);
+    let list = List::new(items).block(block);
 
     f.render_widget(list, area);
 }
@@ -71,13 +72,19 @@ fn map_span<'a>(span: &VisualSpan, theme: &Theme, is_selected: bool) -> Span<'a>
 
     match span.style {
         VisualStyle::Heading1 => {
-            style = style.fg(theme.accent.fg.unwrap_or(Color::Cyan)).add_modifier(Modifier::BOLD);
+            style = style
+                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
+                .add_modifier(Modifier::BOLD);
         }
         VisualStyle::Heading2 => {
-            style = style.fg(theme.accent.fg.unwrap_or(Color::Cyan)).add_modifier(Modifier::BOLD);
+            style = style
+                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
+                .add_modifier(Modifier::BOLD);
         }
         VisualStyle::Heading3 => {
-            style = style.fg(theme.accent.fg.unwrap_or(Color::Cyan)).add_modifier(Modifier::BOLD);
+            style = style
+                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
+                .add_modifier(Modifier::BOLD);
         }
         VisualStyle::Bold => {
             style = style.add_modifier(Modifier::BOLD);
@@ -107,7 +114,9 @@ fn map_span<'a>(span: &VisualSpan, theme: &Theme, is_selected: bool) -> Span<'a>
             style = style.bg(Color::LightBlue).fg(Color::Black);
         }
         VisualStyle::EntityReference(_) => {
-            style = style.fg(theme.accent.fg.unwrap_or(Color::Cyan)).add_modifier(Modifier::UNDERLINED);
+            style = style
+                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
+                .add_modifier(Modifier::UNDERLINED);
         }
         VisualStyle::Normal => {
             style = theme.text;

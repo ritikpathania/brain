@@ -1,12 +1,12 @@
 //! CommandHint suggestion popup helper.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::{RenderContext, BorderRenderer};
 use crate::ui::primitives::Label;
+use crate::ui::render::{BorderRenderer, RenderContext};
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::CommandHintView;
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// Precomputed layout bounds for the CommandHint suggestions.
 pub struct CommandHintLayout {
@@ -26,11 +26,15 @@ impl CommandHintLayout {
         } else {
             Rect::new(area.x, area.y, 0, 0)
         };
-        
+
         let command_area = Rect::new(inner_area.x, inner_area.y, inner_area.width, 1);
         let usage_area = Rect::new(inner_area.x, inner_area.y + 1, inner_area.width, 1);
-        
-        Self { inner_area, command_area, usage_area }
+
+        Self {
+            inner_area,
+            command_area,
+            usage_area,
+        }
     }
 }
 
@@ -45,15 +49,21 @@ impl<'a> BrainWidget for CommandHint<'a> {
         let layout = CommandHintLayout::compute(area);
         let block = BorderRenderer::rounded("Suggestion", ctx);
         ratatui::widgets::Widget::render(block, area, buf);
-        
+
         if layout.inner_area.width == 0 {
             return;
         }
 
-        let label_cmd = Label { text: self.view.command, token: ThemeToken::Primary };
+        let label_cmd = Label {
+            text: self.view.command,
+            token: ThemeToken::Primary,
+        };
         label_cmd.draw(layout.command_area, buf, ctx);
-        
-        let label_usage = Label { text: self.view.usage, token: ThemeToken::Muted };
+
+        let label_usage = Label {
+            text: self.view.usage,
+            token: ThemeToken::Muted,
+        };
         label_usage.draw(layout.usage_area, buf, ctx);
     }
 }

@@ -1,17 +1,17 @@
 //! Stateful projection engine managing catch-up, checkpoints, and rebuild reduction loops.
 
-/// The projection runner execution logic.
-pub mod runner;
-/// The reducer registry.
-pub mod registry;
 /// Background job state reducers.
 pub mod jobs;
-/// Session state reducers.
-pub mod sessions;
-/// Search indexing state reducers.
-pub mod search;
 /// Best-effort advance notifications and bus.
 pub mod notification;
+/// The reducer registry.
+pub mod registry;
+/// The projection runner execution logic.
+pub mod runner;
+/// Search indexing state reducers.
+pub mod search;
+/// Session state reducers.
+pub mod sessions;
 
 use brain_core::errors::BrainError;
 use brain_events::EventEnvelope;
@@ -28,8 +28,8 @@ pub trait StateReducer: Send {
     fn reset(&mut self) -> Result<(), BrainError>;
 }
 
-pub use runner::ProjectionRunner;
-pub use registry::ReducerRegistry;
 pub use jobs::JobProjectionReducer;
-pub use sessions::SessionProjectionReducer;
+pub use registry::ReducerRegistry;
+pub use runner::ProjectionRunner;
 pub use search::SearchProjectionReducer;
+pub use sessions::SessionProjectionReducer;

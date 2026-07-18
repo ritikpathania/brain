@@ -1,10 +1,10 @@
+use crate::jobs::publisher::DomainEventPublisher;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::services::SessionService;
-use brain_domain::{Session, SessionTitle, SessionTimestamp, Node, SessionId};
+use brain_domain::{Node, Session, SessionId, SessionTimestamp, SessionTitle};
 use brain_session::SessionCacheManager;
 use std::sync::Arc;
-use crate::jobs::publisher::DomainEventPublisher;
 
 /// Concrete implementation of SessionService orchestrating persistence and volatile cache.
 pub struct SessionServiceImpl {
@@ -35,7 +35,7 @@ impl SessionService for SessionServiceImpl {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         let mut session = Session::new(
             session_id,
@@ -124,7 +124,7 @@ impl SessionService for SessionServiceImpl {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         session.rename(SessionTitle(title.to_string()), timestamp);
         self.save_session(id, &mut session)?;
@@ -137,7 +137,7 @@ impl SessionService for SessionServiceImpl {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         session.set_pinned(pinned, timestamp);
         self.save_session(id, &mut session)?;
@@ -150,7 +150,7 @@ impl SessionService for SessionServiceImpl {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         session.archive(timestamp)?;
         self.save_session(id, &mut session)?;
@@ -163,7 +163,7 @@ impl SessionService for SessionServiceImpl {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs()
+                .as_secs(),
         );
         session.restore(timestamp)?;
         self.save_session(id, &mut session)?;

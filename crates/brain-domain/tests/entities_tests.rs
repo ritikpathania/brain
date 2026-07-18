@@ -10,8 +10,10 @@ fn test_edge_strengthen_and_decay() {
     let res = edge.strengthen();
     assert!(res.is_ok());
     let event = res.unwrap();
-    assert!(matches!(event, DomainEvent::RelationshipStrengthened { source: ref s, target: ref t, relation: ref r, new_weight } 
-        if s == &edge.source.to_string() && t == &edge.target.to_string() && r == "associated_with" && (new_weight - 0.6).abs() < 1e-9));
+    assert!(
+        matches!(event, DomainEvent::RelationshipStrengthened { source: ref s, target: ref t, relation: ref r, new_weight } 
+        if s == &edge.source.to_string() && t == &edge.target.to_string() && r == "associated_with" && (new_weight - 0.6).abs() < 1e-9)
+    );
     assert!((edge.weight - 0.6).abs() < 1e-9);
 
     // Test strengthen capped at 1.0
@@ -53,13 +55,15 @@ fn test_session_archiving() {
     // Archive it
     let res = session.archive(SessionTimestamp(10));
     assert!(res.is_ok());
-    
+
     // Check events
     let events: Vec<_> = session.drain_events().collect();
     // 0 is SessionCreated, 1 is MessageAdded, 2 is SessionArchived
     assert_eq!(events.len(), 3);
-    assert!(matches!(events[2], DomainEvent::SessionArchived { session_id, updated_at }
-        if session_id == id && updated_at == SessionTimestamp(10)));
+    assert!(
+        matches!(events[2], DomainEvent::SessionArchived { session_id, updated_at }
+        if session_id == id && updated_at == SessionTimestamp(10))
+    );
     assert!(session.archived);
 
     // Archiving again should err
@@ -106,8 +110,10 @@ fn test_knowledge_graph_invariants() {
     let res = kg.strengthen_relationship(node1.id, node2.id, RelationId::new("associated_with"));
     assert!(res.is_ok());
     let event = res.unwrap();
-    assert!(matches!(event, DomainEvent::RelationshipStrengthened { ref source, ref target, ref relation, new_weight }
-        if source == &node1.id.to_string() && target == &node2.id.to_string() && relation == "associated_with" && (new_weight - 0.6).abs() < 1e-9));
+    assert!(
+        matches!(event, DomainEvent::RelationshipStrengthened { ref source, ref target, ref relation, new_weight }
+        if source == &node1.id.to_string() && target == &node2.id.to_string() && relation == "associated_with" && (new_weight - 0.6).abs() < 1e-9)
+    );
 
     let edge_id = EdgeId::new(node1.id, node2.id, RelationId::new("associated_with"));
     assert!((kg.edges.get(&edge_id).unwrap().weight - 0.6).abs() < 1e-9);
@@ -127,16 +133,25 @@ fn test_session_goals() {
 
     // Add goal
     let goal_id = GoalId::new();
-    let goal = Goal { id: goal_id, text: "Study Rust".to_string() };
+    let goal = Goal {
+        id: goal_id,
+        text: "Study Rust".to_string(),
+    };
     assert!(session.add_goal(goal.clone()).is_ok());
     assert_eq!(session.goals, vec![goal]);
 
     // Empty goal should err
-    let empty_goal = Goal { id: GoalId::new(), text: "   ".to_string() };
+    let empty_goal = Goal {
+        id: GoalId::new(),
+        text: "   ".to_string(),
+    };
     assert!(session.add_goal(empty_goal).is_err());
 
     // Duplicate goal should err
-    let dup_goal = Goal { id: GoalId::new(), text: "Study Rust".to_string() };
+    let dup_goal = Goal {
+        id: GoalId::new(),
+        text: "Study Rust".to_string(),
+    };
     assert!(session.add_goal(dup_goal).is_err());
 
     // Remove goal
@@ -255,16 +270,30 @@ fn test_alias_equivalency() {
     let node_other_id = NodeId::new();
     let node_other = Node::new(node_other_id, "NodeOther".to_string(), NodeType::Concept);
 
-    let mut builder_pgsql = GraphBuilder::new(&registry).with_canonicalizer(canonicalizer.clone())
-        .add_node(Node::new(NodeId::new(), "pgsql".to_string(), NodeType::Concept))
+    let mut builder_pgsql = GraphBuilder::new(&registry)
+        .with_canonicalizer(canonicalizer.clone())
+        .add_node(Node::new(
+            NodeId::new(),
+            "pgsql".to_string(),
+            NodeType::Concept,
+        ))
         .add_node(node_other.clone());
-    builder_pgsql = builder_pgsql.add_edge(canonical_id, node_other_id, RelationKind::Uses, 1.0).unwrap();
+    builder_pgsql = builder_pgsql
+        .add_edge(canonical_id, node_other_id, RelationKind::Uses, 1.0)
+        .unwrap();
     let graph_pgsql = builder_pgsql.build();
 
-    let mut builder_psql = GraphBuilder::new(&registry).with_canonicalizer(canonicalizer.clone())
-        .add_node(Node::new(NodeId::new(), "postgresql".to_string(), NodeType::Concept))
+    let mut builder_psql = GraphBuilder::new(&registry)
+        .with_canonicalizer(canonicalizer.clone())
+        .add_node(Node::new(
+            NodeId::new(),
+            "postgresql".to_string(),
+            NodeType::Concept,
+        ))
         .add_node(node_other.clone());
-    builder_psql = builder_psql.add_edge(canonical_id, node_other_id, RelationKind::Uses, 1.0).unwrap();
+    builder_psql = builder_psql
+        .add_edge(canonical_id, node_other_id, RelationKind::Uses, 1.0)
+        .unwrap();
     let graph_psql = builder_psql.build();
 
     assert_eq!(graph_pgsql.nodes.len(), 2);
@@ -275,11 +304,9 @@ fn test_alias_equivalency() {
     let edge_id = EdgeId::new(canonical_id, node_other_id, RelationKind::Uses.id());
     let edge_pgsql = graph_pgsql.edges.get(&edge_id).unwrap();
     let edge_psql = graph_psql.edges.get(&edge_id).unwrap();
-    
+
     assert_eq!(edge_pgsql.source, edge_psql.source);
     assert_eq!(edge_pgsql.target, edge_psql.target);
     assert_eq!(edge_pgsql.relation, edge_psql.relation);
     assert_eq!(edge_pgsql.weight, edge_psql.weight);
 }
-
-

@@ -1,10 +1,12 @@
-use std::sync::Arc;
-use brain_core::errors::BrainError;
-use brain_domain::jobs::{JobId, JobKind, JobOwner, JobState, JobPriority, JobProgress, JobTimestamp, JobFailureReason};
-use brain_storage::{SqliteJobReadModelRepository, JobReadModel};
-use crate::query::dto::{JobSummary, JobDetails};
+use crate::query::dto::{JobDetails, JobSummary};
 use crate::query::filters::JobQuery;
 use crate::query::traits::JobQueryService;
+use brain_core::errors::BrainError;
+use brain_domain::jobs::{
+    JobFailureReason, JobId, JobKind, JobOwner, JobPriority, JobProgress, JobState, JobTimestamp,
+};
+use brain_storage::{JobReadModel, SqliteJobReadModelRepository};
+use std::sync::Arc;
 
 /// Concrete implementation of `JobQueryService` backing by Sqlite projection read models.
 pub struct SqliteJobQueryService {
@@ -20,8 +22,8 @@ impl SqliteJobQueryService {
 
 // Module-local mapper functions to map database projection models to Query DTOs.
 fn map_to_summary(row: JobReadModel) -> Result<JobSummary, BrainError> {
-    let kind: JobKind = serde_json::from_str(&format!("\"{}\"", row.kind))
-        .map_err(|e| BrainError::Storage {
+    let kind: JobKind =
+        serde_json::from_str(&format!("\"{}\"", row.kind)).map_err(|e| BrainError::Storage {
             message: format!("Failed to deserialize job kind: {}", e),
             source: Some(Box::new(e)),
         })?;
@@ -33,11 +35,10 @@ fn map_to_summary(row: JobReadModel) -> Result<JobSummary, BrainError> {
             username: username.to_string(),
         }
     } else if let Some(session_str) = row.owner.strip_prefix("session:") {
-        let ulid = ulid::Ulid::from_string(session_str)
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to parse session ID in job owner: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+        let ulid = ulid::Ulid::from_string(session_str).map_err(|e| BrainError::Storage {
+            message: format!("Failed to parse session ID in job owner: {}", e),
+            source: Some(Box::new(e)),
+        })?;
         JobOwner::Session {
             session_id: brain_domain::SessionId(ulid),
         }
@@ -48,8 +49,8 @@ fn map_to_summary(row: JobReadModel) -> Result<JobSummary, BrainError> {
         });
     };
 
-    let state: JobState = serde_json::from_str(&format!("\"{}\"", row.state))
-        .map_err(|e| BrainError::Storage {
+    let state: JobState =
+        serde_json::from_str(&format!("\"{}\"", row.state)).map_err(|e| BrainError::Storage {
             message: format!("Failed to deserialize job state: {}", e),
             source: Some(Box::new(e)),
         })?;
@@ -119,12 +120,9 @@ impl JobQueryService for SqliteJobQueryService {
             None => (None, None),
         };
 
-        let rows = self.repo.query(
-            owner_str.as_deref(),
-            state_str.as_deref(),
-            limit,
-            offset,
-        )?;
+        let rows = self
+            .repo
+            .query(owner_str.as_deref(), state_str.as_deref(), limit, offset)?;
 
         let mut summaries = Vec::new();
         for row in rows {

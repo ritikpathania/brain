@@ -1,5 +1,5 @@
-use brain_domain::SessionId;
 use crate::ui::interaction::MessageId;
+use brain_domain::SessionId;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::{Instant, SystemTime};
@@ -109,7 +109,6 @@ impl PartialEq for SessionLoadState {
 
 impl Eq for SessionLoadState {}
 
-
 /// Client-facing presentation view model representing a session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SessionViewModel {
@@ -128,7 +127,6 @@ pub struct SessionViewModel {
     /// Whether the session is archived.
     pub archived: bool,
 }
-
 
 /// Semantic outcome of a typewriter queue tick drain cycle.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -267,7 +265,9 @@ pub struct IncrementalTokenizer {
 impl IncrementalTokenizer {
     /// Creates a new `IncrementalTokenizer`.
     pub fn new() -> Self {
-        Self { buffer: String::new() }
+        Self {
+            buffer: String::new(),
+        }
     }
 
     /// Processes raw chunks, buffering split segments and returning completed semantic tokens.
@@ -276,11 +276,12 @@ impl IncrementalTokenizer {
         let mut tokens = Vec::new();
 
         if self.buffer.contains(|c: char| c.is_whitespace()) {
-            let mut parts: Vec<String> = self.buffer
+            let mut parts: Vec<String> = self
+                .buffer
                 .split_inclusive(|c: char| c.is_whitespace())
                 .map(|s| s.to_string())
                 .collect();
-            
+
             self.buffer.clear();
             if let Some(last) = parts.last() {
                 if !last.ends_with(|c: char| c.is_whitespace()) {
@@ -619,15 +620,27 @@ pub struct UiState {
     /// FIFO queue of pending tool execution approvals.
     pub pending_approvals: Vec<crate::ui::command::tool::ToolApproval>,
     /// Mapping from message ID to permanently completed tool executions.
-    pub message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
+    pub message_tool_calls: std::collections::HashMap<
+        crate::ui::interaction::MessageId,
+        Vec<crate::ui::command::tool::ToolExecution>,
+    >,
     /// View state for conversation scroll and select.
     pub conversation_view: crate::ui::interaction::navigation::ConversationViewState,
     /// Retrieval metadata objects by ID.
-    pub retrievals: std::collections::HashMap<brain_domain::bkf::retrieval::RetrievalId, brain_domain::bkf::retrieval::RetrievalInfo>,
+    pub retrievals: std::collections::HashMap<
+        brain_domain::bkf::retrieval::RetrievalId,
+        brain_domain::bkf::retrieval::RetrievalInfo,
+    >,
     /// Mapping from message ID to context retrievals.
-    pub message_retrievals: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<brain_domain::bkf::retrieval::RetrievalId>>,
+    pub message_retrievals: std::collections::HashMap<
+        crate::ui::interaction::MessageId,
+        Vec<brain_domain::bkf::retrieval::RetrievalId>,
+    >,
     /// Chronological list of events in the session.
-    pub timeline: Vec<(crate::ui::interaction::timeline::EventOrdinal, crate::ui::interaction::timeline::TimelineItem)>,
+    pub timeline: Vec<(
+        crate::ui::interaction::timeline::EventOrdinal,
+        crate::ui::interaction::timeline::TimelineItem,
+    )>,
     /// Next monotonic EventOrdinal index.
     pub next_ordinal: u64,
     /// Toggle state for showing/hiding reflection logs.
@@ -651,8 +664,6 @@ pub struct TimelineBlock {
     /// Chronological list of visual lines wrapped to the column width.
     pub visual_lines: Vec<crate::ui::interaction::markdown::VisualLine>,
 }
-
-
 
 /// Structured user action triggering pure state transitions.
 pub enum Action {
@@ -984,14 +995,16 @@ impl UiState {
     }
 
     /// Mutable accessor for SlashCompletionState.
-    pub fn slash_completion_mut(&mut self) -> &mut crate::ui::command::completion::SlashCompletionState {
+    pub fn slash_completion_mut(
+        &mut self,
+    ) -> &mut crate::ui::command::completion::SlashCompletionState {
         &mut self.slash_completion
     }
 
-
     /// Returns the filtered and sorted list of sessions that are visible in the sidebar.
     pub fn visible_sessions(&self) -> Vec<SessionViewModel> {
-        let mut filtered: Vec<SessionViewModel> = self.sessions
+        let mut filtered: Vec<SessionViewModel> = self
+            .sessions
             .iter()
             .filter(|s| {
                 // Filter by active/archived state
@@ -1017,7 +1030,8 @@ impl UiState {
         // 1. Pinned sessions first (if filter is Active), sorted by updated_at descending
         // 2. Unpinned sessions next, sorted by updated_at descending
         filtered.sort_by(|a, b| {
-            if self.sidebar.browse.filter == crate::ui::interaction::sidebar::SessionFilter::Active {
+            if self.sidebar.browse.filter == crate::ui::interaction::sidebar::SessionFilter::Active
+            {
                 match (a.pinned, b.pinned) {
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
@@ -1133,7 +1147,7 @@ impl UiState {
                     self.active_response = String::new();
                     self.active_response_revision += 1;
                     self.typewriter.clear();
-                    
+
                     // Save User message to active session
                     let user_msg = brain_domain::Message::new(
                         brain_domain::MessageId::new(),
@@ -1141,9 +1155,13 @@ impl UiState {
                         prompt.clone(),
                     );
                     self.active_messages.push(user_msg.clone());
-                    self.session_histories.entry(self.session_id).or_default().push(user_msg);
+                    self.session_histories
+                        .entry(self.session_id)
+                        .or_default()
+                        .push(user_msg);
 
-                    let user_msg_id = crate::ui::interaction::MessageId(self.active_messages.len() as u64);
+                    let user_msg_id =
+                        crate::ui::interaction::MessageId(self.active_messages.len() as u64);
                     self.timeline.push((
                         crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
                         crate::ui::interaction::timeline::TimelineItem::Message(user_msg_id),
@@ -1157,13 +1175,19 @@ impl UiState {
                             new_title.truncate(idx);
                         }
                         if new_title.chars().count() > 25 {
-                            let char_idx = new_title.char_indices().nth(25).map(|(i, _)| i).unwrap_or(25);
+                            let char_idx = new_title
+                                .char_indices()
+                                .nth(25)
+                                .map(|(i, _)| i)
+                                .unwrap_or(25);
                             new_title.truncate(char_idx);
                             new_title.push_str("...");
                         }
                         if !new_title.is_empty() {
                             self.session_title = new_title.clone();
-                            if let Some(idx) = self.sessions.iter().position(|s| s.id == self.session_id) {
+                            if let Some(idx) =
+                                self.sessions.iter().position(|s| s.id == self.session_id)
+                            {
                                 self.sessions[idx].title = new_title;
                             }
                         }
@@ -1325,13 +1349,20 @@ impl UiState {
                     UpdateResult::NoChange
                 }
             }
-            Action::ActivateSession { session_id, request_id } => {
+            Action::ActivateSession {
+                session_id,
+                request_id,
+            } => {
                 // Save current messages to histories first (Session Boundary Sync)
-                self.session_histories.insert(self.session_id, self.active_messages.clone());
+                self.session_histories
+                    .insert(self.session_id, self.active_messages.clone());
 
-                self.pending_load = Some(PendingLoad { session_id, request_id });
+                self.pending_load = Some(PendingLoad {
+                    session_id,
+                    request_id,
+                });
                 self.session_load_state = SessionLoadState::Loading;
-                
+
                 // If we already have the history in-memory, load it immediately for snappy switching.
                 if let Some(messages) = self.session_histories.get(&session_id).cloned() {
                     self.session_id = session_id;
@@ -1342,7 +1373,8 @@ impl UiState {
                         self.session_title = self.sessions[idx].title.clone();
                     }
                     self.active_messages = messages;
-                    self.session_load_state = SessionLoadState::Loaded(self.active_messages.clone());
+                    self.session_load_state =
+                        SessionLoadState::Loaded(self.active_messages.clone());
                     self.active_tool_calls.clear();
                     self.pending_approvals.clear();
                     self.message_tool_calls.clear();
@@ -1369,7 +1401,11 @@ impl UiState {
                 }
                 UpdateResult::Changed
             }
-            Action::SessionLoaded { session_id, request_id, messages } => {
+            Action::SessionLoaded {
+                session_id,
+                request_id,
+                messages,
+            } => {
                 if let Some(ref pending) = self.pending_load {
                     if pending.request_id == request_id {
                         debug_assert_eq!(pending.session_id, session_id);
@@ -1406,7 +1442,11 @@ impl UiState {
                 }
                 UpdateResult::NoChange
             }
-            Action::SessionLoadFailed { session_id, request_id, error } => {
+            Action::SessionLoadFailed {
+                session_id,
+                request_id,
+                error,
+            } => {
                 if let Some(ref pending) = self.pending_load {
                     if pending.request_id == request_id {
                         debug_assert_eq!(pending.session_id, session_id);
@@ -1425,7 +1465,8 @@ impl UiState {
             }
             Action::NewSession => {
                 // Save current messages to histories first (Session Boundary Sync)
-                self.session_histories.insert(self.session_id, self.active_messages.clone());
+                self.session_histories
+                    .insert(self.session_id, self.active_messages.clone());
 
                 let new_id = SessionId::new();
                 let new_sess = SessionViewModel {
@@ -1437,18 +1478,18 @@ impl UiState {
                     pinned: false,
                     archived: false,
                 };
-                
+
                 // Deactivate other sessions
                 for s in &mut self.sessions {
                     s.active = false;
                 }
-                
+
                 // Add and activate new session
                 self.sessions.insert(0, new_sess);
                 self.session_id = new_id;
                 self.session_title = "New Conversation".to_string();
                 self.selected_session_idx = 0;
-                
+
                 // Reset timeline and state
                 self.active_messages.clear();
                 self.active_tool_calls.clear();
@@ -1469,7 +1510,7 @@ impl UiState {
             Action::InspectNode(node_id) => {
                 self.mode = TuiMode::Exploration;
                 self.focus = FocusRegion::Inspector;
-                
+
                 let mut breadcrumbs = Vec::new();
                 if let Some(ref active) = self.active_inspector {
                     breadcrumbs = active.breadcrumbs.clone();
@@ -1486,7 +1527,7 @@ impl UiState {
                     scroll_offset: 0,
                     selected_relation_idx: 0,
                 });
-                
+
                 UpdateResult::InspectNode(node_id)
             }
             Action::NodeDetailsLoaded(model) => {
@@ -1557,7 +1598,9 @@ impl UiState {
             Action::NextInspectorRelation => {
                 if let Some(ref mut active) = self.active_inspector {
                     if let InspectorLoadState::Loaded(ref model) = active.load_state {
-                        if !model.relationships.is_empty() && active.selected_relation_idx < model.relationships.len() - 1 {
+                        if !model.relationships.is_empty()
+                            && active.selected_relation_idx < model.relationships.len() - 1
+                        {
                             active.selected_relation_idx += 1;
                         }
                     }
@@ -1577,13 +1620,19 @@ impl UiState {
                 if let Some(ref active) = self.active_inspector {
                     if let InspectorLoadState::Loaded(ref model) = active.load_state {
                         if active.selected_relation_idx < model.relationships.len() {
-                            target_id = Some(model.relationships[active.selected_relation_idx].target_id.clone());
+                            target_id = Some(
+                                model.relationships[active.selected_relation_idx]
+                                    .target_id
+                                    .clone(),
+                            );
                         }
                     }
                 }
                 if let Some(uuid_str) = target_id {
                     if let Ok(parsed_uuid) = uuid::Uuid::parse_str(&uuid_str) {
-                        return self.update_internal(Action::InspectNode(brain_domain::NodeId(parsed_uuid)));
+                        return self.update_internal(Action::InspectNode(brain_domain::NodeId(
+                            parsed_uuid,
+                        )));
                     }
                 }
                 UpdateResult::NoChange
@@ -1634,21 +1683,36 @@ impl UiState {
                         UpdateResult::Changed
                     }
                 } else {
-                    if self.selected_session_idx >= self.sessions.len() && !self.sessions.is_empty() {
+                    if self.selected_session_idx >= self.sessions.len() && !self.sessions.is_empty()
+                    {
                         self.selected_session_idx = self.sessions.len() - 1;
                     }
                     UpdateResult::Changed
                 }
             }
-            Action::ToolCallRequested { message, call_id, tool_id, arguments, requires_approval } => {
+            Action::ToolCallRequested {
+                message,
+                call_id,
+                tool_id,
+                arguments,
+                requires_approval,
+            } => {
                 if self.active_tool_calls.iter().any(|t| t.call_id == call_id) {
                     return UpdateResult::NoChange;
                 }
-                if self.message_tool_calls.values().any(|list| list.iter().any(|t| t.call_id == call_id)) {
+                if self
+                    .message_tool_calls
+                    .values()
+                    .any(|list| list.iter().any(|t| t.call_id == call_id))
+                {
                     return UpdateResult::NoChange;
                 }
 
-                let mut new_execution = crate::ui::command::tool::ToolExecution::new(message, call_id.clone(), tool_id.clone());
+                let mut new_execution = crate::ui::command::tool::ToolExecution::new(
+                    message,
+                    call_id.clone(),
+                    tool_id.clone(),
+                );
                 if requires_approval {
                     let approval = crate::ui::command::tool::ToolApproval {
                         message_id: message,
@@ -1668,8 +1732,18 @@ impl UiState {
                 self.next_ordinal += 1;
                 UpdateResult::Changed
             }
-            Action::ToolProgressReceived { message: _, call_id, sequence, detail, log_message } => {
-                if let Some(tool) = self.active_tool_calls.iter_mut().find(|t| t.call_id == call_id) {
+            Action::ToolProgressReceived {
+                message: _,
+                call_id,
+                sequence,
+                detail,
+                log_message,
+            } => {
+                if let Some(tool) = self
+                    .active_tool_calls
+                    .iter_mut()
+                    .find(|t| t.call_id == call_id)
+                {
                     if tool.status.is_terminal() {
                         return UpdateResult::NoChange;
                     }
@@ -1677,7 +1751,8 @@ impl UiState {
                         return UpdateResult::NoChange;
                     }
                     tool.protocol_state.last_sequence = sequence;
-                    tool.status = crate::ui::command::tool::ToolExecutionStatus::Running { progress: detail };
+                    tool.status =
+                        crate::ui::command::tool::ToolExecutionStatus::Running { progress: detail };
                     if !log_message.is_empty() {
                         tool.logs.push(crate::ui::command::tool::ToolLogEntry {
                             timestamp: SystemTime::now(),
@@ -1689,15 +1764,29 @@ impl UiState {
                     UpdateResult::NoChange
                 }
             }
-            Action::ToolResultReceived { message, call_id, result, is_error } => {
-                if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+            Action::ToolResultReceived {
+                message,
+                call_id,
+                result,
+                is_error,
+            } => {
+                if let Some(pos) = self
+                    .active_tool_calls
+                    .iter()
+                    .position(|t| t.call_id == call_id)
+                {
                     let mut tool = self.active_tool_calls.remove(pos);
                     if is_error {
-                        tool.status = crate::ui::command::tool::ToolExecutionStatus::Failed { error: result };
+                        tool.status =
+                            crate::ui::command::tool::ToolExecutionStatus::Failed { error: result };
                     } else {
-                        tool.status = crate::ui::command::tool::ToolExecutionStatus::Completed { result };
+                        tool.status =
+                            crate::ui::command::tool::ToolExecutionStatus::Completed { result };
                     }
-                    self.message_tool_calls.entry(message).or_default().push(tool);
+                    self.message_tool_calls
+                        .entry(message)
+                        .or_default()
+                        .push(tool);
                     UpdateResult::Changed
                 } else {
                     UpdateResult::NoChange
@@ -1705,14 +1794,22 @@ impl UiState {
             }
             Action::ApproveToolCall { call_id, approved } => {
                 self.pending_approvals.retain(|a| a.call_id != call_id);
-                if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+                if let Some(pos) = self
+                    .active_tool_calls
+                    .iter()
+                    .position(|t| t.call_id == call_id)
+                {
                     if approved {
-                        self.active_tool_calls[pos].status = crate::ui::command::tool::ToolExecutionStatus::Approved;
+                        self.active_tool_calls[pos].status =
+                            crate::ui::command::tool::ToolExecutionStatus::Approved;
                     } else {
                         let mut tool = self.active_tool_calls.remove(pos);
                         tool.status = crate::ui::command::tool::ToolExecutionStatus::Denied;
                         let msg_id = tool.message_id;
-                        self.message_tool_calls.entry(msg_id).or_default().push(tool);
+                        self.message_tool_calls
+                            .entry(msg_id)
+                            .or_default()
+                            .push(tool);
                     }
                     UpdateResult::Changed
                 } else {
@@ -1743,13 +1840,21 @@ impl UiState {
                     if let InspectorLoadState::Loaded(ref model) = active.load_state {
                         let node_id = active.node_id;
                         let node_label = model.entity.label.clone();
-                        let node_type: brain_domain::NodeType = model.entity.node_type.parse().unwrap_or(brain_domain::NodeKind::Unknown);
+                        let node_type: brain_domain::NodeType = model
+                            .entity
+                            .node_type
+                            .parse()
+                            .unwrap_or(brain_domain::NodeKind::Unknown);
 
                         // Deduplication guard: if already pinned, toggle off (unpin).
                         // A second PinCurrentNode on the same node is treated as "unpin",
                         // consistent with the Phase 2 toggle UX. Programmatic callers that
                         // must not unpin should check pinned_nodes before dispatching.
-                        if let Some(pos) = self.pinned_nodes.iter().position(|pn| pn.node_id == node_id) {
+                        if let Some(pos) = self
+                            .pinned_nodes
+                            .iter()
+                            .position(|pn| pn.node_id == node_id)
+                        {
                             self.pinned_nodes.remove(pos);
                             self.transient_message = Some((
                                 format!("Unpinned: {}", node_label),
@@ -1776,14 +1881,18 @@ impl UiState {
                 }
             }
             Action::UnpinNode(node_id) => {
-                if let Some(pos) = self.pinned_nodes.iter().position(|pn| pn.node_id == node_id) {
+                if let Some(pos) = self
+                    .pinned_nodes
+                    .iter()
+                    .position(|pn| pn.node_id == node_id)
+                {
                     let label = self.pinned_nodes[pos].label.clone();
                     self.pinned_nodes.remove(pos);
-                    self.transient_message = Some((
-                        format!("Unpinned: {}", label),
-                        std::time::Instant::now(),
-                    ));
-                    if !self.pinned_nodes.is_empty() && self.pinned_overlay_cursor >= self.pinned_nodes.len() {
+                    self.transient_message =
+                        Some((format!("Unpinned: {}", label), std::time::Instant::now()));
+                    if !self.pinned_nodes.is_empty()
+                        && self.pinned_overlay_cursor >= self.pinned_nodes.len()
+                    {
                         self.pinned_overlay_cursor = self.pinned_nodes.len() - 1;
                     }
                     UpdateResult::Changed
@@ -1818,7 +1927,9 @@ impl UiState {
                 }
             }
             Action::PinnedOverlayDown => {
-                if !self.pinned_nodes.is_empty() && self.pinned_overlay_cursor < self.pinned_nodes.len() - 1 {
+                if !self.pinned_nodes.is_empty()
+                    && self.pinned_overlay_cursor < self.pinned_nodes.len() - 1
+                {
                     self.pinned_overlay_cursor += 1;
                     UpdateResult::Changed
                 } else {
@@ -1876,9 +1987,13 @@ impl UiState {
                 final_content,
             );
             self.active_messages.push(assistant_msg.clone());
-            self.session_histories.entry(self.session_id).or_default().push(assistant_msg);
+            self.session_histories
+                .entry(self.session_id)
+                .or_default()
+                .push(assistant_msg);
 
-            let assistant_msg_id = crate::ui::interaction::MessageId(self.active_messages.len() as u64);
+            let assistant_msg_id =
+                crate::ui::interaction::MessageId(self.active_messages.len() as u64);
 
             // Replace MessageId(0) placeholder in timeline with committed assistant ID
             for (_, item) in &mut self.timeline {
@@ -1890,14 +2005,21 @@ impl UiState {
             }
 
             // Move tools and retrievals from MessageId(0) key to assistant_msg_id key
-            if let Some(tools) = self.message_tool_calls.remove(&crate::ui::interaction::MessageId(0)) {
+            if let Some(tools) = self
+                .message_tool_calls
+                .remove(&crate::ui::interaction::MessageId(0))
+            {
                 let mut updated_tools = tools;
                 for t in &mut updated_tools {
                     t.message_id = assistant_msg_id;
                 }
-                self.message_tool_calls.insert(assistant_msg_id, updated_tools);
+                self.message_tool_calls
+                    .insert(assistant_msg_id, updated_tools);
             }
-            if let Some(retrievals) = self.message_retrievals.remove(&crate::ui::interaction::MessageId(0)) {
+            if let Some(retrievals) = self
+                .message_retrievals
+                .remove(&crate::ui::interaction::MessageId(0))
+            {
                 self.message_retrievals.insert(assistant_msg_id, retrievals);
             }
         } else {
@@ -1946,7 +2068,7 @@ impl UiState {
 
         // Build the blocks list to find total height
         let blocks = self.build_timeline_blocks(chat_width);
-        
+
         let mut total_height = 0;
         for block in &blocks {
             let h = if block.header.is_some() {
@@ -1979,8 +2101,15 @@ impl UiState {
                 crate::ui::interaction::timeline::TimelineItem::Message(msg_id) => {
                     if msg_id.0 == 0 {
                         if !self.active_response.is_empty() || self.is_generating() {
-                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(&self.active_response);
-                            let visual_lines = crate::ui::interaction::markdown::MarkdownLayout::layout(&ast, chat_width, &highlighter);
+                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(
+                                &self.active_response,
+                            );
+                            let visual_lines =
+                                crate::ui::interaction::markdown::MarkdownLayout::layout(
+                                    &ast,
+                                    chat_width,
+                                    &highlighter,
+                                );
                             blocks.push(TimelineBlock {
                                 header: Some("Brain".to_string()),
                                 visual_lines,
@@ -1995,8 +2124,15 @@ impl UiState {
                                 brain_domain::MessageRole::Assistant => "Brain".to_string(),
                                 brain_domain::MessageRole::System => "System".to_string(),
                             };
-                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(&msg.content);
-                            let visual_lines = crate::ui::interaction::markdown::MarkdownLayout::layout(&ast, chat_width, &highlighter);
+                            let ast = crate::ui::interaction::markdown::MarkdownParser::parse(
+                                &msg.content,
+                            );
+                            let visual_lines =
+                                crate::ui::interaction::markdown::MarkdownLayout::layout(
+                                    &ast,
+                                    chat_width,
+                                    &highlighter,
+                                );
                             blocks.push(TimelineBlock {
                                 header: Some(sender),
                                 visual_lines,
@@ -2005,10 +2141,21 @@ impl UiState {
                     }
                 }
                 crate::ui::interaction::timeline::TimelineItem::ToolExecution(ref call_id) => {
-                    let tool_opt = self.active_tool_calls.iter().find(|t| t.call_id == *call_id)
-                        .or_else(|| self.message_tool_calls.values().flatten().find(|t| &t.call_id == call_id));
+                    let tool_opt = self
+                        .active_tool_calls
+                        .iter()
+                        .find(|t| t.call_id == *call_id)
+                        .or_else(|| {
+                            self.message_tool_calls
+                                .values()
+                                .flatten()
+                                .find(|t| &t.call_id == call_id)
+                        });
                     if let Some(tool) = tool_opt {
-                        let expanded = self.conversation_view.expanded_tool_sections.get(&tool.call_id);
+                        let expanded = self
+                            .conversation_view
+                            .expanded_tool_sections
+                            .get(&tool.call_id);
                         blocks.push(TimelineBlock {
                             header: None,
                             visual_lines: format_tool_execution(tool, expanded),
@@ -2018,7 +2165,10 @@ impl UiState {
                             header: None,
                             visual_lines: vec![crate::ui::interaction::markdown::VisualLine {
                                 kind: crate::ui::interaction::markdown::VisualLineKind::Text,
-                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new("🔧 Tool: [Loading...]".to_string(), crate::ui::interaction::markdown::VisualStyle::Normal)],
+                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new(
+                                    "🔧 Tool: [Loading...]".to_string(),
+                                    crate::ui::interaction::markdown::VisualStyle::Normal,
+                                )],
                             }],
                         });
                     }
@@ -2034,7 +2184,10 @@ impl UiState {
                             header: None,
                             visual_lines: vec![crate::ui::interaction::markdown::VisualLine {
                                 kind: crate::ui::interaction::markdown::VisualLineKind::Text,
-                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new("🧠 Memory: [Loading...]".to_string(), crate::ui::interaction::markdown::VisualStyle::Normal)],
+                                spans: vec![crate::ui::interaction::markdown::VisualSpan::new(
+                                    "🧠 Memory: [Loading...]".to_string(),
+                                    crate::ui::interaction::markdown::VisualStyle::Normal,
+                                )],
                             }],
                         });
                     }
@@ -2047,14 +2200,16 @@ impl UiState {
 
 fn format_tool_execution(
     tool: &crate::ui::command::tool::ToolExecution,
-    expanded_sections: Option<&std::collections::HashSet<crate::ui::interaction::navigation::ToolSection>>,
+    expanded_sections: Option<
+        &std::collections::HashSet<crate::ui::interaction::navigation::ToolSection>,
+    >,
 ) -> Vec<crate::ui::interaction::markdown::VisualLine> {
-    use crate::ui::interaction::markdown::{VisualLine, VisualLineKind, VisualSpan, VisualStyle};
     use crate::ui::command::tool::ToolExecutionStatus;
+    use crate::ui::interaction::markdown::{VisualLine, VisualLineKind, VisualSpan, VisualStyle};
     use crate::ui::interaction::navigation::ToolSection;
 
     let mut lines = Vec::new();
-    
+
     // Header line
     let tool_name = &tool.tool_id.0;
     let (status_text, style) = match &tool.status {
@@ -2068,77 +2223,72 @@ fn format_tool_execution(
 
     lines.push(VisualLine {
         kind: VisualLineKind::Text,
-        spans: vec![
-            VisualSpan::new(
-                format!("🔧 Tool: {} [ {} ]", tool_name, status_text),
-                style,
-            )
-        ],
+        spans: vec![VisualSpan::new(
+            format!("🔧 Tool: {} [ {} ]", tool_name, status_text),
+            style,
+        )],
     });
 
     // Progress/details line
     match &tool.status {
         ToolExecutionStatus::Running { progress } => {
             let progress_text = match progress {
-                brain_core::events::ToolProgressDetail::Determinate { completed, total, unit: _ } => {
-                    let pct = if *total > 0 { ((*completed as f64) / (*total as f64)) * 100.0 } else { 0.0 };
+                brain_core::events::ToolProgressDetail::Determinate {
+                    completed,
+                    total,
+                    unit: _,
+                } => {
+                    let pct = if *total > 0 {
+                        ((*completed as f64) / (*total as f64)) * 100.0
+                    } else {
+                        0.0
+                    };
                     let fill = ((pct / 10.0) as usize).min(10);
                     let empty = 10 - fill;
                     let bar = format!("[{}{}]", "█".repeat(fill), "░".repeat(empty));
                     format!("  Progress: {} {:.1}%", bar, pct)
                 }
-                brain_core::events::ToolProgressDetail::Indeterminate => {
-                    "  Running...".to_string()
-                }
+                brain_core::events::ToolProgressDetail::Indeterminate => "  Running...".to_string(),
             };
 
             lines.push(VisualLine {
                 kind: VisualLineKind::Text,
-                spans: vec![
-                    VisualSpan::new(
-                        progress_text,
-                        VisualStyle::Normal,
-                    )
-                ],
+                spans: vec![VisualSpan::new(progress_text, VisualStyle::Normal)],
             });
         }
         ToolExecutionStatus::Failed { error } => {
             lines.push(VisualLine {
                 kind: VisualLineKind::Text,
-                spans: vec![
-                    VisualSpan::new(
-                        format!("  Error: {}", error),
-                        VisualStyle::Normal,
-                    )
-                ],
+                spans: vec![VisualSpan::new(
+                    format!("  Error: {}", error),
+                    VisualStyle::Normal,
+                )],
             });
         }
         _ => {}
     }
 
     // Lazy logs rendering
-    let show_logs = expanded_sections.map(|s| s.contains(&ToolSection::Logs)).unwrap_or(false);
+    let show_logs = expanded_sections
+        .map(|s| s.contains(&ToolSection::Logs))
+        .unwrap_or(false);
     if show_logs {
         for log in &tool.logs {
             lines.push(VisualLine {
                 kind: VisualLineKind::Text,
-                spans: vec![
-                    VisualSpan::new(
-                        format!("    • {}", log.message),
-                        VisualStyle::CodeComment,
-                    )
-                ],
+                spans: vec![VisualSpan::new(
+                    format!("    • {}", log.message),
+                    VisualStyle::CodeComment,
+                )],
             });
         }
     } else if !tool.logs.is_empty() {
         lines.push(VisualLine {
             kind: VisualLineKind::Text,
-            spans: vec![
-                VisualSpan::new(
-                    format!("    ▶ Logs collapsed ({} entries)", tool.logs.len()),
-                    VisualStyle::Normal,
-                )
-            ],
+            spans: vec![VisualSpan::new(
+                format!("    ▶ Logs collapsed ({} entries)", tool.logs.len()),
+                VisualStyle::Normal,
+            )],
         });
     }
 
@@ -2158,7 +2308,7 @@ fn format_retrieval_info(
         RetrievalWeight::High => "HIGH",
         RetrievalWeight::Normal => "NORMAL",
     };
-    
+
     let weight_style = match retrieval.explanation.weight {
         RetrievalWeight::Critical => VisualStyle::Bold,
         RetrievalWeight::High => VisualStyle::Bold,
@@ -2167,22 +2317,18 @@ fn format_retrieval_info(
 
     lines.push(VisualLine {
         kind: VisualLineKind::Text,
-        spans: vec![
-            VisualSpan::new(
-                format!("🧠 Memory: {} [ {} ]", retrieval.title, weight_badge),
-                weight_style,
-            )
-        ],
+        spans: vec![VisualSpan::new(
+            format!("🧠 Memory: {} [ {} ]", retrieval.title, weight_badge),
+            weight_style,
+        )],
     });
 
     lines.push(VisualLine {
         kind: VisualLineKind::Text,
-        spans: vec![
-            VisualSpan::new(
-                format!("  > {}", retrieval.excerpt),
-                VisualStyle::Italic,
-            )
-        ],
+        spans: vec![VisualSpan::new(
+            format!("  > {}", retrieval.excerpt),
+            VisualStyle::Italic,
+        )],
     });
 
     let keywords_str = retrieval.explanation.matched_keywords.join(", ");
@@ -2191,18 +2337,16 @@ fn format_retrieval_info(
     } else {
         ""
     };
-    
+
     lines.push(VisualLine {
         kind: VisualLineKind::Text,
-        spans: vec![
-            VisualSpan::new(
-                format!(
-                    "  Matches: [{}] Similarity: {:?}{}",
-                    keywords_str, retrieval.explanation.semantic_similarity, recency_str
-                ),
-                VisualStyle::CodeComment,
-            )
-        ],
+        spans: vec![VisualSpan::new(
+            format!(
+                "  Matches: [{}] Similarity: {:?}{}",
+                keywords_str, retrieval.explanation.semantic_similarity, recency_str
+            ),
+            VisualStyle::CodeComment,
+        )],
     });
 
     let provenance_line = format!(
@@ -2211,14 +2355,11 @@ fn format_retrieval_info(
     );
     lines.push(VisualLine {
         kind: VisualLineKind::Text,
-        spans: vec![
-            VisualSpan::new(provenance_line, VisualStyle::Citation),
-        ],
+        spans: vec![VisualSpan::new(provenance_line, VisualStyle::Citation)],
     });
 
     lines
 }
-
 
 impl Default for UiState {
     fn default() -> Self {
@@ -2373,19 +2514,31 @@ mod tests {
 
         let t0 = Instant::now();
         // Simulate 10ms tick rate — 3 ticks before the first 30ms drain window.
-        let r1 = q.drain_for_tick(t0);                                          // is_first → 1 emitted
-        let r2 = q.drain_for_tick(t0 + std::time::Duration::from_millis(10));  // 10ms < 30ms → 0
-        let r3 = q.drain_for_tick(t0 + std::time::Duration::from_millis(20));  // 20ms < 30ms → 0
-        let r4 = q.drain_for_tick(t0 + std::time::Duration::from_millis(32));  // 32ms >= 30ms → 1
-        let r5 = q.drain_for_tick(t0 + std::time::Duration::from_millis(42));  // 10ms from last drain → 0
-        let r6 = q.drain_for_tick(t0 + std::time::Duration::from_millis(65));  // ~33ms from last drain → 1
+        let r1 = q.drain_for_tick(t0); // is_first → 1 emitted
+        let r2 = q.drain_for_tick(t0 + std::time::Duration::from_millis(10)); // 10ms < 30ms → 0
+        let r3 = q.drain_for_tick(t0 + std::time::Duration::from_millis(20)); // 20ms < 30ms → 0
+        let r4 = q.drain_for_tick(t0 + std::time::Duration::from_millis(32)); // 32ms >= 30ms → 1
+        let r5 = q.drain_for_tick(t0 + std::time::Duration::from_millis(42)); // 10ms from last drain → 0
+        let r6 = q.drain_for_tick(t0 + std::time::Duration::from_millis(65)); // ~33ms from last drain → 1
 
-        assert_eq!(r1.emitted.len(), 1, "first tick must drain 1 token immediately");
-        assert_eq!(r2.emitted.len(), 0, "10ms tick must not drain (elapsed resets only on emit)");
+        assert_eq!(
+            r1.emitted.len(),
+            1,
+            "first tick must drain 1 token immediately"
+        );
+        assert_eq!(
+            r2.emitted.len(),
+            0,
+            "10ms tick must not drain (elapsed resets only on emit)"
+        );
         assert_eq!(r3.emitted.len(), 0, "20ms tick must not drain");
         assert_eq!(r4.emitted.len(), 1, "32ms tick must drain 1 token");
         assert_eq!(r5.emitted.len(), 0, "10ms after drain must not drain again");
-        assert_eq!(r6.emitted.len(), 1, "33ms after last drain must drain again");
+        assert_eq!(
+            r6.emitted.len(),
+            1,
+            "33ms after last drain must drain again"
+        );
     }
 
     /// Regression: queue that empties mid-stream and then receives more tokens
@@ -2424,7 +2577,10 @@ mod tests {
         let t2 = t1 + std::time::Duration::from_millis(35);
         let r5 = q.drain_for_tick(t2);
         // Any remaining tokens drained, queue empty, finished.
-        assert!(r5.finished || r4.emitted.len() >= 2, "all tokens must eventually drain");
+        assert!(
+            r5.finished || r4.emitted.len() >= 2,
+            "all tokens must eventually drain"
+        );
     }
 
     #[test]
@@ -2443,12 +2599,18 @@ mod tests {
 
         // First token received
         state.update(Action::ReceiveToken(RenderToken::Text("A ".to_string())));
-        assert!(matches!(state.generation_state, GenerationState::Streaming { .. }));
+        assert!(matches!(
+            state.generation_state,
+            GenerationState::Streaming { .. }
+        ));
 
         // Backend finishes but queue is not empty
         state.update(Action::FinishStream);
         // GenerationState must remain Streaming because typewriter still contains "A "
-        assert!(matches!(state.generation_state, GenerationState::Streaming { .. }));
+        assert!(matches!(
+            state.generation_state,
+            GenerationState::Streaming { .. }
+        ));
         assert_eq!(state.active_response, "");
 
         // TypewriterTick drains and finishes.
@@ -2482,7 +2644,11 @@ mod tests {
         // Next tick: should flush ALL remaining 19 tokens immediately
         let t1 = t0 + std::time::Duration::from_millis(5); // only 5ms later
         let r2 = q.drain_for_tick(t1);
-        assert_eq!(r2.emitted.len(), 19, "backend_finished must flush all tokens");
+        assert_eq!(
+            r2.emitted.len(),
+            19,
+            "backend_finished must flush all tokens"
+        );
         assert!(r2.finished, "queue empty + backend_finished = finished");
     }
 
@@ -2497,10 +2663,15 @@ mod tests {
         let res1 = state.update(Action::SubmitPrompt);
         assert!(matches!(res1, UpdateResult::PromptSubmitted(ref p) if p == "A"));
         assert_eq!(state.generation_state, GenerationState::Starting);
-        assert!(state.editor.text().is_empty(), "prompt must be cleared on submit");
+        assert!(
+            state.editor.text().is_empty(),
+            "prompt must be cleared on submit"
+        );
 
         // Simulate streaming in progress
-        state.update(Action::ReceiveToken(RenderToken::Text("response ".to_string())));
+        state.update(Action::ReceiveToken(RenderToken::Text(
+            "response ".to_string(),
+        )));
         assert!(state.is_generating());
 
         // Type and submit second query while first is still streaming
@@ -2511,9 +2682,15 @@ mod tests {
             "must accept new prompt even while generating"
         );
         assert_eq!(state.generation_state, GenerationState::Starting);
-        assert!(state.editor.text().is_empty(), "prompt must be cleared on resubmit");
+        assert!(
+            state.editor.text().is_empty(),
+            "prompt must be cleared on resubmit"
+        );
         assert_eq!(state.active_response, "", "old response must be cleared");
-        assert!(state.typewriter.is_empty(), "old typewriter queue must be cleared");
+        assert!(
+            state.typewriter.is_empty(),
+            "old typewriter queue must be cleared"
+        );
     }
 
     #[test]
@@ -2590,25 +2767,45 @@ mod tests {
 
         // Path 1: Successful Load
         let mut state = UiState::new();
-        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        state.update(Action::ActivateSession {
+            session_id: session_a,
+            request_id: req_id,
+        });
         assert!(state.pending_load.is_some());
-        state.update(Action::SessionLoaded { session_id: session_a, request_id: req_id, messages: vec![] });
+        state.update(Action::SessionLoaded {
+            session_id: session_a,
+            request_id: req_id,
+            messages: vec![],
+        });
         assert_eq!(state.pending_load, None);
 
         // Path 2: Failed Load
-        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        state.update(Action::ActivateSession {
+            session_id: session_a,
+            request_id: req_id,
+        });
         assert!(state.pending_load.is_some());
-        state.update(Action::SessionLoadFailed { session_id: session_a, request_id: req_id, error: "fail".to_string() });
+        state.update(Action::SessionLoadFailed {
+            session_id: session_a,
+            request_id: req_id,
+            error: "fail".to_string(),
+        });
         assert_eq!(state.pending_load, None);
 
         // Path 3: Deleted Pending Session
-        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        state.update(Action::ActivateSession {
+            session_id: session_a,
+            request_id: req_id,
+        });
         assert!(state.pending_load.is_some());
         state.update(Action::DeleteSession(session_a));
         assert_eq!(state.pending_load, None);
 
         // Path 4: Shutdown / Quit
-        state.update(Action::ActivateSession { session_id: session_a, request_id: req_id });
+        state.update(Action::ActivateSession {
+            session_id: session_a,
+            request_id: req_id,
+        });
         assert!(state.pending_load.is_some());
         state.update(Action::Quit);
         assert_eq!(state.pending_load, None);
@@ -2625,18 +2822,30 @@ mod tests {
 
         // Expect timeline has: User message
         assert_eq!(state.timeline.len(), 1);
-        
+
         // Receive a token, which creates the placeholder MessageId(0)
-        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("hello".to_string())));
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text(
+            "hello".to_string(),
+        )));
         assert_eq!(state.timeline.len(), 2);
-        assert!(matches!(state.timeline[1].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(0))));
+        assert!(matches!(
+            state.timeline[1].1,
+            crate::ui::interaction::timeline::TimelineItem::Message(
+                crate::ui::interaction::MessageId(0)
+            )
+        ));
 
         // 2. Cancel stream immediately with empty active_response (simulate cancel before typewriter flushes)
         state.update(Action::CancelStream);
 
         // Verify the MessageId(0) placeholder is pruned because active_response is empty
         assert_eq!(state.timeline.len(), 1);
-        assert!(matches!(state.timeline[0].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(1))));
+        assert!(matches!(
+            state.timeline[0].1,
+            crate::ui::interaction::timeline::TimelineItem::Message(
+                crate::ui::interaction::MessageId(1)
+            )
+        ));
 
         // 3. Submit a second prompt
         state.editor.insert('b');
@@ -2645,20 +2854,37 @@ mod tests {
 
         // Expect: timeline has MessageId(1) (user prompt 1) and MessageId(2) (user prompt 2)
         assert_eq!(state.timeline.len(), 2);
-        assert!(matches!(state.timeline[0].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(1))));
-        assert!(matches!(state.timeline[1].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(2))));
+        assert!(matches!(
+            state.timeline[0].1,
+            crate::ui::interaction::timeline::TimelineItem::Message(
+                crate::ui::interaction::MessageId(1)
+            )
+        ));
+        assert!(matches!(
+            state.timeline[1].1,
+            crate::ui::interaction::timeline::TimelineItem::Message(
+                crate::ui::interaction::MessageId(2)
+            )
+        ));
 
         // Receive token for second prompt response
-        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("world".to_string())));
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text(
+            "world".to_string(),
+        )));
         assert_eq!(state.timeline.len(), 3);
-        assert!(matches!(state.timeline[2].1, crate::ui::interaction::timeline::TimelineItem::Message(crate::ui::interaction::MessageId(0))));
+        assert!(matches!(
+            state.timeline[2].1,
+            crate::ui::interaction::timeline::TimelineItem::Message(
+                crate::ui::interaction::MessageId(0)
+            )
+        ));
     }
 
     #[test]
     fn test_pin_toggle_current_node() {
         let mut state = UiState::new();
         let node_id = brain_domain::NodeId(uuid::Uuid::new_v4());
-        
+
         // 1. Trying to pin when no inspector is active should be a no-op
         let res = state.update(Action::PinCurrentNode);
         assert_eq!(res, UpdateResult::NoChange);
@@ -2698,15 +2924,28 @@ mod tests {
         assert_eq!(state.pinned_nodes.len(), 1);
         assert_eq!(state.pinned_nodes[0].node_id, node_id);
         assert_eq!(state.pinned_nodes[0].label, "Episodic Memory");
-        assert_eq!(state.pinned_nodes[0].node_type, brain_domain::NodeKind::Concept);
+        assert_eq!(
+            state.pinned_nodes[0].node_type,
+            brain_domain::NodeKind::Concept
+        );
         assert!(state.transient_message.is_some());
-        assert!(state.transient_message.as_ref().unwrap().0.contains("Pinned: Episodic Memory"));
+        assert!(state
+            .transient_message
+            .as_ref()
+            .unwrap()
+            .0
+            .contains("Pinned: Episodic Memory"));
 
         // 4. Pin again -> should toggle off (unpin)
         let res = state.update(Action::PinCurrentNode);
         assert_eq!(res, UpdateResult::Changed);
         assert!(state.pinned_nodes.is_empty());
-        assert!(state.transient_message.as_ref().unwrap().0.contains("Unpinned: Episodic Memory"));
+        assert!(state
+            .transient_message
+            .as_ref()
+            .unwrap()
+            .0
+            .contains("Unpinned: Episodic Memory"));
     }
 
     #[test]
@@ -2881,10 +3120,11 @@ mod tests {
         // SetTransientMessage must update the transient_message field.
         let mut state = UiState::new();
         assert!(state.transient_message.is_none());
-        let res = state.update(Action::SetTransientMessage("📌 Context used: Alpha".to_string()));
+        let res = state.update(Action::SetTransientMessage(
+            "📌 Context used: Alpha".to_string(),
+        ));
         assert_eq!(res, UpdateResult::Changed);
         let (msg, _) = state.transient_message.unwrap();
         assert_eq!(msg, "📌 Context used: Alpha");
     }
 }
-

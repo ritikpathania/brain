@@ -1,12 +1,10 @@
-use brain_tui::ui::interaction::{
-    Editor, ScrollState, ChatState, GenerationState, MessageId
-};
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
-use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
-use brain_tui::ui::widgets::ChatScreen;
-use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
+use brain_tui::ui::interaction::{ChatState, Editor, GenerationState, MessageId, ScrollState};
+use brain_tui::ui::protocol::{BackendCommand, FinishReason, RequestId};
+use brain_tui::ui::router::{ActiveScreen, ScreenRouter};
 use brain_tui::ui::state::AppState;
-use brain_tui::ui::protocol::{FinishReason, RequestId, BackendCommand};
+use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+use brain_tui::ui::widgets::ChatScreen;
 
 const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
     session_title: "test",
@@ -83,7 +81,9 @@ fn test_app_state_domain_streaming() {
     state.finish_stream(assistant_id, FinishReason::Completed);
     assert_eq!(
         *state.generation(),
-        GenerationState::Completed { message: assistant_id }
+        GenerationState::Completed {
+            message: assistant_id
+        }
     );
 
     // 5. Reset back to Idle
@@ -108,7 +108,9 @@ fn test_sequence_monotonicity() {
     assert_eq!(state.chat().messages()[1].text.raw(), "world");
 
     // Send sequence 2 (older, out-of-order) -> must be ignored safely under the monotonicity policy
-    state.append_stream_token(assistant_id, 2, "ignored").unwrap();
+    state
+        .append_stream_token(assistant_id, 2, "ignored")
+        .unwrap();
     assert_eq!(
         *state.generation(),
         GenerationState::Streaming {
@@ -131,13 +133,22 @@ fn test_unknown_message_id_and_out_of_order_finished() {
     // Case 1: token targeting mismatching ID must fail or be ignored
     let wrong_id = MessageId(999);
     let res = state.append_stream_token(wrong_id, 1, "mismatch");
-    assert!(res.is_err() || state.chat().messages().iter().all(|m| !m.text.raw().contains("mismatch")));
+    assert!(
+        res.is_err()
+            || state
+                .chat()
+                .messages()
+                .iter()
+                .all(|m| !m.text.raw().contains("mismatch"))
+    );
 
     // Case 2: Out-of-order Finished event -> Finished arrives first, then delayed Token
     state.finish_stream(assistant_id, FinishReason::Completed);
     assert_eq!(
         *state.generation(),
-        GenerationState::Completed { message: assistant_id }
+        GenerationState::Completed {
+            message: assistant_id
+        }
     );
 
     // Delayed token arriving after Finished should be ignored safely to prevent corruption
@@ -155,14 +166,18 @@ fn test_idempotent_cancellation() {
     state.cancel_stream(assistant_id);
     assert_eq!(
         *state.generation(),
-        GenerationState::Cancelling { message: assistant_id }
+        GenerationState::Cancelling {
+            message: assistant_id
+        }
     );
 
     // 2nd cancel request (idempotency check)
     state.cancel_stream(assistant_id);
     assert_eq!(
         *state.generation(),
-        GenerationState::Cancelling { message: assistant_id }
+        GenerationState::Cancelling {
+            message: assistant_id
+        }
     );
 
     // Finish event with Cancelled reason arrives

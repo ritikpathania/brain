@@ -1,8 +1,8 @@
 //! Clipboard integration abstractions.
 
 use std::error::Error;
-use std::process::{Command, Stdio};
 use std::io::Write;
+use std::process::{Command, Stdio};
 
 /// Errors that can occur during clipboard operations.
 #[derive(Debug, thiserror::Error)]
@@ -20,7 +20,7 @@ pub enum ClipboardError {
 pub trait Clipboard: Send + Sync {
     /// Fetches the current text content from the clipboard.
     fn get(&self) -> Result<String, ClipboardError>;
-    
+
     /// Sets the text content in the clipboard.
     fn set(&mut self, text: &str) -> Result<(), ClipboardError>;
 }
@@ -50,16 +50,17 @@ impl Clipboard for SystemClipboard {
             .map_err(|e| ClipboardError::OperationFailed(Box::new(e)))?;
 
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(text.as_bytes())
+            stdin
+                .write_all(text.as_bytes())
                 .map_err(|e| ClipboardError::OperationFailed(Box::new(e)))?;
         } else {
-            return Err(ClipboardError::OperationFailed(Box::new(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to open pbcopy stdin",
-            ))));
+            return Err(ClipboardError::OperationFailed(Box::new(
+                std::io::Error::new(std::io::ErrorKind::Other, "Failed to open pbcopy stdin"),
+            )));
         }
 
-        let status = child.wait()
+        let status = child
+            .wait()
             .map_err(|e| ClipboardError::OperationFailed(Box::new(e)))?;
 
         if !status.success() {

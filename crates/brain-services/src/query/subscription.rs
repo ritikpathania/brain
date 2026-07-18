@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use crate::query::dto::{JobSummary, SearchSummary, SessionSummary};
+use crate::query::filters::{JobQuery, SearchQuery, SessionQuery};
+use crate::query::registry::{QueryResponse, QuerySubscriptionRegistry, SubscriptionKey};
 use brain_core::errors::BrainError;
 use brain_events::SequenceNumber;
-use crate::query::dto::{SessionSummary, JobSummary, SearchSummary};
-use crate::query::filters::{SessionQuery, JobQuery, SearchQuery};
-use crate::query::registry::{SubscriptionKey, QueryResponse, QuerySubscriptionRegistry};
+use std::sync::Arc;
 use tokio::sync::watch;
 
 /// Immutable query snapshot.
@@ -76,19 +76,26 @@ impl<T> Drop for WatchLiveQuery<T> {
 /// Service providing live query subscription streams for session summaries.
 pub trait SessionSubscriptionService: Send + Sync {
     /// Subscribes to a stream of active session summaries matching the given filters.
-    fn subscribe(&self, query: SessionQuery) -> Result<Box<dyn LiveQuery<Vec<SessionSummary>>>, BrainError>;
+    fn subscribe(
+        &self,
+        query: SessionQuery,
+    ) -> Result<Box<dyn LiveQuery<Vec<SessionSummary>>>, BrainError>;
 }
 
 /// Service providing live query subscription streams for background job summaries.
 pub trait JobSubscriptionService: Send + Sync {
     /// Subscribes to a stream of background job summaries matching the given filters.
-    fn subscribe(&self, query: JobQuery) -> Result<Box<dyn LiveQuery<Vec<JobSummary>>>, BrainError>;
+    fn subscribe(&self, query: JobQuery)
+        -> Result<Box<dyn LiveQuery<Vec<JobSummary>>>, BrainError>;
 }
 
 /// Service providing live query subscription streams for text search results.
 pub trait SearchSubscriptionService: Send + Sync {
     /// Subscribes to a stream of search document matches.
-    fn subscribe(&self, query: SearchQuery) -> Result<Box<dyn LiveQuery<Vec<SearchSummary>>>, BrainError>;
+    fn subscribe(
+        &self,
+        query: SearchQuery,
+    ) -> Result<Box<dyn LiveQuery<Vec<SearchSummary>>>, BrainError>;
 }
 
 /// Concrete implementation of `SessionSubscriptionService`.
@@ -104,12 +111,17 @@ impl SqliteSessionSubscriptionService {
 }
 
 impl SessionSubscriptionService for SqliteSessionSubscriptionService {
-    fn subscribe(&self, query: SessionQuery) -> Result<Box<dyn LiveQuery<Vec<SessionSummary>>>, BrainError> {
+    fn subscribe(
+        &self,
+        query: SessionQuery,
+    ) -> Result<Box<dyn LiveQuery<Vec<SessionSummary>>>, BrainError> {
         let key = SubscriptionKey::Session(query);
         let rx = self.registry.subscribe(key.clone())?;
 
         let extractor = Box::new(|res| match res {
-            QueryResponse::Session { sequence, value } => QuerySnapshot::new(sequence, Arc::new(value)),
+            QueryResponse::Session { sequence, value } => {
+                QuerySnapshot::new(sequence, Arc::new(value))
+            }
             _ => panic!("Expected Session QueryResponse"),
         });
 
@@ -135,7 +147,10 @@ impl SqliteJobSubscriptionService {
 }
 
 impl JobSubscriptionService for SqliteJobSubscriptionService {
-    fn subscribe(&self, query: JobQuery) -> Result<Box<dyn LiveQuery<Vec<JobSummary>>>, BrainError> {
+    fn subscribe(
+        &self,
+        query: JobQuery,
+    ) -> Result<Box<dyn LiveQuery<Vec<JobSummary>>>, BrainError> {
         let key = SubscriptionKey::Job(query);
         let rx = self.registry.subscribe(key.clone())?;
 
@@ -166,12 +181,17 @@ impl SqliteSearchSubscriptionService {
 }
 
 impl SearchSubscriptionService for SqliteSearchSubscriptionService {
-    fn subscribe(&self, query: SearchQuery) -> Result<Box<dyn LiveQuery<Vec<SearchSummary>>>, BrainError> {
+    fn subscribe(
+        &self,
+        query: SearchQuery,
+    ) -> Result<Box<dyn LiveQuery<Vec<SearchSummary>>>, BrainError> {
         let key = SubscriptionKey::Search(query);
         let rx = self.registry.subscribe(key.clone())?;
 
         let extractor = Box::new(|res| match res {
-            QueryResponse::Search { sequence, value } => QuerySnapshot::new(sequence, Arc::new(value)),
+            QueryResponse::Search { sequence, value } => {
+                QuerySnapshot::new(sequence, Arc::new(value))
+            }
             _ => panic!("Expected Search QueryResponse"),
         });
 

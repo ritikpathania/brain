@@ -4,12 +4,12 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 fn get_schema_validator() -> jsonschema::JSONSchema {
-    let schema_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../protocol/brain_events.schema.json");
+    let schema_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../protocol/brain_events.schema.json");
     let schema_content = std::fs::read_to_string(&schema_path)
         .unwrap_or_else(|e| panic!("Failed to read schema file at {:?}: {}", schema_path, e));
-    let schema_json: serde_json::Value = serde_json::from_str(&schema_content)
-        .expect("Failed to parse schema JSON");
+    let schema_json: serde_json::Value =
+        serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
     jsonschema::JSONSchema::compile(&schema_json).expect("Failed to compile schema")
 }
 
@@ -28,14 +28,17 @@ fn create_identity() -> EventIdentity {
 
 fn assert_conformance(envelope: &IngestionEnvelope) {
     // 1. Serialization / Deserialization Round-trip using canonical JSON serializer
-    let json_str = brain_integrations::to_canonical_json(envelope).expect("Failed to serialize envelope");
-    let roundtripped: IngestionEnvelope = serde_json::from_str(&json_str).expect("Failed to deserialize envelope");
+    let json_str =
+        brain_integrations::to_canonical_json(envelope).expect("Failed to serialize envelope");
+    let roundtripped: IngestionEnvelope =
+        serde_json::from_str(&json_str).expect("Failed to deserialize envelope");
     assert_eq!(envelope, &roundtripped);
 
     // 2. Validate against schema
-    let json_val: serde_json::Value = serde_json::from_str(&json_str).expect("Failed to parse as Value");
+    let json_val: serde_json::Value =
+        serde_json::from_str(&json_str).expect("Failed to parse as Value");
     let validator = get_schema_validator();
-    
+
     let validation_result = validator.validate(&json_val);
     if let Err(errors) = validation_result {
         let error_msgs: Vec<String> = errors.map(|e| e.to_string()).collect();
@@ -50,7 +53,10 @@ fn assert_conformance(envelope: &IngestionEnvelope) {
 #[test]
 fn test_message_event() {
     let mut metadata = BTreeMap::new();
-    metadata.insert("provider.model".to_string(), Value::String("claude-3-5".to_string()));
+    metadata.insert(
+        "provider.model".to_string(),
+        Value::String("claude-3-5".to_string()),
+    );
 
     let envelope = IngestionEnvelope {
         event_model_version: "1.0".to_string(),
@@ -242,12 +248,14 @@ fn test_text_event() {
 
 #[test]
 fn test_golden_files_compatibility() {
-    let golden_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/golden");
-    
+    let golden_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden");
+
     // Create test objects corresponding to each file
     let mut message_metadata = BTreeMap::new();
-    message_metadata.insert("provider.model".to_string(), Value::String("claude-3-5".to_string()));
+    message_metadata.insert(
+        "provider.model".to_string(),
+        Value::String("claude-3-5".to_string()),
+    );
     let message_env = IngestionEnvelope {
         event_model_version: "1.0".to_string(),
         identity: create_identity_fixed(),
@@ -318,7 +326,7 @@ fn test_golden_files_compatibility() {
         let filepath = golden_dir.join(filename);
         let raw_json = std::fs::read_to_string(&filepath)
             .unwrap_or_else(|e| panic!("Failed to read golden file {:?}: {}", filepath, e));
-        
+
         // Deserialization check
         let roundtrip_envelope: IngestionEnvelope = serde_json::from_str(&raw_json)
             .unwrap_or_else(|e| panic!("Failed to deserialize golden file {}: {}", filename, e));
@@ -327,7 +335,7 @@ fn test_golden_files_compatibility() {
         // Serialization check (must produce byte-for-byte identical output)
         let serialized = brain_integrations::to_canonical_json(&envelope)
             .unwrap_or_else(|e| panic!("Failed to serialize envelope for {}: {}", filename, e));
-            
+
         assert_eq!(
             raw_json.trim(),
             serialized.trim(),
@@ -348,6 +356,8 @@ fn create_identity_fixed() -> EventIdentity {
         adapter_id: AdapterId::new("vscode-ext"),
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         conversation_id: Some("01H7X1F8Z9Y000000000000001".parse().unwrap()),
-        timestamp: chrono::DateTime::parse_from_rfc3339("2026-06-29T15:30:00Z").unwrap().with_timezone(&chrono::Utc),
+        timestamp: chrono::DateTime::parse_from_rfc3339("2026-06-29T15:30:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc),
     }
 }

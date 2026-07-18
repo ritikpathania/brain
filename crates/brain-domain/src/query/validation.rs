@@ -1,4 +1,4 @@
-use crate::validation::{ValidationReport, ValidationDiagnostic, AffectedElement};
+use crate::validation::{AffectedElement, ValidationDiagnostic, ValidationReport};
 
 /// Service querying diagnostics reports for specific elements.
 pub struct ValidationQueryService;

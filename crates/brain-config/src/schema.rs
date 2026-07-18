@@ -208,7 +208,10 @@ pub struct RetrievalSettings {
 impl RetrievalSettings {
     /// Creates a new RetrievalSettings.
     pub fn new(ranking_policy: RankingPolicy, model_path: Option<String>) -> Self {
-        Self { ranking_policy, model_path }
+        Self {
+            ranking_policy,
+            model_path,
+        }
     }
 
     /// Returns the active ranking policy.

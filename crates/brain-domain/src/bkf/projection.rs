@@ -1,7 +1,7 @@
 //! Downstream format and storage projections for compiled KPP representations.
 
-use crate::bkf::ir::{CompiledKnowledge, IRNode, IREdge};
 use crate::bkf::errors::BkfError;
+use crate::bkf::ir::{CompiledKnowledge, IREdge, IRNode};
 
 /// A transactional diff operation representing an incremental mutation.
 #[derive(Debug, Clone, PartialEq)]
@@ -94,7 +94,7 @@ impl SqliteProjection {
         new_graph: &CompiledKnowledge,
     ) -> Result<Vec<SqliteOp>, BkfError> {
         let mut ops = Vec::new();
-        
+
         let old_nodes: std::collections::HashMap<&String, &IRNode> = old_graph
             .map(|g| g.nodes.iter().map(|n| (&n.id, n)).collect())
             .unwrap_or_default();
@@ -105,8 +105,8 @@ impl SqliteProjection {
 
         // 1. Evaluate node operations
         for new_node in &new_graph.nodes {
-            let attrs = serde_json::to_string(&new_node.attributes)
-                .unwrap_or_else(|_| "{}".to_string());
+            let attrs =
+                serde_json::to_string(&new_node.attributes).unwrap_or_else(|_| "{}".to_string());
             let node_op = SqliteNodeOp {
                 id: new_node.id.clone(),
                 label: new_node.label.clone(),

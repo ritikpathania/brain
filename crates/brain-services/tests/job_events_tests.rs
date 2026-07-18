@@ -1,18 +1,18 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
-use parking_lot::Mutex;
-use uuid::Uuid;
 use async_trait::async_trait;
 use brain_domain::{
-    Job, JobId, JobKind, JobPriority, JobOwner, JobDescription,
-    JobTimestamp, JobState, DomainEvent, Artifact, ArtifactId, ArtifactKind
+    Artifact, ArtifactId, ArtifactKind, DomainEvent, Job, JobDescription, JobId, JobKind, JobOwner,
+    JobPriority, JobState, JobTimestamp,
 };
 use brain_services::jobs::{
-    JobScheduler, JobExecutorRegistry, JobExecutor, JobExecutionContext,
-    JobExecutionResult, JobExecutionFailure, DomainEventPublisher
+    DomainEventPublisher, JobExecutionContext, JobExecutionFailure, JobExecutionResult,
+    JobExecutor, JobExecutorRegistry, JobScheduler,
 };
+use parking_lot::Mutex;
+use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Clone, Default)]
 struct TestEventCollector {
@@ -51,7 +51,7 @@ impl JobExecutor for TestJobExecutor {
 fn test_fifo_event_ordering_and_exactly_once() {
     let collector = TestEventCollector::default();
     let id = JobId(Uuid::new_v4());
-    
+
     // 1. Stage JobCreated
     let mut job = Job::new(
         id,
@@ -96,7 +96,7 @@ fn test_fifo_event_ordering_and_exactly_once() {
     for ev in drained_2 {
         collector.publish(ev);
     }
-    
+
     let published_after = collector.events.lock().clone();
     assert_eq!(published_after.len(), 4); // No new events added
 }
@@ -133,7 +133,7 @@ async fn test_scheduler_event_integration() {
     assert_eq!(scheduler.get_job_state(job_id), Some(JobState::Completed));
 
     let events = collector.events.lock().clone();
-    
+
     // Events expected:
     // - JobCreated (on Submit)
     // - JobStarted (on dispatch)
@@ -145,11 +145,18 @@ async fn test_scheduler_event_integration() {
     // Verify ordering
     assert!(matches!(events[0], DomainEvent::JobCreated { .. }));
     assert!(matches!(events[1], DomainEvent::JobStarted { .. }));
-    
-    let has_log = events.iter().any(|e| matches!(e, DomainEvent::LogAppended { .. }));
-    let has_art = events.iter().any(|e| matches!(e, DomainEvent::ArtifactProduced { .. }));
+
+    let has_log = events
+        .iter()
+        .any(|e| matches!(e, DomainEvent::LogAppended { .. }));
+    let has_art = events
+        .iter()
+        .any(|e| matches!(e, DomainEvent::ArtifactProduced { .. }));
     assert!(has_log);
     assert!(has_art);
 
-    assert!(matches!(events.last().unwrap(), DomainEvent::JobCompleted { .. }));
+    assert!(matches!(
+        events.last().unwrap(),
+        DomainEvent::JobCompleted { .. }
+    ));
 }

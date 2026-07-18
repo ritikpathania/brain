@@ -20,6 +20,6 @@ pub mod correlation;
 /// Background thread subscriber feeding the correlation index.
 pub mod subscriber;
 
-pub use timeline::{OperationSpan, OperationTimeline};
 pub use correlation::CorrelationIndex;
 pub use subscriber::ObservabilitySubscriber;
+pub use timeline::{OperationSpan, OperationTimeline};

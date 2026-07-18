@@ -1,6 +1,6 @@
 //! Inline slash commands autocompletion engine and visual state representation.
 
-use crate::ui::command::{COMMANDS, CommandDescriptor, CommandVisibility};
+use crate::ui::command::{CommandDescriptor, CommandVisibility, COMMANDS};
 
 /// Visual state tracker for active inline slash completion popup.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,13 +42,15 @@ impl SlashCompletionEngine {
         } else {
             String::new()
         };
-        COMMANDS.iter()
-            .filter(move |cmd| {
-                is_slash
-                    && cmd.visibility != CommandVisibility::PaletteOnly
-                    && (cmd.title.to_lowercase().contains(&term)
-                        || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term)))
-            })
+        COMMANDS.iter().filter(move |cmd| {
+            is_slash
+                && cmd.visibility != CommandVisibility::PaletteOnly
+                && (cmd.title.to_lowercase().contains(&term)
+                    || cmd
+                        .aliases
+                        .iter()
+                        .any(|alias| alias.to_lowercase().contains(&term)))
+        })
     }
 }
 
@@ -60,7 +62,10 @@ impl crate::ui::layout::Overlay for SlashCompletionState {
     fn geometry(&self, screen_area: ratatui::layout::Rect) -> ratatui::layout::Rect {
         let geometry = crate::ui::layout::LayoutEngine::chat_screen(screen_area);
         let count = SlashCompletionEngine::matches(&self.query).count();
-        crate::ui::layout::SlashCompletionGeometry::compute(screen_area, geometry.prompt_area, count)
+        crate::ui::layout::SlashCompletionGeometry::compute(
+            screen_area,
+            geometry.prompt_area,
+            count,
+        )
     }
 }
-

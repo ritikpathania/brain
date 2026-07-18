@@ -1,16 +1,16 @@
-use brain_tui::state::{UiState, Action};
-use brain_tui::ui::interaction::timeline::{EventOrdinal, TimelineItem};
-use brain_tui::ui::interaction::chat::MessageId as LocalMessageId;
-use brain_tui::ui::theme::Theme;
-use brain_tui::ui::renderer::AppRenderer;
 use brain_domain::bkf::retrieval::{
-    RetrievalId, RetrievalInfo, UserRetrievalExplanation, SemanticSimilarity,
-    RetrievalWeight, ProvenanceReference, SourceKind
+    ProvenanceReference, RetrievalId, RetrievalInfo, RetrievalWeight, SemanticSimilarity,
+    SourceKind, UserRetrievalExplanation,
 };
 use brain_domain::{Message, MessageId, MessageRole};
-use ratatui::Terminal;
+use brain_tui::state::{Action, UiState};
+use brain_tui::ui::interaction::chat::MessageId as LocalMessageId;
+use brain_tui::ui::interaction::timeline::{EventOrdinal, TimelineItem};
+use brain_tui::ui::renderer::AppRenderer;
+use brain_tui::ui::theme::Theme;
 use ratatui::backend::TestBackend;
 use ratatui::prelude::Rect;
+use ratatui::Terminal;
 
 #[test]
 fn test_timeline_state_transitions_and_ordering() {
@@ -58,7 +58,10 @@ fn test_timeline_state_transitions_and_ordering() {
     });
 
     assert_eq!(state.timeline.len(), 1);
-    assert_eq!(state.timeline[0], (EventOrdinal(1), TimelineItem::Retrieval(RetrievalId(101))));
+    assert_eq!(
+        state.timeline[0],
+        (EventOrdinal(1), TimelineItem::Retrieval(RetrievalId(101)))
+    );
 
     // 5. Tool Call Requested
     state.update(Action::ToolCallRequested {
@@ -70,15 +73,28 @@ fn test_timeline_state_transitions_and_ordering() {
     });
 
     assert_eq!(state.timeline.len(), 2);
-    assert_eq!(state.timeline[1], (EventOrdinal(2), TimelineItem::ToolExecution(brain_core::events::ToolCallId("tool_1".to_string()))));
+    assert_eq!(
+        state.timeline[1],
+        (
+            EventOrdinal(2),
+            TimelineItem::ToolExecution(brain_core::events::ToolCallId("tool_1".to_string()))
+        )
+    );
 
     // 6. Receive Token (first token adds the assistant message to the timeline)
-    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text("Hello".to_string())));
+    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text(
+        "Hello".to_string(),
+    )));
     assert_eq!(state.timeline.len(), 3);
-    assert_eq!(state.timeline[2], (EventOrdinal(3), TimelineItem::Message(LocalMessageId(0))));
+    assert_eq!(
+        state.timeline[2],
+        (EventOrdinal(3), TimelineItem::Message(LocalMessageId(0)))
+    );
 
     // 7. Verify consecutive tokens do not duplicate message in timeline
-    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text(" world".to_string())));
+    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text(
+        " world".to_string(),
+    )));
     assert_eq!(state.timeline.len(), 3);
 
     // 8. Session Loaded (clears active timeline, populates historical message sequence)
@@ -88,7 +104,10 @@ fn test_timeline_state_transitions_and_ordering() {
     ];
     let session_id = brain_domain::SessionId::new();
     let request_id = brain_tui::state::LoadRequestId(42);
-    state.pending_load = Some(brain_tui::state::PendingLoad { session_id, request_id });
+    state.pending_load = Some(brain_tui::state::PendingLoad {
+        session_id,
+        request_id,
+    });
     state.update(Action::SessionLoaded {
         session_id,
         request_id,
@@ -96,8 +115,14 @@ fn test_timeline_state_transitions_and_ordering() {
     });
 
     assert_eq!(state.timeline.len(), 2);
-    assert_eq!(state.timeline[0], (EventOrdinal(1), TimelineItem::Message(LocalMessageId(1))));
-    assert_eq!(state.timeline[1], (EventOrdinal(2), TimelineItem::Message(LocalMessageId(2))));
+    assert_eq!(
+        state.timeline[0],
+        (EventOrdinal(1), TimelineItem::Message(LocalMessageId(1)))
+    );
+    assert_eq!(
+        state.timeline[1],
+        (EventOrdinal(2), TimelineItem::Message(LocalMessageId(2)))
+    );
 }
 
 #[test]
@@ -108,7 +133,7 @@ fn test_timeline_rendering_output() {
 
     // Setup active state with a retrieval and a tool call in the timeline
     state.update(Action::StartStream);
-    
+
     let prov = ProvenanceReference {
         kind: SourceKind::File,
         location: "src/lib.rs".to_string(),
@@ -141,14 +166,18 @@ fn test_timeline_rendering_output() {
         requires_approval: false,
     });
 
-    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text("Generating...".to_string())));
+    state.update(Action::ReceiveToken(brain_tui::state::RenderToken::Text(
+        "Generating...".to_string(),
+    )));
 
     let backend = TestBackend::new(80, 24);
     let mut terminal = Terminal::new(backend).unwrap();
 
-    terminal.draw(|f| {
-        renderer.draw(f, Rect::new(0, 0, 80, 24), &state, &theme);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            renderer.draw(f, Rect::new(0, 0, 80, 24), &state, &theme);
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     let buffer_str = format!("{:?}", buffer);

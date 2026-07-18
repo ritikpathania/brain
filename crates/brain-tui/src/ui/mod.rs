@@ -48,4 +48,3 @@ pub mod command;
 
 /// Unified Global Search omnibox and providers.
 pub mod search;
-

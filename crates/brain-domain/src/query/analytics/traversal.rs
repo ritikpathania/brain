@@ -7,8 +7,12 @@ pub struct GraphTraversal;
 
 impl GraphTraversal {
     /// Performs a Depth-First Search (DFS) starting from `start` node and calls `visitor` callback for each visited node.
-    pub fn dfs<F>(context: &GraphAnalyticsContext, start: NodeId, visited: &mut HashSet<NodeId>, mut visitor: F)
-    where
+    pub fn dfs<F>(
+        context: &GraphAnalyticsContext,
+        start: NodeId,
+        visited: &mut HashSet<NodeId>,
+        mut visitor: F,
+    ) where
         F: FnMut(NodeId),
     {
         let mut stack = Vec::new();
@@ -29,8 +33,12 @@ impl GraphTraversal {
     }
 
     /// Performs a Breadth-First Search (BFS) starting from `start` node and calls `visitor` callback for each visited node.
-    pub fn bfs<F>(context: &GraphAnalyticsContext, start: NodeId, visited: &mut HashSet<NodeId>, mut visitor: F)
-    where
+    pub fn bfs<F>(
+        context: &GraphAnalyticsContext,
+        start: NodeId,
+        visited: &mut HashSet<NodeId>,
+        mut visitor: F,
+    ) where
         F: FnMut(NodeId),
     {
         let mut queue = VecDeque::new();

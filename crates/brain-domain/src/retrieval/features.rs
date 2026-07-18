@@ -1,6 +1,6 @@
-use crate::retrieval::models::{NormalizedSignal, RankingSignals};
-use crate::identifiers::NodeId;
 use crate::consolidation::MetricConstructionError;
+use crate::identifiers::NodeId;
+use crate::retrieval::models::{NormalizedSignal, RankingSignals};
 
 /// Holds raw numerical features extracted for a candidate node.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,34 +36,67 @@ pub enum NormalizationContext {
 /// Trait defining normalization strategies for scaling raw features.
 pub trait FeatureNormalizer: Send + Sync {
     /// Normalizes raw features into ranking signal value objects.
-    fn normalize(&self, raw: &[RawFeatureVector], context: &NormalizationContext) -> Result<Vec<RankingSignals>, MetricConstructionError>;
+    fn normalize(
+        &self,
+        raw: &[RawFeatureVector],
+        context: &NormalizationContext,
+    ) -> Result<Vec<RankingSignals>, MetricConstructionError>;
 }
 
 /// Min-max scaling normalizer mapping ranges to [0.0, 1.0].
 pub struct MinMaxNormalizer;
 
 impl FeatureNormalizer for MinMaxNormalizer {
-    fn normalize(&self, raw: &[RawFeatureVector], context: &NormalizationContext) -> Result<Vec<RankingSignals>, MetricConstructionError> {
+    fn normalize(
+        &self,
+        raw: &[RawFeatureVector],
+        context: &NormalizationContext,
+    ) -> Result<Vec<RankingSignals>, MetricConstructionError> {
         if raw.is_empty() {
             return Ok(Vec::new());
         }
 
-        let (min_sem, max_sem, min_graph, max_graph, min_rec, max_rec, min_temp, max_temp) = match context {
-            NormalizationContext::BatchMinMax => {
-                let min_s = raw.iter().map(|v| v.semantic).fold(f64::INFINITY, f64::min);
-                let max_s = raw.iter().map(|v| v.semantic).fold(f64::NEG_INFINITY, f64::max);
-                let min_g = raw.iter().map(|v| v.graph).fold(f64::INFINITY, f64::min);
-                let max_g = raw.iter().map(|v| v.graph).fold(f64::NEG_INFINITY, f64::max);
-                let min_r = raw.iter().map(|v| v.recency).fold(f64::INFINITY, f64::min);
-                let max_r = raw.iter().map(|v| v.recency).fold(f64::NEG_INFINITY, f64::max);
-                let min_t = raw.iter().map(|v| v.temporal).fold(f64::INFINITY, f64::min);
-                let max_t = raw.iter().map(|v| v.temporal).fold(f64::NEG_INFINITY, f64::max);
-                (min_s, max_s, min_g, max_g, min_r, max_r, min_t, max_t)
-            }
-            NormalizationContext::FixedRanges { semantic_range, graph_range, recency_range, temporal_range } => {
-                (semantic_range.0, semantic_range.1, graph_range.0, graph_range.1, recency_range.0, recency_range.1, temporal_range.0, temporal_range.1)
-            }
-        };
+        let (min_sem, max_sem, min_graph, max_graph, min_rec, max_rec, min_temp, max_temp) =
+            match context {
+                NormalizationContext::BatchMinMax => {
+                    let min_s = raw.iter().map(|v| v.semantic).fold(f64::INFINITY, f64::min);
+                    let max_s = raw
+                        .iter()
+                        .map(|v| v.semantic)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    let min_g = raw.iter().map(|v| v.graph).fold(f64::INFINITY, f64::min);
+                    let max_g = raw
+                        .iter()
+                        .map(|v| v.graph)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    let min_r = raw.iter().map(|v| v.recency).fold(f64::INFINITY, f64::min);
+                    let max_r = raw
+                        .iter()
+                        .map(|v| v.recency)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    let min_t = raw.iter().map(|v| v.temporal).fold(f64::INFINITY, f64::min);
+                    let max_t = raw
+                        .iter()
+                        .map(|v| v.temporal)
+                        .fold(f64::NEG_INFINITY, f64::max);
+                    (min_s, max_s, min_g, max_g, min_r, max_r, min_t, max_t)
+                }
+                NormalizationContext::FixedRanges {
+                    semantic_range,
+                    graph_range,
+                    recency_range,
+                    temporal_range,
+                } => (
+                    semantic_range.0,
+                    semantic_range.1,
+                    graph_range.0,
+                    graph_range.1,
+                    recency_range.0,
+                    recency_range.1,
+                    temporal_range.0,
+                    temporal_range.1,
+                ),
+            };
 
         let norm = |val: f64, min: f64, max: f64| -> f64 {
             if max == min || val.is_nan() {
@@ -83,7 +116,7 @@ impl FeatureNormalizer for MinMaxNormalizer {
             result.push(RankingSignals::new(sem, graph, rec, temp));
         }
         Ok(result)
-      }
+    }
 }
 
 /// Provenance audit trail documenting raw-to-normalized feature transformations.

@@ -1,18 +1,14 @@
 //! Background job scheduling and execution subsystem.
 
 pub mod executor;
-pub mod scheduler;
 pub mod publisher;
+pub mod scheduler;
 
 pub use executor::{
-    JobExecutor, JobExecutionContext, JobExecutionResult, JobExecutionFailure,
-    JobExecutorRegistry
-};
-pub use scheduler::{
-    JobScheduler, ScheduledJob, SchedulerError, EnqueueOrdinal
+    JobExecutionContext, JobExecutionFailure, JobExecutionResult, JobExecutor, JobExecutorRegistry,
 };
 pub use publisher::{
-    DomainEventPublisher, SystemDomainEventPublisher, PersistentDomainEventPublisher,
-    SystemEventLog
+    DomainEventPublisher, PersistentDomainEventPublisher, SystemDomainEventPublisher,
+    SystemEventLog,
 };
-
+pub use scheduler::{EnqueueOrdinal, JobScheduler, ScheduledJob, SchedulerError};

@@ -1,8 +1,7 @@
-use brain_domain::retrieval::{
-    CostHeuristics, HeuristicMetadata, HeuristicWeights, ObservedCost,
-    RetrievalExecutionReport
-};
 use brain_core::errors::BrainError;
+use brain_domain::retrieval::{
+    CostHeuristics, HeuristicMetadata, HeuristicWeights, ObservedCost, RetrievalExecutionReport,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -58,7 +57,7 @@ impl CostCalibrator {
         // Determine component scaling factor based on actual execution counters
         let vector_factor = if est.vector_cost > 0.0 { 1.0 } else { 0.0 };
         let keyword_factor = if est.keyword_cost > 0.0 { 1.0 } else { 0.0 };
-        
+
         let expansion_factor = if est.expansion_cost > 0.0 {
             (report.runtime.expansions_performed as f64).max(1.0)
         } else {
@@ -132,7 +131,8 @@ impl CostCalibrator {
             let count = obs_counts.entry("vector").or_insert(0);
             *count += 1;
             if *count >= self.min_observations {
-                new_vector = old_weights.vector_weight * (1.0 - self.alpha) + observed.vector_cost * self.alpha;
+                new_vector = old_weights.vector_weight * (1.0 - self.alpha)
+                    + observed.vector_cost * self.alpha;
             }
         }
 
@@ -142,7 +142,8 @@ impl CostCalibrator {
             let count = obs_counts.entry("keyword").or_insert(0);
             *count += 1;
             if *count >= self.min_observations {
-                new_keyword = old_weights.keyword_weight * (1.0 - self.alpha) + observed.keyword_cost * self.alpha;
+                new_keyword = old_weights.keyword_weight * (1.0 - self.alpha)
+                    + observed.keyword_cost * self.alpha;
             }
         }
 
@@ -152,7 +153,8 @@ impl CostCalibrator {
             let count = obs_counts.entry("expansion").or_insert(0);
             *count += 1;
             if *count >= self.min_observations {
-                new_expansion = old_weights.expansion_weight * (1.0 - self.alpha) + observed.expansion_cost * self.alpha;
+                new_expansion = old_weights.expansion_weight * (1.0 - self.alpha)
+                    + observed.expansion_cost * self.alpha;
             }
         }
 
@@ -162,7 +164,8 @@ impl CostCalibrator {
             let count = obs_counts.entry("fusion").or_insert(0);
             *count += 1;
             if *count >= self.min_observations {
-                new_fusion = old_weights.fusion_weight * (1.0 - self.alpha) + observed.fusion_cost * self.alpha;
+                new_fusion = old_weights.fusion_weight * (1.0 - self.alpha)
+                    + observed.fusion_cost * self.alpha;
             }
         }
 
@@ -172,7 +175,8 @@ impl CostCalibrator {
             let count = obs_counts.entry("ranking").or_insert(0);
             *count += 1;
             if *count >= self.min_observations {
-                new_ranking = old_weights.ranking_weight * (1.0 - self.alpha) + observed.ranking_cost * self.alpha;
+                new_ranking = old_weights.ranking_weight * (1.0 - self.alpha)
+                    + observed.ranking_cost * self.alpha;
             }
         }
 
@@ -256,7 +260,9 @@ impl CalibrationAlgorithm for LinearAdjustmentAlgorithm {
         for event in events {
             use brain_domain::retrieval::models::{NormalizedSignal, RankingSignals};
 
-            let zero = NormalizedSignal::new(0.5).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+            let zero = NormalizedSignal::new(0.5).map_err(|e| BrainError::Internal {
+                message: format!("{:?}", e),
+            })?;
             let signals: RankingSignals = serde_json::from_str(&event.context)
                 .unwrap_or_else(|_| RankingSignals::new(zero, zero, zero, zero));
 
@@ -287,10 +293,26 @@ impl CalibrationAlgorithm for LinearAdjustmentAlgorithm {
         temp_val = temp_val.max(0.0);
 
         let new_weights = brain_domain::retrieval::models::RankingWeights::new(
-            brain_domain::retrieval::models::RankingWeight::new(sem_val).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            brain_domain::retrieval::models::RankingWeight::new(graph_val).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            brain_domain::retrieval::models::RankingWeight::new(rec_val).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            brain_domain::retrieval::models::RankingWeight::new(temp_val).map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
+            brain_domain::retrieval::models::RankingWeight::new(sem_val).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            brain_domain::retrieval::models::RankingWeight::new(graph_val).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            brain_domain::retrieval::models::RankingWeight::new(rec_val).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            brain_domain::retrieval::models::RankingWeight::new(temp_val).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
         );
         Ok(new_weights)
     }
@@ -315,9 +337,16 @@ impl CalibrationEngine {
         current: &brain_domain::retrieval::models::WeightSnapshot,
         events: &[brain_domain::retrieval::models::FeedbackEvent],
         policy: &brain_domain::retrieval::models::CalibrationPolicy,
-    ) -> Result<(brain_domain::retrieval::models::WeightSnapshot, brain_domain::retrieval::models::CalibrationReport), BrainError> {
+    ) -> Result<
+        (
+            brain_domain::retrieval::models::WeightSnapshot,
+            brain_domain::retrieval::models::CalibrationReport,
+        ),
+        BrainError,
+    > {
         use brain_domain::retrieval::models::{
-            CalibrationReport, CalibrationMetadata, SnapshotMetadata, SnapshotVersion, WeightSnapshot
+            CalibrationMetadata, CalibrationReport, SnapshotMetadata, SnapshotVersion,
+            WeightSnapshot,
         };
 
         if events.is_empty() {
@@ -335,7 +364,9 @@ impl CalibrationEngine {
         }
 
         let algo: &dyn CalibrationAlgorithm = match policy.algorithm {
-            brain_domain::retrieval::models::CalibrationAlgorithmType::LinearAdjustment => &self.linear_algo,
+            brain_domain::retrieval::models::CalibrationAlgorithmType::LinearAdjustment => {
+                &self.linear_algo
+            }
         };
 
         let new_weights = algo.calibrate(current, events, policy)?;
@@ -421,7 +452,10 @@ impl WeightCalibrationService {
     }
 
     /// Persists a new relevance interaction event.
-    pub fn ingest_feedback(&self, event: brain_domain::retrieval::models::FeedbackEvent) -> Result<(), BrainError> {
+    pub fn ingest_feedback(
+        &self,
+        event: brain_domain::retrieval::models::FeedbackEvent,
+    ) -> Result<(), BrainError> {
         self.storage.save_feedback_event(&event)
     }
 
@@ -429,7 +463,13 @@ impl WeightCalibrationService {
     pub fn calibrate_weights(
         &self,
         policy: &brain_domain::retrieval::models::CalibrationPolicy,
-    ) -> Result<(brain_domain::retrieval::models::WeightSnapshot, brain_domain::retrieval::models::CalibrationReport), BrainError> {
+    ) -> Result<
+        (
+            brain_domain::retrieval::models::WeightSnapshot,
+            brain_domain::retrieval::models::CalibrationReport,
+        ),
+        BrainError,
+    > {
         let current = self.weight_provider.active_snapshot()?;
         let events = self.storage.list_all_feedback_events()?;
 
@@ -456,7 +496,10 @@ impl WeightCalibrationService {
     }
 
     /// Validates safety rules and atomically registers the new active snapshot version.
-    pub fn publish_snapshot(&self, snapshot: brain_domain::retrieval::models::WeightSnapshot) -> Result<(), BrainError> {
+    pub fn publish_snapshot(
+        &self,
+        snapshot: brain_domain::retrieval::models::WeightSnapshot,
+    ) -> Result<(), BrainError> {
         let current = self.weight_provider.active_snapshot()?;
 
         // Monotonicity validation
@@ -483,7 +526,10 @@ impl WeightCalibrationService {
     }
 
     /// Reverts active weights back to a previously stored snapshot version.
-    pub fn rollback_to(&self, version: brain_domain::retrieval::models::SnapshotVersion) -> Result<(), BrainError> {
+    pub fn rollback_to(
+        &self,
+        version: brain_domain::retrieval::models::SnapshotVersion,
+    ) -> Result<(), BrainError> {
         let target = self.storage.get_weight_snapshot(version)?;
         if let Some(snapshot) = target {
             // Atomic swap
@@ -491,10 +537,12 @@ impl WeightCalibrationService {
             Ok(())
         } else {
             Err(BrainError::Storage {
-                message: format!("Rollback target weight snapshot version {} not found", version.value()),
+                message: format!(
+                    "Rollback target weight snapshot version {} not found",
+                    version.value()
+                ),
                 source: None,
             })
         }
     }
 }
-

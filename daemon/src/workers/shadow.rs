@@ -47,7 +47,8 @@ impl ShadowComparator {
         let mut mismatches = Vec::new();
 
         let legacy_node_ids: HashSet<String> = legacy.nodes.iter().map(|n| n.id.clone()).collect();
-        let compiled_node_ids: HashSet<String> = compiled.nodes.iter().map(|n| n.id.clone()).collect();
+        let compiled_node_ids: HashSet<String> =
+            compiled.nodes.iter().map(|n| n.id.clone()).collect();
 
         // 1. Missing Entities
         for legacy_node in &legacy.nodes {
@@ -73,13 +74,25 @@ impl ShadowComparator {
         let legacy_edges: HashSet<(String, String, String)> = legacy
             .edges
             .iter()
-            .map(|e| (e.source.clone(), e.target.clone(), e.relation.to_lowercase()))
+            .map(|e| {
+                (
+                    e.source.clone(),
+                    e.target.clone(),
+                    e.relation.to_lowercase(),
+                )
+            })
             .collect();
 
         let compiled_edges: HashSet<(String, String, String)> = compiled
             .edges
             .iter()
-            .map(|e| (e.source.clone(), e.target.clone(), e.relation.to_lowercase()))
+            .map(|e| {
+                (
+                    e.source.clone(),
+                    e.target.clone(),
+                    e.relation.to_lowercase(),
+                )
+            })
             .collect();
 
         for (src, dst, rel) in &legacy_edges {

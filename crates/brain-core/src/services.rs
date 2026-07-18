@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Session, MemoryDTO, Node, Edge, GraphProvenance, GraphVersion, SessionId};
+use brain_domain::{Edge, GraphProvenance, GraphVersion, MemoryDTO, Node, Session, SessionId};
 
 /// Service managing chat session lifecycle, history persistence, and volatile cache synchronization.
 pub trait SessionService: Send + Sync {

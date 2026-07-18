@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use crate::query::dto::SearchSummary;
+use crate::query::filters::SearchQuery;
+use crate::query::traits::SearchQueryService;
 use brain_core::errors::BrainError;
 use brain_domain::SearchDocument;
-use brain_storage::{SqliteSearchRepository, SearchQuery as StorageSearchQuery};
-use crate::query::filters::SearchQuery;
-use crate::query::dto::SearchSummary;
-use crate::query::traits::SearchQueryService;
+use brain_storage::{SearchQuery as StorageSearchQuery, SqliteSearchRepository};
+use std::sync::Arc;
 
 /// Concrete implementation of `SearchQueryService` backing by Sqlite FTS5 search index.
 pub struct SqliteSearchQueryService {

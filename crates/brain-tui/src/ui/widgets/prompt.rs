@@ -1,7 +1,7 @@
+use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-use crate::ui::theme::Theme;
 
 /// ViewModel carrying the prompt text, cursor position, and focus status.
 pub struct PromptView {
@@ -38,7 +38,6 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
     let p = Paragraph::new(view.prompt_text.as_str())
         .block(block)
         .style(theme.text);
-
 
     f.render_widget(p, area);
 

@@ -87,8 +87,10 @@ async fn replay_strategy_partial_ack() {
     }
 
     let remaining = strategy.get_unacknowledged().await;
-    let remaining_ids: std::collections::HashSet<EventId> =
-        remaining.iter().map(|e| e.identity.event_id.clone()).collect();
+    let remaining_ids: std::collections::HashSet<EventId> = remaining
+        .iter()
+        .map(|e| e.identity.event_id.clone())
+        .collect();
 
     let expected: std::collections::HashSet<EventId> = ids
         .iter()
@@ -134,8 +136,10 @@ async fn replay_strategy_reconcile() {
     }
 
     // Server knows about the first 5
-    let server_known: Vec<IngestionEnvelope> =
-        ids[..5].iter().map(|id| make_envelope(id.clone())).collect();
+    let server_known: Vec<IngestionEnvelope> = ids[..5]
+        .iter()
+        .map(|id| make_envelope(id.clone()))
+        .collect();
 
     let replay_resp = brain_sdk_rs::ReplayResponse {
         events: server_known,
@@ -145,8 +149,10 @@ async fn replay_strategy_reconcile() {
     let remaining = strategy.reconcile(replay_resp).await.unwrap();
     assert_eq!(remaining.len(), 5);
 
-    let remaining_ids: std::collections::HashSet<EventId> =
-        remaining.iter().map(|e| e.identity.event_id.clone()).collect();
+    let remaining_ids: std::collections::HashSet<EventId> = remaining
+        .iter()
+        .map(|e| e.identity.event_id.clone())
+        .collect();
     for id in &ids[5..] {
         assert!(remaining_ids.contains(id));
     }

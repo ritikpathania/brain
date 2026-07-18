@@ -1,5 +1,7 @@
 use crate::identifiers::NodeId;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, ordering::sort_components_canonically};
+use crate::query::analytics::{
+    ordering::sort_components_canonically, AnalyticsAlgorithm, Complexity, GraphAnalyticsContext,
+};
 use std::collections::{HashSet, VecDeque};
 
 /// Configuration settings for connected components analysis.
@@ -60,7 +62,8 @@ impl<'a, 'b> AnalyticsAlgorithm<'a, 'b> for ConnectedComponents<'a, 'b> {
                 let r_neighbors = reverse_adjacency.predecessors(curr);
 
                 // Combine and sort canonically
-                let mut combined_neighbors = Vec::with_capacity(f_neighbors.len() + r_neighbors.len());
+                let mut combined_neighbors =
+                    Vec::with_capacity(f_neighbors.len() + r_neighbors.len());
                 combined_neighbors.extend_from_slice(f_neighbors);
                 combined_neighbors.extend_from_slice(r_neighbors);
                 combined_neighbors.sort();

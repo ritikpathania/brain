@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Session, EdgeDTO, NodeDTO, SessionId, ToolCall};
+use brain_domain::{EdgeDTO, NodeDTO, Session, SessionId, ToolCall};
 
 /// Trait defining standard LLM chat conversation agent capabilities.
 pub trait ChatAgent: Send + Sync {

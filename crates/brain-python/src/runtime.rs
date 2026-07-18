@@ -1,6 +1,6 @@
 use brain_core::agents::{ChatAgent, EmbeddingAgent, ExtractionAgent, PlannerAgent};
 use brain_core::errors::BrainError;
-use brain_domain::{Session, EdgeDTO, NodeDTO, SessionId, ToolCall};
+use brain_domain::{EdgeDTO, NodeDTO, Session, SessionId, ToolCall};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use std::collections::HashMap;

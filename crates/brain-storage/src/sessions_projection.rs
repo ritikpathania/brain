@@ -1,8 +1,8 @@
 //! SQLite-backed repository for tracking session read model projections.
 
-use rusqlite::params;
 use brain_core::errors::BrainError;
 use brain_domain::{SessionId, SessionTimestamp};
+use rusqlite::params;
 
 /// Generic interface for read model repositories.
 pub trait ReadModelRepository<T, K>: Send + Sync {
@@ -45,7 +45,10 @@ impl SqliteSessionReadModelRepository {
     }
 
     /// Finds a session read model state by ID.
-    pub fn find_by_id(&self, session_id: &SessionId) -> Result<Option<SessionReadModel>, BrainError> {
+    pub fn find_by_id(
+        &self,
+        session_id: &SessionId,
+    ) -> Result<Option<SessionReadModel>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -108,33 +111,38 @@ impl SqliteSessionReadModelRepository {
             source: Some(Box::new(e)),
         })?;
 
-        let mapped = stmt.query_map([], |row| {
-            let id_str: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let is_archived: bool = row.get(2)?;
-            let is_pinned: bool = row.get(3)?;
-            let created_at: i64 = row.get(4)?;
-            let updated_at: i64 = row.get(5)?;
-            let updated_sequence: i64 = row.get(6)?;
+        let mapped = stmt
+            .query_map([], |row| {
+                let id_str: String = row.get(0)?;
+                let title: String = row.get(1)?;
+                let is_archived: bool = row.get(2)?;
+                let is_pinned: bool = row.get(3)?;
+                let created_at: i64 = row.get(4)?;
+                let updated_at: i64 = row.get(5)?;
+                let updated_sequence: i64 = row.get(6)?;
 
-            let parsed_id = SessionId(
-                ulid::Ulid::from_string(&id_str)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e)))?
-            );
+                let parsed_id = SessionId(ulid::Ulid::from_string(&id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?);
 
-            Ok(SessionReadModel {
-                session_id: parsed_id,
-                title,
-                is_archived,
-                is_pinned,
-                created_at: SessionTimestamp(created_at as u64),
-                updated_at: SessionTimestamp(updated_at as u64),
-                updated_sequence: updated_sequence as u64,
+                Ok(SessionReadModel {
+                    session_id: parsed_id,
+                    title,
+                    is_archived,
+                    is_pinned,
+                    created_at: SessionTimestamp(created_at as u64),
+                    updated_at: SessionTimestamp(updated_at as u64),
+                    updated_sequence: updated_sequence as u64,
+                })
             })
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to execute list sessions query: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to execute list sessions query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for item in mapped {
@@ -167,7 +175,11 @@ impl SqliteSessionReadModelRepository {
 
         if let Some(archived) = is_archived {
             filters.push(format!("is_archived = ?{}", param_index));
-            params_vec.push(rusqlite::types::Value::Integer(if archived { 1 } else { 0 }));
+            params_vec.push(rusqlite::types::Value::Integer(if archived {
+                1
+            } else {
+                0
+            }));
             param_index += 1;
         }
 
@@ -200,35 +212,43 @@ impl SqliteSessionReadModelRepository {
             source: Some(Box::new(e)),
         })?;
 
-        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec
+            .iter()
+            .map(|v| v as &dyn rusqlite::ToSql)
+            .collect();
 
-        let mapped = stmt.query_map(&params_ref[..], |row| {
-            let id_str: String = row.get(0)?;
-            let title: String = row.get(1)?;
-            let is_archived: bool = row.get(2)?;
-            let is_pinned: bool = row.get(3)?;
-            let created_at: i64 = row.get(4)?;
-            let updated_at: i64 = row.get(5)?;
-            let updated_sequence: i64 = row.get(6)?;
+        let mapped = stmt
+            .query_map(&params_ref[..], |row| {
+                let id_str: String = row.get(0)?;
+                let title: String = row.get(1)?;
+                let is_archived: bool = row.get(2)?;
+                let is_pinned: bool = row.get(3)?;
+                let created_at: i64 = row.get(4)?;
+                let updated_at: i64 = row.get(5)?;
+                let updated_sequence: i64 = row.get(6)?;
 
-            let parsed_id = SessionId(
-                ulid::Ulid::from_string(&id_str)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e)))?
-            );
+                let parsed_id = SessionId(ulid::Ulid::from_string(&id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?);
 
-            Ok(SessionReadModel {
-                session_id: parsed_id,
-                title,
-                is_archived,
-                is_pinned,
-                created_at: SessionTimestamp(created_at as u64),
-                updated_at: SessionTimestamp(updated_at as u64),
-                updated_sequence: updated_sequence as u64,
+                Ok(SessionReadModel {
+                    session_id: parsed_id,
+                    title,
+                    is_archived,
+                    is_pinned,
+                    created_at: SessionTimestamp(created_at as u64),
+                    updated_at: SessionTimestamp(updated_at as u64),
+                    updated_sequence: updated_sequence as u64,
+                })
             })
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to execute query sessions query: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to execute query sessions query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for item in mapped {
@@ -284,7 +304,8 @@ impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModel
         conn.execute(
             "DELETE FROM sessions_projection WHERE session_id = ?1",
             params![id.to_string()],
-        ).map_err(|e| BrainError::Storage {
+        )
+        .map_err(|e| BrainError::Storage {
             message: format!("Failed to delete session read model: {}", e),
             source: Some(Box::new(e)),
         })?;
@@ -298,10 +319,11 @@ impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModel
             source: Some(Box::new(e)),
         })?;
 
-        conn.execute("DELETE FROM sessions_projection", []).map_err(|e| BrainError::Storage {
-            message: format!("Failed to clear sessions projection table: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        conn.execute("DELETE FROM sessions_projection", [])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to clear sessions projection table: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         Ok(())
     }

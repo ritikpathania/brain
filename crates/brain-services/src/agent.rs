@@ -568,7 +568,7 @@ impl ExecutionHandle {
 pub mod commit;
 /// Submodule implementing runner and engine logic.
 pub mod engine;
-/// Submodule implementing runtime streaming logic.
-pub mod streaming;
 /// Submodule implementing graph-based workflow execution.
 pub mod graph;
+/// Submodule implementing runtime streaming logic.
+pub mod streaming;

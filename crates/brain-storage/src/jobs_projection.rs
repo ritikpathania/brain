@@ -1,8 +1,8 @@
 //! SQLite-backed repository for tracking job read model projections.
 
+use brain_core::errors::BrainError;
 use rusqlite::params;
 use uuid::Uuid;
-use brain_core::errors::BrainError;
 
 /// Read model state representing a simplified view of a background job.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,11 +136,14 @@ impl SqliteJobReadModelRepository {
             source: Some(Box::new(e)),
         })?;
 
-        conn.execute("DELETE FROM jobs_projection WHERE job_id = ?1", params![job_id.to_string()])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to delete job read model: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+        conn.execute(
+            "DELETE FROM jobs_projection WHERE job_id = ?1",
+            params![job_id.to_string()],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to delete job read model: {}", e),
+            source: Some(Box::new(e)),
+        })?;
 
         Ok(())
     }
@@ -214,39 +217,49 @@ impl SqliteJobReadModelRepository {
             source: Some(Box::new(e)),
         })?;
 
-        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec
+            .iter()
+            .map(|v| v as &dyn rusqlite::ToSql)
+            .collect();
 
-        let mapped = stmt.query_map(&params_ref[..], |row| {
-            let id_str: String = row.get(0)?;
-            let kind: String = row.get(1)?;
-            let owner: String = row.get(2)?;
-            let state: String = row.get(3)?;
-            let priority: i64 = row.get(4)?;
-            let progress: i64 = row.get(5)?;
-            let started_at: Option<i64> = row.get(6)?;
-            let completed_at: Option<i64> = row.get(7)?;
-            let failure_reason: Option<String> = row.get(8)?;
-            let updated_sequence: i64 = row.get(9)?;
+        let mapped = stmt
+            .query_map(&params_ref[..], |row| {
+                let id_str: String = row.get(0)?;
+                let kind: String = row.get(1)?;
+                let owner: String = row.get(2)?;
+                let state: String = row.get(3)?;
+                let priority: i64 = row.get(4)?;
+                let progress: i64 = row.get(5)?;
+                let started_at: Option<i64> = row.get(6)?;
+                let completed_at: Option<i64> = row.get(7)?;
+                let failure_reason: Option<String> = row.get(8)?;
+                let updated_sequence: i64 = row.get(9)?;
 
-            let parsed_id = Uuid::parse_str(&id_str)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e)))?;
+                let parsed_id = Uuid::parse_str(&id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
 
-            Ok(JobReadModel {
-                job_id: parsed_id,
-                kind,
-                owner,
-                state,
-                priority: priority as u32,
-                progress: progress as u32,
-                started_at: started_at.map(|t| t as u64),
-                completed_at: completed_at.map(|t| t as u64),
-                failure_reason,
-                updated_sequence: updated_sequence as u64,
+                Ok(JobReadModel {
+                    job_id: parsed_id,
+                    kind,
+                    owner,
+                    state,
+                    priority: priority as u32,
+                    progress: progress as u32,
+                    started_at: started_at.map(|t| t as u64),
+                    completed_at: completed_at.map(|t| t as u64),
+                    failure_reason,
+                    updated_sequence: updated_sequence as u64,
+                })
             })
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to execute query jobs query: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to execute query jobs query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for item in mapped {
@@ -260,7 +273,9 @@ impl SqliteJobReadModelRepository {
     }
 }
 
-impl crate::sessions_projection::ReadModelRepository<JobReadModel, Uuid> for SqliteJobReadModelRepository {
+impl crate::sessions_projection::ReadModelRepository<JobReadModel, Uuid>
+    for SqliteJobReadModelRepository
+{
     fn save(&self, model: &JobReadModel) -> Result<(), BrainError> {
         self.save(model)
     }

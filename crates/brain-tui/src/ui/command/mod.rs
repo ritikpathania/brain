@@ -134,15 +134,13 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         priority: 50,
         aliases: &["theme"],
         keywords: &["appearance", "dark", "light", "color", "style"],
-        parameters: &[
-            ParameterDescriptor {
-                id: ParameterId("theme"),
-                name: "theme",
-                description: "Theme name to apply",
-                kind: ParameterKind::Theme,
-                required: true,
-            }
-        ],
+        parameters: &[ParameterDescriptor {
+            id: ParameterId("theme"),
+            name: "theme",
+            description: "Theme name to apply",
+            kind: ParameterKind::Theme,
+            required: true,
+        }],
     },
     CommandDescriptor {
         id: RENAME_SESSION,
@@ -153,15 +151,13 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         priority: 100,
         aliases: &["rename"],
         keywords: &["session", "title", "name", "edit"],
-        parameters: &[
-            ParameterDescriptor {
-                id: ParameterId("title"),
-                name: "title",
-                description: "New session title",
-                kind: ParameterKind::String,
-                required: true,
-            }
-        ],
+        parameters: &[ParameterDescriptor {
+            id: ParameterId("title"),
+            name: "title",
+            description: "New session title",
+            kind: ParameterKind::String,
+            required: true,
+        }],
     },
     CommandDescriptor {
         id: ARCHIVE_SESSION,
@@ -205,15 +201,13 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         priority: 60,
         aliases: &["model", "switch-model"],
         keywords: &["llm", "ai", "model", "select", "change"],
-        parameters: &[
-            ParameterDescriptor {
-                id: ParameterId("model"),
-                name: "model",
-                description: "AI model name",
-                kind: ParameterKind::Model,
-                required: true,
-            }
-        ],
+        parameters: &[ParameterDescriptor {
+            id: ParameterId("model"),
+            name: "model",
+            description: "AI model name",
+            kind: ParameterKind::Model,
+            required: true,
+        }],
     },
     CommandDescriptor {
         id: CLEAR_CHAT,
@@ -269,7 +263,10 @@ impl CommandRegistry {
         let name_lower = name.to_lowercase();
         Self::iter().find(|cmd| {
             cmd.title.to_lowercase() == name_lower
-                || cmd.aliases.iter().any(|&alias| alias.to_lowercase() == name_lower)
+                || cmd
+                    .aliases
+                    .iter()
+                    .any(|&alias| alias.to_lowercase() == name_lower)
         })
     }
 }
@@ -308,7 +305,10 @@ pub struct CommandPolicy;
 
 impl CommandPolicy {
     /// Evaluate if a command can run under the current state context.
-    pub fn availability(descriptor: &CommandDescriptor, ctx: &CommandAvailabilityContext) -> Availability {
+    pub fn availability(
+        descriptor: &CommandDescriptor,
+        ctx: &CommandAvailabilityContext,
+    ) -> Availability {
         match descriptor.id {
             RENAME_SESSION | ARCHIVE_SESSION | DELETE_SESSION => {
                 if !ctx.has_selected_session {
@@ -341,8 +341,4 @@ pub mod executor;
 /// Tool execution domain models.
 pub mod tool;
 
-pub use executor::{CommandInvocation, LocalStateMutation, ExecutionPlan, CommandExecutor};
-
-
-
-
+pub use executor::{CommandExecutor, CommandInvocation, ExecutionPlan, LocalStateMutation};

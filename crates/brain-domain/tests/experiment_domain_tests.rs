@@ -1,7 +1,9 @@
 use brain_domain::retrieval::experiment::{
-    TrafficAllocation, ExperimentConfiguration, Variant, RoutingStrategy, ExperimentValidationError
+    ExperimentConfiguration, ExperimentValidationError, RoutingStrategy, TrafficAllocation, Variant,
 };
-use brain_domain::retrieval::models::{WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata, RankingWeights};
+use brain_domain::retrieval::models::{
+    CalibrationMetadata, RankingWeights, SnapshotMetadata, SnapshotVersion, WeightSnapshot,
+};
 use brain_domain::temporal::TimePoint;
 
 fn make_dummy_snapshot(version: u64) -> WeightSnapshot {
@@ -35,8 +37,14 @@ fn test_allocation_conservation_invariant() {
     let snap2 = make_dummy_snapshot(2);
 
     let variants = vec![
-        Variant { id: "baseline".to_string(), snapshot: snap1 },
-        Variant { id: "canary".to_string(), snapshot: snap2 },
+        Variant {
+            id: "baseline".to_string(),
+            snapshot: snap1,
+        },
+        Variant {
+            id: "canary".to_string(),
+            snapshot: snap2,
+        },
     ];
 
     // Case 1: Sum is exactly 1.0 -> Valid

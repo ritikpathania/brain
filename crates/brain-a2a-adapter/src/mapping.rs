@@ -1,5 +1,5 @@
-use brain_application::{ApplicationError, ApplicationEvent};
 use crate::protocol::{A2aError, A2aNotification};
+use brain_application::{ApplicationError, ApplicationEvent};
 
 /// Explicit error mapper translating ApplicationError into A2aError.
 pub struct A2aErrorMapper;

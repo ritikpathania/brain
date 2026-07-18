@@ -1,13 +1,13 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::time::Instant;
-use std::sync::Arc;
 use brain_domain::{Node, NodeId, NodeType};
-use brain_session::StmNode;
 use brain_services::conversation::{
-    PromotionContext, StmView, SessionMetadata, PromotionPolicy,
-    RecencyPolicy, SemanticImportancePolicy, UserPinnedPolicy,
-    CompositePolicy, WeightedCompositePolicy, LogicalOp, PropertyImportanceScorer,
+    CompositePolicy, LogicalOp, PromotionContext, PromotionPolicy, PropertyImportanceScorer,
+    RecencyPolicy, SemanticImportancePolicy, SessionMetadata, StmView, UserPinnedPolicy,
+    WeightedCompositePolicy,
 };
+use brain_session::StmNode;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::sync::Arc;
+use std::time::Instant;
 
 struct BenchmarkStmView {
     nodes: Vec<StmNode>,
@@ -46,7 +46,10 @@ fn bench_policies(c: &mut Criterion) {
     let recency = RecencyPolicy::new(Some(500), Some(3600));
     let importance = SemanticImportancePolicy::new(8.0, false, Arc::new(PropertyImportanceScorer));
     let composite = CompositePolicy::new(
-        vec![Arc::new(UserPinnedPolicy::new()), Arc::new(RecencyPolicy::new(Some(500), None))],
+        vec![
+            Arc::new(UserPinnedPolicy::new()),
+            Arc::new(RecencyPolicy::new(Some(500), None)),
+        ],
         LogicalOp::Or,
     );
     let weighted = WeightedCompositePolicy::new(

@@ -1,7 +1,7 @@
 use brain_domain::retrieval::models::{
-    WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata,
-    RankingWeights, RankingModelVersion, FeatureId, SplitThreshold,
-    LeafScore, DecisionTreeNode, DecisionTreeDefinition
+    CalibrationMetadata, DecisionTreeDefinition, DecisionTreeNode, FeatureId, LeafScore,
+    RankingModelVersion, RankingWeights, SnapshotMetadata, SnapshotVersion, SplitThreshold,
+    WeightSnapshot,
 };
 use brain_domain::temporal::TimePoint;
 use brain_services::retrieval::model_resolver::ModelDeserializer;
@@ -31,8 +31,12 @@ fn test_model_deserializer_linear_fallback_and_tree() {
     assert_eq!(model.version(), RankingModelVersion::V1Linear);
 
     // Case 2: Valid V2DecisionTree
-    let left_leaf = Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.5).unwrap() });
-    let right_leaf = Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(1.5).unwrap() });
+    let left_leaf = Box::new(DecisionTreeNode::Leaf {
+        score: LeafScore::new(0.5).unwrap(),
+    });
+    let right_leaf = Box::new(DecisionTreeNode::Leaf {
+        score: LeafScore::new(1.5).unwrap(),
+    });
     let root = DecisionTreeNode::Split {
         feature: FeatureId::Semantic,
         threshold: SplitThreshold::new(0.4).unwrap(),
@@ -51,7 +55,10 @@ fn test_model_deserializer_linear_fallback_and_tree() {
 
     // Case 3: Explicit failure on corrupted JSON
     let cal_corrupt = CalibrationMetadata::new("DecisionTree".to_string(), None)
-        .with_model_details(Some(RankingModelVersion::V2DecisionTree), Some("corrupted_json_string".to_string()));
+        .with_model_details(
+            Some(RankingModelVersion::V2DecisionTree),
+            Some("corrupted_json_string".to_string()),
+        );
     let snap_corrupt = make_snapshot(3, cal_corrupt);
 
     let res_corrupt = ModelDeserializer::resolve(&snap_corrupt);

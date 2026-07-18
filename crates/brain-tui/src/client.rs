@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use brain_core::errors::BrainError;
 use brain_core::events::StreamEvent;
-use brain_domain::{SessionId, Message};
+use brain_domain::{Message, SessionId};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 
@@ -44,7 +44,10 @@ impl EventReceiver {
         rx: UnboundedReceiver<Result<StreamEvent, BrainError>>,
         cancellation_token: CancellationToken,
     ) -> Self {
-        Self { rx, cancellation_token }
+        Self {
+            rx,
+            cancellation_token,
+        }
     }
 
     /// Receives the next sequential event. Returns None if stream completed.
@@ -89,18 +92,25 @@ pub trait ExecutionClient: Send + Sync {
     async fn delete_session(&self, id: SessionId) -> Result<(), BrainError>;
 
     /// Approves or denies a tool call.
-    async fn approve_tool_call(&self, call_id: brain_core::events::ToolCallId, approved: bool) -> Result<(), BrainError>;
+    async fn approve_tool_call(
+        &self,
+        call_id: brain_core::events::ToolCallId,
+        approved: bool,
+    ) -> Result<(), BrainError>;
 
     /// Searches historical messages across all sessions.
     async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError>;
 
     /// Queries the complete inspector model for a node.
-    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError>;
+    async fn inspect_node(
+        &self,
+        id: brain_domain::NodeId,
+    ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError>;
 }
 
-use tokio::net::UnixStream;
+use brain_core::events::{EventMetadata, StreamEvent as CoreStreamEvent, StreamEventKind};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use brain_core::events::{EventMetadata, StreamEventKind, StreamEvent as CoreStreamEvent};
+use tokio::net::UnixStream;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -178,7 +188,12 @@ fn map_uds_event(uds_ev: UdsStreamEvent) -> Vec<CoreStreamEvent> {
                 active: true,
             },
         }],
-        UdsStreamEvent::Progress { sequence, progress, message, .. } => vec![CoreStreamEvent {
+        UdsStreamEvent::Progress {
+            sequence,
+            progress,
+            message,
+            ..
+        } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence,
@@ -189,7 +204,9 @@ fn map_uds_event(uds_ev: UdsStreamEvent) -> Vec<CoreStreamEvent> {
                 percentage: Some(progress as f32),
             },
         }],
-        UdsStreamEvent::Chunk { sequence, content, .. } => vec![CoreStreamEvent {
+        UdsStreamEvent::Chunk {
+            sequence, content, ..
+        } => vec![CoreStreamEvent {
             metadata: EventMetadata {
                 execution_id,
                 sequence,
@@ -197,14 +214,20 @@ fn map_uds_event(uds_ev: UdsStreamEvent) -> Vec<CoreStreamEvent> {
             },
             kind: StreamEventKind::Token(content),
         }],
-        UdsStreamEvent::End { sequence, metadata, .. } => {
+        UdsStreamEvent::End {
+            sequence, metadata, ..
+        } => {
             // Extract context_used from stream_end metadata. Old daemons that
             // send `metadata: {}` produce an empty Vec here and only Finished
             // is emitted, so the path is backward-compatible.
             let context_used: Vec<String> = metadata
                 .get("context_used")
                 .and_then(|v| v.as_array())
-                .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default();
 
             let finished = CoreStreamEvent {
@@ -262,7 +285,9 @@ impl Default for UdsClient {
         let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
             std::path::PathBuf::from(path)
         } else if let Ok(home) = std::env::var("HOME") {
-            std::path::PathBuf::from(home).join(".brain").join("daemon.sock")
+            std::path::PathBuf::from(home)
+                .join(".brain")
+                .join("daemon.sock")
         } else {
             std::path::PathBuf::from("/tmp/brain-daemon.sock")
         };
@@ -273,12 +298,13 @@ impl Default for UdsClient {
 #[async_trait]
 impl ExecutionClient for UdsClient {
     async fn execute(&self, req: ExecutionRequest) -> Result<EventReceiver, BrainError> {
-        let mut stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
-            BrainError::Network {
-                message: format!("Failed to connect to UDS daemon: {}", e),
-                url: None,
-            }
-        })?;
+        let mut stream =
+            UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| BrainError::Network {
+                    message: format!("Failed to connect to UDS daemon: {}", e),
+                    url: None,
+                })?;
 
         // Build wire payload. `body` remains a plain String for backward compat.
         // `workspace_context` is added as a top-level sibling only when present;
@@ -297,18 +323,17 @@ impl ExecutionClient for UdsClient {
 
         let mut payload_str = serde_json::to_string(&payload).unwrap();
         payload_str.push('\n');
-        
-        stream.write_all(payload_str.as_bytes()).await.map_err(|e| {
-            BrainError::Storage {
+
+        stream
+            .write_all(payload_str.as_bytes())
+            .await
+            .map_err(|e| BrainError::Storage {
                 message: format!("Failed to send query over UDS stream: {}", e),
                 source: None,
-            }
-        })?;
-        stream.flush().await.map_err(|e| {
-            BrainError::Storage {
-                message: format!("Failed to flush UDS stream: {}", e),
-                source: None,
-            }
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: format!("Failed to flush UDS stream: {}", e),
+            source: None,
         })?;
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
@@ -390,7 +415,11 @@ impl ExecutionClient for UdsClient {
         Ok(())
     }
 
-    async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
+    async fn approve_tool_call(
+        &self,
+        _call_id: brain_core::events::ToolCallId,
+        _approved: bool,
+    ) -> Result<(), BrainError> {
         Ok(())
     }
 
@@ -398,13 +427,17 @@ impl ExecutionClient for UdsClient {
         Ok(vec![])
     }
 
-    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
-        let mut stream = UnixStream::connect(&self.socket_path).await.map_err(|e| {
-            BrainError::Network {
-                message: format!("Failed to connect to UDS daemon: {}", e),
-                url: None,
-            }
-        })?;
+    async fn inspect_node(
+        &self,
+        id: brain_domain::NodeId,
+    ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        let mut stream =
+            UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| BrainError::Network {
+                    message: format!("Failed to connect to UDS daemon: {}", e),
+                    url: None,
+                })?;
 
         let payload = serde_json::json!({
             "version": "1.0",
@@ -413,27 +446,26 @@ impl ExecutionClient for UdsClient {
             "action": "inspect_node",
             "body": id.to_string()
         });
-        
+
         let mut payload_str = serde_json::to_string(&payload).unwrap();
         payload_str.push('\n');
-        
-        stream.write_all(payload_str.as_bytes()).await.map_err(|e| {
-            BrainError::Storage {
+
+        stream
+            .write_all(payload_str.as_bytes())
+            .await
+            .map_err(|e| BrainError::Storage {
                 message: format!("Failed to send inspect_node request: {}", e),
                 source: None,
-            }
-        })?;
-        stream.flush().await.map_err(|e| {
-            BrainError::Storage {
-                message: format!("Failed to flush UDS stream: {}", e),
-                source: None,
-            }
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: format!("Failed to flush UDS stream: {}", e),
+            source: None,
         })?;
 
         let (reader, _) = stream.split();
         let mut buf_reader = BufReader::new(reader);
         let mut line = String::new();
-        
+
         if buf_reader.read_line(&mut line).await.is_ok() {
             let trim_line = line.trim();
             if !trim_line.is_empty() {
@@ -444,21 +476,29 @@ impl ExecutionClient for UdsClient {
                 }
                 if let Ok(resp) = serde_json::from_str::<UdsResponse>(trim_line) {
                     if resp.status == "success" {
-                        if let Ok(model) = serde_json::from_str::<brain_domain::query::inspector::InspectorModel>(&resp.body) {
+                        if let Ok(model) = serde_json::from_str::<
+                            brain_domain::query::inspector::InspectorModel,
+                        >(&resp.body)
+                        {
                             return Ok(model);
                         }
                     }
                 }
                 if let Ok(err_resp) = serde_json::from_str::<UdsErrorResponse>(trim_line) {
                     if err_resp.status == "error" {
-                        let msg = err_resp.body.or(err_resp.message).unwrap_or_else(|| "Unknown daemon error".to_string());
+                        let msg = err_resp
+                            .body
+                            .or(err_resp.message)
+                            .unwrap_or_else(|| "Unknown daemon error".to_string());
                         return Err(BrainError::Internal { message: msg });
                     }
                 }
             }
         }
-        
-        Err(BrainError::Internal { message: "Failed to read inspection details from daemon".to_string() })
+
+        Err(BrainError::Internal {
+            message: "Failed to read inspection details from daemon".to_string(),
+        })
     }
 }
 
@@ -475,7 +515,7 @@ mod tests {
         async fn execute(&self, req: ExecutionRequest) -> Result<EventReceiver, BrainError> {
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             let cancellation_token = req.cancellation_token.clone();
-            
+
             tokio::spawn(async move {
                 let event = StreamEvent {
                     metadata: EventMetadata {
@@ -503,7 +543,11 @@ mod tests {
             Ok(())
         }
 
-        async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> {
+        async fn approve_tool_call(
+            &self,
+            _call_id: brain_core::events::ToolCallId,
+            _approved: bool,
+        ) -> Result<(), BrainError> {
             Ok(())
         }
 
@@ -511,7 +555,10 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        async fn inspect_node(
+            &self,
+            id: brain_domain::NodeId,
+        ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
             let entity = brain_domain::dtos::NodeDTO::new(
                 id.to_string(),
                 "Mock Node".to_string(),

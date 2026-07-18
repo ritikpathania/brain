@@ -1,7 +1,9 @@
-use brain_tui::state::{UiState, Action, SessionLoadState, PendingLoad, GenerationState, RenderToken};
-use brain_tui::ui::theme::Theme;
+use brain_domain::{Message, MessageId, MessageRole, SessionId};
+use brain_tui::state::{
+    Action, GenerationState, PendingLoad, RenderToken, SessionLoadState, UiState,
+};
 use brain_tui::ui::renderer::AppRenderer;
-use brain_domain::{SessionId, Message, MessageRole, MessageId};
+use brain_tui::ui::theme::Theme;
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
@@ -17,20 +19,22 @@ fn test_layout_partitions_verification() {
     let mut state = UiState::new();
     state.terminal_width = 120;
     state.terminal_height = 30;
-    
+
     let state_ref = &state;
-    terminal.draw(|f| {
-        let area = f.size();
-        let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_ref);
-        assert_eq!(h.height, 3);
-        assert_eq!(p.height, 3);
-        assert_eq!(s.height, 1);
-        assert_eq!(sb.width, 25);
-        assert_eq!(c.height, 23);
-        assert_eq!(sb.height, 23);
-        
-        renderer.draw(f, area, state_ref, &theme);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            let area = f.size();
+            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_ref);
+            assert_eq!(h.height, 3);
+            assert_eq!(p.height, 3);
+            assert_eq!(s.height, 1);
+            assert_eq!(sb.width, 25);
+            assert_eq!(c.height, 23);
+            assert_eq!(sb.height, 23);
+
+            renderer.draw(f, area, state_ref, &theme);
+        })
+        .unwrap();
 
     // 2. Compact View Width (70x30) - Sidebar should hide
     let backend = TestBackend::new(70, 30);
@@ -38,26 +42,28 @@ fn test_layout_partitions_verification() {
     let mut state_compact = UiState::new();
     state_compact.terminal_width = 70;
     state_compact.terminal_height = 30;
-    
-    let state_compact_ref = &state_compact;
-    terminal.draw(|f| {
-        let area = f.size();
-        let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_compact_ref);
-        assert_eq!(h.height, 3);
-        assert_eq!(p.height, 3);
-        assert_eq!(s.height, 1);
-        assert_eq!(sb.width, 0); // hidden
-        assert_eq!(c.width, 70); // chat uses full width
-        assert_eq!(c.height, 23);
 
-        renderer.draw(f, area, state_compact_ref, &theme);
-    }).unwrap();
+    let state_compact_ref = &state_compact;
+    terminal
+        .draw(|f| {
+            let area = f.size();
+            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_compact_ref);
+            assert_eq!(h.height, 3);
+            assert_eq!(p.height, 3);
+            assert_eq!(s.height, 1);
+            assert_eq!(sb.width, 0); // hidden
+            assert_eq!(c.width, 70); // chat uses full width
+            assert_eq!(c.height, 23);
+
+            renderer.draw(f, area, state_compact_ref, &theme);
+        })
+        .unwrap();
 }
 
 #[test]
 fn test_scroll_limits_and_anchoring() {
     let mut state = UiState::new();
-    
+
     // Add messages to fill screen height
     for i in 0..50 {
         let msg = Message::new(
@@ -76,15 +82,24 @@ fn test_scroll_limits_and_anchoring() {
 #[test]
 fn test_session_switching_stress() {
     let mut state = UiState::new();
-    
+
     // Switch between 100 sessions in rapid succession
     for i in 1..=100 {
         let session_id = SessionId::new();
         let req_id = brain_tui::state::LoadRequestId(i);
-        
-        state.update(Action::ActivateSession { session_id, request_id: req_id });
-        
-        assert_eq!(state.pending_load, Some(PendingLoad { session_id, request_id: req_id }));
+
+        state.update(Action::ActivateSession {
+            session_id,
+            request_id: req_id,
+        });
+
+        assert_eq!(
+            state.pending_load,
+            Some(PendingLoad {
+                session_id,
+                request_id: req_id
+            })
+        );
         assert_eq!(state.session_load_state, SessionLoadState::Loading);
     }
 }
@@ -103,12 +118,14 @@ fn test_rapid_resize_stress() {
         state_resized.terminal_width = i as u16;
         state_resized.terminal_height = (i / 3 + 10) as u16;
         let state_resized_ref = &state_resized;
-        
-        terminal.draw(|f| {
-            let area = f.size();
-            let _ = renderer.compute_layout(area, state_resized_ref);
-            renderer.draw(f, area, state_resized_ref, &theme);
-        }).unwrap();
+
+        terminal
+            .draw(|f| {
+                let area = f.size();
+                let _ = renderer.compute_layout(area, state_resized_ref);
+                renderer.draw(f, area, state_resized_ref, &theme);
+            })
+            .unwrap();
     }
 }
 
@@ -122,7 +139,9 @@ fn test_cancellation_spam_stress() {
         assert_eq!(state.generation_state, GenerationState::Starting);
 
         // Receive token
-        state.update(Action::ReceiveToken(RenderToken::Text("partial chunk".to_string())));
+        state.update(Action::ReceiveToken(RenderToken::Text(
+            "partial chunk".to_string(),
+        )));
 
         // Cancel immediately
         state.update(Action::CancelStream);

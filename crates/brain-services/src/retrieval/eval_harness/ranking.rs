@@ -1,4 +1,6 @@
-use crate::retrieval::eval_harness::{FeatureExtractor, FeatureVector, FeatureProvider, FeatureContext, RetrievalResult, Retriever};
+use crate::retrieval::eval_harness::{
+    FeatureContext, FeatureExtractor, FeatureProvider, FeatureVector, RetrievalResult, Retriever,
+};
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
 

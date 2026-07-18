@@ -1,12 +1,12 @@
 //! Feature provider module.
 
-use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
-use sha2::{Sha256, Digest};
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
-use r2d2::Pool;
 use brain_storage::connection::SqliteConnectionManager;
+use r2d2::Pool;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 
 /// The current feature schema version.
 ///
@@ -97,7 +97,10 @@ pub struct FeatureContext {
 /// First-class runtime contract for retrieving candidate metadata.
 pub trait FeatureProvider: Send + Sync {
     /// Loads the `FeatureContext` for a batch of `NodeId`s.
-    fn load_contexts(&self, node_ids: &[NodeId]) -> Result<HashMap<NodeId, FeatureContext>, BrainError>;
+    fn load_contexts(
+        &self,
+        node_ids: &[NodeId],
+    ) -> Result<HashMap<NodeId, FeatureContext>, BrainError>;
 }
 
 /// Pure translation layer extracting raw features from database context and similarity scores.
@@ -111,7 +114,10 @@ pub struct FeatureExtractor {
 impl FeatureExtractor {
     /// Instantiates a new FeatureExtractor with reference time and decay parameters.
     pub fn new(reference_time: u64, decay: RankingDecay) -> Self {
-        Self { reference_time, decay }
+        Self {
+            reference_time,
+            decay,
+        }
     }
 
     /// Purely extracts a FeatureVector from similarity scores and database context.
@@ -144,7 +150,9 @@ impl FeatureExtractor {
         let provenance_confidence = context.provenance_confidence.or(Some(1.0));
 
         // 4. Log-scaled Graph Degree
-        let graph_degree = context.graph_degree.map(|degree| (degree as f64 + 1.0).ln());
+        let graph_degree = context
+            .graph_degree
+            .map(|degree| (degree as f64 + 1.0).ln());
 
         // 5. Log-scaled Access Frequency
         let access_frequency = context.access_count.map(|count| (count as f64 + 1.0).ln());
@@ -256,9 +264,7 @@ impl FeatureProvider for SqliteFeatureProvider {
 
                     let mut pinned = false;
                     let mut importance = None;
-                    if let Ok(props) =
-                        serde_json::from_str::<serde_json::Value>(&properties_json)
-                    {
+                    if let Ok(props) = serde_json::from_str::<serde_json::Value>(&properties_json) {
                         pinned = props
                             .get("pinned")
                             .and_then(|v| v.as_bool())

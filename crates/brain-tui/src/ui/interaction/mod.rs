@@ -1,29 +1,32 @@
 //! Interaction module managing buffers, scroll state, and command dispatchers.
 
-pub mod editor;
-pub mod scroll;
-pub mod dispatcher;
-pub mod chat;
-pub mod markdown;
-/// Sidebar navigation component interaction.
-pub mod sidebar;
 /// Abstract syntax tree definitions for markdown blocks.
 pub mod ast;
-/// Document parser mapping markdown to semantic blocks.
-pub mod parser;
-/// Language syntax highlighting lexer framework.
-pub mod lexer;
+pub mod chat;
+pub mod dispatcher;
+pub mod editor;
 /// Width-aware layout tree compiler.
 pub mod layout_tree;
+/// Language syntax highlighting lexer framework.
+pub mod lexer;
+pub mod markdown;
 /// Hierarchical document cursor navigation.
 pub mod navigation;
+/// Document parser mapping markdown to semantic blocks.
+pub mod parser;
+pub mod scroll;
+/// Sidebar navigation component interaction.
+pub mod sidebar;
 /// Unified event timeline models.
 pub mod timeline;
 
-pub use editor::{TextBuffer, Cursor, Editor};
-pub use scroll::{ScrollState, AutoFollowPolicy};
-pub use dispatcher::{InteractionContext, DispatchResult, Dispatcher, UiEvent};
-pub use chat::{MessageId, MessageRole, GenerationState, ChatMessage, ChatState};
+pub use chat::{ChatMessage, ChatState, GenerationState, MessageId, MessageRole};
+pub use dispatcher::{DispatchResult, Dispatcher, InteractionContext, UiEvent};
+pub use editor::{Cursor, Editor, TextBuffer};
 pub use markdown::{MarkdownDocument, MarkdownRenderState};
-pub use sidebar::{SessionFilter, SidebarMode, BrowseState, ParsedQuery, SearchState, RenameState, SidebarInteraction, SidebarEvent, SessionLookup};
+pub use scroll::{AutoFollowPolicy, ScrollState};
+pub use sidebar::{
+    BrowseState, ParsedQuery, RenameState, SearchState, SessionFilter, SessionLookup, SidebarEvent,
+    SidebarInteraction, SidebarMode,
+};
 pub use timeline::{EventOrdinal, TimelineItem};

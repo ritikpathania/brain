@@ -1,7 +1,9 @@
-use crossterm::ExecutableCommand;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use std::io::stdout;
 use brain_core::errors::BrainError;
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use crossterm::ExecutableCommand;
+use std::io::stdout;
 
 /// RAII guard managing raw mode and alternate screen setup and teardown.
 pub struct TerminalGuard {
@@ -14,15 +16,17 @@ impl TerminalGuard {
         enable_raw_mode().map_err(|e| BrainError::Validation {
             message: format!("Failed to enable raw mode: {}", e),
         })?;
-        
+
         let mut out = stdout();
-        out.execute(EnterAlternateScreen).map_err(|e| BrainError::Validation {
-            message: format!("Failed to enter alternate screen: {}", e),
-        })?;
-        out.execute(crossterm::cursor::Hide).map_err(|e| BrainError::Validation {
-            message: format!("Failed to hide cursor: {}", e),
-        })?;
-        
+        out.execute(EnterAlternateScreen)
+            .map_err(|e| BrainError::Validation {
+                message: format!("Failed to enter alternate screen: {}", e),
+            })?;
+        out.execute(crossterm::cursor::Hide)
+            .map_err(|e| BrainError::Validation {
+                message: format!("Failed to hide cursor: {}", e),
+            })?;
+
         Ok(Self { active: true })
     }
 }

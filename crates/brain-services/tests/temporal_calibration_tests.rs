@@ -1,10 +1,11 @@
-
 use brain_domain::retrieval::models::{
-    WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata,
-    RankingWeights, RankingWeight
+    CalibrationMetadata, RankingWeight, RankingWeights, SnapshotMetadata, SnapshotVersion,
+    WeightSnapshot,
 };
 use brain_domain::temporal::TimePoint;
-use brain_services::retrieval::active_weights::{ActiveWeightProvider, DefaultActiveWeightProvider};
+use brain_services::retrieval::active_weights::{
+    ActiveWeightProvider, DefaultActiveWeightProvider,
+};
 use brain_services::retrieval::experiment::DefaultExperimentRouter;
 
 fn make_dummy_snapshot(version: u64) -> WeightSnapshot {
@@ -19,10 +20,7 @@ fn make_dummy_snapshot(version: u64) -> WeightSnapshot {
         RankingWeight::new(1.0).unwrap(),
         RankingWeight::new(1.0).unwrap(),
     );
-    WeightSnapshot {
-        metadata,
-        weights,
-    }
+    WeightSnapshot { metadata, weights }
 }
 
 #[test]
@@ -47,17 +45,29 @@ fn test_learned_temporal_scorer() {
 
     // 1. Create and save some nodes
     use brain_core::repositories::NodeRepository;
-    use brain_domain::{Node, Edge, NodeType, RelationKind, NodeId, temporal::RecencyPolicy};
-    use brain_services::retrieval::temporal::LearnedTemporalScorer;
     use brain_core::retrieval::{RankingStrategy, RetrievalRequest};
+    use brain_domain::{temporal::RecencyPolicy, Edge, Node, NodeId, NodeType, RelationKind};
+    use brain_services::retrieval::temporal::LearnedTemporalScorer;
 
     let node_a = NodeId::new();
     let node_b = NodeId::new();
     let node_c = NodeId::new();
 
-    NodeRepository::save(sqlite, &Node::new(node_a, "EntityA".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(sqlite, &Node::new(node_b, "EntityB".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(sqlite, &Node::new(node_c, "EntityC".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_a, "EntityA".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_b, "EntityB".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_c, "EntityC".to_string(), NodeType::Concept),
+    )
+    .unwrap();
 
     // 2. Create temporal edges
     // Node A is linked twice, Node B is linked once, Node C is linked zero times
@@ -85,7 +95,9 @@ fn test_learned_temporal_scorer() {
         router,
         sqlite_arc.clone(),
         TimePoint::from_unix_seconds(1620000020),
-        RecencyPolicy::Linear { horizon_secs: 100.0 },
+        RecencyPolicy::Linear {
+            horizon_secs: 100.0,
+        },
     );
 
     let req = RetrievalRequest {
@@ -97,9 +109,15 @@ fn test_learned_temporal_scorer() {
     };
 
     let input_nodes = vec![
-        NodeRepository::find_by_id(sqlite, &node_a).unwrap().unwrap(),
-        NodeRepository::find_by_id(sqlite, &node_b).unwrap().unwrap(),
-        NodeRepository::find_by_id(sqlite, &node_c).unwrap().unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_a)
+            .unwrap()
+            .unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_b)
+            .unwrap()
+            .unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_c)
+            .unwrap()
+            .unwrap(),
     ];
 
     let ranked = scorer.rank(&req, input_nodes).unwrap();
@@ -112,11 +130,11 @@ fn test_learned_temporal_scorer() {
 
 #[test]
 fn test_calibration_engine_idempotency_and_linear_math() {
-    use brain_domain::retrieval::models::{
-        CalibrationPolicy, CalibrationPolicyVersion, CalibrationAlgorithmType,
-        FeedbackEvent, NormalizedSignal, RankingSignals
-    };
     use brain_domain::identifiers::NodeId;
+    use brain_domain::retrieval::models::{
+        CalibrationAlgorithmType, CalibrationPolicy, CalibrationPolicyVersion, FeedbackEvent,
+        NormalizedSignal, RankingSignals,
+    };
     use brain_services::retrieval::calibration::CalibrationEngine;
 
     let engine = CalibrationEngine::new();
@@ -165,11 +183,11 @@ fn test_calibration_engine_idempotency_and_linear_math() {
 
 #[test]
 fn test_weight_calibration_service_lifecycle_and_rollback() {
-    use brain_domain::retrieval::models::{
-        CalibrationPolicy, CalibrationPolicyVersion, CalibrationAlgorithmType,
-        FeedbackEvent, NormalizedSignal, RankingSignals, SnapshotVersion
-    };
     use brain_domain::identifiers::NodeId;
+    use brain_domain::retrieval::models::{
+        CalibrationAlgorithmType, CalibrationPolicy, CalibrationPolicyVersion, FeedbackEvent,
+        NormalizedSignal, RankingSignals, SnapshotVersion,
+    };
     use brain_services::retrieval::calibration::WeightCalibrationService;
 
     let test_store = brain_storage::TestStorage::new();
@@ -207,7 +225,10 @@ fn test_weight_calibration_service_lifecycle_and_rollback() {
 
     // Publish
     service.publish_snapshot(candidate).unwrap();
-    assert_eq!(provider.active_snapshot().unwrap().metadata.version.value(), 2);
+    assert_eq!(
+        provider.active_snapshot().unwrap().metadata.version.value(),
+        2
+    );
 
     // Monotonicity check: publishing version 1 or 2 again must fail
     let bad_snapshot = make_dummy_snapshot(1);
@@ -216,9 +237,10 @@ fn test_weight_calibration_service_lifecycle_and_rollback() {
 
     // Rollback to version 1
     service.rollback_to(SnapshotVersion::new(1)).unwrap();
-    assert_eq!(provider.active_snapshot().unwrap().metadata.version.value(), 1);
+    assert_eq!(
+        provider.active_snapshot().unwrap().metadata.version.value(),
+        1
+    );
 
     test_store.assert_clean();
 }
-
-

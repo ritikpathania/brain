@@ -250,7 +250,11 @@ pub trait EventLog: Send + Sync {
     fn append(&self, envelope: &EventEnvelope) -> Result<u64, brain_core::errors::BrainError>;
 
     /// Reads events from the log starting at a specific sequence ID (inclusive).
-    fn read_from(&self, start_sequence: u64, limit: usize) -> Result<Vec<EventEnvelope>, brain_core::errors::BrainError>;
+    fn read_from(
+        &self,
+        start_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<EventEnvelope>, brain_core::errors::BrainError>;
 
     /// Retrieves the latest sequence number in the log. Returns 0 if the log is empty.
     fn latest_sequence(&self) -> Result<u64, brain_core::errors::BrainError>;

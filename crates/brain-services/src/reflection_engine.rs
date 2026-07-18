@@ -7,12 +7,12 @@
 //! No graph mutations are performed. Edge strengthening, weighting, and decay
 //! policy belong to a future sprint once those semantics are defined.
 
-use std::sync::Arc;
-use std::time::SystemTime;
 use brain_core::{
     events::{EventSource, ProjectionInstanceInvalidatedEvent, RuntimeEventDispatcher},
-    reflection::{ReflectionEngine, ReflectionTarget, ReflectionCompletedEvent},
+    reflection::{ReflectionCompletedEvent, ReflectionEngine, ReflectionTarget},
 };
+use std::sync::Arc;
+use std::time::SystemTime;
 
 /// In-memory reference implementation of the `ReflectionEngine` contract.
 ///
@@ -46,12 +46,13 @@ impl ReflectionEngine for InMemoryReflectionEngine {
 
         // Signal projection invalidation for each affected entity
         for entity_id in &target.affected_entities {
-            self.event_dispatcher.dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
-                projection_type: format!("entity:{}", entity_id),
-                epoch: target.epoch,
-                source: EventSource::Reflection,
-                correlation_id: target.correlation_id,
-            }));
+            self.event_dispatcher
+                .dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
+                    projection_type: format!("entity:{}", entity_id),
+                    epoch: target.epoch,
+                    source: EventSource::Reflection,
+                    correlation_id: target.correlation_id,
+                }));
         }
 
         Ok(event)

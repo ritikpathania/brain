@@ -1,8 +1,11 @@
 use brain_core::errors::BrainError;
-use brain_core::retrieval::RetrievalRequest;
 use brain_core::repositories::RepositorySet;
-use brain_domain::{Node, temporal::{RecencyPolicy, TimePoint, TemporalEdge}};
+use brain_core::retrieval::RetrievalRequest;
 use brain_domain::retrieval::features::RawFeatureVector;
+use brain_domain::{
+    temporal::{RecencyPolicy, TemporalEdge, TimePoint},
+    Node,
+};
 
 /// Interface for extracting raw ranking features from nodes.
 pub trait FeatureExtractor: Send + Sync {
@@ -25,7 +28,10 @@ pub struct DefaultFeatureExtractor {
 impl DefaultFeatureExtractor {
     /// Creates a new `DefaultFeatureExtractor`.
     pub fn new(reference_time: TimePoint, recency_policy: RecencyPolicy) -> Self {
-        Self { reference_time, recency_policy }
+        Self {
+            reference_time,
+            recency_policy,
+        }
     }
 }
 
@@ -42,10 +48,12 @@ impl FeatureExtractor for DefaultFeatureExtractor {
 
         for te in temporal_edges {
             let t = te.observed_at.unix_seconds();
-            node_recency.entry(te.edge.source)
+            node_recency
+                .entry(te.edge.source)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
-            node_recency.entry(te.edge.target)
+            node_recency
+                .entry(te.edge.target)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
 
@@ -55,8 +63,10 @@ impl FeatureExtractor for DefaultFeatureExtractor {
 
         let mut raw_vectors = Vec::with_capacity(nodes.len());
         for node in nodes {
-            let semantic = crate::retrieval::source::calculate_token_overlap_score(node, &request.query) as f64;
-            
+            let semantic =
+                crate::retrieval::source::calculate_token_overlap_score(node, &request.query)
+                    as f64;
+
             // Query graph connections via RepositorySet abstraction
             let graph = repos.edges().get_connections(&node.id)?.len() as f64;
 
@@ -68,7 +78,12 @@ impl FeatureExtractor for DefaultFeatureExtractor {
             );
             let temporal = node_temp_count.get(&node.id).cloned().unwrap_or(0) as f64;
 
-            raw_vectors.push(RawFeatureVector { semantic, graph, recency, temporal });
+            raw_vectors.push(RawFeatureVector {
+                semantic,
+                graph,
+                recency,
+                temporal,
+            });
         }
         Ok(raw_vectors)
     }

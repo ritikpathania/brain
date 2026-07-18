@@ -1,7 +1,7 @@
-use crate::retrieval::eval_harness::{EvaluationSession, ScoreRanker, NodeId, FeatureExtractor};
 use crate::retrieval::eval_harness::models::{
-    TrainingDataset, LambdaMartModel, LambdaMartTrainer, LambdaMartTrainingConfig, ModelSelector,
+    LambdaMartModel, LambdaMartTrainer, LambdaMartTrainingConfig, ModelSelector, TrainingDataset,
 };
+use crate::retrieval::eval_harness::{EvaluationSession, FeatureExtractor, NodeId, ScoreRanker};
 use brain_core::errors::BrainError;
 use std::collections::{BTreeMap, HashSet};
 
@@ -78,7 +78,9 @@ pub struct FoldEvaluationResult {
 }
 
 /// The metric variants supported by cross-validation summaries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum EvaluationMetric {
     /// The Composite objective score.
     Composite,
@@ -125,7 +127,12 @@ pub struct CrossValidationResult {
 pub fn compute_distribution(values: &[f64]) -> MetricDistribution {
     let n = values.len();
     if n == 0 {
-        return MetricDistribution { mean: 0.0, std_dev: 0.0, min: 0.0, max: 0.0 };
+        return MetricDistribution {
+            mean: 0.0,
+            std_dev: 0.0,
+            min: 0.0,
+            max: 0.0,
+        };
     }
     let mean = values.iter().sum::<f64>() / (n as f64);
     let var = if n > 1 {
@@ -162,11 +169,15 @@ impl CrossValidationRunner {
             let val_set: HashSet<String> = fold.val_queries.iter().cloned().collect();
 
             // Filter training dataset for the train queries of this fold
-            let fold_train_examples: Vec<_> = dataset.examples.iter()
+            let fold_train_examples: Vec<_> = dataset
+                .examples
+                .iter()
                 .filter(|ex| train_set.contains(&ex.query_id))
                 .cloned()
                 .collect();
-            let fold_train_dataset = TrainingDataset { examples: fold_train_examples };
+            let fold_train_dataset = TrainingDataset {
+                examples: fold_train_examples,
+            };
 
             // Internal train/validation split within train_queries (80/20 split) to avoid leaking the held-out validation queries
             let mut sorted_train_queries = fold.train_queries.clone();
@@ -174,15 +185,28 @@ impl CrossValidationRunner {
             let sub_val_count = ((sorted_train_queries.len() as f64) * 0.20).round() as usize;
             let sub_train_count = sorted_train_queries.len() - sub_val_count;
 
-            let sub_train_queries: HashSet<String> = sorted_train_queries[0..sub_train_count].iter().cloned().collect();
-            let sub_val_queries: HashSet<String> = sorted_train_queries[sub_train_count..].iter().cloned().collect();
-
-            // Build temporary dataset for internal GBDT selection
-            let sub_train_examples: Vec<_> = fold_train_dataset.examples.iter()
-                .filter(|ex| sub_train_queries.contains(&ex.query_id) || sub_val_queries.contains(&ex.query_id))
+            let sub_train_queries: HashSet<String> = sorted_train_queries[0..sub_train_count]
+                .iter()
                 .cloned()
                 .collect();
-            let sub_dataset = TrainingDataset { examples: sub_train_examples };
+            let sub_val_queries: HashSet<String> = sorted_train_queries[sub_train_count..]
+                .iter()
+                .cloned()
+                .collect();
+
+            // Build temporary dataset for internal GBDT selection
+            let sub_train_examples: Vec<_> = fold_train_dataset
+                .examples
+                .iter()
+                .filter(|ex| {
+                    sub_train_queries.contains(&ex.query_id)
+                        || sub_val_queries.contains(&ex.query_id)
+                })
+                .cloned()
+                .collect();
+            let sub_dataset = TrainingDataset {
+                examples: sub_train_examples,
+            };
 
             // Train model with sub_val split
             let sub_config = LambdaMartTrainingConfig {
@@ -198,7 +222,8 @@ impl CrossValidationRunner {
             let lambdamart_model = LambdaMartModel::from_history(&history, &selection);
 
             // Evaluate on the held-out validation fold
-            let (mean_ndcg, mean_mrr, composite) = evaluate_fold_metrics(session, &lambdamart_model, &val_set);
+            let (mean_ndcg, mean_mrr, composite) =
+                evaluate_fold_metrics(session, &lambdamart_model, &val_set);
 
             // Compute Recall@5
             let mut sum_recall = 0.0;
@@ -219,9 +244,17 @@ impl CrossValidationRunner {
                 }
                 crate::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
                 let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
-                sum_recall += crate::retrieval::eval_harness::metrics::compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+                sum_recall += crate::retrieval::eval_harness::metrics::compute_recall_at_k(
+                    &retrieved_ids,
+                    &query_cache.expected_node_ids,
+                    5,
+                );
             }
-            let mean_recall = if count == 0 { 0.0 } else { sum_recall / (count as f64) };
+            let mean_recall = if count == 0 {
+                0.0
+            } else {
+                sum_recall / (count as f64)
+            };
 
             fold_results.push(FoldEvaluationResult {
                 fold_idx: fold.fold_idx,
@@ -239,7 +272,10 @@ impl CrossValidationRunner {
         let recalls: Vec<f64> = fold_results.iter().map(|f| f.recall_at_5).collect();
 
         let mut distributions = BTreeMap::new();
-        distributions.insert(EvaluationMetric::Composite, compute_distribution(&composites));
+        distributions.insert(
+            EvaluationMetric::Composite,
+            compute_distribution(&composites),
+        );
         distributions.insert(EvaluationMetric::NdcgAt5, compute_distribution(&ndcgs));
         distributions.insert(EvaluationMetric::Mrr, compute_distribution(&mrrs));
         distributions.insert(EvaluationMetric::RecallAt5, compute_distribution(&recalls));
@@ -282,7 +318,11 @@ fn evaluate_fold_metrics<M: ScoreRanker>(
         crate::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
         let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
 
-        sum_recall += crate::retrieval::eval_harness::metrics::compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+        sum_recall += crate::retrieval::eval_harness::metrics::compute_recall_at_k(
+            &retrieved_ids,
+            &query_cache.expected_node_ids,
+            5,
+        );
         sum_mrr += crate::retrieval::eval_harness::metrics::compute_mrr(
             &retrieved_ids,
             &query_cache.expected_node_ids,

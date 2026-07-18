@@ -185,8 +185,6 @@ pub enum FocusTarget {
     Dialog,
 }
 
-
-
 /// Connection states mapped to connectivity icons.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionState {

@@ -1,18 +1,18 @@
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::{
-    CacheHydrationPolicy, IdentityRanking, MemorySource, MemorySourceResult, RankingStrategy,
-    RetrievalRequest, SourceMetadata, DefaultQueryEmbeddingService, NoopEmbeddingProvider,
+    CacheHydrationPolicy, DefaultQueryEmbeddingService, IdentityRanking, MemorySource,
+    MemorySourceResult, NoopEmbeddingProvider, RankingStrategy, RetrievalRequest, SourceMetadata,
 };
 use brain_core::services::{RetrievalService, SessionService};
 use brain_domain::{
-    Edge, MemoryDTO, Message, MessageRole, Node, NodeDTO, NodeId,
-    NodeType, SessionId, RelationKind
+    Edge, MemoryDTO, Message, MessageRole, Node, NodeDTO, NodeId, NodeType, RelationKind, SessionId,
 };
 use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
 use brain_services::retrieval::source::StmMemorySource;
 use brain_services::{
-    RetrievalServiceImpl, SessionServiceImpl, StubRetrievalService, StubSessionService, StubDomainEventPublisher,
+    RetrievalServiceImpl, SessionServiceImpl, StubDomainEventPublisher, StubRetrievalService,
+    StubSessionService,
 };
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
@@ -77,11 +77,20 @@ fn test_retrieval_service_stm_and_ltm() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -135,11 +144,20 @@ fn test_cache_precedence_over_ltm() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -178,11 +196,20 @@ fn test_retrieval_cache_miss_db_hit_populates_cache() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -294,11 +321,20 @@ fn test_pipeline_deduplication() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -348,7 +384,11 @@ fn test_pipeline_early_exit() {
 
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let pipeline = MemoryPipelineBuilder::new()
-        .register_source(Arc::new(StmMemorySource::new(cache_manager.clone(), repos, registry)))
+        .register_source(Arc::new(StmMemorySource::new(
+            cache_manager.clone(),
+            repos,
+            registry,
+        )))
         .register_source(spy_source)
         .build();
 
@@ -373,11 +413,20 @@ fn test_pipeline_empty_first_source() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -505,11 +554,20 @@ fn test_retrieval_natural_language_and_expansion() {
     let repos = Arc::new(test_store.storage().clone());
     let cache_manager = Arc::new(SessionCacheManager::new());
 
-    let session_service = SessionServiceImpl::new(repos.clone(), cache_manager.clone(), Arc::new(StubDomainEventPublisher::new()));
+    let session_service = SessionServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        Arc::new(StubDomainEventPublisher::new()),
+    );
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
     let provider = Arc::new(NoopEmbeddingProvider::default());
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
-    let retrieval_service = RetrievalServiceImpl::new(repos.clone(), cache_manager.clone(), registry, query_embedding_service);
+    let retrieval_service = RetrievalServiceImpl::new(
+        repos.clone(),
+        cache_manager.clone(),
+        registry,
+        query_embedding_service,
+    );
 
     let session_id = session_service.create_session().unwrap();
 
@@ -520,41 +578,37 @@ fn test_retrieval_natural_language_and_expansion() {
     let duckdb_id = ids[2];
     let dev_id = ids[3];
 
-    let brain_node = Node::new(
-        brain_id,
-        "Brain".to_string(),
-        NodeType::Project,
-    );
-    let sqlite_node = Node::new(
-        sqlite_id,
-        "SQLite".to_string(),
-        NodeType::Database,
-    );
-    let duckdb_node = Node::new(
-        duckdb_id,
-        "DuckDB".to_string(),
-        NodeType::Database,
-    );
-    let dev_node = Node::new(
-        dev_id,
-        "ritikpathania".to_string(),
-        NodeType::Person,
-    );
+    let brain_node = Node::new(brain_id, "Brain".to_string(), NodeType::Project);
+    let sqlite_node = Node::new(sqlite_id, "SQLite".to_string(), NodeType::Database);
+    let duckdb_node = Node::new(duckdb_id, "DuckDB".to_string(), NodeType::Database);
+    let dev_node = Node::new(dev_id, "ritikpathania".to_string(), NodeType::Person);
 
     repos.nodes().save(&brain_node).unwrap();
     repos.nodes().save(&sqlite_node).unwrap();
     repos.nodes().save(&duckdb_node).unwrap();
     repos.nodes().save(&dev_node).unwrap();
 
-    repos.edges().save(&Edge::new(brain_id, sqlite_id, RelationKind::Uses, 1.0)).unwrap();
-    repos.edges().save(&Edge::new(brain_id, duckdb_id, RelationKind::Uses, 1.0)).unwrap();
-    repos.edges().save(&Edge::new(dev_id, brain_id, RelationKind::Develops, 1.0)).unwrap();
+    repos
+        .edges()
+        .save(&Edge::new(brain_id, sqlite_id, RelationKind::Uses, 1.0))
+        .unwrap();
+    repos
+        .edges()
+        .save(&Edge::new(brain_id, duckdb_id, RelationKind::Uses, 1.0))
+        .unwrap();
+    repos
+        .edges()
+        .save(&Edge::new(dev_id, brain_id, RelationKind::Develops, 1.0))
+        .unwrap();
 
     // 1. Query "Brain" -> should return Brain, SQLite, DuckDB, ritikpathania
     let results_brain = retrieval_service
         .retrieve(&session_id, "Brain", 10)
         .unwrap();
-    let labels_brain: Vec<String> = results_brain.iter().map(|dto| dto.node.label.clone()).collect();
+    let labels_brain: Vec<String> = results_brain
+        .iter()
+        .map(|dto| dto.node.label.clone())
+        .collect();
     assert!(labels_brain.contains(&"Brain".to_string()));
     assert!(labels_brain.contains(&"SQLite".to_string()));
     assert!(labels_brain.contains(&"DuckDB".to_string()));
@@ -564,7 +618,10 @@ fn test_retrieval_natural_language_and_expansion() {
     let results_sqlite = retrieval_service
         .retrieve(&session_id, "SQLite", 10)
         .unwrap();
-    let labels_sqlite: Vec<String> = results_sqlite.iter().map(|dto| dto.node.label.clone()).collect();
+    let labels_sqlite: Vec<String> = results_sqlite
+        .iter()
+        .map(|dto| dto.node.label.clone())
+        .collect();
     assert!(labels_sqlite.contains(&"SQLite".to_string()));
     assert!(labels_sqlite.contains(&"Brain".to_string()));
 
@@ -579,7 +636,10 @@ fn test_retrieval_natural_language_and_expansion() {
     let results_ritik = retrieval_service
         .retrieve(&session_id, "ritikpathania", 10)
         .unwrap();
-    let labels_ritik: Vec<String> = results_ritik.iter().map(|dto| dto.node.label.clone()).collect();
+    let labels_ritik: Vec<String> = results_ritik
+        .iter()
+        .map(|dto| dto.node.label.clone())
+        .collect();
     assert!(labels_ritik.contains(&"ritikpathania".to_string()));
     assert!(labels_ritik.contains(&"Brain".to_string()));
 }
@@ -589,7 +649,7 @@ fn test_registry_driven_traversal_directionality() {
     let test_store = TestStorage::new();
     let repos = Arc::new(test_store.storage().clone());
     let graph_service = brain_services::retrieval::graph_service::Graph;
-    
+
     let defs = vec![
         brain_domain::RelationDefinition {
             id: brain_domain::RelationId::new("uses"),
@@ -620,12 +680,32 @@ fn test_registry_driven_traversal_directionality() {
     let node2_id = NodeId::new();
     let node3_id = NodeId::new();
 
-    repos.nodes().save(&Node::new(node1_id, "N1".to_string(), NodeType::Concept)).unwrap();
-    repos.nodes().save(&Node::new(node2_id, "N2".to_string(), NodeType::Concept)).unwrap();
-    repos.nodes().save(&Node::new(node3_id, "N3".to_string(), NodeType::Concept)).unwrap();
+    repos
+        .nodes()
+        .save(&Node::new(node1_id, "N1".to_string(), NodeType::Concept))
+        .unwrap();
+    repos
+        .nodes()
+        .save(&Node::new(node2_id, "N2".to_string(), NodeType::Concept))
+        .unwrap();
+    repos
+        .nodes()
+        .save(&Node::new(node3_id, "N3".to_string(), NodeType::Concept))
+        .unwrap();
 
-    repos.edges().save(&Edge::new(node1_id, node2_id, RelationKind::Uses, 1.0)).unwrap();
-    repos.edges().save(&Edge::new(node2_id, node3_id, RelationKind::AssociatedWith, 1.0)).unwrap();
+    repos
+        .edges()
+        .save(&Edge::new(node1_id, node2_id, RelationKind::Uses, 1.0))
+        .unwrap();
+    repos
+        .edges()
+        .save(&Edge::new(
+            node2_id,
+            node3_id,
+            RelationKind::AssociatedWith,
+            1.0,
+        ))
+        .unwrap();
 
     let budget = brain_services::retrieval::graph_service::TraversalBudget {
         max_depth: 1,
@@ -636,17 +716,31 @@ fn test_registry_driven_traversal_directionality() {
         respect_directionality: true,
     };
 
-    let connections_n1 = graph_service.expand_neighbors(repos.as_ref(), &registry, &[node1_id], &budget).unwrap();
+    let connections_n1 = graph_service
+        .expand_neighbors(repos.as_ref(), &registry, &[node1_id], &budget)
+        .unwrap();
     assert_eq!(connections_n1.len(), 1);
     assert_eq!(connections_n1[0].target, node2_id);
 
-    let connections_n2 = graph_service.expand_neighbors(repos.as_ref(), &registry, &[node2_id], &budget).unwrap();
-    let traversed_targets: Vec<NodeId> = connections_n2.iter().map(|e| if e.source == node2_id { e.target } else { e.source }).collect();
+    let connections_n2 = graph_service
+        .expand_neighbors(repos.as_ref(), &registry, &[node2_id], &budget)
+        .unwrap();
+    let traversed_targets: Vec<NodeId> = connections_n2
+        .iter()
+        .map(|e| {
+            if e.source == node2_id {
+                e.target
+            } else {
+                e.source
+            }
+        })
+        .collect();
     assert!(traversed_targets.contains(&node3_id));
     assert!(!traversed_targets.contains(&node1_id));
 
-    let connections_n3 = graph_service.expand_neighbors(repos.as_ref(), &registry, &[node3_id], &budget).unwrap();
+    let connections_n3 = graph_service
+        .expand_neighbors(repos.as_ref(), &registry, &[node3_id], &budget)
+        .unwrap();
     assert_eq!(connections_n3.len(), 1);
     assert_eq!(connections_n3[0].source, node2_id);
 }
-

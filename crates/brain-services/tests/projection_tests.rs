@@ -1,16 +1,16 @@
-use std::sync::Arc;
-use parking_lot::Mutex;
-use uuid::Uuid;
 use brain_core::errors::BrainError;
-use brain_events::{EventEnvelope, DomainEvent, SystemEvent, EventLog};
-use brain_storage::{
-    SqliteEventLog, SqliteProjectionCheckpointRepository, TestStorage,
-    SqliteJobReadModelRepository, SqliteSessionReadModelRepository, ReadModelRepository
-};
+use brain_events::{DomainEvent, EventEnvelope, EventLog, SystemEvent};
 use brain_services::{
-    StateReducer, ProjectionRunner, SystemEventLog, JobProjectionReducer, SessionProjectionReducer,
-    ProjectionId, ProjectionNotificationBus
+    JobProjectionReducer, ProjectionId, ProjectionNotificationBus, ProjectionRunner,
+    SessionProjectionReducer, StateReducer, SystemEventLog,
 };
+use brain_storage::{
+    ReadModelRepository, SqliteEventLog, SqliteJobReadModelRepository,
+    SqliteProjectionCheckpointRepository, SqliteSessionReadModelRepository, TestStorage,
+};
+use parking_lot::Mutex;
+use std::sync::Arc;
+use uuid::Uuid;
 
 struct TestReducer {
     id: ProjectionId,
@@ -68,8 +68,14 @@ fn test_duplicate_registration_rejection() {
     let test_storage = TestStorage::new();
     let raw_log = Arc::new(SqliteEventLog::new(test_storage.store().pool().clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
-    let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(test_storage.store().pool().clone()));
-    let runner = ProjectionRunner::new(event_log, checkpoint_repo, Arc::new(ProjectionNotificationBus::new()));
+    let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(
+        test_storage.store().pool().clone(),
+    ));
+    let runner = ProjectionRunner::new(
+        event_log,
+        checkpoint_repo,
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer1 = Box::new(TestReducer::new(ProjectionId::TestA));
     let reducer2 = Box::new(TestReducer::new(ProjectionId::TestA));
@@ -85,7 +91,11 @@ fn test_idempotency_and_catch_up() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
@@ -113,7 +123,11 @@ fn test_reducer_failure_resumption() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
@@ -151,7 +165,11 @@ fn test_independent_checkpoints() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer_a = TestReducer::new(ProjectionId::TestA);
     let processed_a = reducer_a.processed.clone();
@@ -186,7 +204,11 @@ fn test_deterministic_rebuild() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
@@ -217,7 +239,11 @@ fn test_empty_log_rebuild() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool));
-    let runner = ProjectionRunner::new(event_log, checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log,
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let reducer = TestReducer::new(ProjectionId::TestA);
     runner.register(Box::new(reducer)).unwrap();
@@ -235,14 +261,18 @@ fn test_job_projection_parity_rebuild_and_interruption() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let job_repo = Arc::new(SqliteJobReadModelRepository::new(pool));
     let reducer = JobProjectionReducer::new(job_repo.clone());
     runner.register(Box::new(reducer)).unwrap();
 
     let job_id = brain_domain::jobs::JobId(Uuid::new_v4());
-    
+
     // Simulate domain events emitted sequentially for a single Job:
     // 1. JobCreated
     let ev1 = DomainEvent::Core(brain_domain::DomainEvent::JobCreated {
@@ -251,14 +281,18 @@ fn test_job_projection_parity_rebuild_and_interruption() {
         priority: brain_domain::jobs::JobPriority::High,
         owner: brain_domain::jobs::JobOwner::System,
     });
-    event_log.append(&EventEnvelope::new("scheduler".to_string(), ev1)).unwrap(); // Seq 1
+    event_log
+        .append(&EventEnvelope::new("scheduler".to_string(), ev1))
+        .unwrap(); // Seq 1
 
     // 2. JobStarted
     let ev2 = DomainEvent::Core(brain_domain::DomainEvent::JobStarted {
         job_id,
         timestamp: brain_domain::jobs::JobTimestamp(1000),
     });
-    event_log.append(&EventEnvelope::new("scheduler".to_string(), ev2)).unwrap(); // Seq 2
+    event_log
+        .append(&EventEnvelope::new("scheduler".to_string(), ev2))
+        .unwrap(); // Seq 2
 
     // 3. JobProgressed
     let ev3 = DomainEvent::Core(brain_domain::DomainEvent::JobProgressed {
@@ -269,14 +303,18 @@ fn test_job_projection_parity_rebuild_and_interruption() {
             unit: brain_domain::jobs::ProgressUnit::Files,
         },
     });
-    event_log.append(&EventEnvelope::new("scheduler".to_string(), ev3)).unwrap(); // Seq 3
+    event_log
+        .append(&EventEnvelope::new("scheduler".to_string(), ev3))
+        .unwrap(); // Seq 3
 
     // 4. JobCompleted
     let ev4 = DomainEvent::Core(brain_domain::DomainEvent::JobCompleted {
         job_id,
         timestamp: brain_domain::jobs::JobTimestamp(2000),
     });
-    event_log.append(&EventEnvelope::new("scheduler".to_string(), ev4)).unwrap(); // Seq 4
+    event_log
+        .append(&EventEnvelope::new("scheduler".to_string(), ev4))
+        .unwrap(); // Seq 4
 
     // Run catch-up
     runner.catch_up().unwrap();
@@ -304,7 +342,7 @@ fn test_job_projection_parity_rebuild_and_interruption() {
     // Clear read model and reset checkpoint manually to simulate initial state
     job_repo.clear_all().unwrap();
     checkpoint_repo.save_checkpoint("jobs", 0).unwrap();
-    
+
     // Process events 1 and 2 manually (simulating crash before event 3 was reduced/checkpointed)
     let raw_events = event_log.read_from(1, 10).unwrap();
     assert_eq!(raw_events.len(), 4);
@@ -321,7 +359,7 @@ fn test_job_projection_parity_rebuild_and_interruption() {
     // Resume from interrupted state by running regular catch-up through runner.
     // The runner should read starting at sequence 3, reducing event 3 and 4.
     runner.catch_up().unwrap();
-    
+
     let final_model = job_repo.find_by_id(&job_id.0).unwrap().unwrap();
     assert_eq!(final_model, read_model);
 }
@@ -333,7 +371,11 @@ fn test_session_projection_parity_rebuild_and_interruption() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let session_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
     let reducer = SessionProjectionReducer::new(session_repo.clone());
@@ -347,7 +389,9 @@ fn test_session_projection_parity_rebuild_and_interruption() {
         title: brain_domain::SessionTitle("Initial Title".to_string()),
         created_at: brain_domain::SessionTimestamp(100),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev1)).unwrap(); // Seq 1
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev1))
+        .unwrap(); // Seq 1
 
     // 2. SessionRenamed
     let ev2 = DomainEvent::Core(brain_domain::DomainEvent::SessionRenamed {
@@ -355,7 +399,9 @@ fn test_session_projection_parity_rebuild_and_interruption() {
         title: brain_domain::SessionTitle("Updated Title".to_string()),
         updated_at: brain_domain::SessionTimestamp(150),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev2)).unwrap(); // Seq 2
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev2))
+        .unwrap(); // Seq 2
 
     // 3. SessionPinnedChanged (true)
     let ev3 = DomainEvent::Core(brain_domain::DomainEvent::SessionPinnedChanged {
@@ -363,14 +409,18 @@ fn test_session_projection_parity_rebuild_and_interruption() {
         pinned: true,
         updated_at: brain_domain::SessionTimestamp(200),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev3)).unwrap(); // Seq 3
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev3))
+        .unwrap(); // Seq 3
 
     // 4. SessionArchived
     let ev4 = DomainEvent::Core(brain_domain::DomainEvent::SessionArchived {
         session_id,
         updated_at: brain_domain::SessionTimestamp(250),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev4)).unwrap(); // Seq 4
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev4))
+        .unwrap(); // Seq 4
 
     // Run catch-up
     runner.catch_up().unwrap();
@@ -417,18 +467,23 @@ fn test_session_projection_parity_rebuild_and_interruption() {
         session_id,
         updated_at: brain_domain::SessionTimestamp(300),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev5)).unwrap(); // Seq 5
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev5))
+        .unwrap(); // Seq 5
     runner.catch_up().unwrap();
 
     let restored_model = session_repo.find_by_id(&session_id).unwrap().unwrap();
     assert!(!restored_model.is_archived);
-    assert_eq!(restored_model.updated_at, brain_domain::SessionTimestamp(300));
+    assert_eq!(
+        restored_model.updated_at,
+        brain_domain::SessionTimestamp(300)
+    );
 
     // 6. SessionDeleted
-    let ev6 = DomainEvent::Core(brain_domain::DomainEvent::SessionDeleted {
-        session_id,
-    });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev6)).unwrap(); // Seq 6
+    let ev6 = DomainEvent::Core(brain_domain::DomainEvent::SessionDeleted { session_id });
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev6))
+        .unwrap(); // Seq 6
     runner.catch_up().unwrap();
 
     assert!(session_repo.find_by_id(&session_id).unwrap().is_none());
@@ -437,10 +492,10 @@ fn test_session_projection_parity_rebuild_and_interruption() {
 #[test]
 fn test_search_projection() {
     use brain_domain::{
-        SearchDocumentKind, MessageSnapshot, MessageTimestamp, MessageRole, MessageId
+        MessageId, MessageRole, MessageSnapshot, MessageTimestamp, SearchDocumentKind,
     };
-    use brain_storage::{SqliteSearchRepository, SearchQuery};
     use brain_services::SearchProjectionReducer;
+    use brain_storage::{SearchQuery, SqliteSearchRepository};
 
     let test_storage = TestStorage::new();
     let pool = test_storage.store().pool().clone();
@@ -449,7 +504,11 @@ fn test_search_projection() {
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
     let search_repo = Arc::new(SqliteSearchRepository::new(pool));
 
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo, Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo,
+        Arc::new(ProjectionNotificationBus::new()),
+    );
     let reducer = SearchProjectionReducer::new(search_repo.clone());
     runner.register(Box::new(reducer)).unwrap();
 
@@ -462,7 +521,9 @@ fn test_search_projection() {
         title: title.clone(),
         created_at: brain_domain::SessionTimestamp(100),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev1)).unwrap(); // Seq 1
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev1))
+        .unwrap(); // Seq 1
 
     // 2. MessageAdded A
     let msg1_id = MessageId::new();
@@ -475,7 +536,9 @@ fn test_search_projection() {
             timestamp: MessageTimestamp(120),
         },
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev2)).unwrap(); // Seq 2
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev2))
+        .unwrap(); // Seq 2
 
     // 3. MessageAdded B
     let msg2_id = MessageId::new();
@@ -488,7 +551,9 @@ fn test_search_projection() {
             timestamp: MessageTimestamp(130),
         },
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev3)).unwrap(); // Seq 3
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev3))
+        .unwrap(); // Seq 3
 
     // 4. SessionRenamed
     let ev4 = DomainEvent::Core(brain_domain::DomainEvent::SessionRenamed {
@@ -496,7 +561,9 @@ fn test_search_projection() {
         title: brain_domain::SessionTitle("Renamed Search Session".to_string()),
         updated_at: brain_domain::SessionTimestamp(150),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev4)).unwrap(); // Seq 4
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev4))
+        .unwrap(); // Seq 4
 
     // Run catch-up
     runner.catch_up().unwrap();
@@ -549,10 +616,10 @@ fn test_search_projection() {
     assert_eq!(res2_idempotent.len(), 1);
 
     // Invariant: Deletion Replay
-    let ev_del = DomainEvent::Core(brain_domain::DomainEvent::SessionDeleted {
-        session_id,
-    });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev_del)).unwrap(); // Seq 5
+    let ev_del = DomainEvent::Core(brain_domain::DomainEvent::SessionDeleted { session_id });
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev_del))
+        .unwrap(); // Seq 5
     runner.catch_up().unwrap();
 
     // Verify session and all its messages are deleted from FTS5 index

@@ -1,5 +1,5 @@
 use crate::identifiers::NodeId;
-use crate::query::analytics::{DegreeCentrality, RelationDistribution, ClosenessResult};
+use crate::query::analytics::{ClosenessResult, DegreeCentrality, RelationDistribution};
 use std::cmp::Ordering;
 
 /// Orders nodes canonically in a slice.

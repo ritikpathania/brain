@@ -1,9 +1,9 @@
 //! Core data structures, identifiers, and types for the unified search pipeline.
 
-use std::collections::HashMap;
 use crate::ui::command::CommandId;
 use crate::ui::interaction::MessageId;
 use brain_domain::SessionId;
+use std::collections::HashMap;
 
 /// Stable provider identifier value object. Private construction to prevent
 /// arbitrary provider IDs from being created outside this module.

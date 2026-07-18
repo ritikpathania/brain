@@ -1,14 +1,12 @@
 //! Application orchestration loop and workflow coordinators.
 
+use crate::ui::command::{CommandExecutor, LocalStateMutation};
+use crate::ui::interaction::UiEvent;
+use crate::ui::protocol::{BackendCommand, BackendEvent, RequestAllocator};
+use crate::ui::scheduler::{RenderInvalidation, RenderReason, RenderRequest, RenderScheduler};
+use crate::ui::state::AppState;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use crate::ui::state::AppState;
-use crate::ui::protocol::{BackendCommand, BackendEvent, RequestAllocator};
-use crate::ui::scheduler::{RenderScheduler, RenderRequest, RenderReason, RenderInvalidation};
-use crate::ui::interaction::UiEvent;
-use crate::ui::command::{CommandExecutor, LocalStateMutation};
-
-
 
 /// Typed error classifications for the Application service loop.
 #[derive(Debug, thiserror::Error)]
@@ -132,7 +130,10 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
     }
 
     /// Single entry point running the primary orchestration loop.
-    pub async fn run<E: UiEventSource>(&mut self, mut ui_source: E) -> Result<(), ApplicationError> {
+    pub async fn run<E: UiEventSource>(
+        &mut self,
+        mut ui_source: E,
+    ) -> Result<(), ApplicationError> {
         self.lifecycle = ApplicationLifecycle::Running;
 
         loop {
@@ -180,7 +181,10 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
     }
 
     /// Handles intent events originating from TUI Dispatcher.
-    pub async fn handle_ui_event(&mut self, event: UiEvent) -> Result<Option<RenderRequest>, ApplicationError> {
+    pub async fn handle_ui_event(
+        &mut self,
+        event: UiEvent,
+    ) -> Result<Option<RenderRequest>, ApplicationError> {
         match event {
             UiEvent::SubmitPrompt(text) => {
                 let req_id = self.allocator.next_id();
@@ -223,8 +227,13 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                             self.state.rename_session(id, t.clone());
                         }
                         let visible_ids = self.state.visible_session_ids();
-                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
-                        Some(BackendCommand::RenameSession { session_id: id, title })
+                        self.state
+                            .sidebar_mut()
+                            .restore_selection_fallback(&visible_ids);
+                        Some(BackendCommand::RenameSession {
+                            session_id: id,
+                            title,
+                        })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::TogglePin(id) => {
                         self.state.toggle_pin_session(id);
@@ -233,19 +242,25 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     crate::ui::interaction::sidebar::SidebarEvent::Archive(id) => {
                         self.state.archive_session(id);
                         let visible_ids = self.state.visible_session_ids();
-                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        self.state
+                            .sidebar_mut()
+                            .restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::ArchiveSession { session_id: id })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Delete(id) => {
                         self.state.delete_session(id);
                         let visible_ids = self.state.visible_session_ids();
-                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        self.state
+                            .sidebar_mut()
+                            .restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::DeleteSession { session_id: id })
                     }
                     crate::ui::interaction::sidebar::SidebarEvent::Restore(id) => {
                         self.state.restore_session(id);
                         let visible_ids = self.state.visible_session_ids();
-                        self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                        self.state
+                            .sidebar_mut()
+                            .restore_selection_fallback(&visible_ids);
                         Some(BackendCommand::RestoreSession { session_id: id })
                     }
                 };
@@ -272,22 +287,30 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                         LocalStateMutation::RenameSession(id, title) => {
                             self.state.rename_session(id, title);
                             let visible_ids = self.state.visible_session_ids();
-                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                            self.state
+                                .sidebar_mut()
+                                .restore_selection_fallback(&visible_ids);
                         }
                         LocalStateMutation::ArchiveSession(id) => {
                             self.state.archive_session(id);
                             let visible_ids = self.state.visible_session_ids();
-                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                            self.state
+                                .sidebar_mut()
+                                .restore_selection_fallback(&visible_ids);
                         }
                         LocalStateMutation::DeleteSession(id) => {
                             self.state.delete_session(id);
                             let visible_ids = self.state.visible_session_ids();
-                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                            self.state
+                                .sidebar_mut()
+                                .restore_selection_fallback(&visible_ids);
                         }
                         LocalStateMutation::RestoreSession(id) => {
                             self.state.restore_session(id);
                             let visible_ids = self.state.visible_session_ids();
-                            self.state.sidebar_mut().restore_selection_fallback(&visible_ids);
+                            self.state
+                                .sidebar_mut()
+                                .restore_selection_fallback(&visible_ids);
                         }
                         LocalStateMutation::ToggleReflectionLogs => {
                             self.state.toggle_reflection_logs();
@@ -305,27 +328,34 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                 }))
             }
             UiEvent::ApproveToolCall { call_id, approved } => {
-                self.state.handle_approve_tool_call(call_id.clone(), approved);
-                self.client.send(BackendCommand::ApproveToolCall { call_id, approved }).await?;
+                self.state
+                    .handle_approve_tool_call(call_id.clone(), approved);
+                self.client
+                    .send(BackendCommand::ApproveToolCall { call_id, approved })
+                    .await?;
                 Ok(Some(RenderRequest {
                     reason: RenderReason::Input,
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
-            UiEvent::SearchSelect(_action) => {
-                Ok(Some(RenderRequest {
-                    reason: RenderReason::Input,
-                    invalidation: RenderInvalidation::EverythingStale,
-                }))
-            }
+            UiEvent::SearchSelect(_action) => Ok(Some(RenderRequest {
+                reason: RenderReason::Input,
+                invalidation: RenderInvalidation::EverythingStale,
+            })),
         }
-
     }
 
     /// Handles events returned asynchronously from Daemon Client.
-    pub async fn handle_backend_event(&mut self, event: BackendEvent) -> Result<Option<RenderRequest>, ApplicationError> {
+    pub async fn handle_backend_event(
+        &mut self,
+        event: BackendEvent,
+    ) -> Result<Option<RenderRequest>, ApplicationError> {
         match event {
-            BackendEvent::Token { message, sequence, text } => {
+            BackendEvent::Token {
+                message,
+                sequence,
+                text,
+            } => {
                 self.state
                     .append_stream_token(message, sequence, &text)
                     .map_err(|e| ApplicationError::Protocol(e.to_string()))?;
@@ -341,22 +371,47 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
-            BackendEvent::ToolCallRequest { message, call_id, tool_id, arguments, requires_approval } => {
-                self.state.handle_tool_call_request(message, call_id, tool_id, arguments, requires_approval);
+            BackendEvent::ToolCallRequest {
+                message,
+                call_id,
+                tool_id,
+                arguments,
+                requires_approval,
+            } => {
+                self.state.handle_tool_call_request(
+                    message,
+                    call_id,
+                    tool_id,
+                    arguments,
+                    requires_approval,
+                );
                 Ok(Some(RenderRequest {
                     reason: RenderReason::StreamToken,
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
-            BackendEvent::ToolProgress { message: _, call_id, sequence, detail, log_message } => {
-                self.state.handle_tool_progress(call_id, sequence, detail, log_message);
+            BackendEvent::ToolProgress {
+                message: _,
+                call_id,
+                sequence,
+                detail,
+                log_message,
+            } => {
+                self.state
+                    .handle_tool_progress(call_id, sequence, detail, log_message);
                 Ok(Some(RenderRequest {
                     reason: RenderReason::StreamToken,
                     invalidation: RenderInvalidation::ConversationStale,
                 }))
             }
-            BackendEvent::ToolCallResult { message, call_id, result, is_error } => {
-                self.state.handle_tool_result(message, call_id, result, is_error);
+            BackendEvent::ToolCallResult {
+                message,
+                call_id,
+                result,
+                is_error,
+            } => {
+                self.state
+                    .handle_tool_result(message, call_id, result, is_error);
                 Ok(Some(RenderRequest {
                     reason: RenderReason::StreamToken,
                     invalidation: RenderInvalidation::EverythingStale,

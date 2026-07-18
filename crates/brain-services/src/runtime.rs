@@ -148,12 +148,13 @@ impl HostContext for ApplicationRuntime {
             });
         }
         let locator = self.service_locator.read();
-        let retrieval_service = locator
-            .retrieval_service
-            .clone()
-            .ok_or_else(|| BrainError::Validation {
-                message: "Retrieval service not initialized".to_string(),
-            })?;
+        let retrieval_service =
+            locator
+                .retrieval_service
+                .clone()
+                .ok_or_else(|| BrainError::Validation {
+                    message: "Retrieval service not initialized".to_string(),
+                })?;
 
         let request = brain_core::retrieval::RetrievalRequest {
             session_id: *session_id,
@@ -786,12 +787,13 @@ impl StartupPhase for ServicesReadyPhase {
             })?;
         let session_manager = Arc::new(SessionCacheManager::new());
         let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-        let query_embedding_service = locator
-            .query_embedding_service
-            .clone()
-            .unwrap_or_else(|| {
-                let default_provider = Arc::new(brain_core::retrieval::NoopEmbeddingProvider::default());
-                Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(default_provider))
+        let query_embedding_service =
+            locator.query_embedding_service.clone().unwrap_or_else(|| {
+                let default_provider =
+                    Arc::new(brain_core::retrieval::NoopEmbeddingProvider::default());
+                Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
+                    default_provider,
+                ))
             });
         let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new_with_config(
             storage.clone(),
@@ -819,9 +821,9 @@ impl StartupPhase for ServicesReadyPhase {
                 None,
                 registry,
             ));
-        let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(
-            Arc::new(crate::agent::streaming::DefaultStreamEventMapper),
-        ));
+        let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(Arc::new(
+            crate::agent::streaming::DefaultStreamEventMapper,
+        )));
         locator.session_manager = Some(session_manager);
         locator.retrieval_service = Some(retrieval_service);
         locator.conversation_manager = Some(conversation_manager);

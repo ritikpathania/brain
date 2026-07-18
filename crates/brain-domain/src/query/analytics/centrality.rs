@@ -1,4 +1,7 @@
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, DegreeCentrality, GraphAnalyticsContext, ordering::sort_centrality_canonically};
+use crate::query::analytics::{
+    ordering::sort_centrality_canonically, AnalyticsAlgorithm, Complexity, DegreeCentrality,
+    GraphAnalyticsContext,
+};
 
 /// Configuration settings for degree centrality calculations.
 #[derive(Debug, Clone, Default)]
@@ -32,7 +35,8 @@ impl<'a, 'b> AnalyticsAlgorithm<'a, 'b> for Centrality<'a, 'b> {
 
     fn compute(&self) -> Self::Output {
         let degrees = self.context.degrees();
-        let mut results: Vec<DegreeCentrality> = self.context
+        let mut results: Vec<DegreeCentrality> = self
+            .context
             .graph()
             .nodes
             .keys()

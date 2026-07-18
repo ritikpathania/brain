@@ -1,14 +1,16 @@
 use crate::connection::init_pool;
+use crate::event_log::EventLogRepository;
 use crate::migrations::run_migrations;
 use brain_core::errors::BrainError;
 use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, RepositorySet,
-    SessionRepository, StorageTransaction,
+    SessionRepository, Storage, StorageTransaction,
 };
-use brain_domain::{Session, Edge, EdgeId, Embedding, Node, NodeId, NodeType, SessionId, RelationKind, NodeKind};
-use std::collections::HashMap;
-use crate::event_log::EventLogRepository;
+use brain_domain::{
+    Edge, EdgeId, Embedding, Node, NodeId, NodeKind, NodeType, RelationKind, Session, SessionId,
+};
 use brain_integrations::IngestionEnvelope;
+use std::collections::HashMap;
 
 thread_local! {
     static TRANSACTION_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -107,9 +109,27 @@ impl SqliteStorage {
             }
         }
     }
+}
 
+impl Storage for SqliteStorage {
+    fn run_transaction(
+        &self,
+        f: &mut dyn FnMut(&dyn StorageTransaction) -> Result<(), BrainError>,
+    ) -> Result<(), BrainError> {
+        self.run_transaction(|tx| f(tx))
+    }
+}
+
+impl SqliteStorage {
     /// Inserts an edge into the archived_edges partition.
-    pub fn archive_edge(&self, source: &str, target: &str, relation: &str, weight: f64, updated_at: u64) -> Result<(), BrainError> {
+    pub fn archive_edge(
+        &self,
+        source: &str,
+        target: &str,
+        relation: &str,
+        weight: f64,
+        updated_at: u64,
+    ) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection for archival: {}", e),
             source: Some(Box::new(e)),
@@ -129,7 +149,12 @@ impl SqliteStorage {
     }
 
     /// Checks if an edge exists in the archived_edges partition.
-    pub fn is_edge_archived(&self, source: &str, target: &str, relation: &str) -> Result<bool, BrainError> {
+    pub fn is_edge_archived(
+        &self,
+        source: &str,
+        target: &str,
+        relation: &str,
+    ) -> Result<bool, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -143,17 +168,21 @@ impl SqliteStorage {
     }
 
     /// Saves a single `TemporalEdge` including its temporal metadata (validity and observed_at).
-    pub fn save_temporal_edge(&self, temp_edge: &brain_domain::TemporalEdge) -> Result<(), BrainError> {
+    pub fn save_temporal_edge(
+        &self,
+        temp_edge: &brain_domain::TemporalEdge,
+    ) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection to save temporal edge: {}", e),
             source: Some(Box::new(e)),
         })?;
 
         // Serialize validity (TemporalValidity) as JSON string
-        let validity_json = serde_json::to_string(&temp_edge.validity).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize validity: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let validity_json =
+            serde_json::to_string(&temp_edge.validity).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize validity: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         conn.execute(
             "INSERT OR REPLACE INTO edges (source, target, relation, weight, updated_at, observed_at, validity) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -189,24 +218,42 @@ impl SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let rows = stmt.query_map([], |row| {
-            let source_str: String = row.get(0)?;
-            let target_str: String = row.get(1)?;
-            let relation_str: String = row.get(2)?;
-            let weight: f64 = row.get(3)?;
-            let updated_at: u64 = row.get(4)?;
-            let observed_at_sec: u64 = row.get(5)?;
-            let validity_json: String = row.get(6)?;
+        let rows = stmt
+            .query_map([], |row| {
+                let source_str: String = row.get(0)?;
+                let target_str: String = row.get(1)?;
+                let relation_str: String = row.get(2)?;
+                let weight: f64 = row.get(3)?;
+                let updated_at: u64 = row.get(4)?;
+                let observed_at_sec: u64 = row.get(5)?;
+                let validity_json: String = row.get(6)?;
 
-            Ok((source_str, target_str, relation_str, weight, updated_at, observed_at_sec, validity_json))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query temporal edges: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+                Ok((
+                    source_str,
+                    target_str,
+                    relation_str,
+                    weight,
+                    updated_at,
+                    observed_at_sec,
+                    validity_json,
+                ))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query temporal edges: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut temp_edges = Vec::new();
         for r in rows {
-            let (source_str, target_str, relation_str, weight, updated_at, observed_at_sec, validity_json) = r.map_err(|e| BrainError::Storage {
+            let (
+                source_str,
+                target_str,
+                relation_str,
+                weight,
+                updated_at,
+                observed_at_sec,
+                validity_json,
+            ) = r.map_err(|e| BrainError::Storage {
                 message: format!("Failed to read database row: {}", e),
                 source: Some(Box::new(e)),
             })?;
@@ -219,7 +266,8 @@ impl SqliteStorage {
                 message: format!("Failed to parse target NodeId: {}", e),
                 source: Some(Box::new(e)),
             })?;
-            let relation: brain_domain::RelationKind = std::str::FromStr::from_str(&relation_str).unwrap();
+            let relation: brain_domain::RelationKind =
+                std::str::FromStr::from_str(&relation_str).unwrap();
 
             let mut edge = brain_domain::Edge::new(
                 brain_domain::NodeId(source),
@@ -229,11 +277,13 @@ impl SqliteStorage {
             );
             edge.updated_at = updated_at;
 
-            let validity: brain_domain::TemporalValidity = if validity_json.is_empty() || validity_json == "[]" {
-                brain_domain::TemporalValidity::new(Vec::new())
-            } else {
-                serde_json::from_str(&validity_json).unwrap_or_else(|_| brain_domain::TemporalValidity::new(Vec::new()))
-            };
+            let validity: brain_domain::TemporalValidity =
+                if validity_json.is_empty() || validity_json == "[]" {
+                    brain_domain::TemporalValidity::new(Vec::new())
+                } else {
+                    serde_json::from_str(&validity_json)
+                        .unwrap_or_else(|_| brain_domain::TemporalValidity::new(Vec::new()))
+                };
 
             let observed_at = brain_domain::TimePoint::from_unix_seconds(observed_at_sec);
 
@@ -248,16 +298,20 @@ impl SqliteStorage {
     }
 
     /// Saves a single `WeightSnapshot` to the database.
-    pub fn save_weight_snapshot(&self, snapshot: &brain_domain::retrieval::models::WeightSnapshot) -> Result<(), BrainError> {
+    pub fn save_weight_snapshot(
+        &self,
+        snapshot: &brain_domain::retrieval::models::WeightSnapshot,
+    ) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection to save weight snapshot: {}", e),
             source: Some(Box::new(e)),
         })?;
 
-        let metadata_json = serde_json::to_string(&snapshot.metadata.calibration_metadata).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize calibration metadata: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let metadata_json = serde_json::to_string(&snapshot.metadata.calibration_metadata)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize calibration metadata: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         conn.execute(
             "INSERT OR REPLACE INTO weight_snapshots (version, created_at, semantic_weight, graph_weight, recency_weight, temporal_weight, calibration_metadata) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -280,7 +334,10 @@ impl SqliteStorage {
     }
 
     /// Retrieves a single `WeightSnapshot` by version.
-    pub fn get_weight_snapshot(&self, version: brain_domain::retrieval::models::SnapshotVersion) -> Result<Option<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
+    pub fn get_weight_snapshot(
+        &self,
+        version: brain_domain::retrieval::models::SnapshotVersion,
+    ) -> Result<Option<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -293,39 +350,85 @@ impl SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let mut rows = stmt.query(rusqlite::params![version.value()]).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query weight snapshot: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut rows = stmt
+            .query(rusqlite::params![version.value()])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query weight snapshot: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
             message: format!("Failed to fetch next weight snapshot row: {}", e),
             source: Some(Box::new(e)),
         })? {
-            let version_val: u64 = row.get(0).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let created_at_val: u64 = row.get(1).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let sem_w: f64 = row.get(2).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let gr_w: f64 = row.get(3).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let rec_w: f64 = row.get(4).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let temp_w: f64 = row.get(5).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-            let metadata_str: String = row.get(6).map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-
-            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata = serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
-                message: format!("Failed to deserialize calibration metadata: {}", e),
-                source: Some(Box::new(e)),
+            let version_val: u64 = row.get(0).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let created_at_val: u64 = row.get(1).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let sem_w: f64 = row.get(2).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let gr_w: f64 = row.get(3).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let rec_w: f64 = row.get(4).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let temp_w: f64 = row.get(5).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+            let metadata_str: String = row.get(6).map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
             })?;
 
+            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata =
+                serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize calibration metadata: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+
             let weights = brain_domain::retrieval::models::RankingWeights::new(
-                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
             );
 
             Ok(Some(brain_domain::retrieval::models::WeightSnapshot {
                 metadata: brain_domain::retrieval::models::SnapshotMetadata {
                     version: brain_domain::retrieval::models::SnapshotVersion::new(version_val),
-                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(created_at_val),
+                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(
+                        created_at_val,
+                    ),
                     calibration_metadata: cal_meta,
                 },
                 weights,
@@ -336,7 +439,9 @@ impl SqliteStorage {
     }
 
     /// Lists all stored `WeightSnapshot` records in ascending order of version.
-    pub fn list_all_weight_snapshots(&self) -> Result<Vec<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
+    pub fn list_all_weight_snapshots(
+        &self,
+    ) -> Result<Vec<brain_domain::retrieval::models::WeightSnapshot>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -349,43 +454,77 @@ impl SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let rows = stmt.query_map([], |row| {
-            let version_val: u64 = row.get(0)?;
-            let created_at_val: u64 = row.get(1)?;
-            let sem_w: f64 = row.get(2)?;
-            let gr_w: f64 = row.get(3)?;
-            let rec_w: f64 = row.get(4)?;
-            let temp_w: f64 = row.get(5)?;
-            let metadata_str: String = row.get(6)?;
-            Ok((version_val, created_at_val, sem_w, gr_w, rec_w, temp_w, metadata_str))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query snapshots: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let rows = stmt
+            .query_map([], |row| {
+                let version_val: u64 = row.get(0)?;
+                let created_at_val: u64 = row.get(1)?;
+                let sem_w: f64 = row.get(2)?;
+                let gr_w: f64 = row.get(3)?;
+                let rec_w: f64 = row.get(4)?;
+                let temp_w: f64 = row.get(5)?;
+                let metadata_str: String = row.get(6)?;
+                Ok((
+                    version_val,
+                    created_at_val,
+                    sem_w,
+                    gr_w,
+                    rec_w,
+                    temp_w,
+                    metadata_str,
+                ))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query snapshots: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for r in rows {
-            let (version_val, created_at_val, sem_w, gr_w, rec_w, temp_w, metadata_str) = r.map_err(|e| BrainError::Storage {
-                message: format!("Failed to read snapshot row: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let (version_val, created_at_val, sem_w, gr_w, rec_w, temp_w, metadata_str) = r
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to read snapshot row: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
 
-            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata = serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
-                message: format!("Failed to deserialize metadata: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+            let cal_meta: brain_domain::retrieval::models::CalibrationMetadata =
+                serde_json::from_str(&metadata_str).map_err(|e| BrainError::Storage {
+                    message: format!("Failed to deserialize metadata: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
 
             let weights = brain_domain::retrieval::models::RankingWeights::new(
-                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
-                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| BrainError::Storage { message: format!("{:?}", e), source: None })?,
+                brain_domain::retrieval::models::RankingWeight::new(sem_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(gr_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(rec_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
+                brain_domain::retrieval::models::RankingWeight::new(temp_w).map_err(|e| {
+                    BrainError::Storage {
+                        message: format!("{:?}", e),
+                        source: None,
+                    }
+                })?,
             );
 
             results.push(brain_domain::retrieval::models::WeightSnapshot {
                 metadata: brain_domain::retrieval::models::SnapshotMetadata {
                     version: brain_domain::retrieval::models::SnapshotVersion::new(version_val),
-                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(created_at_val),
+                    created_at: brain_domain::temporal::TimePoint::from_unix_seconds(
+                        created_at_val,
+                    ),
                     calibration_metadata: cal_meta,
                 },
                 weights,
@@ -396,7 +535,10 @@ impl SqliteStorage {
     }
 
     /// Saves a single `FeedbackEvent` to the database.
-    pub fn save_feedback_event(&self, event: &brain_domain::retrieval::models::FeedbackEvent) -> Result<(), BrainError> {
+    pub fn save_feedback_event(
+        &self,
+        event: &brain_domain::retrieval::models::FeedbackEvent,
+    ) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection to save feedback event: {}", e),
             source: Some(Box::new(e)),
@@ -424,7 +566,9 @@ impl SqliteStorage {
     }
 
     /// Lists all feedback events from the database.
-    pub fn list_all_feedback_events(&self) -> Result<Vec<brain_domain::retrieval::models::FeedbackEvent>, BrainError> {
+    pub fn list_all_feedback_events(
+        &self,
+    ) -> Result<Vec<brain_domain::retrieval::models::FeedbackEvent>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -437,38 +581,40 @@ impl SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let rows = stmt.query_map([], |row| {
-            let id: String = row.get(0)?;
-            let schema_version: u32 = row.get(1)?;
-            let query: String = row.get(2)?;
-            let node_id_str: String = row.get(3)?;
-            let selected_val: i32 = row.get(4)?;
-            let timestamp: u64 = row.get(5)?;
-            let ranking_position: usize = row.get(6)?;
-            let context: String = row.get(7)?;
+        let rows = stmt
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                let schema_version: u32 = row.get(1)?;
+                let query: String = row.get(2)?;
+                let node_id_str: String = row.get(3)?;
+                let selected_val: i32 = row.get(4)?;
+                let timestamp: u64 = row.get(5)?;
+                let ranking_position: usize = row.get(6)?;
+                let context: String = row.get(7)?;
 
-            let u = uuid::Uuid::parse_str(&node_id_str).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    3,
-                    rusqlite::types::Type::Text,
-                    Box::new(e),
-                )
-            })?;
+                let u = uuid::Uuid::parse_str(&node_id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
 
-            Ok(brain_domain::retrieval::models::FeedbackEvent {
-                id,
-                schema_version,
-                query,
-                node_id: NodeId(u),
-                selected: selected_val != 0,
-                timestamp,
-                ranking_position,
-                context,
+                Ok(brain_domain::retrieval::models::FeedbackEvent {
+                    id,
+                    schema_version,
+                    query,
+                    node_id: NodeId(u),
+                    selected: selected_val != 0,
+                    timestamp,
+                    ranking_position,
+                    context,
+                })
             })
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query feedback events: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query feedback events: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for r in rows {
@@ -483,7 +629,10 @@ impl SqliteStorage {
 
     /// Evaluates and applies memory consolidation rules inside a single database transaction.
     /// Returns the list of actions executed.
-    pub fn consolidate_memories(&self, policy: brain_domain::ConsolidationPolicy) -> Result<Vec<brain_domain::ConsolidationAction>, BrainError> {
+    pub fn consolidate_memories(
+        &self,
+        policy: brain_domain::ConsolidationPolicy,
+    ) -> Result<Vec<brain_domain::ConsolidationAction>, BrainError> {
         let mut conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection for consolidation: {}", e),
             source: Some(Box::new(e)),
@@ -543,7 +692,11 @@ impl SqliteStorage {
                                 // Redirect all edges connected to red_id
                                 let connections = active.edges().get_connections(red_id)?;
                                 for mut edge in connections {
-                                    let old_id = brain_domain::EdgeId::new(edge.source, edge.target, edge.relation.id());
+                                    let old_id = brain_domain::EdgeId::new(
+                                        edge.source,
+                                        edge.target,
+                                        edge.relation.id(),
+                                    );
                                     active.edges().delete(&old_id)?;
                                     if edge.source == *red_id {
                                         edge.source = *canonical_node_id;
@@ -611,6 +764,10 @@ impl<'a> ActiveConnection<'a> {
 
     pub fn prepare(&self, sql: &str) -> Result<rusqlite::Statement<'_>, rusqlite::Error> {
         self.conn.prepare(sql)
+    }
+
+    pub fn prepare_cached(&self, sql: &str) -> Result<rusqlite::CachedStatement<'_>, rusqlite::Error> {
+        self.conn.prepare_cached(sql)
     }
 
     #[allow(dead_code)]
@@ -684,10 +841,12 @@ fn is_stub(node_type: &NodeType) -> bool {
 
 fn save_node_conn(db: &ActiveConnection<'_>, node: &Node) -> Result<(), BrainError> {
     let existing: Option<(NodeType, HashMap<String, serde_json::Value>)> = {
-        let mut stmt = db.prepare("SELECT node_type, properties FROM nodes WHERE id = ?").map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare select statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut stmt = db
+            .prepare_cached("SELECT node_type, properties FROM nodes WHERE id = ?")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare select statement: {}", e),
+                source: Some(Box::new(e)),
+            })?;
         let res = stmt.query_row([node.id.to_string()], |row| {
             let t: String = row.get(0)?;
             let p: String = row.get(1)?;
@@ -695,21 +854,25 @@ fn save_node_conn(db: &ActiveConnection<'_>, node: &Node) -> Result<(), BrainErr
         });
         match res {
             Ok((t_str, p_str)) => {
-                let t: NodeType = serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize node type: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                let p: HashMap<String, serde_json::Value> = serde_json::from_str(&p_str).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to deserialize properties: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let t: NodeType =
+                    serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to deserialize node type: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                let p: HashMap<String, serde_json::Value> =
+                    serde_json::from_str(&p_str).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to deserialize properties: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
                 Some((t, p))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(e) => return Err(BrainError::Storage {
-                message: format!("Failed to query node for check: {}", e),
-                source: Some(Box::new(e)),
-            }),
+            Err(e) => {
+                return Err(BrainError::Storage {
+                    message: format!("Failed to query node for check: {}", e),
+                    source: Some(Box::new(e)),
+                })
+            }
         }
     };
 
@@ -722,47 +885,55 @@ fn save_node_conn(db: &ActiveConnection<'_>, node: &Node) -> Result<(), BrainErr
         for (k, v) in &node.properties {
             existing_props.insert(k.clone(), v.clone());
         }
-        let node_type_str = serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize node type: {}", e),
+        let node_type_str =
+            serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize node type: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let properties_str =
+            serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize properties: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        db.prepare_cached("UPDATE nodes SET label = ?, node_type = ?, properties = ?, updated_at = ? WHERE id = ?")
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare node update statement: {}", e),
             source: Some(Box::new(e)),
-        })?;
-        let properties_str = serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize properties: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        db.execute(
-            "UPDATE nodes SET label = ?, node_type = ?, properties = ?, updated_at = ? WHERE id = ?",
-            (
-                &node.label,
-                node_type_str,
-                properties_str,
-                node.updated_at,
-                node.id.to_string(),
-            ),
-        )
+        })?
+        .execute((
+            &node.label,
+            node_type_str,
+            properties_str,
+            node.updated_at,
+            node.id.to_string(),
+        ))
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to update node {}: {}", node.id, e),
             source: Some(Box::new(e)),
         })?;
     } else {
-        let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize node type: {}", e),
+        let node_type_str =
+            serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize node type: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let properties_str =
+            serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize properties: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        db.prepare_cached("INSERT INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)")
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare node insert statement: {}", e),
             source: Some(Box::new(e)),
-        })?;
-        let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize properties: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        db.execute(
-            "INSERT INTO nodes (id, label, node_type, properties, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (
-                node.id.to_string(),
-                &node.label,
-                node_type_str,
-                properties_str,
-                node.updated_at,
-            ),
-        )
+        })?
+        .execute((
+            node.id.to_string(),
+            &node.label,
+            node_type_str,
+            properties_str,
+            node.updated_at,
+        ))
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to insert node {}: {}", node.id, e),
             source: Some(Box::new(e)),
@@ -782,10 +953,12 @@ fn save_nodes_batch_conn(db: &ActiveConnection<'_>, nodes: &[Node]) -> Result<()
     }
 
     let result = (|| {
-        let mut select_stmt = db.prepare("SELECT node_type, properties FROM nodes WHERE id = ?").map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare select statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut select_stmt = db
+            .prepare("SELECT node_type, properties FROM nodes WHERE id = ?")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare select statement: {}", e),
+                source: Some(Box::new(e)),
+            })?;
         let mut update_stmt = db.prepare(
             "UPDATE nodes SET label = ?, node_type = ?, properties = ?, updated_at = ? WHERE id = ?"
         ).map_err(|e| BrainError::Storage {
@@ -808,21 +981,25 @@ fn save_nodes_batch_conn(db: &ActiveConnection<'_>, nodes: &[Node]) -> Result<()
                 });
                 match res {
                     Ok((t_str, p_str)) => {
-                        let t: NodeType = serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
-                            message: format!("Failed to deserialize node type: {}", e),
-                            source: Some(Box::new(e)),
-                        })?;
-                        let p: HashMap<String, serde_json::Value> = serde_json::from_str(&p_str).map_err(|e| BrainError::Storage {
-                            message: format!("Failed to deserialize properties: {}", e),
-                            source: Some(Box::new(e)),
-                        })?;
+                        let t: NodeType =
+                            serde_json::from_str(&t_str).map_err(|e| BrainError::Storage {
+                                message: format!("Failed to deserialize node type: {}", e),
+                                source: Some(Box::new(e)),
+                            })?;
+                        let p: HashMap<String, serde_json::Value> = serde_json::from_str(&p_str)
+                            .map_err(|e| BrainError::Storage {
+                                message: format!("Failed to deserialize properties: {}", e),
+                                source: Some(Box::new(e)),
+                            })?;
                         Some((t, p))
                     }
                     Err(rusqlite::Error::QueryReturnedNoRows) => None,
-                    Err(e) => return Err(BrainError::Storage {
-                        message: format!("Failed to query node for check: {}", e),
-                        source: Some(Box::new(e)),
-                    }),
+                    Err(e) => {
+                        return Err(BrainError::Storage {
+                            message: format!("Failed to query node for check: {}", e),
+                            source: Some(Box::new(e)),
+                        })
+                    }
                 }
             };
 
@@ -835,45 +1012,51 @@ fn save_nodes_batch_conn(db: &ActiveConnection<'_>, nodes: &[Node]) -> Result<()
                 for (k, v) in &node.properties {
                     existing_props.insert(k.clone(), v.clone());
                 }
-                let node_type_str = serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize node type: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                let properties_str = serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize properties: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                update_stmt.execute((
-                    &node.label,
-                    node_type_str,
-                    properties_str,
-                    node.updated_at,
-                    node.id.to_string(),
-                ))
-                .map_err(|e| BrainError::Storage {
-                    message: format!("Failed to execute update node: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let node_type_str =
+                    serde_json::to_string(&final_type).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize node type: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                let properties_str =
+                    serde_json::to_string(&existing_props).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize properties: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                update_stmt
+                    .execute((
+                        &node.label,
+                        node_type_str,
+                        properties_str,
+                        node.updated_at,
+                        node.id.to_string(),
+                    ))
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Failed to execute update node: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
             } else {
-                let node_type_str = serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize node type: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                let properties_str = serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
-                    message: format!("Failed to serialize properties: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
-                insert_stmt.execute((
-                    node.id.to_string(),
-                    &node.label,
-                    node_type_str,
-                    properties_str,
-                    node.updated_at,
-                ))
-                .map_err(|e| BrainError::Storage {
-                    message: format!("Failed to execute insert node: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+                let node_type_str =
+                    serde_json::to_string(&node.node_type).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize node type: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                let properties_str =
+                    serde_json::to_string(&node.properties).map_err(|e| BrainError::Storage {
+                        message: format!("Failed to serialize properties: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
+                insert_stmt
+                    .execute((
+                        node.id.to_string(),
+                        &node.label,
+                        node_type_str,
+                        properties_str,
+                        node.updated_at,
+                    ))
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Failed to execute insert node: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
             }
         }
         Ok(())
@@ -1030,15 +1213,16 @@ fn find_nodes_by_tokens_conn(
     let params: Vec<String> = tokens
         .iter()
         .map(|t| {
-            let escaped = t.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            let escaped = t
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
             format!("%{}%", escaped.to_lowercase())
         })
         .collect();
 
-    let param_refs: Vec<&dyn rusqlite::ToSql> = params
-        .iter()
-        .map(|s| s as &dyn rusqlite::ToSql)
-        .collect();
+    let param_refs: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
     let iter = stmt
         .query_map(&*param_refs, |row| {
@@ -1056,10 +1240,11 @@ fn find_nodes_by_tokens_conn(
 
     let mut nodes = Vec::new();
     for item in iter {
-        let (id_str, label, node_type_str, properties_str, updated_at) = item.map_err(|e| BrainError::Storage {
-            message: format!("Failed to parse search row: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let (id_str, label, node_type_str, properties_str, updated_at) =
+            item.map_err(|e| BrainError::Storage {
+                message: format!("Failed to parse search row: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let id = uuid::Uuid::parse_str(&id_str)
             .map(NodeId)
@@ -1068,15 +1253,17 @@ fn find_nodes_by_tokens_conn(
                 source: Some(Box::new(e)),
             })?;
 
-        let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
-            message: format!("Failed to deserialize node type: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let node_type: NodeType =
+            serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize node type: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
-        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
-            message: format!("Failed to deserialize properties: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize properties: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut node = Node::new(id, label, node_type).with_properties(properties);
         node.updated_at = updated_at;
@@ -1130,7 +1317,14 @@ fn find_nodes_by_fts_conn(
             let properties_str: String = row.get(3)?;
             let updated_at: u64 = row.get(4)?;
             let bm25_score: f64 = row.get(5)?;
-            Ok((id_str, label, node_type_str, properties_str, updated_at, bm25_score))
+            Ok((
+                id_str,
+                label,
+                node_type_str,
+                properties_str,
+                updated_at,
+                bm25_score,
+            ))
         })
         .map_err(|e| BrainError::Storage {
             message: format!("FTS query execution failed: {}", e),
@@ -1152,15 +1346,17 @@ fn find_nodes_by_fts_conn(
                 source: Some(Box::new(e)),
             })?;
 
-        let node_type: NodeType = serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
-            message: format!("Failed to deserialize node type: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let node_type: NodeType =
+            serde_json::from_str(&node_type_str).map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize node type: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
-        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str).map_err(|e| BrainError::Storage {
-            message: format!("Failed to deserialize properties: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let properties: HashMap<String, serde_json::Value> = serde_json::from_str(&properties_str)
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to deserialize properties: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut node = Node::new(id, label, node_type).with_properties(properties);
         node.updated_at = updated_at;
@@ -1353,7 +1549,11 @@ fn find_edge_by_id_conn(
         })?;
 
     let res = stmt.query_row(
-        (id.source.to_string(), id.target.to_string(), id.relation.as_str()),
+        (
+            id.source.to_string(),
+            id.target.to_string(),
+            id.relation.as_str(),
+        ),
         |row| {
             let weight: f64 = row.get(0)?;
             let updated_at: u64 = row.get(1)?;
@@ -1363,7 +1563,11 @@ fn find_edge_by_id_conn(
 
     match res {
         Ok((weight, updated_at)) => {
-            let rel = id.relation.as_str().parse().unwrap_or(RelationKind::Unknown);
+            let rel = id
+                .relation
+                .as_str()
+                .parse()
+                .unwrap_or(RelationKind::Unknown);
             let mut edge = Edge::new(id.source, id.target, rel, weight);
             edge.updated_at = updated_at;
             Ok(Some(edge))
@@ -1379,7 +1583,11 @@ fn find_edge_by_id_conn(
 fn delete_edge_conn(db: &ActiveConnection<'_>, id: &EdgeId) -> Result<(), BrainError> {
     db.execute(
         "DELETE FROM edges WHERE source = ? AND target = ? AND relation = ?",
-        (id.source.to_string(), id.target.to_string(), id.relation.as_str()),
+        (
+            id.source.to_string(),
+            id.target.to_string(),
+            id.relation.as_str(),
+        ),
     )
     .map_err(|e| BrainError::Storage {
         message: format!("Failed to delete edge: {}", e),
@@ -1589,7 +1797,8 @@ fn get_predefined_centroids() -> &'static [Vec<f32>] {
             let mut v = vec![0.0f32; 384];
             let mut norm_sq = 0.0f32;
             for i in 0..384 {
-                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0).sin() as f32;
+                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0)
+                    .sin() as f32;
                 v[i] = val;
                 norm_sq += val * val;
             }
@@ -1830,10 +2039,8 @@ fn find_embeddings_by_centroids_conn(
         .map(|&c| rusqlite::types::Value::Integer(c as i64))
         .collect();
 
-    let param_refs: Vec<&dyn rusqlite::ToSql> = params
-        .iter()
-        .map(|v| v as &dyn rusqlite::ToSql)
-        .collect();
+    let param_refs: Vec<&dyn rusqlite::ToSql> =
+        params.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
     let iter = stmt
         .query_map(&*param_refs, |row| {
@@ -1986,10 +2193,12 @@ impl<'a> SessionRepository for ActiveConnection<'a> {
 // =========================================================================
 
 fn save_config_key_conn(db: &ActiveConnection<'_>, key: &str, val: &str) -> Result<(), BrainError> {
-    db.execute(
-        "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-        (key, val),
-    )
+    db.prepare_cached("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)")
+    .map_err(|e| BrainError::Storage {
+        message: format!("Failed to prepare config save statement: {}", e),
+        source: Some(Box::new(e)),
+    })?
+    .execute((key, val))
     .map_err(|e| BrainError::Storage {
         message: format!("Failed to save config key {}: {}", key, e),
         source: Some(Box::new(e)),
@@ -1999,7 +2208,7 @@ fn save_config_key_conn(db: &ActiveConnection<'_>, key: &str, val: &str) -> Resu
 
 fn get_config_key_conn(db: &ActiveConnection<'_>, key: &str) -> Result<Option<String>, BrainError> {
     let mut stmt = db
-        .prepare("SELECT value FROM config WHERE key = ?")
+        .prepare_cached("SELECT value FROM config WHERE key = ?")
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to prepare query: {}", e),
             source: Some(Box::new(e)),
@@ -2111,10 +2320,11 @@ impl SqliteStorage {
                         })?;
                     }
                     brain_domain::bkf::ProjectionDelta::Delete(id) => {
-                        tx.execute("DELETE FROM nodes WHERE id = ?", [id]).map_err(|e| BrainError::Storage {
-                            message: format!("Failed to delete KPP node: {}", e),
-                            source: Some(Box::new(e)),
-                        })?;
+                        tx.execute("DELETE FROM nodes WHERE id = ?", [id])
+                            .map_err(|e| BrainError::Storage {
+                                message: format!("Failed to delete KPP node: {}", e),
+                                source: Some(Box::new(e)),
+                            })?;
                     }
                 },
                 brain_domain::bkf::SqliteOp::Edge(delta) => match delta {
@@ -2226,14 +2436,18 @@ impl EventLogRepository for SqliteStorage {
 
         // 1. Check for duplicate event_id
         let event_id_str = envelope.identity.event_id.to_string();
-        let mut check_stmt = conn.prepare("SELECT sequence FROM event_log WHERE event_id = ?1").map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare duplicate check statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        let mut rows = check_stmt.query(rusqlite::params![event_id_str]).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query duplicate events: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut check_stmt = conn
+            .prepare("SELECT sequence FROM event_log WHERE event_id = ?1")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare duplicate check statement: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let mut rows = check_stmt
+            .query(rusqlite::params![event_id_str])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query duplicate events: {}", e),
+                source: Some(Box::new(e)),
+            })?;
         if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
             message: format!("Failed to fetch duplicate event row: {}", e),
             source: Some(Box::new(e)),
@@ -2255,8 +2469,8 @@ impl EventLogRepository for SqliteStorage {
         let event_type = serde_json::to_value(&envelope.event.kind())
             .map(|v| v.as_str().unwrap_or("unknown").to_string())
             .unwrap_or_else(|_| "unknown".to_string());
-        let payload = brain_integrations::to_canonical_json(envelope)
-            .map_err(|e| BrainError::Storage {
+        let payload =
+            brain_integrations::to_canonical_json(envelope).map_err(|e| BrainError::Storage {
                 message: format!("Failed to serialize canonical envelope payload: {}", e),
                 source: Some(Box::new(e)),
             })?;
@@ -2295,14 +2509,18 @@ impl EventLogRepository for SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let mut stmt = conn.prepare("SELECT 1 FROM event_log WHERE event_id = ?1").map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare duplicate check statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        let exists = stmt.exists(rusqlite::params![event_id.0.to_string()]).map_err(|e| BrainError::Storage {
-            message: format!("Failed to check event existence: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut stmt = conn
+            .prepare("SELECT 1 FROM event_log WHERE event_id = ?1")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare duplicate check statement: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        let exists = stmt
+            .exists(rusqlite::params![event_id.0.to_string()])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to check event existence: {}", e),
+                source: Some(Box::new(e)),
+            })?;
         Ok(exists)
     }
 
@@ -2312,18 +2530,22 @@ impl EventLogRepository for SqliteStorage {
             source: Some(Box::new(e)),
         })?;
 
-        let mut stmt = conn.prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC").map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare select events query: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        
-        let rows = stmt.query_map(rusqlite::params![sequence], |row| {
-            let payload_str: String = row.get(0)?;
-            Ok(payload_str)
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query events after sequence: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let mut stmt = conn
+            .prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC")
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to prepare select events query: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![sequence], |row| {
+                let payload_str: String = row.get(0)?;
+                Ok(payload_str)
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query events after sequence: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut envelopes = Vec::new();
         for row in rows {
@@ -2331,8 +2553,8 @@ impl EventLogRepository for SqliteStorage {
                 message: format!("Failed to fetch event row: {}", e),
                 source: Some(Box::new(e)),
             })?;
-            let envelope: IngestionEnvelope = serde_json::from_str(&payload_str)
-                .map_err(|e| BrainError::Storage {
+            let envelope: IngestionEnvelope =
+                serde_json::from_str(&payload_str).map_err(|e| BrainError::Storage {
                     message: format!("Failed to deserialize IngestionEnvelope payload: {}", e),
                     source: Some(Box::new(e)),
                 })?;
@@ -2342,4 +2564,3 @@ impl EventLogRepository for SqliteStorage {
         Ok(envelopes)
     }
 }
-

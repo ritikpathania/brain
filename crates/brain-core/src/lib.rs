@@ -39,11 +39,11 @@ pub mod reflection;
 
 pub use agents::*;
 pub use errors::*;
+pub use events::*;
+pub use evolution::*;
 pub use extensibility::*;
+pub use projection::*;
+pub use reflection::*;
 pub use repositories::*;
 pub use retrieval::*;
 pub use services::*;
-pub use events::*;
-pub use projection::*;
-pub use evolution::*;
-pub use reflection::*;

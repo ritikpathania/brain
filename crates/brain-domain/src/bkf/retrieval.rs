@@ -1,7 +1,7 @@
 //! User-facing memory retrieval structures and explanations.
 
-use serde::{Serialize, Deserialize};
 use crate::identifiers::MessageId;
+use serde::{Deserialize, Serialize};
 
 /// Strongly-typed identifier for retrieval result chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

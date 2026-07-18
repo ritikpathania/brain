@@ -50,7 +50,7 @@ pub fn normalize_language(name: &str) -> LanguageId {
 pub trait LanguageHighlighter: Send + Sync {
     /// Normalized language identifier matched by this highlighter.
     fn language_id(&self) -> LanguageId;
-    
+
     /// Returns a lazy iterator highlighting line elements.
     fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a>;
 }
@@ -66,7 +66,10 @@ impl LanguageHighlighter for RustHighlighter {
     fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
         let trimmed = line.trim_start();
         if trimmed.starts_with("//") {
-            return Box::new(std::iter::once(HighlightSpan { kind: TokenKind::Comment, text: line }));
+            return Box::new(std::iter::once(HighlightSpan {
+                kind: TokenKind::Comment,
+                text: line,
+            }));
         }
 
         let mut spans = Vec::new();
@@ -76,20 +79,51 @@ impl LanguageHighlighter for RustHighlighter {
             let trimmed_word = word.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_');
             let is_keyword = matches!(
                 trimmed_word,
-                "fn" | "let" | "pub" | "struct" | "impl" | "match" | "return" | "mut"
-                    | "use" | "mod" | "crate" | "enum" | "self" | "if" | "else" | "for"
-                    | "in" | "loop" | "while" | "as" | "static" | "const" | "dyn" | "trait"
-                    | "async" | "await" | "type"
+                "fn" | "let"
+                    | "pub"
+                    | "struct"
+                    | "impl"
+                    | "match"
+                    | "return"
+                    | "mut"
+                    | "use"
+                    | "mod"
+                    | "crate"
+                    | "enum"
+                    | "self"
+                    | "if"
+                    | "else"
+                    | "for"
+                    | "in"
+                    | "loop"
+                    | "while"
+                    | "as"
+                    | "static"
+                    | "const"
+                    | "dyn"
+                    | "trait"
+                    | "async"
+                    | "await"
+                    | "type"
             );
 
             if is_keyword {
                 let spacing = &word[trimmed_word.len()..];
-                spans.push(HighlightSpan { kind: TokenKind::Keyword, text: trimmed_word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Keyword,
+                    text: trimmed_word,
+                });
                 if !spacing.is_empty() {
-                    spans.push(HighlightSpan { kind: TokenKind::Plain, text: spacing });
+                    spans.push(HighlightSpan {
+                        kind: TokenKind::Plain,
+                        text: spacing,
+                    });
                 }
             } else {
-                spans.push(HighlightSpan { kind: TokenKind::Plain, text: word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Plain,
+                    text: word,
+                });
             }
         }
 
@@ -108,7 +142,10 @@ impl LanguageHighlighter for PythonHighlighter {
     fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
         let trimmed = line.trim_start();
         if trimmed.starts_with('#') {
-            return Box::new(std::iter::once(HighlightSpan { kind: TokenKind::Comment, text: line }));
+            return Box::new(std::iter::once(HighlightSpan {
+                kind: TokenKind::Comment,
+                text: line,
+            }));
         }
 
         let mut spans = Vec::new();
@@ -118,19 +155,45 @@ impl LanguageHighlighter for PythonHighlighter {
             let trimmed_word = word.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_');
             let is_keyword = matches!(
                 trimmed_word,
-                "def" | "class" | "import" | "from" | "if" | "else" | "elif" | "return"
-                    | "print" | "for" | "in" | "while" | "try" | "except" | "with" | "as"
-                    | "pass" | "None" | "True" | "False"
+                "def"
+                    | "class"
+                    | "import"
+                    | "from"
+                    | "if"
+                    | "else"
+                    | "elif"
+                    | "return"
+                    | "print"
+                    | "for"
+                    | "in"
+                    | "while"
+                    | "try"
+                    | "except"
+                    | "with"
+                    | "as"
+                    | "pass"
+                    | "None"
+                    | "True"
+                    | "False"
             );
 
             if is_keyword {
                 let spacing = &word[trimmed_word.len()..];
-                spans.push(HighlightSpan { kind: TokenKind::Keyword, text: trimmed_word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Keyword,
+                    text: trimmed_word,
+                });
                 if !spacing.is_empty() {
-                    spans.push(HighlightSpan { kind: TokenKind::Plain, text: spacing });
+                    spans.push(HighlightSpan {
+                        kind: TokenKind::Plain,
+                        text: spacing,
+                    });
                 }
             } else {
-                spans.push(HighlightSpan { kind: TokenKind::Plain, text: word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Plain,
+                    text: word,
+                });
             }
         }
 
@@ -155,7 +218,10 @@ impl LanguageHighlighter for JsonHighlighter {
             if c == '"' {
                 // Yield pre-string plain text
                 if idx > last_idx {
-                    spans.push(HighlightSpan { kind: TokenKind::Plain, text: &line[last_idx..idx] });
+                    spans.push(HighlightSpan {
+                        kind: TokenKind::Plain,
+                        text: &line[last_idx..idx],
+                    });
                 }
                 chars.next();
                 let start = idx;
@@ -170,23 +236,38 @@ impl LanguageHighlighter for JsonHighlighter {
                     }
                     escaped = c_char == '\\' && !escaped;
                 }
-                spans.push(HighlightSpan { kind: TokenKind::String, text: &line[start..=end] });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::String,
+                    text: &line[start..=end],
+                });
                 last_idx = end + 1;
             } else if c.is_numeric() || c == '-' {
                 if idx > last_idx {
-                    spans.push(HighlightSpan { kind: TokenKind::Plain, text: &line[last_idx..idx] });
+                    spans.push(HighlightSpan {
+                        kind: TokenKind::Plain,
+                        text: &line[last_idx..idx],
+                    });
                 }
                 let start = idx;
                 let mut end = start;
                 while let Some(&(c_idx, c_char)) = chars.peek() {
-                    if c_char.is_numeric() || c_char == '.' || c_char == 'e' || c_char == 'E' || c_char == '-' || c_char == '+' {
+                    if c_char.is_numeric()
+                        || c_char == '.'
+                        || c_char == 'e'
+                        || c_char == 'E'
+                        || c_char == '-'
+                        || c_char == '+'
+                    {
                         end = c_idx;
                         chars.next();
                     } else {
                         break;
                     }
                 }
-                spans.push(HighlightSpan { kind: TokenKind::Number, text: &line[start..=end] });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Number,
+                    text: &line[start..=end],
+                });
                 last_idx = end + 1;
             } else {
                 chars.next();
@@ -194,7 +275,10 @@ impl LanguageHighlighter for JsonHighlighter {
         }
 
         if last_idx < line.len() {
-            spans.push(HighlightSpan { kind: TokenKind::Plain, text: &line[last_idx..] });
+            spans.push(HighlightSpan {
+                kind: TokenKind::Plain,
+                text: &line[last_idx..],
+            });
         }
 
         Box::new(spans.into_iter())
@@ -212,7 +296,10 @@ impl LanguageHighlighter for ShellHighlighter {
     fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
         let trimmed = line.trim_start();
         if trimmed.starts_with('#') {
-            return Box::new(std::iter::once(HighlightSpan { kind: TokenKind::Comment, text: line }));
+            return Box::new(std::iter::once(HighlightSpan {
+                kind: TokenKind::Comment,
+                text: line,
+            }));
         }
 
         let mut spans = Vec::new();
@@ -222,17 +309,38 @@ impl LanguageHighlighter for ShellHighlighter {
             let trimmed_word = word.trim_end_matches(|c: char| !c.is_alphanumeric() && c != '_');
             let is_keyword = matches!(
                 trimmed_word,
-                "echo" | "cd" | "ls" | "mkdir" | "git" | "cargo" | "python" | "pip" | "npm" | "node" | "sudo" | "curl" | "wget"
+                "echo"
+                    | "cd"
+                    | "ls"
+                    | "mkdir"
+                    | "git"
+                    | "cargo"
+                    | "python"
+                    | "pip"
+                    | "npm"
+                    | "node"
+                    | "sudo"
+                    | "curl"
+                    | "wget"
             );
 
             if is_keyword {
                 let spacing = &word[trimmed_word.len()..];
-                spans.push(HighlightSpan { kind: TokenKind::Keyword, text: trimmed_word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Keyword,
+                    text: trimmed_word,
+                });
                 if !spacing.is_empty() {
-                    spans.push(HighlightSpan { kind: TokenKind::Plain, text: spacing });
+                    spans.push(HighlightSpan {
+                        kind: TokenKind::Plain,
+                        text: spacing,
+                    });
                 }
             } else {
-                spans.push(HighlightSpan { kind: TokenKind::Plain, text: word });
+                spans.push(HighlightSpan {
+                    kind: TokenKind::Plain,
+                    text: word,
+                });
             }
         }
 
@@ -249,7 +357,10 @@ impl LanguageHighlighter for PlainHighlighter {
     }
 
     fn highlight<'a>(&self, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
-        Box::new(std::iter::once(HighlightSpan { kind: TokenKind::Plain, text: line }))
+        Box::new(std::iter::once(HighlightSpan {
+            kind: TokenKind::Plain,
+            text: line,
+        }))
     }
 }
 
@@ -258,7 +369,10 @@ pub struct SyntaxHighlighterRegistry;
 
 impl SyntaxHighlighterRegistry {
     /// Maps a language identifier to the target lexer and tokenizes the input line.
-    pub fn highlight<'a>(lang: LanguageId, line: &'a str) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
+    pub fn highlight<'a>(
+        lang: LanguageId,
+        line: &'a str,
+    ) -> Box<dyn Iterator<Item = HighlightSpan<'a>> + 'a> {
         match lang {
             LanguageId::Rust => Box::new(RustHighlighter.highlight(line)),
             LanguageId::Python => Box::new(PythonHighlighter.highlight(line)),

@@ -1,5 +1,10 @@
-use brain_domain::jobs::{JobId, JobKind, JobOwner, JobState, JobPriority, JobProgress, JobTimestamp, JobFailureReason};
-use brain_domain::{SessionId, SessionTitle, SessionTimestamp, MessageId, MessageRole, MessageTimestamp, SearchDocumentId, SearchDocumentKind, SearchMetadata};
+use brain_domain::jobs::{
+    JobFailureReason, JobId, JobKind, JobOwner, JobPriority, JobProgress, JobState, JobTimestamp,
+};
+use brain_domain::{
+    MessageId, MessageRole, MessageTimestamp, SearchDocumentId, SearchDocumentKind, SearchMetadata,
+    SessionId, SessionTimestamp, SessionTitle,
+};
 
 /// Short summary DTO representing a background job state.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]

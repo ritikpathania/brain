@@ -1,5 +1,5 @@
-use crate::retrieval::models::WeightSnapshot;
 use crate::consolidation::MetricConstructionError;
+use crate::retrieval::models::WeightSnapshot;
 
 /// Validation errors for experiment configuration.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -35,7 +35,11 @@ impl TrafficAllocation {
             return Err(MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 || val > 1.0 {
-            return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+            return Err(MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         Ok(Self(val))
     }

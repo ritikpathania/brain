@@ -80,7 +80,11 @@ pub struct ToolExecution {
 
 impl ToolExecution {
     /// Creates a new `ToolExecution` in `PendingApproval` state.
-    pub fn new(message_id: crate::ui::interaction::MessageId, call_id: ToolCallId, tool_id: ToolId) -> Self {
+    pub fn new(
+        message_id: crate::ui::interaction::MessageId,
+        call_id: ToolCallId,
+        tool_id: ToolId,
+    ) -> Self {
         Self {
             message_id,
             call_id,
@@ -104,4 +108,3 @@ pub struct ToolApproval {
     /// Unparsed JSON string of arguments.
     pub arguments: String,
 }
-

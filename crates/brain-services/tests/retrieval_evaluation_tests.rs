@@ -1,8 +1,8 @@
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
 use brain_services::eval_harness::{
-    run_benchmark, validate_corpus, GroundTruthCorpus, QueryCorpus, RetrievalResult, Retriever,
-    RetrievalChannel,
+    run_benchmark, validate_corpus, GroundTruthCorpus, QueryCorpus, RetrievalChannel,
+    RetrievalResult, Retriever,
 };
 use std::collections::HashMap;
 
@@ -133,7 +133,8 @@ impl Retriever for PartialRetriever {
             }),
             "q_007" => {
                 // Return wrong node
-                let dummy_id = NodeId(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+                let dummy_id =
+                    NodeId(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
                 Ok(vec![RetrievalResult {
                     node_id: dummy_id,
                     channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 1.0)]),
@@ -142,17 +143,24 @@ impl Retriever for PartialRetriever {
             }
             "q_008" => {
                 let expected_id = self.ground_truth.get("q_008").unwrap()[0];
-                let dummy_id = NodeId(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
+                let dummy_id =
+                    NodeId(uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap());
                 // Return expected node with lower score, and dummy with higher score (forces reordering)
                 Ok(vec![
                     RetrievalResult {
                         node_id: expected_id,
-                        channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 0.1)]),
+                        channel_scores: std::collections::HashMap::from([(
+                            RetrievalChannel::Fts,
+                            0.1,
+                        )]),
                         ranking_score: None,
                     },
                     RetrievalResult {
                         node_id: dummy_id,
-                        channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 0.9)]),
+                        channel_scores: std::collections::HashMap::from([(
+                            RetrievalChannel::Fts,
+                            0.9,
+                        )]),
                         ranking_score: None,
                     },
                 ])
@@ -163,7 +171,10 @@ impl Retriever for PartialRetriever {
                         .iter()
                         .map(|id| RetrievalResult {
                             node_id: *id,
-                            channel_scores: std::collections::HashMap::from([(RetrievalChannel::Fts, 1.0)]),
+                            channel_scores: std::collections::HashMap::from([(
+                                RetrievalChannel::Fts,
+                                1.0,
+                            )]),
                             ranking_score: None,
                         })
                         .collect())
@@ -213,7 +224,10 @@ fn test_harness_perfect_retriever() {
         assert_eq!(res.mrr, 1.0);
     }
     for diag in &report.measured.diagnostics {
-        assert_eq!(diag.candidates[0].retrieval_channels, vec![RetrievalChannel::Fts]);
+        assert_eq!(
+            diag.candidates[0].retrieval_channels,
+            vec![RetrievalChannel::Fts]
+        );
     }
 }
 
@@ -232,19 +246,34 @@ fn test_harness_partial_retriever() {
     assert_eq!(report.stable.metrics.failed_queries, 1);
 
     // Check partial error query status
-    let q_004_res = report.stable.query_results.iter().find(|r| r.query_id == "q_004").unwrap();
+    let q_004_res = report
+        .stable
+        .query_results
+        .iter()
+        .find(|r| r.query_id == "q_004")
+        .unwrap();
     assert_eq!(q_004_res.status, "retrieval_error");
     assert!(q_004_res.error.is_some());
     assert_eq!(q_004_res.recall_at_1, 0.0);
 
     // Check wrong node result for q_007
-    let q_007_res = report.stable.query_results.iter().find(|r| r.query_id == "q_007").unwrap();
+    let q_007_res = report
+        .stable
+        .query_results
+        .iter()
+        .find(|r| r.query_id == "q_007")
+        .unwrap();
     assert_eq!(q_007_res.status, "success");
     assert_eq!(q_007_res.recall_at_1, 0.0);
     assert_eq!(q_007_res.mrr, 0.0);
 
     // Check reordering result for q_008
-    let q_008_res = report.stable.query_results.iter().find(|r| r.query_id == "q_008").unwrap();
+    let q_008_res = report
+        .stable
+        .query_results
+        .iter()
+        .find(|r| r.query_id == "q_008")
+        .unwrap();
     assert_eq!(q_008_res.status, "success");
     // Expected node was placed second, so recall_at_1 should be 0.0, but recall_at_5 is 1.0. MRR is 0.5.
     assert_eq!(q_008_res.recall_at_1, 0.0);

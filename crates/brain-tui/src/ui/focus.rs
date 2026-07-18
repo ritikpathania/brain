@@ -31,9 +31,7 @@ impl FocusProfile {
                 FocusTarget::Conversation,
                 FocusTarget::Prompt,
             ],
-            FocusProfile::Dialog => &[
-                FocusTarget::Prompt,
-            ],
+            FocusProfile::Dialog => &[FocusTarget::Prompt],
         }
     }
 }
@@ -116,4 +114,3 @@ impl FocusManager {
         self.saved_focus.take()
     }
 }
-

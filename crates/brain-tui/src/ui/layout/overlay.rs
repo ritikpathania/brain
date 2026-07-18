@@ -18,7 +18,7 @@ impl CommandPaletteGeometry {
     pub fn compute(terminal: Rect) -> Rect {
         let width = terminal.width.clamp(40, 80);
         let height = terminal.height.clamp(8, 15);
-        
+
         let x = terminal.x + terminal.width.saturating_sub(width) / 2;
         let y = terminal.y + terminal.height.saturating_sub(height) / 2;
         Rect::new(x, y, width.min(terminal.width), height.min(terminal.height))
@@ -33,10 +33,10 @@ impl SlashCompletionGeometry {
     pub fn compute(terminal: Rect, prompt_area: Rect, item_count: usize) -> Rect {
         let height = (item_count as u16).clamp(3, 8);
         let width = prompt_area.width.clamp(30, 60);
-        
+
         let x = prompt_area.x;
         let y = prompt_area.y.saturating_sub(height);
-        
+
         Rect::new(x, y, width.min(terminal.width), height.min(terminal.height))
     }
 }

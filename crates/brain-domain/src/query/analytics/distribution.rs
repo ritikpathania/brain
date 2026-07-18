@@ -1,5 +1,8 @@
 use crate::identifiers::RelationId;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, RelationDistribution, GraphAnalyticsContext, ordering::sort_distribution_canonically};
+use crate::query::analytics::{
+    ordering::sort_distribution_canonically, AnalyticsAlgorithm, Complexity, GraphAnalyticsContext,
+    RelationDistribution,
+};
 use std::collections::HashMap;
 
 /// Configuration settings for relation distribution analysis.

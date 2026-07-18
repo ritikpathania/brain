@@ -1,14 +1,14 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::bkf::blocks::Block;
+use crate::bkf::capabilities::BKFCapabilities;
+use crate::bkf::entities::Entity;
+use crate::bkf::facts::Fact;
 use crate::bkf::ids::*;
 use crate::bkf::metadata::Metadata;
-use crate::bkf::capabilities::BKFCapabilities;
-use crate::bkf::blocks::Block;
-use crate::bkf::entities::Entity;
-use crate::bkf::relationships::Relationship;
-use crate::bkf::facts::Fact;
-use crate::bkf::references::{EmbeddingRef, ChunkRef, Citation, Attachment};
 use crate::bkf::provenance::Provenance;
+use crate::bkf::references::{Attachment, ChunkRef, Citation, EmbeddingRef};
+use crate::bkf::relationships::Relationship;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// A section within a document, establishing structure.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -1,59 +1,59 @@
 use crate::identifiers::NodeId;
 
-/// Central stable canonical sorting utilities.
-pub mod ordering;
-/// Connected components algorithm solver.
-pub mod components;
-/// Centrality degree score solver.
-pub mod centrality;
-/// Relation distribution analyzer.
-pub mod distribution;
-/// Provenance statistics analyzer.
-pub mod provenance;
-/// Lazy GraphAnalyticsContext and index abstractions.
-pub mod context;
-/// Centralized analytical output result structures.
-pub mod results;
-/// Edge weighting and routing distance cost providers.
-pub mod weights;
-/// Dijkstra shortest path routing solver.
-pub mod shortest_path;
-/// Cycle detection solver.
-pub mod cycles;
-/// Centrality power-iteration PageRank solver.
-pub mod pagerank;
-/// Tarjan strongly connected components solver.
-pub mod scc;
-/// Lightweight traversal utility helpers.
-pub mod traversal;
-/// Heuristic provider traits for A*.
-pub mod heuristic;
 /// A* Search pathfinder.
 pub mod astar;
+/// Centrality degree score solver.
+pub mod centrality;
 /// Closeness Centrality score solver.
 pub mod closeness;
+/// Connected components algorithm solver.
+pub mod components;
 /// Connectivity diagnostics (bridges, articulation points).
 pub mod connectivity;
+/// Lazy GraphAnalyticsContext and index abstractions.
+pub mod context;
+/// Cycle detection solver.
+pub mod cycles;
+/// Relation distribution analyzer.
+pub mod distribution;
+/// Heuristic provider traits for A*.
+pub mod heuristic;
+/// Central stable canonical sorting utilities.
+pub mod ordering;
+/// Centrality power-iteration PageRank solver.
+pub mod pagerank;
+/// Provenance statistics analyzer.
+pub mod provenance;
+/// Centralized analytical output result structures.
+pub mod results;
+/// Tarjan strongly connected components solver.
+pub mod scc;
+/// Dijkstra shortest path routing solver.
+pub mod shortest_path;
+/// Lightweight traversal utility helpers.
+pub mod traversal;
+/// Edge weighting and routing distance cost providers.
+pub mod weights;
 
-pub use components::{ConnectedComponents, ConnectedComponentsConfig};
-pub use centrality::{Centrality, CentralityConfig};
-pub use distribution::{Distribution, DistributionConfig};
-pub use provenance::{ProvenanceStatistics, ProvenanceConfig};
-pub use context::{GraphAnalyticsContext, AdjacencyIndex, ReverseAdjacencyIndex, DegreeIndex};
-pub use results::{
-    DegreeCentrality, RelationDistribution, ProvenanceStats, PageRankResult,
-    StronglyConnectedComponent, ClosenessResult, ConnectivityReport
-};
-pub use weights::{EdgeWeightProvider, UniformWeightProvider, ConfidenceDistanceProvider};
-pub use shortest_path::{ShortestPath, ShortestPathConfig};
-pub use cycles::{CycleDetector, CycleDetectionConfig};
-pub use pagerank::{PageRank, PageRankConfig};
-pub use scc::{StronglyConnectedComponents, SccConfig};
-pub use traversal::GraphTraversal;
-pub use heuristic::{HeuristicProvider, ZeroHeuristic};
 pub use astar::{AStar, AStarConfig};
+pub use centrality::{Centrality, CentralityConfig};
 pub use closeness::{Closeness, ClosenessConfig, ClosenessVariant};
+pub use components::{ConnectedComponents, ConnectedComponentsConfig};
 pub use connectivity::{Connectivity, ConnectivityConfig};
+pub use context::{AdjacencyIndex, DegreeIndex, GraphAnalyticsContext, ReverseAdjacencyIndex};
+pub use cycles::{CycleDetectionConfig, CycleDetector};
+pub use distribution::{Distribution, DistributionConfig};
+pub use heuristic::{HeuristicProvider, ZeroHeuristic};
+pub use pagerank::{PageRank, PageRankConfig};
+pub use provenance::{ProvenanceConfig, ProvenanceStatistics};
+pub use results::{
+    ClosenessResult, ConnectivityReport, DegreeCentrality, PageRankResult, ProvenanceStats,
+    RelationDistribution, StronglyConnectedComponent,
+};
+pub use scc::{SccConfig, StronglyConnectedComponents};
+pub use shortest_path::{ShortestPath, ShortestPathConfig};
+pub use traversal::GraphTraversal;
+pub use weights::{ConfidenceDistanceProvider, EdgeWeightProvider, UniformWeightProvider};
 
 /// Trait defining the contract for shortest-path routing algorithms.
 pub trait RoutingAlgorithm<'a, 'b> {
@@ -67,7 +67,9 @@ pub trait RoutingAlgorithm<'a, 'b> {
 }
 
 /// Complexity class designation of analytical algorithms.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Complexity {
     /// Constant time complexity O(1)
     Constant,

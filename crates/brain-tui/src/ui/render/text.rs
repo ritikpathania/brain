@@ -1,9 +1,9 @@
 //! Allocation-free text rendering helpers.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// Static helper to draw styled text chunks directly to the backend buffer.
 pub struct TextRenderer;

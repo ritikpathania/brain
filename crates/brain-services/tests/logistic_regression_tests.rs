@@ -3,9 +3,9 @@ use brain_core::retrieval::EmbeddingProvider;
 use brain_core::RepositorySet;
 use brain_domain::{Edge, Node, NodeId, NodeType, RelationKind};
 use brain_services::eval_harness::{
-    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession, FtsRetriever,
-    GroundTruthCorpus, HybridRetriever, QueryCorpus, RankingDecay, SemanticRetriever, FeatureProvider,
-    TrainingDataset, LogisticTrainer, LogisticTrainingConfig,
+    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession,
+    FeatureProvider, FtsRetriever, GroundTruthCorpus, HybridRetriever, LogisticTrainer,
+    LogisticTrainingConfig, QueryCorpus, RankingDecay, SemanticRetriever, TrainingDataset,
 };
 use brain_storage::TestStorage;
 use std::fs;
@@ -27,9 +27,12 @@ impl EmbeddingProvider for FixtureEmbeddingProvider {
     }
 
     fn embed(&self, text: &str) -> Result<Vec<f32>, BrainError> {
-        let fq = self.text_to_query.get(text).ok_or_else(|| {
-            BrainError::Validation { message: format!("Query text not found in fixture: {}", text) }
-        })?;
+        let fq = self
+            .text_to_query
+            .get(text)
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Query text not found in fixture: {}", text),
+            })?;
         Ok(fq.embedding.clone())
     }
 }
@@ -78,14 +81,24 @@ fn test_logistic_regression_training_and_comparison() {
         let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
         let mut node = Node::new(node_id, n.content.clone(), NodeType::Concept);
         node.updated_at = n.properties.updated_at;
-        node.properties.insert("importance".to_string(), serde_json::json!(n.properties.importance));
-        node.properties.insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
-        node.properties.insert("provenance_confidence".to_string(), serde_json::json!(n.properties.provenance_confidence));
+        node.properties.insert(
+            "importance".to_string(),
+            serde_json::json!(n.properties.importance),
+        );
+        node.properties
+            .insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
+        node.properties.insert(
+            "provenance_confidence".to_string(),
+            serde_json::json!(n.properties.provenance_confidence),
+        );
         sqlite.nodes().save(&node).unwrap();
 
         sqlite
             .embeddings()
-            .save(&brain_domain::Embedding::new(node_id, n.properties.embedding.clone()))
+            .save(&brain_domain::Embedding::new(
+                node_id,
+                n.properties.embedding.clone(),
+            ))
             .unwrap();
 
         if n.properties.access_count > 0 {
@@ -116,7 +129,9 @@ fn test_logistic_regression_training_and_comparison() {
             sqlite
                 .save_temporal_edge(&brain_domain::TemporalEdge {
                     edge: Edge::new(node_id, target_id, RelationKind::Uses, 1.0),
-                    observed_at: brain_domain::TimePoint::from_unix_seconds(n.properties.last_observed_at),
+                    observed_at: brain_domain::TimePoint::from_unix_seconds(
+                        n.properties.last_observed_at,
+                    ),
                     validity: brain_domain::temporal::TemporalValidity::new(vec![]),
                 })
                 .unwrap();
@@ -127,9 +142,13 @@ fn test_logistic_regression_training_and_comparison() {
     let fts = FtsRetriever::new(sqlite.pool().clone());
     let mut text_to_query = std::collections::HashMap::new();
     for q in &queries.queries {
-        let embedding = q.embedding.clone().ok_or_else(|| {
-            BrainError::Validation { message: format!("Embedding not defined for query: {}", q.query_id) }
-        }).unwrap();
+        let embedding = q
+            .embedding
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Embedding not defined for query: {}", q.query_id),
+            })
+            .unwrap();
         text_to_query.insert(
             q.text.clone(),
             FixtureQuery {
@@ -149,15 +168,9 @@ fn test_logistic_regression_training_and_comparison() {
     };
 
     // 5. Build session
-    let session = EvaluationSession::build(
-        &queries,
-        &ground_truth,
-        &hybrid,
-        &provider,
-        1000000,
-        decay,
-    )
-    .unwrap();
+    let session =
+        EvaluationSession::build(&queries, &ground_truth, &hybrid, &provider, 1000000, decay)
+            .unwrap();
 
     // 6. Run Baseline Linear calibration
     let options = CalibrationOptions::Grid {
@@ -194,11 +207,16 @@ fn test_logistic_regression_training_and_comparison() {
     assert!(summary.epochs_run > 0);
 
     // Verify model inference scores stay bounded within [0, 1]
-    let extractor = brain_services::retrieval::eval_harness::FeatureExtractor::new(session.reference_time, session.decay);
+    let extractor = brain_services::retrieval::eval_harness::FeatureExtractor::new(
+        session.reference_time,
+        session.decay,
+    );
     for q_cache in &session.cache {
         for (res, ctx) in &q_cache.candidates {
             let features = extractor.extract(res, ctx);
-            let score = brain_services::retrieval::eval_harness::models::ScoreRanker::score(&model, &features);
+            let score = brain_services::retrieval::eval_harness::models::ScoreRanker::score(
+                &model, &features,
+            );
             assert!(score >= 0.0 && score <= 1.0);
         }
     }
@@ -217,7 +235,10 @@ fn test_logistic_regression_training_and_comparison() {
     md.push_str("## Optimizer Convergence & Diagnostics\n\n");
     md.push_str("| Metric | Value |\n");
     md.push_str("| :--- | ---: |\n");
-    md.push_str(&format!("| Initial BCE Loss | {:.6} |\n", summary.initial_loss));
+    md.push_str(&format!(
+        "| Initial BCE Loss | {:.6} |\n",
+        summary.initial_loss
+    ));
     md.push_str(&format!("| Final BCE Loss | {:.6} |\n", summary.final_loss));
     md.push_str(&format!("| Epochs Executed | {} |\n", summary.epochs_run));
     let converged_str = if summary.converged {
@@ -226,31 +247,67 @@ fn test_logistic_regression_training_and_comparison() {
         "🔴 No (reached epoch limit; loss was still decreasing)"
     };
     md.push_str(&format!("| Converged | {} |\n", converged_str));
-    md.push_str(&format!("| L2 Regularization (λ) | {:.4} |\n", config.l2_regularization));
-    md.push_str(&format!("| Model Intercept (b) | {:.4} |\n", model.intercept));
+    md.push_str(&format!(
+        "| L2 Regularization (λ) | {:.4} |\n",
+        config.l2_regularization
+    ));
+    md.push_str(&format!(
+        "| Model Intercept (b) | {:.4} |\n",
+        model.intercept
+    ));
 
     md.push_str("\n## Feature Parameter Comparison\n\n");
     md.push_str("| Feature Name | Linear Calibrated Weight | Logistic Trained Weight |\n");
     md.push_str("| :--- | ---: | ---: |\n");
-    md.push_str(&format!("| access_frequency | {:.4} | {:.4} |\n", baseline_opt.weights.access_frequency, model.weights.access_frequency));
-    md.push_str(&format!("| freshness_decay | {:.4} | {:.4} |\n", baseline_opt.weights.freshness_decay, model.weights.freshness_decay));
-    md.push_str(&format!("| graph_degree | {:.4} | {:.4} |\n", baseline_opt.weights.graph_degree, model.weights.graph_degree));
-    md.push_str(&format!("| importance | {:.4} | {:.4} |\n", baseline_opt.weights.importance, model.weights.importance));
-    md.push_str(&format!("| lexical_similarity | {:.4} | {:.4} |\n", baseline_opt.weights.lexical, model.weights.lexical));
-    md.push_str(&format!("| provenance_confidence | {:.4} | {:.4} |\n", baseline_opt.weights.provenance_confidence, model.weights.provenance_confidence));
-    md.push_str(&format!("| recency | {:.4} | {:.4} |\n", baseline_opt.weights.recency, model.weights.recency));
-    md.push_str(&format!("| semantic_similarity | {:.4} | {:.4} |\n", baseline_opt.weights.semantic, model.weights.semantic));
+    md.push_str(&format!(
+        "| access_frequency | {:.4} | {:.4} |\n",
+        baseline_opt.weights.access_frequency, model.weights.access_frequency
+    ));
+    md.push_str(&format!(
+        "| freshness_decay | {:.4} | {:.4} |\n",
+        baseline_opt.weights.freshness_decay, model.weights.freshness_decay
+    ));
+    md.push_str(&format!(
+        "| graph_degree | {:.4} | {:.4} |\n",
+        baseline_opt.weights.graph_degree, model.weights.graph_degree
+    ));
+    md.push_str(&format!(
+        "| importance | {:.4} | {:.4} |\n",
+        baseline_opt.weights.importance, model.weights.importance
+    ));
+    md.push_str(&format!(
+        "| lexical_similarity | {:.4} | {:.4} |\n",
+        baseline_opt.weights.lexical, model.weights.lexical
+    ));
+    md.push_str(&format!(
+        "| provenance_confidence | {:.4} | {:.4} |\n",
+        baseline_opt.weights.provenance_confidence, model.weights.provenance_confidence
+    ));
+    md.push_str(&format!(
+        "| recency | {:.4} | {:.4} |\n",
+        baseline_opt.weights.recency, model.weights.recency
+    ));
+    md.push_str(&format!(
+        "| semantic_similarity | {:.4} | {:.4} |\n",
+        baseline_opt.weights.semantic, model.weights.semantic
+    ));
 
     md.push_str("\n## Retrieval Performance Baseline comparison\n\n");
     md.push_str("| Model Type | Composite Score | nDCG@5 | MRR | Recall@5 |\n");
     md.push_str("| :--- | ---: | ---: | ---: | ---: |\n");
     md.push_str(&format!(
         "| **Linear Baseline** | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        baseline_score, baseline_opt.mean_ndcg_at_5, baseline_opt.mean_mrr, baseline_opt.mean_recall_at_5
+        baseline_score,
+        baseline_opt.mean_ndcg_at_5,
+        baseline_opt.mean_mrr,
+        baseline_opt.mean_recall_at_5
     ));
     md.push_str(&format!(
         "| **Logistic Regression** | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        logistic_score, logistic_eval.mean_ndcg_at_5, logistic_eval.mean_mrr, logistic_eval.mean_recall_at_5
+        logistic_score,
+        logistic_eval.mean_ndcg_at_5,
+        logistic_eval.mean_mrr,
+        logistic_eval.mean_recall_at_5
     ));
 
     md.push_str("\n## Research Conclusion\n\n");

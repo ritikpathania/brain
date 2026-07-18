@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use crate::projections::{ProjectionId, StateReducer};
 use brain_core::errors::BrainError;
 use brain_domain::{SearchDocument, SearchDocumentId, SearchDocumentKind, SearchMetadata};
-use brain_events::{EventEnvelope, DomainEvent};
+use brain_events::{DomainEvent, EventEnvelope};
 use brain_storage::SqliteSearchRepository;
-use crate::projections::{StateReducer, ProjectionId};
+use std::sync::Arc;
 
 /// Stateful FTS5 search projection reducer translating session and message lifecycles to indexed documents.
 pub struct SearchProjectionReducer {
@@ -29,7 +29,11 @@ impl StateReducer for SearchProjectionReducer {
         })?;
 
         match &envelope.payload {
-            DomainEvent::Core(brain_domain::DomainEvent::SessionCreated { session_id, title, .. }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::SessionCreated {
+                session_id,
+                title,
+                ..
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("session:{}", session_id));
                 let doc = SearchDocument::new(
                     doc_id,
@@ -43,7 +47,11 @@ impl StateReducer for SearchProjectionReducer {
                 );
                 self.repo.save(&doc, seq)?;
             }
-            DomainEvent::Core(brain_domain::DomainEvent::SessionRenamed { session_id, title, .. }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::SessionRenamed {
+                session_id,
+                title,
+                ..
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("session:{}", session_id));
                 let (archived, pinned) = if let Some(existing) = self.repo.find_by_id(&doc_id)? {
                     match existing.metadata {
@@ -62,7 +70,11 @@ impl StateReducer for SearchProjectionReducer {
                 );
                 self.repo.save(&doc, seq)?;
             }
-            DomainEvent::Core(brain_domain::DomainEvent::SessionPinnedChanged { session_id, pinned, .. }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::SessionPinnedChanged {
+                session_id,
+                pinned,
+                ..
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("session:{}", session_id));
                 let (archived, title) = if let Some(existing) = self.repo.find_by_id(&doc_id)? {
                     let archived = match existing.metadata {
@@ -78,11 +90,16 @@ impl StateReducer for SearchProjectionReducer {
                     SearchDocumentKind::Session,
                     title,
                     "".to_string(),
-                    SearchMetadata::Session { archived, pinned: *pinned },
+                    SearchMetadata::Session {
+                        archived,
+                        pinned: *pinned,
+                    },
                 );
                 self.repo.save(&doc, seq)?;
             }
-            DomainEvent::Core(brain_domain::DomainEvent::SessionArchived { session_id, .. }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::SessionArchived {
+                session_id, ..
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("session:{}", session_id));
                 let (pinned, title) = if let Some(existing) = self.repo.find_by_id(&doc_id)? {
                     let pinned = match existing.metadata {
@@ -98,11 +115,16 @@ impl StateReducer for SearchProjectionReducer {
                     SearchDocumentKind::Session,
                     title,
                     "".to_string(),
-                    SearchMetadata::Session { archived: true, pinned },
+                    SearchMetadata::Session {
+                        archived: true,
+                        pinned,
+                    },
                 );
                 self.repo.save(&doc, seq)?;
             }
-            DomainEvent::Core(brain_domain::DomainEvent::SessionRestored { session_id, .. }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::SessionRestored {
+                session_id, ..
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("session:{}", session_id));
                 let (pinned, title) = if let Some(existing) = self.repo.find_by_id(&doc_id)? {
                     let pinned = match existing.metadata {
@@ -118,7 +140,10 @@ impl StateReducer for SearchProjectionReducer {
                     SearchDocumentKind::Session,
                     title,
                     "".to_string(),
-                    SearchMetadata::Session { archived: false, pinned },
+                    SearchMetadata::Session {
+                        archived: false,
+                        pinned,
+                    },
                 );
                 self.repo.save(&doc, seq)?;
             }
@@ -127,7 +152,10 @@ impl StateReducer for SearchProjectionReducer {
                 self.repo.delete(&doc_id)?;
                 self.repo.delete_by_session_id(session_id)?;
             }
-            DomainEvent::Core(brain_domain::DomainEvent::MessageAdded { session_id, message }) => {
+            DomainEvent::Core(brain_domain::DomainEvent::MessageAdded {
+                session_id,
+                message,
+            }) => {
                 let doc_id = SearchDocumentId::new(format!("message:{}", message.id));
                 let doc = SearchDocument::new(
                     doc_id,

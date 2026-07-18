@@ -1,5 +1,5 @@
-use brain_application::{ApplicationError, ApplicationEvent};
 use crate::protocol::{AcpError, AcpNotification};
+use brain_application::{ApplicationError, ApplicationEvent};
 
 /// Explicit error mapper translating ApplicationError into AcpError.
 pub struct AcpErrorMapper;

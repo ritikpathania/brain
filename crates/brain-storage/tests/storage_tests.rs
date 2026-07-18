@@ -3,8 +3,8 @@ use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, SessionRepository,
 };
 use brain_domain::{
-    Session, SessionTitle, SessionTimestamp, Edge, EdgeId, Embedding, Message, MessageId, MessageRole, Node,
-    NodeId, NodeType, SessionId, RelationKind, RelationId
+    Edge, EdgeId, Embedding, Message, MessageId, MessageRole, Node, NodeId, NodeType, RelationId,
+    RelationKind, Session, SessionId, SessionTimestamp, SessionTitle,
 };
 use brain_storage::{SqliteStorage, TestStorage};
 use std::panic;
@@ -109,7 +109,12 @@ fn test_sqlite_storage_transaction_rollback() {
     .unwrap();
 
     let valid_edge = Edge::new(valid_src, valid_tgt, RelationKind::AssociatedWith, 1.0);
-    let invalid_edge = Edge::new(NodeId::new(), NodeId::new(), RelationKind::AssociatedWith, 1.0);
+    let invalid_edge = Edge::new(
+        NodeId::new(),
+        NodeId::new(),
+        RelationKind::AssociatedWith,
+        1.0,
+    );
 
     let batch_res = EdgeRepository::save_batch(store, &[valid_edge.clone(), invalid_edge]);
     assert!(batch_res.is_err());
@@ -156,11 +161,13 @@ fn test_sqlite_storage_session_and_config() {
         SessionTitle("test session".to_string()),
         SessionTimestamp(0),
     );
-    session.add_message(Message::new(
-        MessageId::new(),
-        MessageRole::User,
-        "Hello".to_string(),
-    )).unwrap();
+    session
+        .add_message(Message::new(
+            MessageId::new(),
+            MessageRole::User,
+            "Hello".to_string(),
+        ))
+        .unwrap();
 
     SessionRepository::save_session(store, &session_id, &session).unwrap();
 
@@ -317,10 +324,9 @@ fn test_sqlite_storage_node_conflict_merge() {
     let node_id = NodeId::new();
 
     // 1. Create a node with "stub" type (represented as Unknown)
-    let node_stub = Node::new(node_id, "Test Node".to_string(), NodeType::Unknown)
-        .with_properties(std::collections::HashMap::from([
-            ("k1".to_string(), serde_json::json!("v1")),
-        ]));
+    let node_stub = Node::new(node_id, "Test Node".to_string(), NodeType::Unknown).with_properties(
+        std::collections::HashMap::from([("k1".to_string(), serde_json::json!("v1"))]),
+    );
     NodeRepository::save(store, &node_stub).unwrap();
 
     // 2. Overwrite it with a real "Concept" type and additional properties
@@ -343,10 +349,10 @@ fn test_sqlite_storage_node_conflict_merge() {
     assert_eq!(fetched.properties.get("k2").unwrap(), "v2");
 
     // 4. Overwrite it with Tool type to verify non-stub node_type is preserved
-    let node_other = Node::new(node_id, "Test Node Other".to_string(), NodeType::Tool)
-        .with_properties(std::collections::HashMap::from([
-            ("k3".to_string(), serde_json::json!("v3")),
-        ]));
+    let node_other =
+        Node::new(node_id, "Test Node Other".to_string(), NodeType::Tool).with_properties(
+            std::collections::HashMap::from([("k3".to_string(), serde_json::json!("v3"))]),
+        );
     NodeRepository::save(store, &node_other).unwrap();
 
     let fetched2 = NodeRepository::find_by_id(store, &node_id)
@@ -367,8 +373,16 @@ fn test_sqlite_edge_id_round_trip() {
     let node1_id = NodeId::new();
     let node2_id = NodeId::new();
 
-    NodeRepository::save(store, &Node::new(node1_id, "Node 1".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(store, &Node::new(node2_id, "Node 2".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(
+        store,
+        &Node::new(node1_id, "Node 1".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        store,
+        &Node::new(node2_id, "Node 2".to_string(), NodeType::Concept),
+    )
+    .unwrap();
 
     // 1. Create edge with a custom RelationId
     let relation_id = RelationId::new("configures");
@@ -379,7 +393,9 @@ fn test_sqlite_edge_id_round_trip() {
     EdgeRepository::save(store, &edge).unwrap();
 
     // 3. Find edge by EdgeId
-    let fetched_edge = EdgeRepository::find_by_id(store, &edge_id).unwrap().expect("Edge not found");
+    let fetched_edge = EdgeRepository::find_by_id(store, &edge_id)
+        .unwrap()
+        .expect("Edge not found");
     assert_eq!(fetched_edge.source, node1_id);
     assert_eq!(fetched_edge.target, node2_id);
     assert_eq!(fetched_edge.relation, RelationKind::Configures);
@@ -396,12 +412,12 @@ fn test_sqlite_learned_ranking_serialization() {
     let test_store = TestStorage::new();
     let store = test_store.storage();
 
+    use brain_domain::identifiers::NodeId;
     use brain_domain::retrieval::models::{
-        WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata,
-        RankingWeights, RankingWeight, FeedbackEvent
+        CalibrationMetadata, FeedbackEvent, RankingWeight, RankingWeights, SnapshotMetadata,
+        SnapshotVersion, WeightSnapshot,
     };
     use brain_domain::temporal::TimePoint;
-    use brain_domain::identifiers::NodeId;
 
     // 1. Create and save a WeightSnapshot
     let metadata = SnapshotMetadata {
@@ -415,19 +431,25 @@ fn test_sqlite_learned_ranking_serialization() {
         RankingWeight::new(2.1).unwrap(),
         RankingWeight::new(0.0).unwrap(),
     );
-    let snapshot = WeightSnapshot {
-        metadata,
-        weights,
-    };
+    let snapshot = WeightSnapshot { metadata, weights };
 
     store.save_weight_snapshot(&snapshot).unwrap();
 
     // 2. Fetch and assert
-    let loaded = store.get_weight_snapshot(SnapshotVersion::new(10)).unwrap().expect("Snapshot not found");
+    let loaded = store
+        .get_weight_snapshot(SnapshotVersion::new(10))
+        .unwrap()
+        .expect("Snapshot not found");
     assert_eq!(loaded.metadata.version.value(), 10);
     assert_eq!(loaded.metadata.created_at.unix_seconds(), 1620000000);
-    assert_eq!(loaded.metadata.calibration_metadata.algorithm_used(), "LinearAdjustment");
-    assert_eq!(loaded.metadata.calibration_metadata.validation_loss(), Some(0.005));
+    assert_eq!(
+        loaded.metadata.calibration_metadata.algorithm_used(),
+        "LinearAdjustment"
+    );
+    assert_eq!(
+        loaded.metadata.calibration_metadata.validation_loss(),
+        Some(0.005)
+    );
     assert_eq!(loaded.weights.semantic().value(), 0.5);
     assert_eq!(loaded.weights.graph().value(), 1.2);
     assert_eq!(loaded.weights.recency().value(), 2.1);
@@ -488,8 +510,10 @@ fn test_ivf_vector_indexing() {
     let mut vec1 = vec![0.0f32; 384];
     let mut vec2 = vec![0.0f32; 384];
     for i in 0..384 {
-        vec1[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (0 + 1) as f64) / 384.0).sin() as f32;
-        vec2[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (4 + 1) as f64) / 384.0).sin() as f32;
+        vec1[i] =
+            ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (0 + 1) as f64) / 384.0).sin() as f32;
+        vec2[i] =
+            ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (4 + 1) as f64) / 384.0).sin() as f32;
     }
 
     let emb1 = Embedding::new(node1_id, vec1);
@@ -500,8 +524,12 @@ fn test_ivf_vector_indexing() {
     EmbeddingRepository::save(store, &emb2).unwrap();
 
     // 4. Verify find_by_node_id works
-    let loaded1 = EmbeddingRepository::find_by_node_id(store, &node1_id).unwrap().unwrap();
-    let loaded2 = EmbeddingRepository::find_by_node_id(store, &node2_id).unwrap().unwrap();
+    let loaded1 = EmbeddingRepository::find_by_node_id(store, &node1_id)
+        .unwrap()
+        .unwrap();
+    let loaded2 = EmbeddingRepository::find_by_node_id(store, &node2_id)
+        .unwrap()
+        .unwrap();
     assert_eq!(loaded1.node_id, node1_id);
     assert_eq!(loaded2.node_id, node2_id);
 
@@ -527,5 +555,3 @@ fn test_ivf_vector_indexing() {
     let empty_results = EmbeddingRepository::find_by_centroids(store, &[2, 7]).unwrap();
     assert!(empty_results.is_empty());
 }
-
-

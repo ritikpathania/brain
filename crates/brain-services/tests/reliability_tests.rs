@@ -1,11 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::time::SystemTime;
-    use brain_domain::{Node, NodeId, NodeKind, GraphProvenance, ProvenanceSource};
+    use brain_domain::{GraphProvenance, Node, NodeId, NodeKind, ProvenanceSource};
     use brain_storage::SqliteStorage;
+    use std::time::SystemTime;
 
     fn current_time_secs() -> u64 {
-        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
     }
 
     // --- RELIABILITY TEST 1: Interrupted Transaction Recovery ---
@@ -35,7 +38,7 @@ mod tests {
         // 2. Execute transaction and simulate interrupt by returning a Storage error (aborting transaction)
         let result: Result<(), _> = storage.run_transaction(|tx| {
             tx.repositories().nodes().save(&node)?;
-            
+
             Err(brain_core::errors::BrainError::Storage {
                 message: "Simulated Interrupted Transaction".to_string(),
                 source: None,
@@ -46,8 +49,13 @@ mod tests {
 
         // 3. Open a second storage instance pointing to the same DB file
         let new_storage = SqliteStorage::new(&db_path, 1, true).unwrap();
-        let nodes = new_storage.run_transaction(|tx| tx.repositories().nodes().list_all()).unwrap();
-        assert!(nodes.is_empty(), "Uncommitted transaction modifications must be completely rolled back");
+        let nodes = new_storage
+            .run_transaction(|tx| tx.repositories().nodes().list_all())
+            .unwrap();
+        assert!(
+            nodes.is_empty(),
+            "Uncommitted transaction modifications must be completely rolled back"
+        );
 
         // Cleanup
         let _ = std::fs::remove_file(&db_path);
@@ -78,16 +86,20 @@ mod tests {
                 text_span: None,
                 source: ProvenanceSource::Imported,
             };
-            storage.run_transaction(|tx| {
-                tx.repositories().nodes().save(&node)
-            }).unwrap();
+            storage
+                .run_transaction(|tx| tx.repositories().nodes().save(&node))
+                .unwrap();
         }
 
         // 2. Mock sudden shutdown/abort mid-transaction
         {
             let storage = SqliteStorage::new(&db_path, 1, true).unwrap();
             let node_id = NodeId::new();
-            let mut crashed_node = Node::new(node_id, "Crashed mid-tx Node".to_string(), NodeKind::Concept);
+            let mut crashed_node = Node::new(
+                node_id,
+                "Crashed mid-tx Node".to_string(),
+                NodeKind::Concept,
+            );
             crashed_node.provenance = GraphProvenance {
                 source_conversation: None,
                 source_message: None,
@@ -100,7 +112,7 @@ mod tests {
 
             let _: Result<(), _> = storage.run_transaction(|tx| {
                 tx.repositories().nodes().save(&crashed_node)?;
-                
+
                 Err(brain_core::errors::BrainError::Storage {
                     message: "Sudden crash mid-transaction".to_string(),
                     source: None,
@@ -110,9 +122,15 @@ mod tests {
 
         // 3. Restart: Reopen storage and assert committed state remains valid while crashed state is missing
         let restarted_storage = SqliteStorage::new(&db_path, 1, true).unwrap();
-        let nodes = restarted_storage.run_transaction(|tx| tx.repositories().nodes().list_all()).unwrap();
+        let nodes = restarted_storage
+            .run_transaction(|tx| tx.repositories().nodes().list_all())
+            .unwrap();
 
-        assert_eq!(nodes.len(), 1, "Only the committed node should survive the crash");
+        assert_eq!(
+            nodes.len(),
+            1,
+            "Only the committed node should survive the crash"
+        );
         assert_eq!(nodes[0].label, "Committed Node");
 
         // Cleanup

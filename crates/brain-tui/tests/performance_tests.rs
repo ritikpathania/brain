@@ -1,12 +1,12 @@
 mod common;
 
-use std::time::Instant;
-use brain_tui::ui::interaction::markdown::{
-    MarkdownParser, MarkdownLayout, KeywordSyntaxHighlighter,
-    ViewportIndex, MessageRevision, CachedMessageLayout
-};
-use brain_tui::ui::scheduler::{RenderReason, RenderInvalidation, RenderRequest};
 use brain_domain::{Message, MessageId, MessageRole};
+use brain_tui::ui::interaction::markdown::{
+    CachedMessageLayout, KeywordSyntaxHighlighter, MarkdownLayout, MarkdownParser, MessageRevision,
+    ViewportIndex,
+};
+use brain_tui::ui::scheduler::{RenderInvalidation, RenderReason, RenderRequest};
+use std::time::Instant;
 
 #[test]
 fn test_viewport_index_binary_search_efficiency() {
@@ -19,15 +19,21 @@ fn test_viewport_index_binary_search_efficiency() {
     let start = Instant::now();
     let index = ViewportIndex::rebuild(&heights);
     let rebuild_duration = start.elapsed();
-    assert!(rebuild_duration.as_millis() < 5, "Rebuilding 10,000 heights must take < 5ms");
+    assert!(
+        rebuild_duration.as_millis() < 5,
+        "Rebuilding 10,000 heights must take < 5ms"
+    );
 
     // Perform O(log n) visibility query
     let start_query = Instant::now();
     let res = index.find_offset(15000);
     let query_duration = start_query.elapsed();
-    
+
     assert!(res.is_some());
-    assert!(query_duration.as_micros() < 50, "Binary search lookup must take < 50us");
+    assert!(
+        query_duration.as_micros() < 50,
+        "Binary search lookup must take < 50us"
+    );
 }
 
 #[test]
@@ -37,7 +43,10 @@ fn test_cold_vs_warm_cache_latency() {
         messages.push(Message::new(
             MessageId::new(),
             MessageRole::User,
-            format!("This is message number {} containing some markdown **bold** and `code` keywords.", i),
+            format!(
+                "This is message number {} containing some markdown **bold** and `code` keywords.",
+                i
+            ),
         ));
     }
 
@@ -71,7 +80,11 @@ fn test_cold_vs_warm_cache_latency() {
             let ast = MarkdownParser::parse(&msg.content);
             let lines = MarkdownLayout::layout(&ast, width, &highlighter);
             let height = lines.len();
-            CachedMessageLayout { revision, visual_lines: lines, height }
+            CachedMessageLayout {
+                revision,
+                visual_lines: lines,
+                height,
+            }
         };
         warm_layouts.push(layout);
     }
@@ -125,7 +138,7 @@ fn test_rendering_scaling_virtualization() {
         let start = Instant::now();
         let start_offset = (scale as u32 * 2).saturating_sub(10); // scroll near tail
         let mut visible_lines = Vec::new();
-        
+
         if let Some((mut msg_idx, mut local_line)) = index.find_offset(start_offset) {
             let mut lines_collected = 0u32;
             while msg_idx < messages.len() && lines_collected < viewport_height {

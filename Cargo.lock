@@ -505,6 +505,7 @@ name = "brain-application"
 version = "0.1.0"
 dependencies = [
  "brain-config",
+ "brain-core",
  "brain-domain",
  "brain-integrations",
  "brain-services",
@@ -514,6 +515,7 @@ dependencies = [
  "pyo3",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",
@@ -564,8 +566,10 @@ dependencies = [
 name = "brain-daemon"
 version = "0.1.0"
 dependencies = [
+ "brain-core",
  "brain-domain",
  "brain-integrations",
+ "brain-services",
  "chrono",
  "criterion",
  "duckdb",
@@ -726,6 +730,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",

@@ -1,9 +1,9 @@
 //! Allocation-free Progress bar primitives.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// A simple horizontal progress bar.
 pub struct Progress {
@@ -20,7 +20,7 @@ impl Progress {
         let muted = ctx.theme.style(ThemeToken::Muted);
         let width = area.width as usize;
         let filled_width = ((width as f32) * self.ratio.clamp(0.0, 1.0)) as usize;
-        
+
         for x in 0..width {
             let cell = buf.get_mut(area.x + x as u16, area.y);
             if x < filled_width {

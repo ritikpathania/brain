@@ -9,7 +9,9 @@ pub struct TextBuffer {
 impl TextBuffer {
     /// Instantiates a new empty TextBuffer.
     pub fn new() -> Self {
-        Self { text: String::new() }
+        Self {
+            text: String::new(),
+        }
     }
 
     /// Access the underlying string content slice.
@@ -71,14 +73,20 @@ impl Editor {
     pub fn new() -> Self {
         Self {
             buffer: TextBuffer::new(),
-            cursor: Cursor { byte_index: 0, visual_col: 0 },
+            cursor: Cursor {
+                byte_index: 0,
+                visual_col: 0,
+            },
         }
     }
 
     /// Clears the text buffer and resets the cursor.
     pub fn clear(&mut self) {
         self.buffer = TextBuffer::new();
-        self.cursor = Cursor { byte_index: 0, visual_col: 0 };
+        self.cursor = Cursor {
+            byte_index: 0,
+            visual_col: 0,
+        };
     }
 
     /// Inserts a character at the active cursor position (aliasing insert).

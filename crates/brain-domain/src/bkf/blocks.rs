@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use crate::bkf::ids::BkfBlockId;
 use crate::bkf::provenance::Provenance;
+use serde::{Deserialize, Serialize};
 
 /// Categorized kinds of structural document blocks.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

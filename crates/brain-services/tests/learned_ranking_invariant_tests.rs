@@ -1,15 +1,17 @@
+use brain_core::repositories::NodeRepository;
+use brain_core::retrieval::{RankingStrategy, RetrievalRequest};
 use brain_domain::retrieval::models::{
-    WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata,
-    RankingWeights, RankingWeight
+    CalibrationMetadata, RankingWeight, RankingWeights, SnapshotMetadata, SnapshotVersion,
+    WeightSnapshot,
 };
 use brain_domain::temporal::TimePoint;
-use brain_services::retrieval::active_weights::{ActiveWeightProvider, DefaultActiveWeightProvider};
-use brain_services::retrieval::experiment::DefaultExperimentRouter;
+use brain_domain::{Node, NodeId, NodeType};
+use brain_services::retrieval::active_weights::{
+    ActiveWeightProvider, DefaultActiveWeightProvider,
+};
 use brain_services::retrieval::calibration::WeightCalibrationService;
+use brain_services::retrieval::experiment::DefaultExperimentRouter;
 use brain_services::retrieval::temporal::LearnedTemporalScorer;
-use brain_core::retrieval::{RankingStrategy, RetrievalRequest};
-use brain_core::repositories::NodeRepository;
-use brain_domain::{Node, NodeType, NodeId};
 use std::sync::Arc;
 
 fn make_snapshot(version: u64, sem: f64, graph: f64, rec: f64, temp: f64) -> WeightSnapshot {
@@ -24,10 +26,7 @@ fn make_snapshot(version: u64, sem: f64, graph: f64, rec: f64, temp: f64) -> Wei
         RankingWeight::new(rec).unwrap(),
         RankingWeight::new(temp).unwrap(),
     );
-    WeightSnapshot {
-        metadata,
-        weights,
-    }
+    WeightSnapshot { metadata, weights }
 }
 
 #[test]
@@ -47,7 +46,10 @@ fn test_invariant_publication_equivalence() {
     // Publish version 2
     let v2 = make_snapshot(2, 2.0, 1.5, 0.5, 3.0);
     service.publish_snapshot(v2).unwrap();
-    assert_eq!(provider.active_snapshot().unwrap().metadata.version.value(), 2);
+    assert_eq!(
+        provider.active_snapshot().unwrap().metadata.version.value(),
+        2
+    );
 
     // Immediately rollback to version 1
     service.rollback_to(SnapshotVersion::new(1)).unwrap();
@@ -71,8 +73,16 @@ fn test_invariant_model_transparency() {
     let node_a = NodeId::new();
     let node_b = NodeId::new();
 
-    NodeRepository::save(sqlite, &Node::new(node_a, "Alpha".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(sqlite, &Node::new(node_b, "Beta".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_a, "Alpha".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_b, "Beta".to_string(), NodeType::Concept),
+    )
+    .unwrap();
 
     // Setup active provider
     let initial = make_snapshot(1, 1.5, 2.0, 0.5, 1.0);
@@ -96,8 +106,12 @@ fn test_invariant_model_transparency() {
     };
 
     let input_nodes = vec![
-        NodeRepository::find_by_id(sqlite, &node_a).unwrap().unwrap(),
-        NodeRepository::find_by_id(sqlite, &node_b).unwrap().unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_a)
+            .unwrap()
+            .unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_b)
+            .unwrap()
+            .unwrap(),
     ];
 
     let ranked = scorer.rank(&req, input_nodes).unwrap();
@@ -110,10 +124,12 @@ fn test_invariant_model_transparency() {
 
 #[test]
 fn test_feature_pipeline_invariants() {
-    use brain_domain::retrieval::features::{NormalizationContext, FeatureNormalizer, MinMaxNormalizer};
-    use brain_services::retrieval::feature_extractor::{FeatureExtractor, DefaultFeatureExtractor};
+    use brain_domain::retrieval::features::{
+        FeatureNormalizer, MinMaxNormalizer, NormalizationContext,
+    };
+    use brain_domain::{temporal::TemporalEdge, Edge, Node, NodeId, NodeType, RelationKind};
+    use brain_services::retrieval::feature_extractor::{DefaultFeatureExtractor, FeatureExtractor};
     use brain_storage::TestStorage;
-    use brain_domain::{Node, Edge, NodeType, RelationKind, NodeId, temporal::TemporalEdge};
 
     let test_store = TestStorage::new();
     let sqlite = test_store.storage();
@@ -121,8 +137,16 @@ fn test_feature_pipeline_invariants() {
     let node_a = NodeId::new();
     let node_b = NodeId::new();
 
-    NodeRepository::save(sqlite, &Node::new(node_a, "UniqueA".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(sqlite, &Node::new(node_b, "AlphaBetaNode".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_a, "UniqueA".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_b, "AlphaBetaNode".to_string(), NodeType::Concept),
+    )
+    .unwrap();
 
     let req = RetrievalRequest {
         session_id: brain_domain::SessionId::new(),
@@ -133,8 +157,12 @@ fn test_feature_pipeline_invariants() {
     };
 
     let input_nodes = vec![
-        NodeRepository::find_by_id(sqlite, &node_a).unwrap().unwrap(),
-        NodeRepository::find_by_id(sqlite, &node_b).unwrap().unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_a)
+            .unwrap()
+            .unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_b)
+            .unwrap()
+            .unwrap(),
     ];
 
     let extractor = DefaultFeatureExtractor::new(
@@ -154,7 +182,9 @@ fn test_feature_pipeline_invariants() {
     use brain_core::repositories::EdgeRepository;
     EdgeRepository::save(sqlite, &temp_edge.edge).unwrap();
 
-    let raw_after = extractor.extract(&req, &input_nodes, &[temp_edge], sqlite).unwrap();
+    let raw_after = extractor
+        .extract(&req, &input_nodes, &[temp_edge], sqlite)
+        .unwrap();
 
     // Semantic scores must remain absolutely unmodified (isolated)
     assert_eq!(raw_baseline[0].semantic, raw_after[0].semantic);
@@ -174,4 +204,3 @@ fn test_feature_pipeline_invariants() {
 
     test_store.assert_clean();
 }
-

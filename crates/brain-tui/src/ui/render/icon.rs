@@ -13,16 +13,28 @@ impl IconSet {
 
     /// Returns a checkmark icon.
     pub fn check(&self) -> &'static str {
-        if self.unicode { "✓" } else { "[OK]" }
+        if self.unicode {
+            "✓"
+        } else {
+            "[OK]"
+        }
     }
 
     /// Returns a cross/error icon.
     pub fn cross(&self) -> &'static str {
-        if self.unicode { "✗" } else { "[ERR]" }
+        if self.unicode {
+            "✗"
+        } else {
+            "[ERR]"
+        }
     }
 
     /// Returns a folder icon.
     pub fn folder(&self) -> &'static str {
-        if self.unicode { "📁" } else { "[DIR]" }
+        if self.unicode {
+            "📁"
+        } else {
+            "[DIR]"
+        }
     }
 }

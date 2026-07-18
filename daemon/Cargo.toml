@@ -27,6 +27,8 @@ chrono = "0.4"
 uuid = { version = "1.8", features = ["v4", "serde"] }
 brain-domain = { path = "../crates/brain-domain" }
 brain-integrations = { path = "../crates/brain-integrations" }
+brain-core = { path = "../crates/brain-core" }
+brain-services = { path = "../crates/brain-services" }
 
 [[bench]]
 name = "memory_benchmarks"

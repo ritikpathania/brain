@@ -1,7 +1,7 @@
 //! SQLite-backed repository for tracking stateful projection checkpoints.
 
-use rusqlite::params;
 use brain_core::errors::BrainError;
+use rusqlite::params;
 
 /// SQLite implementation for persisting projection checkpoints.
 pub struct SqliteProjectionCheckpointRepository {
@@ -49,7 +49,8 @@ impl SqliteProjectionCheckpointRepository {
              VALUES (?1, ?2)
              ON CONFLICT(projection_name) DO UPDATE SET last_sequence = excluded.last_sequence",
             params![name, sequence as i64],
-        ).map_err(|e| BrainError::Storage {
+        )
+        .map_err(|e| BrainError::Storage {
             message: format!("Failed to save projection checkpoint: {}", e),
             source: Some(Box::new(e)),
         })?;

@@ -4,7 +4,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
 use brain_core::extensibility::{ExecutionResult, HostContext};
-use brain_domain::{Session, Edge, MessageRole, Node, SessionId, ToolCall};
+use brain_domain::{Edge, MessageRole, Node, Session, SessionId, ToolCall};
 
 /// Converts a PyObject representation of JSON-compatible values to a `serde_json::Value`.
 pub fn py_to_json(_py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<serde_json::Value> {

@@ -286,7 +286,9 @@ mod tests {
         .unwrap();
 
         // 3. Verify it was updated successfully to 200 without constraint violation
-        let mut stmt = conn.prepare("SELECT val_int FROM sync_metadata WHERE key = 'last_sync_updated_at'").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT val_int FROM sync_metadata WHERE key = 'last_sync_updated_at'")
+            .unwrap();
         let mut rows = stmt.query([]).unwrap();
         let val: i64 = rows.next().unwrap().unwrap().get(0).unwrap();
         assert_eq!(val, 200);

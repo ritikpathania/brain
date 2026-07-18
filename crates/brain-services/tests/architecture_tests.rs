@@ -155,7 +155,12 @@ fn test_domain_cannot_depend_on_services_or_retrieval() {
             } else if path.extension().map_or(false, |ext| ext == "rs") {
                 let raw = fs::read_to_string(&path).unwrap();
                 let clean = clean_comments(&raw);
-                let forbidden = ["brain_services", "Graph", "RetrievalService", "RetrievalServiceImpl"];
+                let forbidden = [
+                    "brain_services",
+                    "Graph",
+                    "RetrievalService",
+                    "RetrievalServiceImpl",
+                ];
                 for f in &forbidden {
                     assert!(
                         !contains_word(&clean, f),
@@ -173,11 +178,21 @@ fn test_domain_cannot_depend_on_services_or_retrieval() {
 #[test]
 fn test_traversal_cannot_depend_on_extractor_impls() {
     let root = get_workspace_root();
-    let traversal_file = root.join("crates").join("brain-services").join("src").join("retrieval").join("graph_service.rs");
+    let traversal_file = root
+        .join("crates")
+        .join("brain-services")
+        .join("src")
+        .join("retrieval")
+        .join("graph_service.rs");
     if traversal_file.exists() {
         let raw = fs::read_to_string(&traversal_file).unwrap();
         let clean = clean_comments(&raw);
-        let forbidden = ["DummyMemoryExtractor", "MockMemoryExtractor", "PythonMemoryExtractor", "BuiltinPythonExtractor"];
+        let forbidden = [
+            "DummyMemoryExtractor",
+            "MockMemoryExtractor",
+            "PythonMemoryExtractor",
+            "BuiltinPythonExtractor",
+        ];
         for f in &forbidden {
             assert!(
                 !contains_word(&clean, f),
@@ -192,11 +207,22 @@ fn test_traversal_cannot_depend_on_extractor_impls() {
 #[test]
 fn test_traversal_and_analyzer_perform_no_writes() {
     let root = get_workspace_root();
-    let graph_service_file = root.join("crates").join("brain-services").join("src").join("retrieval").join("graph_service.rs");
+    let graph_service_file = root
+        .join("crates")
+        .join("brain-services")
+        .join("src")
+        .join("retrieval")
+        .join("graph_service.rs");
     if graph_service_file.exists() {
         let raw = fs::read_to_string(&graph_service_file).unwrap();
         let clean = clean_comments(&raw);
-        let forbidden = [".save(", ".save_batch(", ".delete(", ".save_session(", ".delete_session("];
+        let forbidden = [
+            ".save(",
+            ".save_batch(",
+            ".delete(",
+            ".save_session(",
+            ".delete_session(",
+        ];
         for f in &forbidden {
             assert!(
                 !clean.contains(f),
@@ -217,7 +243,9 @@ fn test_extractor_impls_never_invoke_storage_directly() {
     let verify_extractors_in_dir = |dir: &Path| {
         let mut stack = vec![dir.to_path_buf()];
         while let Some(current_dir) = stack.pop() {
-            if !current_dir.exists() { continue; }
+            if !current_dir.exists() {
+                continue;
+            }
             let entries = fs::read_dir(current_dir).expect("Failed to read dir");
             for entry in entries {
                 let entry = entry.expect("Invalid entry");
@@ -229,7 +257,12 @@ fn test_extractor_impls_never_invoke_storage_directly() {
                     let clean = clean_comments(&raw);
                     let blocks = extract_impl_blocks(&clean, "MemoryExtractor");
                     for block in blocks {
-                        let forbidden = ["SqliteStorage", "SqliteConnection", "run_transaction", "RepositorySet"];
+                        let forbidden = [
+                            "SqliteStorage",
+                            "SqliteConnection",
+                            "run_transaction",
+                            "RepositorySet",
+                        ];
                         for f in &forbidden {
                             assert!(
                                 !contains_word(&block, f),
@@ -262,13 +295,23 @@ fn test_repository_impls_never_invoke_extraction() {
             } else if path.extension().map_or(false, |ext| ext == "rs") {
                 let raw = fs::read_to_string(&path).unwrap();
                 let clean = clean_comments(&raw);
-                
+
                 // Extract repository impl blocks
-                let repo_traits = ["NodeRepository", "EdgeRepository", "EmbeddingRepository", "SessionRepository"];
+                let repo_traits = [
+                    "NodeRepository",
+                    "EdgeRepository",
+                    "EmbeddingRepository",
+                    "SessionRepository",
+                ];
                 for r_trait in &repo_traits {
                     let blocks = extract_impl_blocks(&clean, r_trait);
                     for block in blocks {
-                        let forbidden = ["MemoryExtractor", "extract", "ExtractionRequest", "ExtractionResult"];
+                        let forbidden = [
+                            "MemoryExtractor",
+                            "extract",
+                            "ExtractionRequest",
+                            "ExtractionResult",
+                        ];
                         for f in &forbidden {
                             assert!(
                                 !contains_word(&block, f),

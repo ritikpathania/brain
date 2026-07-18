@@ -2,7 +2,12 @@ use brain_domain::NodeId;
 use std::collections::HashSet;
 
 /// Computes Precision@K: fraction of retrieved top K nodes that are in expected or acceptable.
-pub fn compute_precision_at_k(retrieved: &[NodeId], expected: &[NodeId], acceptable: &[NodeId], k: usize) -> f64 {
+pub fn compute_precision_at_k(
+    retrieved: &[NodeId],
+    expected: &[NodeId],
+    acceptable: &[NodeId],
+    k: usize,
+) -> f64 {
     let limit = std::cmp::min(k, retrieved.len());
     if limit == 0 {
         return 0.0;
@@ -44,11 +49,17 @@ mod tests {
         let acceptable = vec![n3];
 
         // At K=1, retrieved: [n1]. Relevant: {n1, n3}. Hit: n1. Precision = 1 / 1 = 1.0
-        assert_eq!(compute_precision_at_k(&retrieved, &expected, &acceptable, 1), 1.0);
+        assert_eq!(
+            compute_precision_at_k(&retrieved, &expected, &acceptable, 1),
+            1.0
+        );
         // At K=2, retrieved: [n1, n2]. Hit: n1. Precision = 1 / 2 = 0.5
-        assert_eq!(compute_precision_at_k(&retrieved, &expected, &acceptable, 2), 0.5);
+        assert_eq!(
+            compute_precision_at_k(&retrieved, &expected, &acceptable, 2),
+            0.5
+        );
         // At K=3, retrieved: [n1, n2, n3]. Hits: n1, n3. Precision = 2 / 3 = 0.6666...
         let prec3 = compute_precision_at_k(&retrieved, &expected, &acceptable, 3);
-        assert!((prec3 - 2.0/3.0).abs() < 1e-9);
+        assert!((prec3 - 2.0 / 3.0).abs() < 1e-9);
     }
 }

@@ -168,4 +168,3 @@ pub struct ExecutionTrace {
     /// Diagnostics/Traces recorded during execution steps.
     pub step_logs: Vec<String>,
 }
-

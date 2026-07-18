@@ -1,6 +1,6 @@
+use crate::bkf::ids::BkfEntityId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::bkf::ids::BkfEntityId;
 
 /// An entity extracted from text or structure.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

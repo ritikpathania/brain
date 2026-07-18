@@ -11,9 +11,12 @@ mod session;
 mod stub;
 
 pub use retrieval::RetrievalServiceImpl;
-pub use retrieval::{pipeline, source, cache, calibration, active_weights, feature_extractor, evaluator, experiment, model_resolver, eval_harness};
+pub use retrieval::{
+    active_weights, cache, calibration, eval_harness, evaluator, experiment, feature_extractor,
+    model_resolver, pipeline, source,
+};
 pub use session::SessionServiceImpl;
-pub use stub::{StubRetrievalService, StubSessionService, StubDomainEventPublisher};
+pub use stub::{StubDomainEventPublisher, StubRetrievalService, StubSessionService};
 
 /// Unified application runtime lifecycle, builder, and composition locator.
 pub mod runtime;
@@ -42,8 +45,8 @@ pub mod query;
 /// Unified stateful projections engine.
 pub mod projections;
 pub use projections::{
-    StateReducer, ProjectionRunner, ReducerRegistry, JobProjectionReducer, SessionProjectionReducer, SearchProjectionReducer,
-    ProjectionId, ProjectionNotificationBus
+    JobProjectionReducer, ProjectionId, ProjectionNotificationBus, ProjectionRunner,
+    ReducerRegistry, SearchProjectionReducer, SessionProjectionReducer, StateReducer,
 };
 
 /// Reference implementations for Sprint 1 event dispatch.
@@ -54,20 +57,27 @@ pub mod evolution_service;
 pub mod memory_list_projection;
 /// Reference implementations for Sprint 1 projection coordinator manager.
 pub mod projection_manager;
+/// Reference implementation for Sprint 3 reflection engine (emit-only).
+pub mod reflection_engine;
 /// Reference implementations for Sprint 2 SQLite persistent evolution.
 pub mod sqlite_evolution;
 /// Reference implementations for Sprint 2 SQLite persistent projections.
 pub mod sqlite_projection;
-/// Reference implementation for Sprint 3 reflection engine (emit-only).
-pub mod reflection_engine;
 /// SQLite production implementation of reflection engine.
 pub mod sqlite_reflection;
 
 pub use event_dispatcher::InMemoryEventDispatcher;
-pub use evolution_service::{StandardIngestionValidator, InMemoryCanonicalizer};
-pub use memory_list_projection::{MemoryListQuery, MemoryListProjection, MemoryListProjector};
+pub use evolution_service::{InMemoryCanonicalizer, StandardIngestionValidator};
+pub use memory_list_projection::{MemoryListProjection, MemoryListProjector, MemoryListQuery};
 pub use projection_manager::ProjectionManager;
-pub use sqlite_evolution::SqliteCanonicalizer;
-pub use sqlite_projection::{SqliteProjector, SqliteProjectionManager};
 pub use reflection_engine::InMemoryReflectionEngine;
+pub use sqlite_evolution::SqliteCanonicalizer;
+pub use sqlite_projection::{SqliteProjectionManager, SqliteProjector};
 pub use sqlite_reflection::SqliteReflectionEngine;
+
+/// Unified composition root and lifecycle owner for the Brain Relational Engine.
+pub mod brain_runtime;
+pub use brain_runtime::{
+    BrainRuntime, CapabilityDescriptor, CapabilityRegistry, CapabilityState, RuntimeDiagnostics,
+    RuntimeFailure, RuntimeHealth, RuntimeMetrics, RuntimeStatus, ShutdownSummary,
+};

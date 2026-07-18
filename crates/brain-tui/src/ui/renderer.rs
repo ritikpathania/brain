@@ -1,24 +1,19 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::Frame;
-use crate::state::{UiState, ConnectionMode, FocusRegion};
+use crate::state::{ConnectionMode, FocusRegion, UiState};
+use crate::ui::interaction::markdown::{SelectionState, ViewportIndex, VisualLine, VisualLineKind};
 use crate::ui::theme::Theme;
 use crate::ui::widgets::{
-    header::{self, HeaderView},
     chat::{self, ChatView, VisibleChatLine},
-    prompt::{self, PromptView},
-    status::{self, StatusView},
-    sidebar,
     dialog::Dialog,
-    inspector,
-    pinned_overlay,
+    header::{self, HeaderView},
+    inspector, pinned_overlay,
+    prompt::{self, PromptView},
+    sidebar,
+    status::{self, StatusView},
 };
-use crate::ui::interaction::markdown::{
-    SelectionState, ViewportIndex, VisualLine, VisualLineKind
-};
-
-
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Frame;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 /// Cache key identifying a compiled LayoutTree geometry block.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,9 +42,11 @@ pub struct NavigationCacheKey {
 /// Layout grid organizer dividing the screen cells and assembling widget view models.
 pub struct AppRenderer {
     /// LayoutTree geometry cache.
-    pub layout_tree_cache: RefCell<HashMap<LayoutCacheKey, crate::ui::interaction::layout_tree::LayoutTree>>,
+    pub layout_tree_cache:
+        RefCell<HashMap<LayoutCacheKey, crate::ui::interaction::layout_tree::LayoutTree>>,
     /// Flat navigation solved index cache.
-    pub navigation_cache: RefCell<HashMap<NavigationCacheKey, crate::ui::interaction::navigation::NavigationIndex>>,
+    pub navigation_cache:
+        RefCell<HashMap<NavigationCacheKey, crate::ui::interaction::navigation::NavigationIndex>>,
 }
 
 impl AppRenderer {
@@ -62,12 +59,16 @@ impl AppRenderer {
     }
 
     /// Computes constraints and returns partitioned area Rects for widgets.
-    pub fn compute_layout(&self, area: Rect, state: &UiState) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+    pub fn compute_layout(
+        &self,
+        area: Rect,
+        state: &UiState,
+    ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // Logo / Header
-                Constraint::Min(10),  // Mid section (Sidebar + Chat + Inspector)
+                Constraint::Min(10),   // Mid section (Sidebar + Chat + Inspector)
                 Constraint::Length(3), // Prompt input editor
                 Constraint::Length(1), // Footer status bar
             ])
@@ -105,12 +106,20 @@ impl AppRenderer {
             ])
             .split(mid_area);
 
-        (chunks[0], mid_chunks[0], mid_chunks[1], mid_chunks[2], chunks[2], chunks[3])
+        (
+            chunks[0],
+            mid_chunks[0],
+            mid_chunks[1],
+            mid_chunks[2],
+            chunks[2],
+            chunks[3],
+        )
     }
 
     /// Derives lightweight ViewModels from state and draws all TUI components.
     pub fn draw(&self, f: &mut Frame<'_>, area: Rect, state: &UiState, theme: &Theme) {
-        let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, status_area) = self.compute_layout(area, state);
+        let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, status_area) =
+            self.compute_layout(area, state);
 
         // 1. Build Header ViewModel
         let connection_status = match state.connection_mode {
@@ -134,7 +143,10 @@ impl AppRenderer {
         // 2. Draw Sidebar if visible
         if sidebar_area.width > 0 {
             let visible = state.visible_sessions();
-            let selected_pos = state.sidebar.browse.selected
+            let selected_pos = state
+                .sidebar
+                .browse
+                .selected
                 .and_then(|sel_id| visible.iter().position(|s| s.id == sel_id));
             let sidebar_view = sidebar::SidebarView {
                 sessions: &visible,
@@ -181,7 +193,10 @@ impl AppRenderer {
                         if let Some(ref sender) = block.header {
                             if local_line == 0 {
                                 visible_lines.push(VisibleChatLine {
-                                    line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                    line: VisualLine {
+                                        kind: VisualLineKind::Text,
+                                        spans: vec![],
+                                    },
                                     sender_header: Some(sender.clone()),
                                 });
                             } else if local_line <= block.visual_lines.len() as u32 {
@@ -192,7 +207,10 @@ impl AppRenderer {
                                 });
                             } else {
                                 visible_lines.push(VisibleChatLine {
-                                    line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                    line: VisualLine {
+                                        kind: VisualLineKind::Text,
+                                        spans: vec![],
+                                    },
                                     sender_header: None,
                                 });
                             }
@@ -204,7 +222,10 @@ impl AppRenderer {
                                 });
                             } else {
                                 visible_lines.push(VisibleChatLine {
-                                    line: VisualLine { kind: VisualLineKind::Text, spans: vec![] },
+                                    line: VisualLine {
+                                        kind: VisualLineKind::Text,
+                                        spans: vec![],
+                                    },
                                     sender_header: None,
                                 });
                             }
@@ -235,8 +256,18 @@ impl AppRenderer {
         // 3b. Draw Inspector if visible
         if inspector_area.width > 0 {
             if let Some(ref active) = state.active_inspector {
-                let is_pinned = state.pinned_nodes.iter().any(|pn| pn.node_id == active.node_id);
-                inspector::draw(f, inspector_area, active, theme, state.focus == FocusRegion::Inspector, is_pinned);
+                let is_pinned = state
+                    .pinned_nodes
+                    .iter()
+                    .any(|pn| pn.node_id == active.node_id);
+                inspector::draw(
+                    f,
+                    inspector_area,
+                    active,
+                    theme,
+                    state.focus == FocusRegion::Inspector,
+                    is_pinned,
+                );
             }
         }
 
@@ -256,11 +287,20 @@ impl AppRenderer {
             } else if state.connection_mode == crate::state::ConnectionMode::Disconnected {
                 " ⚠  Connection lost — press Enter to retry".to_string()
             } else if state.connection_mode == crate::state::ConnectionMode::Connecting
-                && !matches!(state.generation_state, crate::state::GenerationState::Starting | crate::state::GenerationState::Streaming { .. })
+                && !matches!(
+                    state.generation_state,
+                    crate::state::GenerationState::Starting
+                        | crate::state::GenerationState::Streaming { .. }
+                )
             {
                 " ⚡ Connecting to daemon...".to_string()
             } else if state.mode == crate::state::TuiMode::Exploration {
-                let p_hint = if state.active_inspector.as_ref().map(|ai| state.pinned_nodes.iter().any(|pn| pn.node_id == ai.node_id)).unwrap_or(false) {
+                let p_hint = if state
+                    .active_inspector
+                    .as_ref()
+                    .map(|ai| state.pinned_nodes.iter().any(|pn| pn.node_id == ai.node_id))
+                    .unwrap_or(false)
+                {
                     "p: Unpin"
                 } else {
                     "p: Pin"
@@ -271,17 +311,36 @@ impl AppRenderer {
                 let workspace_hint = if state.pinned_nodes.is_empty() {
                     "".to_string()
                 } else if state.submit_with_workspace {
-                    format!("  |  Alt+W: WS ✓ ({})  |  Ctrl+P: Context", state.pinned_nodes.len())
+                    format!(
+                        "  |  Alt+W: WS ✓ ({})  |  Ctrl+P: Context",
+                        state.pinned_nodes.len()
+                    )
                 } else {
-                    format!("  |  Alt+W: WS  |  Ctrl+P: Context ({})", state.pinned_nodes.len())
+                    format!(
+                        "  |  Alt+W: WS  |  Ctrl+P: Context ({})",
+                        state.pinned_nodes.len()
+                    )
                 };
                 match &state.generation_state {
                     crate::state::GenerationState::Starting => " 🔍 Searching...".to_string(),
-                    crate::state::GenerationState::Streaming { .. } => " 📥 Receiving results...".to_string(),
-                    crate::state::GenerationState::Finished => format!(" ✓  Done  |  Tab: Switch Focus  |  Esc: New query{}  |  Ctrl+C: Quit", workspace_hint),
-                    crate::state::GenerationState::Cancelled(_) => " ✕  Cancelled  |  Tab: Switch Focus  |  Enter: Submit".to_string(),
-                    crate::state::GenerationState::Error(msg) => format!(" ⚠  Error: {}  |  Enter: Retry", msg.chars().take(60).collect::<String>()),
-                    crate::state::GenerationState::Idle => format!(" Tab: Switch Focus  |  Esc: Quit  |  Ctrl+C: Cancel{}  |  Enter: Submit", workspace_hint),
+                    crate::state::GenerationState::Streaming { .. } => {
+                        " 📥 Receiving results...".to_string()
+                    }
+                    crate::state::GenerationState::Finished => format!(
+                        " ✓  Done  |  Tab: Switch Focus  |  Esc: New query{}  |  Ctrl+C: Quit",
+                        workspace_hint
+                    ),
+                    crate::state::GenerationState::Cancelled(_) => {
+                        " ✕  Cancelled  |  Tab: Switch Focus  |  Enter: Submit".to_string()
+                    }
+                    crate::state::GenerationState::Error(msg) => format!(
+                        " ⚠  Error: {}  |  Enter: Retry",
+                        msg.chars().take(60).collect::<String>()
+                    ),
+                    crate::state::GenerationState::Idle => format!(
+                        " Tab: Switch Focus  |  Esc: Quit  |  Ctrl+C: Cancel{}  |  Enter: Submit",
+                        workspace_hint
+                    ),
                 }
             }
         };
@@ -338,7 +397,9 @@ impl AppRenderer {
             let caps = crate::ui::render::RenderCapabilities::detect();
             let policy = crate::ui::render::CapabilityPolicy::default();
             let capabilities = crate::ui::render::CapabilityResolver::resolve(&caps, &policy);
-            let icons = crate::ui::render::IconSet::new(capabilities.nerd_fonts != crate::ui::render::NerdFontsSupport::None);
+            let icons = crate::ui::render::IconSet::new(
+                capabilities.nerd_fonts != crate::ui::render::NerdFontsSupport::None,
+            );
             let ctx = crate::ui::render::RenderContext {
                 theme,
                 icons: &icons,
@@ -360,7 +421,6 @@ impl AppRenderer {
             );
         }
     }
-
 }
 
 impl Default for AppRenderer {
@@ -368,6 +428,3 @@ impl Default for AppRenderer {
         Self::new()
     }
 }
-
-
-

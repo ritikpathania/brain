@@ -1,18 +1,18 @@
-use std::collections::BTreeSet;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
-use parking_lot::Mutex;
-use uuid::Uuid;
 use async_trait::async_trait;
 use brain_domain::{
-    Job, JobId, JobKind, JobPriority, JobOwner, JobDescription,
-    JobTimestamp, JobState, Artifact, ArtifactId, ArtifactKind
+    Artifact, ArtifactId, ArtifactKind, Job, JobDescription, JobId, JobKind, JobOwner, JobPriority,
+    JobState, JobTimestamp,
 };
 use brain_services::jobs::{
-    JobScheduler, JobExecutorRegistry, JobExecutor, JobExecutionContext,
-    JobExecutionResult, JobExecutionFailure, SchedulerError, DomainEventPublisher
+    DomainEventPublisher, JobExecutionContext, JobExecutionFailure, JobExecutionResult,
+    JobExecutor, JobExecutorRegistry, JobScheduler, SchedulerError,
 };
+use parking_lot::Mutex;
+use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use uuid::Uuid;
 
 #[derive(Clone, Default)]
 struct MockExecutor {

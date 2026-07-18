@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use crate::bkf::blocks::Block;
+use crate::bkf::capabilities::BKFCapabilities;
+use crate::bkf::document::{BKFDocument, Section};
+use crate::bkf::entities::Entity;
+use crate::bkf::errors::BkfError;
+use crate::bkf::facts::{BKFTargetRef, Fact, FactObject};
 use crate::bkf::ids::*;
 use crate::bkf::metadata::Metadata;
-use crate::bkf::capabilities::BKFCapabilities;
-use crate::bkf::blocks::Block;
-use crate::bkf::entities::Entity;
-use crate::bkf::relationships::Relationship;
-use crate::bkf::facts::{Fact, FactObject, BKFTargetRef};
-use crate::bkf::references::{EmbeddingRef, ChunkRef, Citation, Attachment};
 use crate::bkf::provenance::Provenance;
-use crate::bkf::document::{Section, BKFDocument};
-use crate::bkf::errors::BkfError;
+use crate::bkf::references::{Attachment, ChunkRef, Citation, EmbeddingRef};
+use crate::bkf::relationships::Relationship;
+use std::collections::{HashMap, HashSet};
 
 /// Incremental builder for stream-constructing a canonical, immutable `BKFDocument`.
 pub struct BKFDocumentBuilder {

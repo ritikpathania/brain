@@ -1,7 +1,10 @@
-use brain_core::retrieval::RetrievalRequest;
 use brain_core::repositories::NodeRepository;
-use brain_domain::{Node, Edge, NodeType, RelationKind, NodeId, temporal::{RecencyPolicy, TimePoint, TemporalEdge}};
-use brain_services::retrieval::feature_extractor::{FeatureExtractor, DefaultFeatureExtractor};
+use brain_core::retrieval::RetrievalRequest;
+use brain_domain::{
+    temporal::{RecencyPolicy, TemporalEdge, TimePoint},
+    Edge, Node, NodeId, NodeType, RelationKind,
+};
+use brain_services::retrieval::feature_extractor::{DefaultFeatureExtractor, FeatureExtractor};
 use brain_storage::TestStorage;
 
 #[test]
@@ -12,8 +15,16 @@ fn test_default_feature_extractor_values_and_isolation() {
     let node_a = NodeId::new();
     let node_b = NodeId::new();
 
-    NodeRepository::save(sqlite, &Node::new(node_a, "UniqueQuerySemantic".to_string(), NodeType::Concept)).unwrap();
-    NodeRepository::save(sqlite, &Node::new(node_b, "OtherEntity".to_string(), NodeType::Concept)).unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_a, "UniqueQuerySemantic".to_string(), NodeType::Concept),
+    )
+    .unwrap();
+    NodeRepository::save(
+        sqlite,
+        &Node::new(node_b, "OtherEntity".to_string(), NodeType::Concept),
+    )
+    .unwrap();
 
     let request = RetrievalRequest {
         session_id: brain_domain::SessionId::new(),
@@ -24,12 +35,18 @@ fn test_default_feature_extractor_values_and_isolation() {
     };
 
     let nodes = vec![
-        NodeRepository::find_by_id(sqlite, &node_a).unwrap().unwrap(),
-        NodeRepository::find_by_id(sqlite, &node_b).unwrap().unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_a)
+            .unwrap()
+            .unwrap(),
+        NodeRepository::find_by_id(sqlite, &node_b)
+            .unwrap()
+            .unwrap(),
     ];
 
     let ref_time = TimePoint::from_unix_seconds(1620000000);
-    let policy = RecencyPolicy::Linear { horizon_secs: 100.0 };
+    let policy = RecencyPolicy::Linear {
+        horizon_secs: 100.0,
+    };
     let extractor = DefaultFeatureExtractor::new(ref_time, policy);
 
     // 1. Initial extraction with zero temporal edges
@@ -53,7 +70,9 @@ fn test_default_feature_extractor_values_and_isolation() {
     use brain_core::repositories::EdgeRepository;
     EdgeRepository::save(sqlite, &temp_edge.edge).unwrap();
 
-    let raw2 = extractor.extract(&request, &nodes, &[temp_edge], sqlite).unwrap();
+    let raw2 = extractor
+        .extract(&request, &nodes, &[temp_edge], sqlite)
+        .unwrap();
     assert_eq!(raw2.len(), 2);
     // Graph connections are updated
     assert_eq!(raw2[0].graph, 1.0);

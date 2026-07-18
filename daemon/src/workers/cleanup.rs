@@ -29,8 +29,8 @@ async fn run_kpp_pipeline(
     write_to_db: bool,
 ) -> Result<brain_domain::bkf::CompiledKnowledge, String> {
     use brain_domain::bkf::{
-        Observation, ConversationObservation, ObservationIR,
-        KnowledgeCompiler, KnowledgeOptimizer, SqliteProjection
+        ConversationObservation, KnowledgeCompiler, KnowledgeOptimizer, Observation, ObservationIR,
+        SqliteProjection,
     };
     use brain_domain::DomainEvent;
 
@@ -74,9 +74,7 @@ async fn run_kpp_pipeline(
     });
 
     // Event 3: CompilationStarted
-    let _ = storage.log_kpp_event(&DomainEvent::KppCompilationStarted {
-        id: obs_id.clone(),
-    });
+    let _ = storage.log_kpp_event(&DomainEvent::KppCompilationStarted { id: obs_id.clone() });
 
     // Compile
     let compiler = KnowledgeCompiler::new_default();
@@ -92,7 +90,9 @@ async fn run_kpp_pipeline(
 
     // Optimize
     let optimizer = KnowledgeOptimizer::new_default();
-    let optimize_res = optimizer.optimize(compile_res.output).map_err(|e| e.to_string())?;
+    let optimize_res = optimizer
+        .optimize(compile_res.output)
+        .map_err(|e| e.to_string())?;
 
     // Event 5: OptimizationCompleted
     let _ = storage.log_kpp_event(&DomainEvent::KppOptimizationCompleted {
@@ -104,7 +104,9 @@ async fn run_kpp_pipeline(
 
     // Compute SQLite Projection Deltas
     let sqlite_projection = SqliteProjection;
-    let deltas = sqlite_projection.calculate_delta(None, &optimize_res.output).map_err(|e| e.to_string())?;
+    let deltas = sqlite_projection
+        .calculate_delta(None, &optimize_res.output)
+        .map_err(|e| e.to_string())?;
 
     // Event 6: ProjectionCalculated
     let _ = storage.log_kpp_event(&DomainEvent::KppProjectionCalculated {
@@ -115,9 +117,7 @@ async fn run_kpp_pipeline(
     if write_to_db && !deltas.is_empty() {
         storage.apply_kpp_ops(&deltas)?;
         // Event 7: ProjectionApplied
-        let _ = storage.log_kpp_event(&DomainEvent::KppProjectionApplied {
-            id: obs_id.clone(),
-        });
+        let _ = storage.log_kpp_event(&DomainEvent::KppProjectionApplied { id: obs_id.clone() });
     }
 
     Ok(optimize_res.output)
@@ -165,7 +165,9 @@ pub async fn start_cleanup_worker(
             let mut kpp_graph = None;
 
             // 1. Run Legacy Pipeline if Enabled or Shadow
-            if mode == brain_domain::bkf::KppMode::Disabled || mode == brain_domain::bkf::KppMode::Shadow {
+            if mode == brain_domain::bkf::KppMode::Disabled
+                || mode == brain_domain::bkf::KppMode::Shadow
+            {
                 let active_extractor = match plugin_registry.get_extractor() {
                     Ok(extractor) => extractor,
                     Err(e) => {
@@ -244,7 +246,9 @@ pub async fn start_cleanup_worker(
                                                 }
                                             }
                                             if !embs.is_empty() {
-                                                if let Err(e) = storage_clone2.write_embeddings(&embs) {
+                                                if let Err(e) =
+                                                    storage_clone2.write_embeddings(&embs)
+                                                {
                                                     error!("Failed to write embeddings to storage backend: {}", e);
                                                 } else {
                                                     info!("Successfully generated and saved {} embeddings to database", embs.len());
@@ -275,13 +279,17 @@ pub async fn start_cleanup_worker(
             }
 
             // 2. Run KPP Pipeline if Enabled (Active or Shadow)
-            if mode == brain_domain::bkf::KppMode::Active || mode == brain_domain::bkf::KppMode::Shadow {
+            if mode == brain_domain::bkf::KppMode::Active
+                || mode == brain_domain::bkf::KppMode::Shadow
+            {
                 let write_to_db = mode == brain_domain::bkf::KppMode::Active;
                 let storage_clone = Arc::clone(&active_storage);
                 let nodes_clone = nodes.clone();
                 let sess_id = session_id.clone();
 
-                let kpp_result = run_kpp_pipeline(&sess_id, epoch, &nodes_clone, &storage_clone, write_to_db).await;
+                let kpp_result =
+                    run_kpp_pipeline(&sess_id, epoch, &nodes_clone, &storage_clone, write_to_db)
+                        .await;
 
                 match kpp_result {
                     Ok(compiled) => {
@@ -388,10 +396,13 @@ pub async fn start_cleanup_worker(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stm::TempNode;
     use crate::storage::sqlite::LtmDatabase;
     use crate::storage::{ExtractedEdge, ExtractedGraph, ExtractedNode};
-    use crate::stm::TempNode;
-    use brain_domain::bkf::{IRNode, IREdge, KnowledgeLifecycle, KnowledgeValidity, KnowledgeVersionState, CompiledKnowledge};
+    use brain_domain::bkf::{
+        CompiledKnowledge, IREdge, IRNode, KnowledgeLifecycle, KnowledgeValidity,
+        KnowledgeVersionState,
+    };
 
     #[tokio::test]
     async fn test_kpp_pipeline_execution_in_cleanup() {
@@ -416,62 +427,67 @@ mod tests {
 
         // Verify entity and relation exist in the compiled graph
         assert!(compiled.nodes.iter().any(|n| n.id == "node-sqlite"));
-        assert!(compiled.edges.iter().any(|e| e.source == "node-sqlite" && e.target == "node-postgres"));
+        assert!(compiled
+            .edges
+            .iter()
+            .any(|e| e.source == "node-sqlite" && e.target == "node-postgres"));
 
         // Verify event log contains logged events
         let conn_guard = db.conn.lock().unwrap();
-        let count: i64 = conn_guard.query_row("SELECT COUNT(*) FROM event_log", [], |r| r.get(0)).unwrap();
-        assert!(count >= 5, "Expected at least 5 logged KPP pipeline events, found {}", count);
+        let count: i64 = conn_guard
+            .query_row("SELECT COUNT(*) FROM event_log", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            count >= 5,
+            "Expected at least 5 logged KPP pipeline events, found {}",
+            count
+        );
     }
 
     #[test]
     fn test_shadow_mode_comparator_perfect_match() {
         let legacy = ExtractedGraph {
-            nodes: vec![
-                ExtractedNode {
-                    id: "node-sqlite".to_string(),
-                    label: "SQLite".to_string(),
-                    node_type: "Database".to_string(),
-                    attributes: serde_json::Value::Object(serde_json::Map::new()),
-                }
-            ],
-            edges: vec![
-                ExtractedEdge {
-                    source: "node-sqlite".to_string(),
-                    target: "node-postgres".to_string(),
-                    relation: "depends_on".to_string(),
-                }
-            ],
+            nodes: vec![ExtractedNode {
+                id: "node-sqlite".to_string(),
+                label: "SQLite".to_string(),
+                node_type: "Database".to_string(),
+                attributes: serde_json::Value::Object(serde_json::Map::new()),
+            }],
+            edges: vec![ExtractedEdge {
+                source: "node-sqlite".to_string(),
+                target: "node-postgres".to_string(),
+                relation: "depends_on".to_string(),
+            }],
         };
 
         let compiled = CompiledKnowledge {
-            nodes: vec![
-                IRNode {
-                    id: "node-sqlite".to_string(),
-                    label: "SQLite".to_string(),
-                    entity_type: "Database".to_string(),
-                    attributes: serde_json::Map::new(),
-                    lifecycle: KnowledgeLifecycle::Observed,
-                    validity: KnowledgeValidity::Unverified,
-                    version_state: KnowledgeVersionState::Current,
-                }
-            ],
-            edges: vec![
-                IREdge {
-                    id: "edge-1".to_string(),
-                    source: "node-sqlite".to_string(),
-                    target: "node-postgres".to_string(),
-                    relation: "depends_on".to_string(),
-                    weight: 1.0,
-                    lifecycle: KnowledgeLifecycle::Observed,
-                    validity: KnowledgeValidity::Unverified,
-                    version_state: KnowledgeVersionState::Current,
-                }
-            ],
+            nodes: vec![IRNode {
+                id: "node-sqlite".to_string(),
+                label: "SQLite".to_string(),
+                entity_type: "Database".to_string(),
+                attributes: serde_json::Map::new(),
+                lifecycle: KnowledgeLifecycle::Observed,
+                validity: KnowledgeValidity::Unverified,
+                version_state: KnowledgeVersionState::Current,
+            }],
+            edges: vec![IREdge {
+                id: "edge-1".to_string(),
+                source: "node-sqlite".to_string(),
+                target: "node-postgres".to_string(),
+                relation: "depends_on".to_string(),
+                weight: 1.0,
+                lifecycle: KnowledgeLifecycle::Observed,
+                validity: KnowledgeValidity::Unverified,
+                version_state: KnowledgeVersionState::Current,
+            }],
         };
 
         let diff = shadow::ShadowComparator::compare(&legacy, &compiled);
-        assert!(diff.mismatches.is_empty(), "Expected no mismatches, found: {:?}", diff.mismatches);
+        assert!(
+            diff.mismatches.is_empty(),
+            "Expected no mismatches, found: {:?}",
+            diff.mismatches
+        );
     }
 
     #[test]
@@ -489,30 +505,26 @@ mod tests {
                     label: "Postgres".to_string(),
                     node_type: "Database".to_string(),
                     attributes: serde_json::Value::Object(serde_json::Map::new()),
-                }
+                },
             ],
-            edges: vec![
-                ExtractedEdge {
-                    source: "node-sqlite".to_string(),
-                    target: "node-postgres".to_string(),
-                    relation: "depends_on".to_string(),
-                }
-            ],
+            edges: vec![ExtractedEdge {
+                source: "node-sqlite".to_string(),
+                target: "node-postgres".to_string(),
+                relation: "depends_on".to_string(),
+            }],
         };
 
         // KPP compiled graph missing Postgres and missing the depends_on relationship
         let compiled = CompiledKnowledge {
-            nodes: vec![
-                IRNode {
-                    id: "node-sqlite".to_string(),
-                    label: "SQLite".to_string(),
-                    entity_type: "Database".to_string(),
-                    attributes: serde_json::Map::new(),
-                    lifecycle: KnowledgeLifecycle::Observed,
-                    validity: KnowledgeValidity::Unverified,
-                    version_state: KnowledgeVersionState::Current,
-                }
-            ],
+            nodes: vec![IRNode {
+                id: "node-sqlite".to_string(),
+                label: "SQLite".to_string(),
+                entity_type: "Database".to_string(),
+                attributes: serde_json::Map::new(),
+                lifecycle: KnowledgeLifecycle::Observed,
+                validity: KnowledgeValidity::Unverified,
+                version_state: KnowledgeVersionState::Current,
+            }],
             edges: Vec::new(),
         };
 
@@ -522,10 +534,12 @@ mod tests {
             id: "node-postgres".to_string(),
             label: "Postgres".to_string(),
         }));
-        assert!(diff.mismatches.contains(&shadow::DiffItem::MissingRelationship {
-            source: "node-sqlite".to_string(),
-            target: "node-postgres".to_string(),
-            relation: "depends_on".to_string(),
-        }));
+        assert!(diff
+            .mismatches
+            .contains(&shadow::DiffItem::MissingRelationship {
+                source: "node-sqlite".to_string(),
+                target: "node-postgres".to_string(),
+                relation: "depends_on".to_string(),
+            }));
     }
 }

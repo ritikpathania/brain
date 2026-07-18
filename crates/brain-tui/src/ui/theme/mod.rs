@@ -2,15 +2,15 @@
 
 use std::sync::OnceLock;
 
-pub mod token;
 pub mod palette;
 pub mod style;
 pub mod theme;
+pub mod token;
 
-pub use token::ThemeToken;
 pub use palette::Palette;
 pub use style::ActiveTheme;
 pub use theme::Theme;
+pub use token::ThemeToken;
 
 /// Static thread-safe reference for the default dark theme.
 pub static DARK_THEME: OnceLock<Theme> = OnceLock::new();
@@ -27,4 +27,3 @@ pub fn dark_theme() -> &'static Theme {
 pub fn high_contrast_theme() -> &'static Theme {
     HIGH_CONTRAST_THEME.get_or_init(|| Theme::new(Palette::high_contrast()))
 }
-

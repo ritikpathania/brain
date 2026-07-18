@@ -54,14 +54,29 @@ fn generate_contracts_to_string() -> Result<String, Box<dyn std::error::Error>> 
 
     // Registry configuration
     let config = specta::ts::ExportConfiguration::default();
-    
+
     // Explicit contract registry list
     let mut types_to_export = vec![
-        ("Value", specta::ts::export::<brain_integrations::Value>(&config)?),
-        ("Capability", specta::ts::export::<brain_integrations::Capability>(&config)?),
-        ("EventIdentity", specta::ts::export::<brain_integrations::EventIdentity>(&config)?),
-        ("IngestionEvent", specta::ts::export::<brain_integrations::IngestionEvent>(&config)?),
-        ("IngestionEnvelope", specta::ts::export::<brain_integrations::IngestionEnvelope>(&config)?),
+        (
+            "Value",
+            specta::ts::export::<brain_integrations::Value>(&config)?,
+        ),
+        (
+            "Capability",
+            specta::ts::export::<brain_integrations::Capability>(&config)?,
+        ),
+        (
+            "EventIdentity",
+            specta::ts::export::<brain_integrations::EventIdentity>(&config)?,
+        ),
+        (
+            "IngestionEvent",
+            specta::ts::export::<brain_integrations::IngestionEvent>(&config)?,
+        ),
+        (
+            "IngestionEnvelope",
+            specta::ts::export::<brain_integrations::IngestionEnvelope>(&config)?,
+        ),
     ];
 
     // Sort alphabetically by type name to ensure deterministic output order
@@ -69,7 +84,8 @@ fn generate_contracts_to_string() -> Result<String, Box<dyn std::error::Error>> 
 
     // Build typescript type definitions without any volatile timestamps
     let mut ts_content = String::new();
-    ts_content.push_str("// ----------------------------------------------------------------------\n");
+    ts_content
+        .push_str("// ----------------------------------------------------------------------\n");
     ts_content.push_str("// GENERATED FILE\n");
     ts_content.push_str("//\n");
     ts_content.push_str("// Source:\n");
@@ -79,11 +95,13 @@ fn generate_contracts_to_string() -> Result<String, Box<dyn std::error::Error>> 
     ts_content.push_str("//   cargo xtask generate-contracts\n");
     ts_content.push_str("//\n");
     ts_content.push_str("// DO NOT EDIT\n");
-    ts_content.push_str("// ----------------------------------------------------------------------\n");
+    ts_content
+        .push_str("// ----------------------------------------------------------------------\n");
     ts_content.push_str(&format!("// Contract Version:  {}\n", contract_version));
     ts_content.push_str(&format!("// Generator Version: {}\n", generator_version));
     ts_content.push_str(&format!("// Brain Version:     {}\n", brain_version));
-    ts_content.push_str("// ----------------------------------------------------------------------\n\n");
+    ts_content
+        .push_str("// ----------------------------------------------------------------------\n\n");
 
     for (_name, definition) in types_to_export {
         ts_content.push_str(&definition);
@@ -100,7 +118,7 @@ fn generate_contracts() -> Result<(), Box<dyn std::error::Error>> {
     // Atomic generate workflow: Write to temp first
     let temp_dir = Path::new("temp_generated");
     fs::create_dir_all(temp_dir)?;
-    
+
     let temp_file_path = temp_dir.join("types.ts");
     fs::write(&temp_file_path, &ts_content)?;
 
@@ -117,7 +135,7 @@ fn generate_contracts() -> Result<(), Box<dyn std::error::Error>> {
     let sdk_dir = Path::new("sdks/typescript/src/generated");
     fs::create_dir_all(sdk_dir)?;
     let sdk_file_path = sdk_dir.join("types.ts");
-    
+
     fs::copy(&temp_file_path, &output_file_path)?;
     fs::copy(&temp_file_path, &sdk_file_path)?;
     fs::remove_file(&temp_file_path)?;
@@ -142,7 +160,7 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Verify freshness
     println!("Running freshness verification...");
     let in_memory = generate_contracts_to_string()?;
-    
+
     let output_file_path = Path::new("generated/typescript/types.ts");
     let sdk_file_path = Path::new("sdks/typescript/src/generated/types.ts");
     if !output_file_path.exists() || !sdk_file_path.exists() {
@@ -151,7 +169,8 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
              Action required:\n\
              Run:\n\
                  cargo xtask generate-contracts\n"
-        ).into());
+        )
+        .into());
     }
 
     let on_disk_root = fs::read_to_string(output_file_path)?;
@@ -167,14 +186,20 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
                  git diff generated/ sdks/typescript/src/generated/\n\n\
              Then commit the updated generated artifacts if the change is intentional.\n\
              ======================================================================"
-        ).into());
+        )
+        .into());
     }
     println!("  Freshness verification check: PASSED");
 
     // 3. Repository cleanliness check (convenience check via git)
     println!("Running repository cleanliness check...");
     let git_status = Command::new("git")
-        .args(&["diff", "--exit-code", "generated/", "sdks/typescript/src/generated/"])
+        .args(&[
+            "diff",
+            "--exit-code",
+            "generated/",
+            "sdks/typescript/src/generated/",
+        ])
         .status();
 
     match git_status {

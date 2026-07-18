@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use brain_core::errors::BrainError;
+use std::sync::Arc;
 
-use brain_events::{EventEnvelope, DomainEvent};
-use brain_storage::{SqliteSessionReadModelRepository, SessionReadModel, ReadModelRepository};
-use crate::projections::{StateReducer, ProjectionId};
+use crate::projections::{ProjectionId, StateReducer};
+use brain_events::{DomainEvent, EventEnvelope};
+use brain_storage::{ReadModelRepository, SessionReadModel, SqliteSessionReadModelRepository};
 
 /// Reducer implementing state reductions for session lifecycle events onto SQLite read models.
 pub struct SessionProjectionReducer {
@@ -35,7 +35,11 @@ impl StateReducer for SessionProjectionReducer {
         };
 
         match domain_event {
-            brain_domain::DomainEvent::SessionCreated { session_id, title, created_at } => {
+            brain_domain::DomainEvent::SessionCreated {
+                session_id,
+                title,
+                created_at,
+            } => {
                 let model = SessionReadModel {
                     session_id: *session_id,
                     title: title.0.clone(),
@@ -47,7 +51,11 @@ impl StateReducer for SessionProjectionReducer {
                 };
                 self.repo.save(&model)?;
             }
-            brain_domain::DomainEvent::SessionRenamed { session_id, title, updated_at } => {
+            brain_domain::DomainEvent::SessionRenamed {
+                session_id,
+                title,
+                updated_at,
+            } => {
                 if let Some(mut model) = self.repo.find_by_id(session_id)? {
                     model.title = title.0.clone();
                     model.updated_at = *updated_at;
@@ -55,7 +63,11 @@ impl StateReducer for SessionProjectionReducer {
                     self.repo.save(&model)?;
                 }
             }
-            brain_domain::DomainEvent::SessionPinnedChanged { session_id, pinned, updated_at } => {
+            brain_domain::DomainEvent::SessionPinnedChanged {
+                session_id,
+                pinned,
+                updated_at,
+            } => {
                 if let Some(mut model) = self.repo.find_by_id(session_id)? {
                     model.is_pinned = *pinned;
                     model.updated_at = *updated_at;
@@ -63,7 +75,10 @@ impl StateReducer for SessionProjectionReducer {
                     self.repo.save(&model)?;
                 }
             }
-            brain_domain::DomainEvent::SessionArchived { session_id, updated_at } => {
+            brain_domain::DomainEvent::SessionArchived {
+                session_id,
+                updated_at,
+            } => {
                 if let Some(mut model) = self.repo.find_by_id(session_id)? {
                     model.is_archived = true;
                     model.updated_at = *updated_at;
@@ -71,7 +86,10 @@ impl StateReducer for SessionProjectionReducer {
                     self.repo.save(&model)?;
                 }
             }
-            brain_domain::DomainEvent::SessionRestored { session_id, updated_at } => {
+            brain_domain::DomainEvent::SessionRestored {
+                session_id,
+                updated_at,
+            } => {
                 if let Some(mut model) = self.repo.find_by_id(session_id)? {
                     model.is_archived = false;
                     model.updated_at = *updated_at;

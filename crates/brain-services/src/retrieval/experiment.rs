@@ -1,10 +1,8 @@
-use std::sync::Arc;
+use crate::retrieval::active_weights::ActiveWeightProvider;
 use brain_core::errors::BrainError;
 use brain_core::retrieval::RetrievalRequest;
-use brain_domain::retrieval::experiment::{
-    ExperimentConfiguration, RoutingDecision
-};
-use crate::retrieval::active_weights::ActiveWeightProvider;
+use brain_domain::retrieval::experiment::{ExperimentConfiguration, RoutingDecision};
+use std::sync::Arc;
 
 /// Computes FNV-1a 64-bit hash.
 pub fn fnv1a_hash(data: &str) -> u64 {
@@ -55,8 +53,14 @@ pub struct CanaryExperimentRouter {
 
 impl CanaryExperimentRouter {
     /// Creates a new `CanaryExperimentRouter`.
-    pub fn new(baseline_provider: Arc<dyn ActiveWeightProvider>, config: ExperimentConfiguration) -> Self {
-        Self { baseline_provider, config }
+    pub fn new(
+        baseline_provider: Arc<dyn ActiveWeightProvider>,
+        config: ExperimentConfiguration,
+    ) -> Self {
+        Self {
+            baseline_provider,
+            config,
+        }
     }
 }
 
@@ -90,7 +94,10 @@ impl ExperimentRouter for CanaryExperimentRouter {
                         variant_id: var_id.clone(),
                         experiment_id: self.config.id.clone(),
                         experiment_version: self.config.version,
-                        reason: format!("Routed to variant {} via sticky session hash ({:.4})", var_id, fraction),
+                        reason: format!(
+                            "Routed to variant {} via sticky session hash ({:.4})",
+                            var_id, fraction
+                        ),
                     });
                 }
             }

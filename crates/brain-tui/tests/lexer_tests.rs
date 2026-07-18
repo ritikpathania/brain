@@ -1,5 +1,5 @@
-use brain_tui::ui::interaction::lexer::{TokenKind, SyntaxHighlighterRegistry, normalize_language};
 use brain_tui::ui::interaction::ast::LanguageId;
+use brain_tui::ui::interaction::lexer::{normalize_language, SyntaxHighlighterRegistry, TokenKind};
 
 #[test]
 fn test_rust_keyword_tokenization() {
@@ -26,16 +26,22 @@ fn test_alias_normalization() {
 fn test_json_highlighting() {
     let line = r#"  "status": "ok", "code": 200 "#;
     let spans: Vec<_> = SyntaxHighlighterRegistry::highlight(LanguageId::Json, line).collect();
-    
+
     // Check if the strings and numbers are identified
-    let strings: Vec<_> = spans.iter().filter(|s| s.kind == TokenKind::String).collect();
-    let numbers: Vec<_> = spans.iter().filter(|s| s.kind == TokenKind::Number).collect();
-    
+    let strings: Vec<_> = spans
+        .iter()
+        .filter(|s| s.kind == TokenKind::String)
+        .collect();
+    let numbers: Vec<_> = spans
+        .iter()
+        .filter(|s| s.kind == TokenKind::Number)
+        .collect();
+
     assert_eq!(strings.len(), 3);
     assert_eq!(strings[0].text, r#""status""#);
     assert_eq!(strings[1].text, r#""ok""#);
     assert_eq!(strings[2].text, r#""code""#);
-    
+
     assert_eq!(numbers.len(), 1);
     assert_eq!(numbers[0].text, "200");
 }

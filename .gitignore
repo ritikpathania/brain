@@ -57,7 +57,7 @@ target/
 *.sw?
 
 # Compiled binaries
-brain
+/brain
 brain-daemon
 cli/bin/brain
 cli/bin/brain_tui

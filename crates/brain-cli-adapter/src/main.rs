@@ -1,7 +1,7 @@
+use clap::{Parser, Subcommand};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
-use clap::{Parser, Subcommand};
 
 use brain_integrations::IngestionEvent;
 use brain_sdk_rs::{BrainClient, ClientConfig, RuntimeState};
@@ -167,7 +167,7 @@ async fn wait_for_ready(client: &BrainClient, timeout: Duration) -> Result<(), &
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
-    
+
     let socket = cli.socket_path.unwrap_or_else(default_socket_path);
     let mut config = ClientConfig::default_for_socket(socket);
     config.flush_interval = Duration::from_millis(5); // Flush quickly for CLI response
@@ -212,14 +212,19 @@ async fn main() {
                     let last_seq = client.last_sequence();
                     let pending = client.get_unacknowledged_events().await;
                     let replay_res = client.request_replay(after).await;
-                    
+
                     println!("Last Sequence: {}", last_seq);
                     println!("Pending Events: {}", pending.len());
                     match replay_res {
                         Ok(events) => {
                             println!("Replay Result: {} events found", events.len());
                             for (i, ev) in events.iter().enumerate() {
-                                println!("  [{}] ID: {} | Kind: {:?}", i, ev.identity.event_id, ev.event.kind());
+                                println!(
+                                    "  [{}] ID: {} | Kind: {:?}",
+                                    i,
+                                    ev.identity.event_id,
+                                    ev.event.kind()
+                                );
                             }
                         }
                         Err(e) => {
@@ -248,7 +253,7 @@ async fn main() {
                 client.shutdown().await;
                 std::process::exit(1);
             }
-            
+
             let event = match send_cmd {
                 SendCommands::Message { role, text } => IngestionEvent::Message {
                     role,
@@ -271,7 +276,11 @@ async fn main() {
                     diff,
                     metadata: BTreeMap::new(),
                 },
-                SendCommands::ToolCall { tool_name, call_id, arguments } => {
+                SendCommands::ToolCall {
+                    tool_name,
+                    call_id,
+                    arguments,
+                } => {
                     let args_value = if let Some(arg_str) = arguments {
                         serde_json::from_str(&arg_str).unwrap_or(brain_integrations::Value::Null)
                     } else {
@@ -284,26 +293,45 @@ async fn main() {
                         metadata: BTreeMap::new(),
                     }
                 }
-                SendCommands::ToolResult { call_id, is_error, output } => IngestionEvent::ToolResult {
+                SendCommands::ToolResult {
+                    call_id,
+                    is_error,
+                    output,
+                } => IngestionEvent::ToolResult {
                     call_id,
                     is_error,
                     output,
                     metadata: BTreeMap::new(),
                 },
-                SendCommands::TerminalCommand { command, exit_code, stdout_summary } => IngestionEvent::TerminalCommand {
+                SendCommands::TerminalCommand {
+                    command,
+                    exit_code,
+                    stdout_summary,
+                } => IngestionEvent::TerminalCommand {
                     command,
                     exit_code,
                     stdout_summary,
                     metadata: BTreeMap::new(),
                 },
-                SendCommands::GitCommit { message, hash, branch, files } => IngestionEvent::GitCommit {
+                SendCommands::GitCommit {
+                    message,
+                    hash,
+                    branch,
+                    files,
+                } => IngestionEvent::GitCommit {
                     message,
                     hash,
                     branch,
                     files_changed: files.unwrap_or_default(),
                     metadata: BTreeMap::new(),
                 },
-                SendCommands::Diagnostic { message, severity, source, file, line } => IngestionEvent::Diagnostic {
+                SendCommands::Diagnostic {
+                    message,
+                    severity,
+                    source,
+                    file,
+                    line,
+                } => IngestionEvent::Diagnostic {
                     message,
                     severity,
                     source,

@@ -1,15 +1,15 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-use brain_core::errors::BrainError;
-use brain_core::retrieval::{EmbeddingProvider, RetrievalRequest, DefaultQueryEmbeddingService};
-use brain_domain::{SessionId};
 use brain_config::schema::{BrainSettings, RankingPolicy};
-use brain_config::{DefaultsSource, ConfigSource};
-use brain_services::retrieval::eval_harness::LinearRanker;
+use brain_config::{ConfigSource, DefaultsSource};
+use brain_core::errors::BrainError;
+use brain_core::retrieval::{DefaultQueryEmbeddingService, EmbeddingProvider, RetrievalRequest};
+use brain_domain::SessionId;
 use brain_services::retrieval::eval_harness::ranking::RankingWeights;
-use brain_services::retrieval::ranking::feature_provider::{RankingDecay, FeatureContext};
+use brain_services::retrieval::eval_harness::LinearRanker;
+use brain_services::retrieval::ranking::feature_provider::{FeatureContext, RankingDecay};
 use brain_services::retrieval::RetrievalServiceImpl;
 use brain_storage::TestStorage;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 fn current_time_secs() -> u64 {
     std::time::SystemTime::now()
@@ -41,16 +41,15 @@ fn test_ranking_policy_switching_and_fallback() {
     let storage = test_storage.store();
     let cache_manager = Arc::new(brain_session::SessionCacheManager::new());
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
-    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(
-        Arc::new(DummyEmbeddingProvider),
-    ));
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(Arc::new(
+        DummyEmbeddingProvider,
+    )));
 
-    let config = load_default_config().with_retrieval(
-        brain_config::schema::RetrievalSettings::new(
+    let config =
+        load_default_config().with_retrieval(brain_config::schema::RetrievalSettings::new(
             RankingPolicy::LearnedModel,
             None, // no path => fallback to DefaultRrf
-        ),
-    );
+        ));
 
     let svc = RetrievalServiceImpl::new_with_config(
         storage.clone(),
@@ -105,7 +104,11 @@ fn test_feature_fingerprint_determinism() {
         lexical_similarity: Some(0.50), // changed
         ..fv.clone()
     };
-    assert_ne!(fv.fingerprint(), fv2.fingerprint(), "Different features must produce different fingerprints");
+    assert_ne!(
+        fv.fingerprint(),
+        fv2.fingerprint(),
+        "Different features must produce different fingerprints"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +186,8 @@ fn test_model_loader_file_round_trip() {
     std::fs::write(&path, &json).unwrap();
 
     // Load via ModelLoader
-    let loaded = ModelLoader::load_from_file(&path).expect("ModelLoader must load file successfully");
+    let loaded =
+        ModelLoader::load_from_file(&path).expect("ModelLoader must load file successfully");
 
     let fv = FeatureVector {
         lexical_similarity: Some(1.0),
@@ -262,7 +266,10 @@ fn test_three_stage_parity_via_extractor() {
     // Stage 1: Fingerprint uniqueness
     let fp_a = fv_a.fingerprint();
     let fp_b = fv_b.fingerprint();
-    assert_ne!(fp_a, fp_b, "Stage 1: Different candidates must have distinct fingerprints");
+    assert_ne!(
+        fp_a, fp_b,
+        "Stage 1: Different candidates must have distinct fingerprints"
+    );
 
     // Stage 2: Raw score correctness
     let score_a = model.score(&fv_a);
@@ -276,8 +283,14 @@ fn test_three_stage_parity_via_extractor() {
     // Stage 3: Ordering parity - a sorted Vec reflects the score ordering
     let mut candidates = vec![("b", score_b), ("a", score_a)];
     candidates.sort_by(|x, y| y.1.partial_cmp(&x.1).unwrap_or(std::cmp::Ordering::Equal));
-    assert_eq!(candidates[0].0, "a", "Stage 3: Candidate A must rank first after sorting by score");
-    assert_eq!(candidates[1].0, "b", "Stage 3: Candidate B must rank second after sorting by score");
+    assert_eq!(
+        candidates[0].0, "a",
+        "Stage 3: Candidate A must rank first after sorting by score"
+    );
+    assert_eq!(
+        candidates[1].0, "b",
+        "Stage 3: Candidate B must rank second after sorting by score"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -301,14 +314,13 @@ fn test_model_envelope_round_trip() {
     let model = LinearRanker::new(weights);
 
     // Wrap with current-version metadata
-    let envelope = ModelEnvelope::wrap(&model, 1, 1)
-        .expect("wrap() must succeed for a valid model");
+    let envelope =
+        ModelEnvelope::wrap(&model, 1, 1).expect("wrap() must succeed for a valid model");
 
     // Verify metadata is stamped with the current feature schema version
     use brain_services::retrieval::ranking::feature_provider::FEATURE_SCHEMA_VERSION;
     assert_eq!(
-        envelope.metadata.feature_schema_version,
-        FEATURE_SCHEMA_VERSION,
+        envelope.metadata.feature_schema_version, FEATURE_SCHEMA_VERSION,
         "Envelope must carry current FEATURE_SCHEMA_VERSION"
     );
 
@@ -355,8 +367,7 @@ fn test_model_loader_rejects_too_old_schema_version() {
     let model = LinearRanker::new(weights);
 
     // Manually construct an envelope with an incompatibly old schema version
-    let mut envelope = ModelEnvelope::wrap(&model, 1, 1)
-        .expect("wrap() must succeed");
+    let mut envelope = ModelEnvelope::wrap(&model, 1, 1).expect("wrap() must succeed");
     envelope.metadata = ModelMetadata {
         feature_schema_version: 0, // too old — below MIN_COMPATIBLE_FEATURE_SCHEMA_VERSION
         model_version: 1,
@@ -372,7 +383,8 @@ fn test_model_loader_rejects_too_old_schema_version() {
     let err_msg = format!("{:?}", result.err().expect("expected Err"));
     assert!(
         err_msg.contains("too old"),
-        "Error message must mention 'too old': {}", err_msg
+        "Error message must mention 'too old': {}",
+        err_msg
     );
 }
 
@@ -396,8 +408,7 @@ fn test_model_loader_rejects_too_new_schema_version() {
     let model = LinearRanker::new(weights);
 
     // Manually construct an envelope with a feature schema version from the future
-    let mut envelope = ModelEnvelope::wrap(&model, 1, 1)
-        .expect("wrap() must succeed");
+    let mut envelope = ModelEnvelope::wrap(&model, 1, 1).expect("wrap() must succeed");
     envelope.metadata = ModelMetadata {
         feature_schema_version: u32::MAX, // far-future version
         model_version: 1,
@@ -413,6 +424,7 @@ fn test_model_loader_rejects_too_new_schema_version() {
     let err_msg = format!("{:?}", result.err().expect("expected Err"));
     assert!(
         err_msg.contains("newer"),
-        "Error message must mention 'newer': {}", err_msg
+        "Error message must mention 'newer': {}",
+        err_msg
     );
 }

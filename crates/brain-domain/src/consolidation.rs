@@ -1,9 +1,9 @@
 //! Pure domain consolidation models, policies, and analytical logic.
 
-use std::time::Duration;
-use serde::{Serialize, Deserialize};
-use crate::identifiers::{NodeId, EdgeId};
 use crate::entities::KnowledgeGraph;
+use crate::identifiers::{EdgeId, NodeId};
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// Diagnostic errors for metric bounds validations.
 #[derive(Debug, Clone, thiserror::Error)]
@@ -35,7 +35,18 @@ pub enum MetricConstructionError {
 impl PartialEq for MetricConstructionError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::OutOfRange { val: v1, min: min1, max: max1 }, Self::OutOfRange { val: v2, min: min2, max: max2 }) => {
+            (
+                Self::OutOfRange {
+                    val: v1,
+                    min: min1,
+                    max: max1,
+                },
+                Self::OutOfRange {
+                    val: v2,
+                    min: min2,
+                    max: max2,
+                },
+            ) => {
                 crate::retrieval::models::eq_f64(*v1, *v2)
                     && crate::retrieval::models::eq_f64(*min1, *min2)
                     && crate::retrieval::models::eq_f64(*max1, *max2)
@@ -43,9 +54,7 @@ impl PartialEq for MetricConstructionError {
             (Self::NotFinite { val: v1 }, Self::NotFinite { val: v2 }) => {
                 crate::retrieval::models::eq_f64(*v1, *v2)
             }
-            (Self::InvalidDuration { secs: s1 }, Self::InvalidDuration { secs: s2 }) => {
-                s1 == s2
-            }
+            (Self::InvalidDuration { secs: s1 }, Self::InvalidDuration { secs: s2 }) => s1 == s2,
             _ => false,
         }
     }
@@ -64,7 +73,11 @@ impl SimilarityScore {
             return Err(MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 || val > 1.0 {
-            return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+            return Err(MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         Ok(Self(val))
     }
@@ -86,7 +99,11 @@ impl PromotionScore {
             return Err(MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 || val > 1.0 {
-            return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+            return Err(MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         Ok(Self(val))
     }
@@ -108,7 +125,11 @@ impl ConfidenceScore {
             return Err(MetricConstructionError::NotFinite { val });
         }
         if val < 0.0 || val > 1.0 {
-            return Err(MetricConstructionError::OutOfRange { val, min: 0.0, max: 1.0 });
+            return Err(MetricConstructionError::OutOfRange {
+                val,
+                min: 0.0,
+                max: 1.0,
+            });
         }
         Ok(Self(val))
     }
@@ -225,11 +246,13 @@ impl Consolidator {
     pub fn analyze(&self, graph: &KnowledgeGraph) -> ConsolidationAnalysis {
         // Internal Stage 1: Candidate Discovery
         let mut duplicate_node_groups = Vec::new();
-        let mut groups: std::collections::HashMap<String, Vec<NodeId>> = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<String, Vec<NodeId>> =
+            std::collections::HashMap::new();
         for node in graph.nodes.values() {
-            groups.entry(node.label.to_lowercase().trim().to_string())
-                  .or_default()
-                  .push(node.id);
+            groups
+                .entry(node.label.to_lowercase().trim().to_string())
+                .or_default()
+                .push(node.id);
         }
         for (label, ids) in groups {
             if ids.len() > 1 && !label.is_empty() {
@@ -256,7 +279,7 @@ impl Consolidator {
         // Internal Stage 2: Policy Bounds Filtering
         for edge in graph.edges.values() {
             let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
-            
+
             if edge.weight >= self.policy.promotion_weight_threshold && edge.weight < 1.0 {
                 if let Ok(score) = PromotionScore::new(edge.weight) {
                     promotion_candidates.push(EvidenceEntry {
@@ -354,13 +377,16 @@ impl Consolidator {
             }
         }
 
-        let archived_set: std::collections::HashSet<_> = actions.iter().filter_map(|act| {
-            if let ConsolidationActionType::ArchiveEdge { edge_id } = &act.action {
-                Some(edge_id.clone())
-            } else {
-                None
-            }
-        }).collect();
+        let archived_set: std::collections::HashSet<_> = actions
+            .iter()
+            .filter_map(|act| {
+                if let ConsolidationActionType::ArchiveEdge { edge_id } = &act.action {
+                    Some(edge_id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         for entry in analysis.stale_episodic_edges {
             if archived_set.contains(&entry.target) {
@@ -368,7 +394,9 @@ impl Consolidator {
             }
             if let Ok(conf) = ConfidenceScore::new(0.8) {
                 actions.push(ConsolidationAction {
-                    action: ConsolidationActionType::PruneEdge { edge_id: entry.target.clone() },
+                    action: ConsolidationActionType::PruneEdge {
+                        edge_id: entry.target.clone(),
+                    },
                     rationale: format!(
                         "Pruning stale unreinforced relationship (staleness age: {} seconds)",
                         entry.metric.value()

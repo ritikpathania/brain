@@ -1,8 +1,8 @@
 //! Chronological event timeline models and ordinals.
 
+use crate::ui::interaction::chat::MessageId;
 use brain_core::events::ToolCallId;
 use brain_domain::bkf::retrieval::RetrievalId;
-use crate::ui::interaction::chat::MessageId;
 
 /// Strongly-typed monotonic ordinal for ordering events in a session's timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

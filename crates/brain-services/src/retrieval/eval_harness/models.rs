@@ -1,4 +1,6 @@
-use crate::retrieval::eval_harness::{EvaluationSession, FeatureExtractor, RankingWeights, Feature};
+use crate::retrieval::eval_harness::{
+    EvaluationSession, Feature, FeatureExtractor, RankingWeights,
+};
 use crate::retrieval::ranking::feature_provider::FeatureVector;
 pub use crate::retrieval::ranking::score_ranker::ScoreRanker;
 use brain_core::errors::BrainError;
@@ -38,8 +40,11 @@ impl TrainingDataset {
         for query_cache in &session.cache {
             let expected_set: HashSet<brain_domain::NodeId> =
                 query_cache.expected_node_ids.iter().cloned().collect();
-            let acceptable_set: HashSet<brain_domain::NodeId> =
-                query_cache.acceptable_alternatives.iter().cloned().collect();
+            let acceptable_set: HashSet<brain_domain::NodeId> = query_cache
+                .acceptable_alternatives
+                .iter()
+                .cloned()
+                .collect();
 
             for (res, ctx) in &query_cache.candidates {
                 let features = extractor.extract(res, ctx);
@@ -347,7 +352,13 @@ impl RegressionTree {
     fn predict_node(node: &TreeNode, features: &[f64]) -> f64 {
         match node {
             TreeNode::Leaf { value } => *value,
-            TreeNode::Split { feature_idx, split_value, left, right, .. } => {
+            TreeNode::Split {
+                feature_idx,
+                split_value,
+                left,
+                right,
+                ..
+            } => {
                 let val = features[*feature_idx];
                 if val <= *split_value {
                     Self::predict_node(left, features)
@@ -374,7 +385,9 @@ fn compute_sse_for_idxs(dataset: &RegressionDataset, idxs: &[usize]) -> f64 {
     }
     let sum: f64 = idxs.iter().map(|&i| dataset.targets[i]).sum();
     let mean = sum / (n as f64);
-    idxs.iter().map(|&i| (dataset.targets[i] - mean).powi(2)).sum()
+    idxs.iter()
+        .map(|&i| (dataset.targets[i] - mean).powi(2))
+        .sum()
 }
 
 impl RegressionTreeTrainer {
@@ -401,52 +414,51 @@ impl RegressionTreeTrainer {
         let mut best_feature = 0;
         let mut best_split_value = 0.0;
         let mut best_mse = f64::INFINITY;
-        let mut best_left = Vec::new();
-        let mut best_right = Vec::new();
         let mut split_found = false;
 
         for feature_idx in 0..8 {
-            let mut values: Vec<(f64, f64)> = idxs.iter()
+            let mut values: Vec<(f64, f64)> = idxs
+                .iter()
                 .map(|&i| (dataset.features[i][feature_idx], dataset.targets[i]))
                 .collect();
             values.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
+            let mut sum_total = 0.0;
+            let mut sum_sq_total = 0.0;
+            for &(_, target) in &values {
+                sum_total += target;
+                sum_sq_total += target * target;
+            }
+
+            let mut sum_left = 0.0;
+            let mut sum_sq_left = 0.0;
+
             for j in 0..(n - 1) {
-                let split_val = 0.5 * (values[j].0 + values[j + 1].0);
+                let val_j = values[j].0;
+                let val_j1 = values[j + 1].0;
 
-                let mut left_targets = Vec::new();
-                let mut right_targets = Vec::new();
-                let mut left_idxs = Vec::new();
-                let mut right_idxs = Vec::new();
+                sum_left += values[j].1;
+                sum_sq_left += values[j].1 * values[j].1;
 
-                for &idx in &idxs {
-                    let val = dataset.features[idx][feature_idx];
-                    if val <= split_val {
-                        left_targets.push(dataset.targets[idx]);
-                        left_idxs.push(idx);
-                    } else {
-                        right_targets.push(dataset.targets[idx]);
-                        right_idxs.push(idx);
-                    }
-                }
-
-                if left_targets.is_empty() || right_targets.is_empty() {
+                if val_j == val_j1 {
                     continue;
                 }
 
-                let compute_sse = |targets: &[f64]| -> f64 {
-                    let sum: f64 = targets.iter().sum();
-                    let mean = sum / (targets.len() as f64);
-                    targets.iter().map(|&y| (y - mean).powi(2)).sum()
-                };
+                let split_val = 0.5 * (val_j + val_j1);
+                let n_left = (j + 1) as f64;
+                let n_right = (n - j - 1) as f64;
 
-                let mse = compute_sse(&left_targets) + compute_sse(&right_targets);
+                let sum_right = sum_total - sum_left;
+                let sum_sq_right = sum_sq_total - sum_sq_left;
+
+                let sse_left = (sum_sq_left - (sum_left * sum_left) / n_left).max(0.0);
+                let sse_right = (sum_sq_right - (sum_right * sum_right) / n_right).max(0.0);
+                let mse = sse_left + sse_right;
+
                 if mse < best_mse {
                     best_mse = mse;
                     best_feature = feature_idx;
                     best_split_value = split_val;
-                    best_left = left_idxs;
-                    best_right = right_idxs;
                     split_found = true;
                 }
             }
@@ -454,6 +466,17 @@ impl RegressionTreeTrainer {
 
         if !split_found {
             return TreeNode::Leaf { value: mean_y };
+        }
+
+        let mut best_left = Vec::new();
+        let mut best_right = Vec::new();
+        for &idx in &idxs {
+            let val = dataset.features[idx][best_feature];
+            if val <= best_split_value {
+                best_left.push(idx);
+            } else {
+                best_right.push(idx);
+            }
         }
 
         let sse_parent = compute_sse_for_idxs(dataset, &idxs);
@@ -492,7 +515,9 @@ impl LambdaGradientComputer {
         // 1. Sort indices by score descending, breaking ties stably
         let mut idxs: Vec<usize> = (0..n).collect();
         idxs.sort_by(|&a, &b| {
-            scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal)
+            scores[b]
+                .partial_cmp(&scores[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.cmp(&b))
         });
 
@@ -655,10 +680,7 @@ impl ModelSelector {
             SelectionReason::PeakValidationNdcg
         };
 
-        ModelSelectionResult {
-            best_epoch,
-            reason,
-        }
+        ModelSelectionResult { best_epoch, reason }
     }
 }
 
@@ -738,7 +760,10 @@ impl LambdaMartTrainer {
         // Group training example indices by query_id
         let mut query_groups: HashMap<String, Vec<usize>> = HashMap::new();
         for (idx, ex) in dataset.examples.iter().enumerate() {
-            query_groups.entry(ex.query_id.clone()).or_default().push(idx);
+            query_groups
+                .entry(ex.query_id.clone())
+                .or_default()
+                .push(idx);
         }
 
         let num_queries = query_groups.len();
@@ -752,11 +777,18 @@ impl LambdaMartTrainer {
         let mut sorted_queries: Vec<String> = query_groups.keys().cloned().collect();
         sorted_queries.sort();
 
-        let val_queries_count = ((sorted_queries.len() as f64) * config.validation_fraction).round() as usize;
+        let val_queries_count =
+            ((sorted_queries.len() as f64) * config.validation_fraction).round() as usize;
         let train_queries_count = sorted_queries.len() - val_queries_count;
 
-        let train_queries: HashSet<String> = sorted_queries[0..train_queries_count].iter().cloned().collect();
-        let val_queries: HashSet<String> = sorted_queries[train_queries_count..].iter().cloned().collect();
+        let train_queries: HashSet<String> = sorted_queries[0..train_queries_count]
+            .iter()
+            .cloned()
+            .collect();
+        let val_queries: HashSet<String> = sorted_queries[train_queries_count..]
+            .iter()
+            .cloned()
+            .collect();
 
         // Build index list of training examples
         let mut train_example_indices = Vec::new();
@@ -790,14 +822,18 @@ impl LambdaMartTrainer {
 
                 let mut sorted_indices = indices.clone();
                 sorted_indices.sort_by(|&a, &b| {
-                    scores[b].partial_cmp(&scores[a]).unwrap_or(std::cmp::Ordering::Equal)
+                    scores[b]
+                        .partial_cmp(&scores[a])
+                        .unwrap_or(std::cmp::Ordering::Equal)
                         .then_with(|| a.cmp(&b))
                 });
 
-                let mut sorted_relevances: Vec<f64> = indices.iter()
+                let mut sorted_relevances: Vec<f64> = indices
+                    .iter()
                     .map(|&idx| dataset.examples[idx].relevance as f64)
                     .collect();
-                sorted_relevances.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+                sorted_relevances
+                    .sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
 
                 let mut idcg = 0.0;
                 for (r, &rel) in sorted_relevances.iter().enumerate() {
@@ -832,12 +868,11 @@ impl LambdaMartTrainer {
                     continue;
                 }
 
-                let relevances: Vec<f32> = indices.iter()
+                let relevances: Vec<f32> = indices
+                    .iter()
                     .map(|&idx| dataset.examples[idx].relevance)
                     .collect();
-                let q_scores: Vec<f64> = indices.iter()
-                    .map(|&idx| current_scores[idx])
-                    .collect();
+                let q_scores: Vec<f64> = indices.iter().map(|&idx| current_scores[idx]).collect();
 
                 let lambdas = computer.compute(&relevances, &q_scores);
                 for (local_idx, &lambda) in lambdas.iter().enumerate() {
@@ -849,7 +884,11 @@ impl LambdaMartTrainer {
             }
 
             // 2. Build regression dataset from training partition only and train tree
-            let reg_dataset = RegressionDatasetBuilder::from_examples(&dataset.examples, &targets, &train_example_indices);
+            let reg_dataset = RegressionDatasetBuilder::from_examples(
+                &dataset.examples,
+                &targets,
+                &train_example_indices,
+            );
             let tree = tree_trainer.fit(&reg_dataset);
 
             // 3. Update current predictions for ALL examples (train + validation)
@@ -859,10 +898,19 @@ impl LambdaMartTrainer {
                     dataset.examples[i].features.freshness_decay.unwrap_or(0.0),
                     dataset.examples[i].features.graph_degree.unwrap_or(0.0),
                     dataset.examples[i].features.importance.unwrap_or(0.0),
-                    dataset.examples[i].features.lexical_similarity.unwrap_or(0.0),
-                    dataset.examples[i].features.provenance_confidence.unwrap_or(0.0),
+                    dataset.examples[i]
+                        .features
+                        .lexical_similarity
+                        .unwrap_or(0.0),
+                    dataset.examples[i]
+                        .features
+                        .provenance_confidence
+                        .unwrap_or(0.0),
                     dataset.examples[i].features.recency.unwrap_or(0.0),
-                    dataset.examples[i].features.semantic_similarity.unwrap_or(0.0),
+                    dataset.examples[i]
+                        .features
+                        .semantic_similarity
+                        .unwrap_or(0.0),
                 ];
                 current_scores[i] += config.learning_rate * tree.predict(&x);
             }
@@ -934,7 +982,13 @@ impl FeatureImportanceAnalyzer {
         fn traverse(node: &TreeNode, gains: &mut [f64; 8]) {
             match node {
                 TreeNode::Leaf { .. } => {}
-                TreeNode::Split { feature_idx, split_gain, left, right, .. } => {
+                TreeNode::Split {
+                    feature_idx,
+                    split_gain,
+                    left,
+                    right,
+                    ..
+                } => {
                     if *feature_idx < 8 {
                         gains[*feature_idx] += split_gain;
                     }
@@ -983,7 +1037,11 @@ impl FeatureImportanceAnalyzer {
         }
 
         // Sort descending by gain to make reports readable
-        entries.sort_by(|a, b| b.gain.partial_cmp(&a.gain).unwrap_or(std::cmp::Ordering::Equal));
+        entries.sort_by(|a, b| {
+            b.gain
+                .partial_cmp(&a.gain)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         FeatureImportanceReport { entries }
     }

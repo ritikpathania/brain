@@ -1,10 +1,10 @@
 //! Modal centered overlay renderer for Command Palette.
 
-use ratatui::layout::{Rect, Layout, Constraint, Direction};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Clear};
-use ratatui::Frame;
-use crate::ui::theme::Theme;
 use crate::ui::command::palette::{CommandPaletteState, PaletteStage};
+use crate::ui::theme::Theme;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::Frame;
 
 /// Renders the modal centered Command Palette overlay.
 pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &Theme) {
@@ -21,7 +21,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Input query bar
-            Constraint::Min(3),   // List of matches
+            Constraint::Min(3),    // List of matches
         ])
         .split(block.inner(area));
 
@@ -50,39 +50,60 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
             // 2. Draw list of matching search results
             let items: Vec<ListItem> = if state.search_aggregator.is_some() {
                 let results = state.results();
-                results.iter().enumerate().map(|(idx, res)| {
-                    let is_selected = idx == state.selected_index;
-                    
-                    let (prefix, prefix_style) = match res.kind {
-                        crate::ui::search::types::SearchResultKind::Command => (" [CMD] ", theme.accent),
-                        crate::ui::search::types::SearchResultKind::Session => (" [SES] ", theme.primary),
-                        crate::ui::search::types::SearchResultKind::Message => (" [MSG] ", theme.inactive),
-                    };
+                results
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, res)| {
+                        let is_selected = idx == state.selected_index;
 
-                    let line = ratatui::text::Line::from(vec![
-                        ratatui::text::Span::styled(prefix, prefix_style),
-                        ratatui::text::Span::styled(&res.title, if is_selected {
-                            theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
-                        } else {
-                            theme.text
-                        }),
-                        ratatui::text::Span::styled(" - ", theme.inactive),
-                        ratatui::text::Span::styled(&res.subtitle, theme.inactive),
-                    ]);
+                        let (prefix, prefix_style) = match res.kind {
+                            crate::ui::search::types::SearchResultKind::Command => {
+                                (" [CMD] ", theme.accent)
+                            }
+                            crate::ui::search::types::SearchResultKind::Session => {
+                                (" [SES] ", theme.primary)
+                            }
+                            crate::ui::search::types::SearchResultKind::Message => {
+                                (" [MSG] ", theme.inactive)
+                            }
+                        };
 
-                    ListItem::new(line)
-                }).collect()
+                        let line = ratatui::text::Line::from(vec![
+                            ratatui::text::Span::styled(prefix, prefix_style),
+                            ratatui::text::Span::styled(
+                                &res.title,
+                                if is_selected {
+                                    theme
+                                        .primary
+                                        .add_modifier(ratatui::style::Modifier::REVERSED)
+                                } else {
+                                    theme.text
+                                },
+                            ),
+                            ratatui::text::Span::styled(" - ", theme.inactive),
+                            ratatui::text::Span::styled(&res.subtitle, theme.inactive),
+                        ]);
+
+                        ListItem::new(line)
+                    })
+                    .collect()
             } else {
                 let matches: Vec<_> = state.matches().collect();
-                matches.iter().enumerate().map(|(idx, cmd)| {
-                    let style = if idx == state.selected_index {
-                        theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
-                    } else {
-                        theme.text
-                    };
-                    let text = format!("  {} - {}", cmd.title, cmd.description);
-                    ListItem::new(text).style(style)
-                }).collect()
+                matches
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, cmd)| {
+                        let style = if idx == state.selected_index {
+                            theme
+                                .primary
+                                .add_modifier(ratatui::style::Modifier::REVERSED)
+                        } else {
+                            theme.text
+                        };
+                        let text = format!("  {} - {}", cmd.title, cmd.description);
+                        ListItem::new(text).style(style)
+                    })
+                    .collect()
             };
 
             let list = List::new(items).style(theme.text);
@@ -90,14 +111,12 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
         }
         PaletteStage::CollectParameter(_state) => {
             // Placeholder parameters view
-            let p = Paragraph::new("Collecting parameters...")
-                .style(theme.text);
+            let p = Paragraph::new("Collecting parameters...").style(theme.text);
             f.render_widget(p, chunks[1]);
         }
         PaletteStage::Confirm { .. } => {
             // Placeholder confirmation view
-            let p = Paragraph::new("Confirm command execution...")
-                .style(theme.text);
+            let p = Paragraph::new("Confirm command execution...").style(theme.text);
             f.render_widget(p, chunks[1]);
         }
     }

@@ -1,5 +1,7 @@
 use crate::identifiers::NodeId;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, PageRankResult};
+use crate::query::analytics::{
+    AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, PageRankResult,
+};
 use std::collections::HashMap;
 
 /// Configuration settings for PageRank calculation.
@@ -124,7 +126,10 @@ impl<'a, 'b> AnalyticsAlgorithm<'a, 'b> for PageRank<'a, 'b> {
 
         // Sort descending by score, tie-break lexicographically by node ID
         results.sort_by(|r1, r2| {
-            let score_cmp = r2.score.partial_cmp(&r1.score).unwrap_or(std::cmp::Ordering::Equal);
+            let score_cmp = r2
+                .score
+                .partial_cmp(&r1.score)
+                .unwrap_or(std::cmp::Ordering::Equal);
             if score_cmp != std::cmp::Ordering::Equal {
                 return score_cmp;
             }

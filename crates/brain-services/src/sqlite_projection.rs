@@ -1,20 +1,20 @@
-use std::sync::{Arc, Mutex};
+use crate::memory_list_projection::{MemoryListProjection, MemoryListQuery};
 use brain_core::{
     events::{CorrelationId, RuntimeEventDispatcher},
-    projection::{ProjectionQuery, Projector, ProjectionContext}
+    projection::{ProjectionContext, ProjectionQuery, Projector},
+    repositories::Storage,
 };
 use brain_domain::{EpochId, KnowledgeGraph, NodeType};
-use brain_storage::SqliteStorage;
-use crate::memory_list_projection::{MemoryListQuery, MemoryListProjection};
+use std::sync::{Arc, Mutex};
 
 /// Concrete projector executing over persisted database records.
 pub struct SqliteProjector {
-    storage: SqliteStorage,
+    storage: Arc<dyn Storage>,
 }
 
 impl SqliteProjector {
     /// Creates a new `SqliteProjector`.
-    pub fn new(storage: SqliteStorage) -> Self {
+    pub fn new(storage: Arc<dyn Storage>) -> Self {
         Self { storage }
     }
 }
@@ -23,12 +23,13 @@ impl Projector<MemoryListProjection, MemoryListQuery> for SqliteProjector {
     fn project(&self, context: &ProjectionContext<MemoryListQuery>) -> MemoryListProjection {
         // Query the abstract repository interface
         // CONSTRAINT: Absolutely no SQL is written here.
-        let nodes = match self.storage.run_transaction(|tx| {
-            tx.repositories().nodes().list_all()
-        }) {
-            Ok(n) => n,
-            Err(_) => Vec::new(),
-        };
+        let mut nodes = Vec::new();
+        let _ = self.storage.run_transaction(&mut |tx| {
+            if let Ok(n) = tx.repositories().nodes().list_all() {
+                nodes = n;
+            }
+            Ok(())
+        });
 
         // Filter concept nodes and sort them deterministically
         let mut items: Vec<_> = nodes
@@ -51,7 +52,7 @@ impl Projector<MemoryListProjection, MemoryListQuery> for SqliteProjector {
 /// The event dispatcher field is typed as `Arc<dyn RuntimeEventDispatcher>` — the concrete
 /// implementation is hidden behind the contract.
 pub struct SqliteProjectionManager {
-    storage: SqliteStorage,
+    storage: Arc<dyn Storage>,
     _epoch: Arc<Mutex<EpochId>>,
     _event_dispatcher: Arc<dyn RuntimeEventDispatcher>,
 }
@@ -59,7 +60,7 @@ pub struct SqliteProjectionManager {
 impl SqliteProjectionManager {
     /// Creates a new `SqliteProjectionManager`.
     pub fn new(
-        storage: SqliteStorage,
+        storage: Arc<dyn Storage>,
         epoch: Arc<Mutex<EpochId>>,
         event_dispatcher: Arc<dyn RuntimeEventDispatcher>,
     ) -> Self {
@@ -78,31 +79,27 @@ impl SqliteProjectionManager {
         correlation_id: CorrelationId,
     ) -> P {
         // Retrieve current epoch from configuration repository
-        let current_epoch = match self.storage.run_transaction(|tx| {
+        let mut current_epoch = EpochId::initial();
+        let _ = self.storage.run_transaction(&mut |tx| {
             let epoch_str = tx.repositories().configs().get_key("current_epoch")?;
-            let epoch = match epoch_str {
-                Some(s) => {
-                    let val = s.parse::<u64>().map_err(|e| brain_core::errors::BrainError::Storage {
-                        message: format!("Failed to parse persisted epoch: {}", e),
-                        source: None,
-                    })?;
-                    EpochId(val)
+            if let Some(s) = epoch_str {
+                if let Ok(val) = s.parse::<u64>() {
+                    current_epoch = EpochId(val);
                 }
-                None => EpochId::initial(),
-            };
-            Ok(epoch)
-        }) {
-            Ok(e) => e,
-            Err(_) => EpochId::initial(),
-        };
+            }
+            Ok(())
+        });
 
         // Reconstruct the graph context snapshot from SQLite database transaction
         let mut graph = KnowledgeGraph::new();
-        if let Ok(nodes) = self.storage.run_transaction(|tx| tx.repositories().nodes().list_all()) {
-            for n in nodes {
-                graph.nodes.insert(n.id, n);
+        let _ = self.storage.run_transaction(&mut |tx| {
+            if let Ok(nodes) = tx.repositories().nodes().list_all() {
+                for n in nodes {
+                    graph.nodes.insert(n.id, n);
+                }
             }
-        }
+            Ok(())
+        });
 
         let context = ProjectionContext {
             graph: &graph,

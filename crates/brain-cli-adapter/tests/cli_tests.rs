@@ -28,7 +28,7 @@ async fn test_cli_version() {
 async fn test_cli_ping_fail() {
     let bin_path = env!("CARGO_BIN_EXE_brain-cli-adapter");
     let socket_path = get_temp_socket_path();
-    
+
     // Intentionally no listener on this socket path
     let output = Command::new(bin_path)
         .arg("--socket-path")
@@ -49,7 +49,7 @@ async fn test_cli_ping_success() {
     let _ = std::fs::remove_file(&socket_path);
 
     let listener = UnixListener::bind(&socket_path).expect("failed to bind socket");
-    
+
     // Run the ping command which should connect, transition to Ready, and exit
     let socket_path_clone = socket_path.clone();
     let client_handle = tokio::task::spawn_blocking(move || {
@@ -68,7 +68,7 @@ async fn test_cli_ping_success() {
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
     let mut line = String::new();
-    
+
     // Read the handshake request
     reader.read_line(&mut line).await.unwrap();
     // Respond to handshake
@@ -80,7 +80,7 @@ async fn test_cli_ping_success() {
     reply_str.push('\n');
     write.write_all(reply_str.as_bytes()).await.unwrap();
     write.flush().await.unwrap();
-    
+
     let output = client_handle.await.expect("join failed");
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -119,8 +119,11 @@ async fn test_cli_send_message() {
     let mut line = String::new();
 
     // 1. Read the handshake request
-    reader.read_line(&mut line).await.expect("failed to read handshake");
-    
+    reader
+        .read_line(&mut line)
+        .await
+        .expect("failed to read handshake");
+
     // Reply with Handshake response
     let reply_hs = serde_json::json!({
         "status": "success",
@@ -133,11 +136,22 @@ async fn test_cli_send_message() {
 
     // 2. Read the message request
     line.clear();
-    reader.read_line(&mut line).await.expect("failed to read message");
-    let request_json: serde_json::Value = serde_json::from_str(&line).expect("invalid JSON request");
-    let payload_str = request_json.get("payload").and_then(|p| p.as_str()).unwrap();
+    reader
+        .read_line(&mut line)
+        .await
+        .expect("failed to read message");
+    let request_json: serde_json::Value =
+        serde_json::from_str(&line).expect("invalid JSON request");
+    let payload_str = request_json
+        .get("payload")
+        .and_then(|p| p.as_str())
+        .unwrap();
     let envelope: serde_json::Value = serde_json::from_str(payload_str).unwrap();
-    let event_id = envelope.get("identity").and_then(|i| i.get("event_id")).and_then(|id| id.as_str()).unwrap();
+    let event_id = envelope
+        .get("identity")
+        .and_then(|i| i.get("event_id"))
+        .and_then(|id| id.as_str())
+        .unwrap();
 
     // Reply with IngestAck
     let ack_body = serde_json::json!({

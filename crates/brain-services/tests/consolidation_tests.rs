@@ -1,9 +1,7 @@
-use brain_core::repositories::{NodeRepository, EdgeRepository};
-use brain_domain::{
-    Node, Edge, NodeType, RelationKind, NodeId, ConsolidationPolicy
-};
-use brain_storage::TestStorage;
+use brain_core::repositories::{EdgeRepository, NodeRepository};
+use brain_domain::{ConsolidationPolicy, Edge, Node, NodeId, NodeType, RelationKind};
 use brain_services::MemoryConsolidationService;
+use brain_storage::TestStorage;
 
 #[test]
 fn test_memory_consolidation_sweep_invariants() {
@@ -21,7 +19,7 @@ fn test_memory_consolidation_sweep_invariants() {
     let mut props_a = std::collections::HashMap::new();
     props_a.insert("key_a".to_string(), serde_json::json!("value_a"));
     n1 = n1.with_properties(props_a);
-    
+
     let mut n2 = Node::new(node_b_id, "uniqueentity  ".to_string(), NodeType::Concept);
     let mut props_b = std::collections::HashMap::new();
     props_b.insert("key_b".to_string(), serde_json::json!("value_b"));
@@ -43,7 +41,7 @@ fn test_memory_consolidation_sweep_invariants() {
     let node_d_id = NodeId::new();
     let n4 = Node::new(node_d_id, "LowActivityNode".to_string(), NodeType::Concept);
     NodeRepository::save(store.as_ref(), &n4).unwrap();
-    
+
     let edge_archive = Edge::new(node_a_id, node_d_id, RelationKind::DependsOn, 0.05);
     EdgeRepository::save(store.as_ref(), &edge_archive).unwrap();
 
@@ -60,25 +58,46 @@ fn test_memory_consolidation_sweep_invariants() {
 
     // Run sweep
     let actions = service.run_consolidation_sweep().unwrap();
-    assert!(!actions.is_empty(), "Consolidation should have planned actions");
+    assert!(
+        !actions.is_empty(),
+        "Consolidation should have planned actions"
+    );
 
     // Extract canonical and redundant IDs from the planned MergeNodes action
-    let (canonical_id, redundant_id) = actions.iter().find_map(|act| {
-        if let brain_domain::ConsolidationActionType::MergeNodes { canonical_node_id, redundant_node_ids, .. } = &act.action {
-            Some((*canonical_node_id, redundant_node_ids[0]))
-        } else {
-            None
-        }
-    }).expect("MergeNodes action should be planned");
+    let (canonical_id, redundant_id) = actions
+        .iter()
+        .find_map(|act| {
+            if let brain_domain::ConsolidationActionType::MergeNodes {
+                canonical_node_id,
+                redundant_node_ids,
+                ..
+            } = &act.action
+            {
+                Some((*canonical_node_id, redundant_node_ids[0]))
+            } else {
+                None
+            }
+        })
+        .expect("MergeNodes action should be planned");
 
     // Invariant 1: Property Monotonicity
     // The canonical node should aggregate the properties monotonically
-    let canonical = NodeRepository::find_by_id(store.as_ref(), &canonical_id).unwrap().unwrap();
-    assert_eq!(canonical.properties.get("key_a").unwrap(), &serde_json::json!("value_a"));
-    assert_eq!(canonical.properties.get("key_b").unwrap(), &serde_json::json!("value_b"));
+    let canonical = NodeRepository::find_by_id(store.as_ref(), &canonical_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        canonical.properties.get("key_a").unwrap(),
+        &serde_json::json!("value_a")
+    );
+    assert_eq!(
+        canonical.properties.get("key_b").unwrap(),
+        &serde_json::json!("value_b")
+    );
 
     // Redundant node is deleted
-    assert!(NodeRepository::find_by_id(store.as_ref(), &redundant_id).unwrap().is_none());
+    assert!(NodeRepository::find_by_id(store.as_ref(), &redundant_id)
+        .unwrap()
+        .is_none());
 
     // Invariant 2: Conservation of Knowledge
     let final_nodes = NodeRepository::list_all(store.as_ref()).unwrap().len();
@@ -86,7 +105,7 @@ fn test_memory_consolidation_sweep_invariants() {
 
     // 1 node merged (redundant deleted)
     assert_eq!(final_nodes, initial_nodes - 1);
-    
+
     // 1 edge archived (edge_archive deleted from active edges)
     assert_eq!(final_edges, initial_edges - 1);
 
@@ -96,15 +115,28 @@ fn test_memory_consolidation_sweep_invariants() {
     let has_archived_in_active = active_edges.iter().any(|e| {
         e.source == node_a_id && e.target == node_d_id && e.relation == RelationKind::DependsOn
     });
-    assert!(!has_archived_in_active, "Archived edge must be isolated from active edges list");
+    assert!(
+        !has_archived_in_active,
+        "Archived edge must be isolated from active edges list"
+    );
 
-    let is_archived = store.is_edge_archived(&node_a_id.to_string(), &node_d_id.to_string(), &RelationKind::DependsOn.to_string()).unwrap();
+    let is_archived = store
+        .is_edge_archived(
+            &node_a_id.to_string(),
+            &node_d_id.to_string(),
+            &RelationKind::DependsOn.to_string(),
+        )
+        .unwrap();
     assert!(is_archived, "Edge must exist in the archived_edges table");
 
     // Invariant 4: Idempotency
     // Running consolidation sweep again without changes yields zero new actions
     let second_sweep_actions = service.run_consolidation_sweep().unwrap();
-    assert_eq!(second_sweep_actions.len(), 0, "Consolidation sweep must be idempotent and generate zero actions on consecutive runs");
+    assert_eq!(
+        second_sweep_actions.len(),
+        0,
+        "Consolidation sweep must be idempotent and generate zero actions on consecutive runs"
+    );
 
     test_store.assert_clean();
 }

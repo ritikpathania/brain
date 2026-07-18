@@ -1,6 +1,6 @@
-use crate::entities::{Edge, KnowledgeGraph, RelationKind, GraphProvenance, ProvenanceSource};
-use crate::relations::RelationRegistry;
+use crate::entities::{Edge, GraphProvenance, KnowledgeGraph, ProvenanceSource, RelationKind};
 use crate::identifiers::EdgeId;
+use crate::relations::RelationRegistry;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -25,7 +25,10 @@ impl InferenceEngine {
 
             // 2. Build forward adjacency mapping for transitivity lookup
             // Key: (RelationKind, SourceNodeId), Value: list of (TargetNodeId, Weight)
-            let mut adjacency: HashMap<(RelationKind, crate::identifiers::NodeId), Vec<(crate::identifiers::NodeId, f64)>> = HashMap::new();
+            let mut adjacency: HashMap<
+                (RelationKind, crate::identifiers::NodeId),
+                Vec<(crate::identifiers::NodeId, f64)>,
+            > = HashMap::new();
             for edge in &sorted_edges {
                 adjacency
                     .entry((edge.relation, edge.source))
@@ -43,7 +46,9 @@ impl InferenceEngine {
                         true
                     } else if (candidate.weight - existing.weight).abs() < f64::EPSILON {
                         match (&candidate.derivation, &existing.derivation) {
-                            (Some(c_deriv), Some(e_deriv)) => c_deriv.supporting_edges < e_deriv.supporting_edges,
+                            (Some(c_deriv), Some(e_deriv)) => {
+                                c_deriv.supporting_edges < e_deriv.supporting_edges
+                            }
                             _ => false,
                         }
                     } else {
@@ -67,15 +72,17 @@ impl InferenceEngine {
 
                 // Rule A: Inverse relation mapping
                 if let Some(ref inverse_id) = def.inverse {
-                    let inv_kind = RelationKind::from_str(inverse_id.as_str()).unwrap_or(RelationKind::Unknown);
+                    let inv_kind = RelationKind::from_str(inverse_id.as_str())
+                        .unwrap_or(RelationKind::Unknown);
                     if inv_kind != RelationKind::Unknown {
                         let inv_edge_id = EdgeId::new(edge.target, edge.source, inv_kind.id());
-                        
+
                         let mut prov = GraphProvenance::default();
                         prov.source = ProvenanceSource::Inferred;
                         prov.extractor_version = "inference-engine".to_string();
 
-                        let mut derived = Edge::new(edge.target, edge.source, inv_kind, edge.weight);
+                        let mut derived =
+                            Edge::new(edge.target, edge.source, inv_kind, edge.weight);
                         derived.provenance = prov;
                         derived.derivation = Some(crate::entities::Derivation {
                             rule: crate::entities::RuleId::Inverse,
@@ -106,7 +113,8 @@ impl InferenceEngine {
                             let mut supporting_edges = vec![source_edge_id.clone(), target_edge_id];
                             supporting_edges.sort();
 
-                            let mut derived = Edge::new(edge.source, z, edge.relation, combined_weight);
+                            let mut derived =
+                                Edge::new(edge.source, z, edge.relation, combined_weight);
                             derived.provenance = prov;
                             derived.derivation = Some(crate::entities::Derivation {
                                 rule: crate::entities::RuleId::Transitive,

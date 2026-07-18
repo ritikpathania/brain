@@ -1,9 +1,9 @@
 //! Base contract for TUI Screen composition layout layers.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::ActiveTheme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::ActiveTheme;
-use crate::ui::render::context::RenderContext;
 
 /// A high-level view screen composition layer.
 pub trait Screen {

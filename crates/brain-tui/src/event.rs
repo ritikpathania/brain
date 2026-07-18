@@ -1,6 +1,6 @@
+use brain_core::events::StreamEvent;
 use std::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use brain_core::events::StreamEvent;
 
 /// Categorized terminal level operating system events.
 pub enum TerminalEvent {
@@ -59,8 +59,6 @@ pub enum AppEvent {
     ContextUsed(Vec<String>),
 }
 
-
-
 /// Combined event stream container.
 pub enum Event {
     /// Terminal level hardware/OS input events.
@@ -84,38 +82,34 @@ impl EventHandler {
         let tx_clone = tx.clone();
 
         // Spawn Crossterm polling task on a native OS thread to avoid starving Tokio workers
-        std::thread::spawn(move || {
-            loop {
-                if tx_clone.is_closed() {
-                    break;
-                }
-                match crossterm::event::poll(Duration::from_millis(100)) {
-                    Ok(true) => {
-                        match crossterm::event::read() {
-                            Ok(crossterm::event::Event::Key(key)) => {
-                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Key(key)));
-                                if sent.is_err() {
-                                    break;
-                                }
-                            }
-                            Ok(crossterm::event::Event::Mouse(mouse)) => {
-                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Mouse(mouse)));
-                                if sent.is_err() {
-                                    break;
-                                }
-                            }
-                            Ok(crossterm::event::Event::Resize(w, h)) => {
-                                let sent = tx_clone.send(Event::Terminal(TerminalEvent::Resize(w, h)));
-                                if sent.is_err() {
-                                    break;
-                                }
-                            }
-                            _ => {}
+        std::thread::spawn(move || loop {
+            if tx_clone.is_closed() {
+                break;
+            }
+            match crossterm::event::poll(Duration::from_millis(100)) {
+                Ok(true) => match crossterm::event::read() {
+                    Ok(crossterm::event::Event::Key(key)) => {
+                        let sent = tx_clone.send(Event::Terminal(TerminalEvent::Key(key)));
+                        if sent.is_err() {
+                            break;
                         }
                     }
-                    Ok(false) => {}
-                    Err(_) => break,
-                }
+                    Ok(crossterm::event::Event::Mouse(mouse)) => {
+                        let sent = tx_clone.send(Event::Terminal(TerminalEvent::Mouse(mouse)));
+                        if sent.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(crossterm::event::Event::Resize(w, h)) => {
+                        let sent = tx_clone.send(Event::Terminal(TerminalEvent::Resize(w, h)));
+                        if sent.is_err() {
+                            break;
+                        }
+                    }
+                    _ => {}
+                },
+                Ok(false) => {}
+                Err(_) => break,
             }
         });
 

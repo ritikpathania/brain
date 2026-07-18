@@ -1,11 +1,11 @@
 //! Border panel container widget.
 
+use crate::ui::render::{BorderRenderer, RenderContext};
+use crate::ui::theme::{ActiveTheme, ThemeToken};
+use crate::ui::widgets::brain_widget::BrainWidget;
+use crate::ui::widgets::view_models::{FocusState, PanelView};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::{RenderContext, BorderRenderer};
-use crate::ui::widgets::brain_widget::BrainWidget;
-use crate::ui::widgets::view_models::{PanelView, FocusState};
 
 /// Precomputed layout bounds for the Panel.
 pub struct PanelLayout {

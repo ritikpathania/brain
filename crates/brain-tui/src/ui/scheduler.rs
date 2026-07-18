@@ -43,8 +43,12 @@ impl RenderRequest {
         // Upgrade reason to higher priority if needed
         let reason = match (self.reason, other.reason) {
             (RenderReason::Resize, _) | (_, RenderReason::Resize) => RenderReason::Resize,
-            (RenderReason::ThemeChanged, _) | (_, RenderReason::ThemeChanged) => RenderReason::ThemeChanged,
-            (RenderReason::FocusChanged, _) | (_, RenderReason::FocusChanged) => RenderReason::FocusChanged,
+            (RenderReason::ThemeChanged, _) | (_, RenderReason::ThemeChanged) => {
+                RenderReason::ThemeChanged
+            }
+            (RenderReason::FocusChanged, _) | (_, RenderReason::FocusChanged) => {
+                RenderReason::FocusChanged
+            }
             (RenderReason::Input, _) | (_, RenderReason::Input) => RenderReason::Input,
             _ => RenderReason::StreamToken,
         };
@@ -69,7 +73,10 @@ impl RenderRequest {
             (a, _) => a,
         };
 
-        RenderRequest { reason, invalidation }
+        RenderRequest {
+            reason,
+            invalidation,
+        }
     }
 }
 

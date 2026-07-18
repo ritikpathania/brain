@@ -1,9 +1,9 @@
 //! Navigation solvers for hierarchical selection and keyboard focus.
 
-use std::collections::{HashMap, HashSet};
-use crate::ui::interaction::MessageId;
-use crate::ui::interaction::ast::{BlockId, LinkTarget, CitationId};
+use crate::ui::interaction::ast::{BlockId, CitationId, LinkTarget};
 use crate::ui::interaction::layout_tree::{LayoutTree, SpanAction};
+use crate::ui::interaction::MessageId;
+use std::collections::{HashMap, HashSet};
 
 /// Category classification of interactive tool call sections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -90,7 +90,10 @@ pub struct NavigationSolver;
 
 impl NavigationSolver {
     /// Traverses layout trees and outputs a flat list of focusable coordinates.
-    pub fn solve(layouts: &[(MessageId, &LayoutTree)], view_state: &ConversationViewState) -> NavigationIndex {
+    pub fn solve(
+        layouts: &[(MessageId, &LayoutTree)],
+        view_state: &ConversationViewState,
+    ) -> NavigationIndex {
         let mut nodes = Vec::new();
 
         // If the view_state has a selected node that is not in layouts, let's keep it if needed,

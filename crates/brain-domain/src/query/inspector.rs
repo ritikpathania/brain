@@ -1,6 +1,6 @@
+use crate::dtos::NodeDTO;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use crate::dtos::NodeDTO;
 
 /// Data Transfer Object representing a relationship edge in the inspector.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -23,7 +23,7 @@ async fn serve_one_event(listener: &UnixListener) -> String {
     // 1. Read handshake request
     let n = reader.read_line(&mut line).await.expect("read_line failed");
     assert!(n > 0, "Expected to read a handshake line");
-    
+
     // Reply with handshake ok
     let reply_hs = serde_json::json!({
         "status": "success",
@@ -109,7 +109,10 @@ async fn test_reconnect_after_daemon_restart() {
     });
 
     let _event_id_1 = serve_one_event(&listener1).await;
-    let ack1 = send1.await.expect("send1 join failed").expect("send1 failed");
+    let ack1 = send1
+        .await
+        .expect("send1 join failed")
+        .expect("send1 failed");
     assert_eq!(ack1.sequence, 1);
 
     // --- Phase 2: Simulate daemon crash ---

@@ -1,20 +1,20 @@
-use brain_tui::ui::interaction::{
-    Editor, ScrollState, Dispatcher, InteractionContext, DispatchResult,
-    ChatState, MessageRole, UiEvent, MessageId, AutoFollowPolicy,
-    SidebarInteraction, SessionLookup
-};
 use brain_tui::ui::command::completion::SlashCompletionState;
 use brain_tui::ui::command::palette::CommandPaletteState;
+use brain_tui::ui::interaction::{
+    AutoFollowPolicy, ChatState, DispatchResult, Dispatcher, Editor, InteractionContext, MessageId,
+    MessageRole, ScrollState, SessionLookup, SidebarInteraction, UiEvent,
+};
 
-
-use brain_tui::ui::focus::{FocusManager, FocusProfile};
-use brain_tui::ui::widgets::view_models::FocusTarget;
-use brain_tui::ui::input::{InputAction, Command};
 use brain_domain::SessionId;
+use brain_tui::ui::focus::{FocusManager, FocusProfile};
+use brain_tui::ui::input::{Command, InputAction};
+use brain_tui::ui::widgets::view_models::FocusTarget;
 
 struct DummyLookup;
 impl SessionLookup for DummyLookup {
-    fn title(&self, _id: SessionId) -> Option<&str> { None }
+    fn title(&self, _id: SessionId) -> Option<&str> {
+        None
+    }
 }
 
 #[test]
@@ -65,11 +65,11 @@ fn test_transactional_submission() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
-
 
     // Transactional Submit event returned
     assert_eq!(
@@ -122,10 +122,11 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(res.ui_event, None);
 
@@ -145,10 +146,11 @@ fn test_empty_whitespace_submissions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(res.ui_event, None);
     assert_eq!(editor.text(), "  "); // editor buffer preserved
@@ -157,7 +159,7 @@ fn test_empty_whitespace_submissions() {
 #[test]
 fn test_scroll_pinning_and_resumption() {
     let mut scroll = ScrollState::new();
-    
+
     // Initial state: pinned to bottom
     assert_eq!(scroll.policy, AutoFollowPolicy::Pinned);
 

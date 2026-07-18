@@ -1,12 +1,12 @@
 //! Pluggable search providers for the global search omnibox.
 
+use crate::ui::search::types::{
+    ProviderId, SearchContext, SearchEvent, SearchEventSink, SearchProvider, SearchQuery,
+    SearchResult, SearchResultAction, SearchResultKind, PROVIDER_COMMANDS, PROVIDER_LOCAL_MESSAGES,
+    PROVIDER_REMOTE_MESSAGES, PROVIDER_SESSIONS,
+};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use crate::ui::search::types::{
-    ProviderId, SearchQuery, SearchContext, SearchEventSink, SearchEvent,
-    SearchResult, SearchResultKind, SearchResultAction,
-    PROVIDER_COMMANDS, PROVIDER_SESSIONS, PROVIDER_LOCAL_MESSAGES, PROVIDER_REMOTE_MESSAGES, SearchProvider
-};
 
 /// Pluggable provider for static system command workflows.
 pub struct CommandsProvider;
@@ -35,8 +35,14 @@ impl SearchProvider for CommandsProvider {
             if cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly {
                 if term.is_empty()
                     || cmd.title.to_lowercase().contains(&term)
-                    || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term))
-                    || cmd.keywords.iter().any(|kw| kw.to_lowercase().contains(&term))
+                    || cmd
+                        .aliases
+                        .iter()
+                        .any(|alias| alias.to_lowercase().contains(&term))
+                    || cmd
+                        .keywords
+                        .iter()
+                        .any(|kw| kw.to_lowercase().contains(&term))
                 {
                     matches.push(SearchResult {
                         title: cmd.title.to_string(),

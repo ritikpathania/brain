@@ -1,8 +1,8 @@
 use crate::entities::KnowledgeGraph;
 use crate::identifiers::NodeId;
 use std::collections::HashMap;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
 /// Pre-computed adjacency index mapping nodes to outgoing neighbor nodes.
 pub struct AdjacencyIndex {
@@ -114,7 +114,9 @@ impl<'a> GraphAnalyticsContext<'a> {
             self.adjacency_builds.fetch_add(1, Ordering::SeqCst);
             let mut map = HashMap::new();
             for edge in self.graph.edges.values() {
-                map.entry(edge.source).or_insert_with(Vec::new).push(edge.target);
+                map.entry(edge.source)
+                    .or_insert_with(Vec::new)
+                    .push(edge.target);
             }
             for neighbors in map.values_mut() {
                 neighbors.sort();
@@ -129,7 +131,9 @@ impl<'a> GraphAnalyticsContext<'a> {
             self.reverse_adjacency_builds.fetch_add(1, Ordering::SeqCst);
             let mut map = HashMap::new();
             for edge in self.graph.edges.values() {
-                map.entry(edge.target).or_insert_with(Vec::new).push(edge.source);
+                map.entry(edge.target)
+                    .or_insert_with(Vec::new)
+                    .push(edge.source);
             }
             for neighbors in map.values_mut() {
                 neighbors.sort();
@@ -152,7 +156,10 @@ impl<'a> GraphAnalyticsContext<'a> {
                 *out_degrees.entry(edge.source).or_default() += 1;
                 *in_degrees.entry(edge.target).or_default() += 1;
             }
-            DegreeIndex { out_degrees, in_degrees }
+            DegreeIndex {
+                out_degrees,
+                in_degrees,
+            }
         })
     }
 
@@ -173,11 +180,11 @@ impl<'a> GraphAnalyticsContext<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::{KnowledgeGraph, Node, NodeType, Edge, RelationKind};
+    use crate::entities::{Edge, KnowledgeGraph, Node, NodeType, RelationKind};
     use crate::identifiers::NodeId;
     use crate::query::analytics::{
-        ConnectedComponents, ConnectedComponentsConfig, Centrality, CentralityConfig,
-        AnalyticsAlgorithm
+        AnalyticsAlgorithm, Centrality, CentralityConfig, ConnectedComponents,
+        ConnectedComponentsConfig,
     };
 
     #[test]
@@ -187,7 +194,9 @@ mod tests {
         let node_b = NodeId::new();
         graph.add_node(Node::new(node_a, "NodeA".to_string(), NodeType::Concept));
         graph.add_node(Node::new(node_b, "NodeB".to_string(), NodeType::Concept));
-        graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
+        graph
+            .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+            .unwrap();
 
         let ctx = GraphAnalyticsContext::new(&graph);
         let diag_initial = ctx.diagnostics();

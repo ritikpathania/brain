@@ -1,11 +1,13 @@
+use crate::mapping::{A2aErrorMapper, A2aEventMapper};
+use crate::protocol::{A2aNotification, A2aRequest, A2aResponse};
+use crate::registry::CapabilityRegistry;
+use brain_application::{
+    ApplicationEvent, ApplicationEventSink, BrainApplication, ExecutionContext,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use brain_application::{BrainApplication, ExecutionContext, ApplicationEvent, ApplicationEventSink};
-use crate::protocol::{A2aRequest, A2aResponse, A2aNotification};
-use crate::registry::CapabilityRegistry;
-use crate::mapping::{A2aErrorMapper, A2aEventMapper};
 
 struct A2aEventSink {
     session_id: String,
@@ -138,7 +140,10 @@ impl A2aAdapter {
                     }
                 };
 
-                let arguments = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+                let arguments = params
+                    .get("arguments")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
 
                 // Establish execution token cancellation
                 let cancel_token = CancellationToken::new();

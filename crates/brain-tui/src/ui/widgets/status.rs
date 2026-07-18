@@ -1,7 +1,7 @@
+use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Block, Paragraph};
 use ratatui::Frame;
-use crate::ui::theme::Theme;
 
 /// ViewModel carrying visual help labels or runtime diagnostics.
 pub struct StatusView {

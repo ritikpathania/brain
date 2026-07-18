@@ -1,10 +1,10 @@
 use crate::identifiers::NodeId;
 use crate::query::analytics::{
-    AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, EdgeWeightProvider,
-    ClosenessResult, ordering::sort_closeness_canonically
+    ordering::sort_closeness_canonically, AnalyticsAlgorithm, ClosenessResult, Complexity,
+    EdgeWeightProvider, GraphAnalyticsContext,
 };
-use std::collections::{HashMap, BinaryHeap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 /// Supported closeness centrality measurement variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -69,12 +69,18 @@ impl<'a, 'b, W: EdgeWeightProvider> Closeness<'a, 'b, W> {
         }
         impl Ord for State {
             fn cmp(&self, other: &Self) -> Ordering {
-                other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+                other
+                    .cost
+                    .partial_cmp(&self.cost)
+                    .unwrap_or(Ordering::Equal)
             }
         }
 
         distances.insert(source, 0.0);
-        min_heap.push(State { node: source, cost: 0.0 });
+        min_heap.push(State {
+            node: source,
+            cost: 0.0,
+        });
 
         let graph = self.context.graph();
         let adjacency = self.context.adjacency();
@@ -85,11 +91,18 @@ impl<'a, 'b, W: EdgeWeightProvider> Closeness<'a, 'b, W> {
             }
 
             for &neighbor in adjacency.neighbors(node) {
-                if let Some(edge) = graph.edges.values().find(|e| e.source == node && e.target == neighbor) {
+                if let Some(edge) = graph
+                    .edges
+                    .values()
+                    .find(|e| e.source == node && e.target == neighbor)
+                {
                     let next_cost = cost + self.weight_provider.weight(edge);
                     if next_cost < *distances.get(&neighbor).unwrap_or(&f64::INFINITY) {
                         distances.insert(neighbor, next_cost);
-                        min_heap.push(State { node: neighbor, cost: next_cost });
+                        min_heap.push(State {
+                            node: neighbor,
+                            cost: next_cost,
+                        });
                     }
                 }
             }
@@ -114,7 +127,11 @@ impl<'a, 'b, W: EdgeWeightProvider> AnalyticsAlgorithm<'a, 'b> for Closeness<'a,
         let graph = self.context.graph();
         let n = graph.nodes.len();
         if n <= 1 {
-            return graph.nodes.keys().map(|&node| ClosenessResult { node, score: 0.0 }).collect();
+            return graph
+                .nodes
+                .keys()
+                .map(|&node| ClosenessResult { node, score: 0.0 })
+                .collect();
         }
 
         let mut results = Vec::with_capacity(n);

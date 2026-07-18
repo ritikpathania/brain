@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use brain_core::errors::BrainError;
-use crate::agent::{ExecutionContext, StageIdentifier, StageOutcome};
 use crate::agent::engine::ExecutionStage;
+use crate::agent::{ExecutionContext, StageIdentifier, StageOutcome};
+use brain_core::errors::BrainError;
+use std::collections::HashMap;
 
 /// Context passed to node execution policies for evaluation.
 pub struct PolicyContext<'a> {
@@ -51,7 +51,10 @@ impl NodeExecutionPolicy for RetryPolicy {
         if let StageOutcome::Retry { .. } = ctx.outcome {
             if ctx.attempts >= self.max_attempts {
                 return Ok(PolicyDecision::Fail {
-                    message: format!("Stage self-correction failed after {} attempts.", self.max_attempts),
+                    message: format!(
+                        "Stage self-correction failed after {} attempts.",
+                        self.max_attempts
+                    ),
                 });
             }
         }
@@ -122,7 +125,7 @@ impl WorkflowGraphBuilder {
         };
         WorkflowGraphValidator::validate(&graph)?;
         Ok(graph)
-      }
+    }
 }
 
 impl Default for WorkflowGraphBuilder {
@@ -170,7 +173,10 @@ impl WorkflowGraphValidator {
             // Retry validation using dynamic ExecutionStage capability
             if node.stage.supports_retry() && !seen_policies.contains("RetryPolicy") {
                 return Err(BrainError::Validation {
-                    message: format!("Stage {:?} is capable of retrying but lacks a RetryPolicy", id),
+                    message: format!(
+                        "Stage {:?} is capable of retrying but lacks a RetryPolicy",
+                        id
+                    ),
                 });
             }
         }
@@ -205,7 +211,10 @@ impl WorkflowGraphValidator {
             if let Some(next) = node.next_stage {
                 if !graph.nodes.contains_key(&next) {
                     return Err(BrainError::Validation {
-                        message: format!("Dangling edge: next_stage {:?} of {:?} does not exist", next, curr),
+                        message: format!(
+                            "Dangling edge: next_stage {:?} of {:?} does not exist",
+                            next, curr
+                        ),
                     });
                 }
                 if rec_stack.contains(&next) {

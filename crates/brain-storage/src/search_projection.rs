@@ -1,11 +1,11 @@
 //! SQLite-backed FTS5 search index projection.
 
-use rusqlite::params;
-use serde_json;
 use brain_core::errors::BrainError;
 use brain_domain::{
-    SearchDocument, SearchDocumentId, SearchDocumentKind, SearchMetadata, SessionId
+    SearchDocument, SearchDocumentId, SearchDocumentKind, SearchMetadata, SessionId,
 };
+use rusqlite::params;
+use serde_json;
 
 /// Structured search query.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -55,11 +55,22 @@ impl SqliteSearchRepository {
 
                 let id = SearchDocumentId::new(id_str);
                 let quoted_kind = format!("\"{}\"", kind_str);
-                let kind: SearchDocumentKind = serde_json::from_str(&quoted_kind)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e)))?;
+                let kind: SearchDocumentKind = serde_json::from_str(&quoted_kind).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
 
-                let metadata: SearchMetadata = serde_json::from_str(&metadata_str)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+                let metadata: SearchMetadata =
+                    serde_json::from_str(&metadata_str).map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            4,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
 
                 Ok(SearchDocument::new(id, kind, title, body, metadata))
             })
@@ -89,20 +100,24 @@ impl SqliteSearchRepository {
         let id_str = doc.id.as_str();
 
         // Delete existing document first to ensure we replace it and avoid duplicates in FTS5
-        conn.execute("DELETE FROM search_projection WHERE id = ?1", params![id_str])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to delete existing search document: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+        conn.execute(
+            "DELETE FROM search_projection WHERE id = ?1",
+            params![id_str],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to delete existing search document: {}", e),
+            source: Some(Box::new(e)),
+        })?;
 
         let kind_str = serde_json::to_string(&doc.kind)
             .unwrap_or_default()
             .trim_matches('"')
             .to_string();
-        let metadata_str = serde_json::to_string(&doc.metadata).map_err(|e| BrainError::Storage {
-            message: format!("Failed to serialize search metadata: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let metadata_str =
+            serde_json::to_string(&doc.metadata).map_err(|e| BrainError::Storage {
+                message: format!("Failed to serialize search metadata: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         conn.execute(
             "INSERT INTO search_projection (id, kind, title, body, metadata, updated_sequence) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -123,11 +138,14 @@ impl SqliteSearchRepository {
             source: Some(Box::new(e)),
         })?;
 
-        conn.execute("DELETE FROM search_projection WHERE id = ?1", params![id.as_str()])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to delete search document: {}", e),
-                source: Some(Box::new(e)),
-            })?;
+        conn.execute(
+            "DELETE FROM search_projection WHERE id = ?1",
+            params![id.as_str()],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to delete search document: {}", e),
+            source: Some(Box::new(e)),
+        })?;
 
         Ok(())
     }
@@ -146,7 +164,8 @@ impl SqliteSearchRepository {
         }
 
         let mut sql = "SELECT id, kind, title, body, metadata FROM search_projection WHERE search_projection MATCH ?1".to_string();
-        let mut params_vec: Vec<rusqlite::types::Value> = vec![rusqlite::types::Value::Text(query.text.clone())];
+        let mut params_vec: Vec<rusqlite::types::Value> =
+            vec![rusqlite::types::Value::Text(query.text.clone())];
 
         let mut param_index = 2;
         if let Some(ref kinds) = query.kinds {
@@ -186,7 +205,10 @@ impl SqliteSearchRepository {
             source: Some(Box::new(e)),
         })?;
 
-        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec
+            .iter()
+            .map(|v| v as &dyn rusqlite::ToSql)
+            .collect();
 
         let rows = stmt
             .query_map(&params_ref[..], |row| {
@@ -198,11 +220,22 @@ impl SqliteSearchRepository {
 
                 let id = SearchDocumentId::new(id_str);
                 let quoted_kind = format!("\"{}\"", kind_str);
-                let kind: SearchDocumentKind = serde_json::from_str(&quoted_kind)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e)))?;
+                let kind: SearchDocumentKind = serde_json::from_str(&quoted_kind).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
 
-                let metadata: SearchMetadata = serde_json::from_str(&metadata_str)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+                let metadata: SearchMetadata =
+                    serde_json::from_str(&metadata_str).map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            4,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
 
                 Ok(SearchDocument::new(id, kind, title, body, metadata))
             })

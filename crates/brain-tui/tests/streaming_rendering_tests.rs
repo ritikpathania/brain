@@ -1,17 +1,17 @@
 mod common;
 
+use brain_tui::ui::interaction::markdown::{
+    MarkdownDocument, MarkdownRenderState, VisualLine, VisualLineKind, VisualSpan, VisualStyle,
+};
+use brain_tui::ui::interaction::scroll::{AutoFollowPolicy, ScrollState};
+use brain_tui::ui::render::{IconSet, RenderContext};
+use brain_tui::ui::scheduler::{RenderInvalidation, RenderReason, RenderRequest};
+use brain_tui::ui::screen::Screen;
+use brain_tui::ui::theme::dark_theme;
+use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+use brain_tui::ui::widgets::ChatScreen;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use brain_tui::ui::theme::dark_theme;
-use brain_tui::ui::screen::Screen;
-use brain_tui::ui::render::{RenderContext, IconSet};
-use brain_tui::ui::widgets::view_models::{ChatScreenView, FocusTarget, ConnectionState};
-use brain_tui::ui::widgets::ChatScreen;
-use brain_tui::ui::scheduler::{RenderReason, RenderInvalidation, RenderRequest};
-use brain_tui::ui::interaction::markdown::{
-    MarkdownDocument, MarkdownRenderState, VisualLine, VisualLineKind, VisualSpan, VisualStyle
-};
-use brain_tui::ui::interaction::scroll::{ScrollState, AutoFollowPolicy};
 
 #[test]
 fn test_coalescing_associativity() {
@@ -124,7 +124,12 @@ fn test_streaming_snapshots_lifecycle_with_resizing() {
     let theme = dark_theme();
     let icons = IconSet::new(true);
     let capabilities = common::mock_capabilities();
-    let ctx = RenderContext { theme, icons: &icons, capabilities, tick: 0 };
+    let ctx = RenderContext {
+        theme,
+        icons: &icons,
+        capabilities,
+        tick: 0,
+    };
 
     // 1. stream_001.snap: Empty user prompt waiting with spinner
     {

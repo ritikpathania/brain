@@ -4,8 +4,12 @@ use std::time::SystemTime;
 use brain_core::errors::BrainError;
 use brain_core::extensibility::DecisionEngine;
 use brain_core::repositories::RepositorySet;
-use brain_core::services::{RetrievalService, MemoryExtractor, ExtractionRequest, ExtractionResult};
-use brain_domain::{Session, SessionTitle, ConversationId, MemoryDTO, Message, Node, SessionId, SessionTimestamp};
+use brain_core::services::{
+    ExtractionRequest, ExtractionResult, MemoryExtractor, RetrievalService,
+};
+use brain_domain::{
+    ConversationId, MemoryDTO, Message, Node, Session, SessionId, SessionTimestamp, SessionTitle,
+};
 use brain_session::SessionCacheManager;
 use brain_storage::SqliteStorage;
 
@@ -190,7 +194,9 @@ impl<P: PromotionPolicy> PromotionEngine for PromotionEngineImpl<P> {
     }
 }
 
-impl<'a, P: PromotionPolicy> DecisionEngine<PromotionContext<'a>, PromotionDecision> for PromotionEngineImpl<P> {
+impl<'a, P: PromotionPolicy> DecisionEngine<PromotionContext<'a>, PromotionDecision>
+    for PromotionEngineImpl<P>
+{
     fn evaluate(&self, context: &PromotionContext<'a>) -> Result<PromotionDecision, BrainError> {
         self.root.should_promote(context)
     }
@@ -449,7 +455,10 @@ pub struct RecencyPolicy {
 impl RecencyPolicy {
     /// Creates a new `RecencyPolicy`.
     pub fn new(count_threshold: Option<usize>, time_threshold_seconds: Option<u64>) -> Self {
-        Self { count_threshold, time_threshold_seconds }
+        Self {
+            count_threshold,
+            time_threshold_seconds,
+        }
     }
 }
 
@@ -521,7 +530,10 @@ impl PromotionPolicy for SemanticImportancePolicy {
             });
         }
 
-        let scores: Vec<f32> = nodes.iter().map(|stm| self.scorer.score(&stm.node)).collect();
+        let scores: Vec<f32> = nodes
+            .iter()
+            .map(|stm| self.scorer.score(&stm.node))
+            .collect();
         let promote;
         let confidence;
 
@@ -683,7 +695,11 @@ impl PromotionPolicy for CompositePolicy {
                 return Ok(PromotionDecision {
                     promote,
                     confidence: if promote { 1.0 } else { 0.0 },
-                    reasons: if promote { vec![PromotionReason::CompositeSatisfied] } else { vec![] },
+                    reasons: if promote {
+                        vec![PromotionReason::CompositeSatisfied]
+                    } else {
+                        vec![]
+                    },
                 });
             }
             return Ok(PromotionDecision {
@@ -763,7 +779,10 @@ pub struct WeightedCompositePolicy {
 impl WeightedCompositePolicy {
     /// Creates a new `WeightedCompositePolicy`.
     pub fn new(policies: Vec<(std::sync::Arc<dyn PromotionPolicy>, f64)>, threshold: f64) -> Self {
-        Self { policies, threshold }
+        Self {
+            policies,
+            threshold,
+        }
     }
 }
 
@@ -808,7 +827,6 @@ impl PromotionPolicy for WeightedCompositePolicy {
         })
     }
 }
-
 
 /// Simple threshold-based conversation summary policy implementation.
 pub struct CountThresholdSummaryPolicy {
@@ -1061,10 +1079,17 @@ impl ConversationManager for ConversationManagerImpl {
         // 1. Transactionally append messages to active session conversation history
         let events = self.storage.run_transaction(|tx| {
             let repos = tx.repositories();
-            let mut conversation = repos
-                .sessions()
-                .load_session(session_id)?
-                .unwrap_or_else(|| Session::new(*session_id, SessionTitle("New Session".to_string()), SessionTimestamp(0)));
+            let mut conversation =
+                repos
+                    .sessions()
+                    .load_session(session_id)?
+                    .unwrap_or_else(|| {
+                        Session::new(
+                            *session_id,
+                            SessionTitle("New Session".to_string()),
+                            SessionTimestamp(0),
+                        )
+                    });
 
             let user_msg = Message::new(
                 brain_domain::MessageId::new(),
@@ -1245,13 +1270,15 @@ impl ConversationManager for ConversationManagerImpl {
             builder = builder.add_node(node.clone());
         }
         for edge in &all_edges {
-            builder = builder.add_edge(edge.source, edge.target, edge.relation, edge.weight)
+            builder = builder
+                .add_edge(edge.source, edge.target, edge.relation, edge.weight)
                 .map_err(|e| BrainError::Validation {
                     message: format!("Graph construction ontology violation: {}", e),
                 })?;
         }
         let validated_graph = builder.build();
-        let validated_edges: Vec<brain_domain::Edge> = validated_graph.edges.into_values().collect();
+        let validated_edges: Vec<brain_domain::Edge> =
+            validated_graph.edges.into_values().collect();
 
         // Save transactionally to LTM
         self.storage.run_transaction(|tx| {
@@ -1398,9 +1425,14 @@ impl ConversationManager for ConversationManagerImpl {
             // Publish event
             if let Some(publ) = &self.event_publisher {
                 let wrapped_event = brain_events::DomainEvent::Session(
-                    brain_events::SessionEvent::ConversationArchived(ConversationId(conversation.id.0))
+                    brain_events::SessionEvent::ConversationArchived(ConversationId(
+                        conversation.id.0,
+                    )),
                 );
-                publ.publish(brain_events::EventEnvelope::new("conversation_service".to_string(), wrapped_event));
+                publ.publish(brain_events::EventEnvelope::new(
+                    "conversation_service".to_string(),
+                    wrapped_event,
+                ));
             }
 
             Ok(())

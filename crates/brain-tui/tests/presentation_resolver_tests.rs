@@ -1,14 +1,16 @@
-use brain_tui::ui::render::resolver::{BorderResolver, LinkRenderer, TerminalSpan};
-use brain_tui::ui::render::context::{RenderCapabilities, CapabilityPolicy, CapabilityResolver, UnicodeSupport};
-use brain_tui::ui::interaction::layout_tree::{VisualSpan, VisualStyle, SpanAction};
 use brain_tui::ui::interaction::ast::LinkTarget;
+use brain_tui::ui::interaction::layout_tree::{SpanAction, VisualSpan, VisualStyle};
+use brain_tui::ui::render::context::{
+    CapabilityPolicy, CapabilityResolver, RenderCapabilities, UnicodeSupport,
+};
+use brain_tui::ui::render::resolver::{BorderResolver, LinkRenderer, TerminalSpan};
 
 #[test]
 fn test_border_glyph_resolution() {
     let caps = RenderCapabilities::detect();
     let policy = CapabilityPolicy::default();
     let mut capabilities = CapabilityResolver::resolve(&caps, &policy);
-    
+
     capabilities.unicode = UnicodeSupport::Full;
     let glyphs = BorderResolver::resolve(&capabilities);
     assert_eq!(glyphs.top_left, "┌");
@@ -40,7 +42,10 @@ fn test_link_renderer_osc8_enabled() {
     let term_span = LinkRenderer::render(&span, &capabilities);
     assert!(matches!(
         term_span,
-        TerminalSpan::Hyperlink { text: "Google", url: "https://google.com" }
+        TerminalSpan::Hyperlink {
+            text: "Google",
+            url: "https://google.com"
+        }
     ));
 }
 

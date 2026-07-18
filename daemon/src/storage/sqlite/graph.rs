@@ -28,7 +28,7 @@ impl LtmDatabase {
             )?;
             let mut insert_stmt = tx.prepare(
                 "INSERT INTO nodes (id, label, type, properties, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5)"
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
             )?;
 
             for node in nodes {
@@ -37,10 +37,11 @@ impl LtmDatabase {
                     let existing_type: String = row.get(0)?;
                     let existing_properties_str: String = row.get(1)?;
 
-                    let mut merged_props = match serde_json::from_str::<serde_json::Value>(&existing_properties_str) {
-                        Ok(serde_json::Value::Object(map)) => map,
-                        _ => serde_json::Map::new(),
-                    };
+                    let mut merged_props =
+                        match serde_json::from_str::<serde_json::Value>(&existing_properties_str) {
+                            Ok(serde_json::Value::Object(map)) => map,
+                            _ => serde_json::Map::new(),
+                        };
 
                     if let serde_json::Value::Object(incoming_map) = &node.attributes {
                         for (k, v) in incoming_map {
@@ -54,16 +55,13 @@ impl LtmDatabase {
                         &existing_type
                     };
 
-                    let props_str = serde_json::to_string(&merged_props).unwrap_or_else(|_| "{}".to_string());
-                    update_stmt.execute(params![
-                        node.label,
-                        final_type,
-                        props_str,
-                        now,
-                        node.id
-                    ])?;
+                    let props_str =
+                        serde_json::to_string(&merged_props).unwrap_or_else(|_| "{}".to_string());
+                    update_stmt
+                        .execute(params![node.label, final_type, props_str, now, node.id])?;
                 } else {
-                    let props_str = serde_json::to_string(&node.attributes).unwrap_or_else(|_| "{}".to_string());
+                    let props_str = serde_json::to_string(&node.attributes)
+                        .unwrap_or_else(|_| "{}".to_string());
                     insert_stmt.execute(params![
                         node.id,
                         node.label,

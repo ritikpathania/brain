@@ -28,6 +28,8 @@ pub mod blocks;
 pub mod builder;
 /// Document capability advertisements.
 pub mod capabilities;
+/// Knowledge Compiler structures and pass contracts.
+mod compiler;
 /// Main immutable document structure.
 pub mod document;
 /// Extracted semantic entities.
@@ -38,8 +40,16 @@ pub mod errors;
 pub mod facts;
 /// Strongly-typed identifiers.
 pub mod ids;
+/// Multi-stage intermediate representations.
+mod ir;
+/// Knowledge element lifecycle states.
+mod lifecycle;
 /// Document metadata and attributes.
 pub mod metadata;
+/// Observation IR input representations.
+mod observation_ir;
+/// Semantics-preserving mechanical optimizer passes.
+mod optimizer;
 /// Knowledge lineage and origin tracking.
 pub mod provenance;
 /// Index linkages, citations, and attachments.
@@ -48,16 +58,6 @@ pub mod references;
 pub mod relationships;
 /// User-facing context retrieval models.
 pub mod retrieval;
-/// Knowledge element lifecycle states.
-mod lifecycle;
-/// Observation IR input representations.
-mod observation_ir;
-/// Multi-stage intermediate representations.
-mod ir;
-/// Knowledge Compiler structures and pass contracts.
-mod compiler;
-/// Semantics-preserving mechanical optimizer passes.
-mod optimizer;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -68,22 +68,20 @@ pub use adapters::*;
 pub use blocks::*;
 pub use builder::*;
 pub use capabilities::*;
+pub use compiler::*;
 pub use document::*;
 pub use entities::*;
 pub use errors::*;
 pub use facts::*;
 pub use ids::*;
-pub use metadata::*;
-pub use provenance::*;
-pub use references::*;
-pub use relationships::*;
-pub use retrieval::*;
-pub use lifecycle::*;
-pub use observation_ir::*;
 pub use ir::*;
-pub use compiler::*;
+pub use lifecycle::*;
+pub use metadata::*;
+pub use observation_ir::*;
 pub use optimizer::*;
 pub use projection::*;
+pub use provenance::*;
+pub use references::*;
 pub use reflection::*;
-
-
+pub use relationships::*;
+pub use retrieval::*;

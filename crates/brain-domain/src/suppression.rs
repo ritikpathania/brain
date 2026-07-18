@@ -9,7 +9,10 @@ impl SuppressionEngine {
     /// Filters out edges whose relation has fallback_suppression == false
     /// if the same node pair is connected by a relation with fallback_suppression == true.
     /// Obeying provenance monotonicity: does not alter or rewrite provenance of remaining edges.
-    pub fn apply_suppression(mut graph: KnowledgeGraph, registry: &RelationRegistry) -> KnowledgeGraph {
+    pub fn apply_suppression(
+        mut graph: KnowledgeGraph,
+        registry: &RelationRegistry,
+    ) -> KnowledgeGraph {
         let mut has_suppressor = HashSet::new();
 
         // 1. Identify all node pairs containing a specific/suppression-triggering relation

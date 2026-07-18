@@ -1,13 +1,12 @@
-use brain_domain::{
-    KnowledgeGraph, Node, NodeId, NodeType, Edge, RelationKind,
-    GraphAnalyticsContext, RelationRegistry
-};
 use brain_domain::retrieval::{
-    RetrievalRequest, RetrievalPlanner, PlanOptimizer, RetrievalExecutor,
-    ReciprocalRankFusion, NormalizedTieBreakerRanking, QueryCompiler,
-    RetrievalExecutionContext, CostHeuristics,
-    RetrievalEvent, RecordingSink, CompletionReason, CancellationChecker,
-    NeverCancelled
+    CancellationChecker, CompletionReason, CostHeuristics, NeverCancelled,
+    NormalizedTieBreakerRanking, PlanOptimizer, QueryCompiler, ReciprocalRankFusion, RecordingSink,
+    RetrievalEvent, RetrievalExecutionContext, RetrievalExecutor, RetrievalPlanner,
+    RetrievalRequest,
+};
+use brain_domain::{
+    Edge, GraphAnalyticsContext, KnowledgeGraph, Node, NodeId, NodeType, RelationKind,
+    RelationRegistry,
 };
 use brain_services::retrieval::cache::ExecutionCache;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,12 +18,28 @@ fn create_test_graph() -> (KnowledgeGraph, NodeId, NodeId, NodeId) {
     let node_b = NodeId::new();
     let node_c = NodeId::new();
 
-    graph.add_node(Node::new(node_a, "Rust Programming".to_string(), NodeType::Concept));
-    graph.add_node(Node::new(node_b, "Concurrency Abstractions".to_string(), NodeType::Concept));
-    graph.add_node(Node::new(node_c, "Cooperative Cancellation".to_string(), NodeType::Concept));
+    graph.add_node(Node::new(
+        node_a,
+        "Rust Programming".to_string(),
+        NodeType::Concept,
+    ));
+    graph.add_node(Node::new(
+        node_b,
+        "Concurrency Abstractions".to_string(),
+        NodeType::Concept,
+    ));
+    graph.add_node(Node::new(
+        node_c,
+        "Cooperative Cancellation".to_string(),
+        NodeType::Concept,
+    ));
 
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 1.0)).unwrap();
-    graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.9)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 1.0))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.9))
+        .unwrap();
 
     (graph, node_a, node_b, node_c)
 }
@@ -44,7 +59,13 @@ fn test_cancellation_before_execution() {
     let (graph, _, _, _) = create_test_graph();
     let registry = RelationRegistry::default_embedded();
     let analytics = GraphAnalyticsContext::new(&graph);
-    let context = RetrievalExecutionContext::new(brain_domain::SnapshotId::new(1), &graph, &registry, &analytics, None);
+    let context = RetrievalExecutionContext::new(
+        brain_domain::SnapshotId::new(1),
+        &graph,
+        &registry,
+        &analytics,
+        None,
+    );
 
     let executor = RetrievalExecutor::new(
         &context,
@@ -59,7 +80,10 @@ fn test_cancellation_before_execution() {
     let compiler = QueryCompiler::new_default();
     let planner = RetrievalPlanner;
     let optimizer = PlanOptimizer;
-    let plan = optimizer.optimize(planner.plan(&compiler.compile_legacy(&request).canonical_query), &CostHeuristics::default());
+    let plan = optimizer.optimize(
+        planner.plan(&compiler.compile_legacy(&request).canonical_query),
+        &CostHeuristics::default(),
+    );
 
     // Always cancelled
     let checker = TriggeredCancellation {
@@ -86,7 +110,13 @@ fn test_cancellation_during_retrieval() {
     let (graph, _, _, _) = create_test_graph();
     let registry = RelationRegistry::default_embedded();
     let analytics = GraphAnalyticsContext::new(&graph);
-    let context = RetrievalExecutionContext::new(brain_domain::SnapshotId::new(1), &graph, &registry, &analytics, None);
+    let context = RetrievalExecutionContext::new(
+        brain_domain::SnapshotId::new(1),
+        &graph,
+        &registry,
+        &analytics,
+        None,
+    );
 
     let executor = RetrievalExecutor::new(
         &context,
@@ -101,7 +131,10 @@ fn test_cancellation_during_retrieval() {
     let compiler = QueryCompiler::new_default();
     let planner = RetrievalPlanner;
     let optimizer = PlanOptimizer;
-    let plan = optimizer.optimize(planner.plan(&compiler.compile_legacy(&request).canonical_query), &CostHeuristics::default());
+    let plan = optimizer.optimize(
+        planner.plan(&compiler.compile_legacy(&request).canonical_query),
+        &CostHeuristics::default(),
+    );
 
     // Cancel during/after step execution (we toggle it dynamically)
     let triggered = Arc::new(AtomicBool::new(false));
@@ -143,7 +176,10 @@ fn test_cancellation_during_retrieval() {
     }
     assert_eq!(cancel_count, 1, "Must emit exactly one Cancelled event");
     assert_eq!(finished_count, 0, "Must not emit Finished event");
-    assert!(result.candidates.is_empty(), "Should return empty candidates on cancellation");
+    assert!(
+        result.candidates.is_empty(),
+        "Should return empty candidates on cancellation"
+    );
 }
 
 #[test]
@@ -151,7 +187,13 @@ fn test_cancellation_cache_safety() {
     let (graph, _, _, _) = create_test_graph();
     let registry = RelationRegistry::default_embedded();
     let analytics = GraphAnalyticsContext::new(&graph);
-    let context = RetrievalExecutionContext::new(brain_domain::SnapshotId::new(1), &graph, &registry, &analytics, None);
+    let context = RetrievalExecutionContext::new(
+        brain_domain::SnapshotId::new(1),
+        &graph,
+        &registry,
+        &analytics,
+        None,
+    );
 
     let executor = RetrievalExecutor::new(
         &context,
@@ -217,7 +259,13 @@ fn test_cancellation_post_completion_ignored() {
     let (graph, _, _, _) = create_test_graph();
     let registry = RelationRegistry::default_embedded();
     let analytics = GraphAnalyticsContext::new(&graph);
-    let context = RetrievalExecutionContext::new(brain_domain::SnapshotId::new(1), &graph, &registry, &analytics, None);
+    let context = RetrievalExecutionContext::new(
+        brain_domain::SnapshotId::new(1),
+        &graph,
+        &registry,
+        &analytics,
+        None,
+    );
 
     let executor = RetrievalExecutor::new(
         &context,
@@ -232,10 +280,15 @@ fn test_cancellation_post_completion_ignored() {
     let compiler = QueryCompiler::new_default();
     let planner = RetrievalPlanner;
     let optimizer = PlanOptimizer;
-    let plan = optimizer.optimize(planner.plan(&compiler.compile_legacy(&request).canonical_query), &CostHeuristics::default());
+    let plan = optimizer.optimize(
+        planner.plan(&compiler.compile_legacy(&request).canonical_query),
+        &CostHeuristics::default(),
+    );
 
     let triggered = Arc::new(AtomicBool::new(false));
-    let checker = TriggeredCancellation { triggered: triggered.clone() };
+    let checker = TriggeredCancellation {
+        triggered: triggered.clone(),
+    };
 
     struct CancelAfterCompletionSink {
         inner: RecordingSink,
@@ -271,7 +324,10 @@ fn test_cancellation_post_completion_ignored() {
         }
     }
     assert_eq!(finished_count, 1);
-    assert_eq!(cancel_count, 0, "Cancellation after completion must be ignored");
+    assert_eq!(
+        cancel_count, 0,
+        "Cancellation after completion must be ignored"
+    );
 }
 
 #[test]
@@ -279,7 +335,13 @@ fn test_cancellation_transparency() {
     let (graph, _, _, _) = create_test_graph();
     let registry = RelationRegistry::default_embedded();
     let analytics = GraphAnalyticsContext::new(&graph);
-    let context = RetrievalExecutionContext::new(brain_domain::SnapshotId::new(1), &graph, &registry, &analytics, None);
+    let context = RetrievalExecutionContext::new(
+        brain_domain::SnapshotId::new(1),
+        &graph,
+        &registry,
+        &analytics,
+        None,
+    );
 
     let executor = RetrievalExecutor::new(
         &context,
@@ -294,7 +356,10 @@ fn test_cancellation_transparency() {
     let compiler = QueryCompiler::new_default();
     let planner = RetrievalPlanner;
     let optimizer = PlanOptimizer;
-    let plan = optimizer.optimize(planner.plan(&compiler.compile_legacy(&request).canonical_query), &CostHeuristics::default());
+    let plan = optimizer.optimize(
+        planner.plan(&compiler.compile_legacy(&request).canonical_query),
+        &CostHeuristics::default(),
+    );
 
     // Legacy style mock executor execution (previously had no checker, now uses NeverCancelled)
     let result = executor.execute(plan.clone(), &NeverCancelled);
@@ -305,10 +370,13 @@ fn test_cancellation_transparency() {
 
     assert_eq!(result.candidates, stream_result.candidates);
     assert_eq!(result.explanations, stream_result.explanations);
-    
+
     // Ensure Single Completion is Finished
     let events = sink.into_events();
-    let completed_event = events.iter().find(|e| matches!(e, RetrievalEvent::Completed { .. })).unwrap();
+    let completed_event = events
+        .iter()
+        .find(|e| matches!(e, RetrievalEvent::Completed { .. }))
+        .unwrap();
     if let RetrievalEvent::Completed { reason, .. } = completed_event {
         assert!(matches!(reason, CompletionReason::Finished));
     } else {

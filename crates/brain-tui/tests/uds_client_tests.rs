@@ -1,6 +1,6 @@
-use brain_tui::client::{UdsClient, ExecutionClient, ExecutionRequest, ExecutionOptions};
-use tokio_util::sync::CancellationToken;
 use brain_core::events::StreamEventKind;
+use brain_tui::client::{ExecutionClient, ExecutionOptions, ExecutionRequest, UdsClient};
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
 async fn test_uds_client_execute() {
@@ -35,7 +35,10 @@ async fn test_uds_client_execute() {
             assert!(got_events, "Should have received at least one stream event");
         }
         Err(e) => {
-            println!("Skipping UDS integration test because daemon is unreachable: {:?}", e);
+            println!(
+                "Skipping UDS integration test because daemon is unreachable: {:?}",
+                e
+            );
         }
     }
 }

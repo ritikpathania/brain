@@ -1,11 +1,13 @@
+use crate::mapping::{AcpErrorMapper, AcpEventMapper};
+use crate::protocol::{AcpNotification, AcpRequest, AcpResponse};
+use crate::registry::CapabilityExposureRegistry;
+use brain_application::{
+    ApplicationEvent, ApplicationEventSink, BrainApplication, ExecutionContext,
+};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio_util::sync::CancellationToken;
-use brain_application::{BrainApplication, ExecutionContext, ApplicationEvent, ApplicationEventSink};
-use crate::protocol::{AcpRequest, AcpResponse, AcpNotification};
-use crate::registry::CapabilityExposureRegistry;
-use crate::mapping::{AcpErrorMapper, AcpEventMapper};
 
 struct AcpEventSink {
     session_id: String,
@@ -84,7 +86,8 @@ impl AcpAdapter {
             }
             "session/new" => {
                 let params = req.params.unwrap_or(serde_json::json!({}));
-                let session_id = params.get("sessionId")
+                let session_id = params
+                    .get("sessionId")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -133,7 +136,8 @@ impl AcpAdapter {
                 };
 
                 // Extract capability name, defaulting to "ingest"
-                let capability_name = params.get("capability")
+                let capability_name = params
+                    .get("capability")
                     .and_then(|v| v.as_str())
                     .unwrap_or("ingest");
 
@@ -145,7 +149,10 @@ impl AcpAdapter {
                             result: None,
                             error: Some(crate::protocol::AcpError {
                                 code: -32601, // Method/Capability not found
-                                message: format!("Capability '{}' is not registered.", capability_name),
+                                message: format!(
+                                    "Capability '{}' is not registered.",
+                                    capability_name
+                                ),
                                 data: None,
                             }),
                             id: req_id,
@@ -153,7 +160,10 @@ impl AcpAdapter {
                     }
                 };
 
-                let arguments = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+                let arguments = params
+                    .get("arguments")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
 
                 // Establish execution token cancellation
                 let cancel_token = CancellationToken::new();

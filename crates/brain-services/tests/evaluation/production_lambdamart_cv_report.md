@@ -34,20 +34,20 @@
 
 | Metric | Model | Mean | Std Dev | Min | Max |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| **Composite** | Linear Baseline | 0.9229 | 0.0737 | 0.8393 | 1.0000 |
+| **Composite** | Linear Baseline | 0.9372 | 0.0591 | 0.8393 | 1.0000 |
 | | Logistic Regression | 0.9051 | 0.0233 | 0.8929 | 0.9464 |
-| | LambdaMART | 0.8682 | 0.0838 | 0.7801 | 1.0000 |
-| **nDCG@5** | Linear Baseline | 0.9122 | 0.0844 | 0.8155 | 1.0000 |
+| | LambdaMART | 0.9121 | 0.0747 | 0.8337 | 1.0000 |
+| **nDCG@5** | Linear Baseline | 0.9268 | 0.0676 | 0.8155 | 1.0000 |
 | | Logistic Regression | 0.8899 | 0.0272 | 0.8770 | 0.9385 |
-| | LambdaMART | 0.8631 | 0.0852 | 0.7718 | 1.0000 |
-| **MRR** | Linear Baseline | 0.8778 | 0.1155 | 0.7500 | 1.0000 |
+| | LambdaMART | 0.9087 | 0.0733 | 0.8333 | 1.0000 |
+| **MRR** | Linear Baseline | 0.9167 | 0.1021 | 0.7500 | 1.0000 |
 | | Logistic Regression | 0.8667 | 0.0456 | 0.8333 | 0.9167 |
-| | LambdaMART | 0.8517 | 0.0905 | 0.7518 | 1.0000 |
-| **Recall@5** | Linear Baseline | 1.0000 | 0.0000 | 1.0000 | 1.0000 |
+| | LambdaMART | 0.9012 | 0.0683 | 0.8351 | 1.0000 |
+| **Recall@5** | Linear Baseline | 0.9889 | 0.0248 | 0.9444 | 1.0000 |
 | | Logistic Regression | 0.9889 | 0.0248 | 0.9444 | 1.0000 |
-| | LambdaMART | 0.9000 | 0.0913 | 0.8333 | 1.0000 |
+| | LambdaMART | 0.9333 | 0.0913 | 0.8333 | 1.0000 |
 
 ## Research Conclusion
 
 > [NOTE]
-> Under 5-Fold Cross-Validation, LambdaMART achieved a mean Composite score of **0.8682**, while the Linear Baseline maintained **0.9229** (Delta: **-0.0547**). This demonstrates that while LambdaMART learns complex local non-linear interactions, the linear model calibrated over multiple folds remains a very strong competitor for this corpus scale.
+> Under 5-Fold Cross-Validation, LambdaMART achieved a mean Composite score of **0.9121**, while the Linear Baseline maintained **0.9372** (Delta: **-0.0251**). This demonstrates that while LambdaMART learns complex local non-linear interactions, the linear model calibrated over multiple folds remains a very strong competitor for this corpus scale.

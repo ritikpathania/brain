@@ -1,12 +1,12 @@
 //! Footer widget presenting hotkeys list.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::RenderContext;
 use crate::ui::primitives::{Badge, Label};
+use crate::ui::render::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::{FooterView, MAX_SHORTCUTS};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// Precomputed layout bounds for the Footer shortcut links.
 pub struct FooterLayout {
@@ -27,7 +27,10 @@ impl FooterLayout {
             x += current_w;
             len += 1;
         }
-        Self { shortcut_areas, len }
+        Self {
+            shortcut_areas,
+            len,
+        }
     }
 
     /// Access the precomputed shortcut areas.
@@ -46,7 +49,7 @@ impl<'a> BrainWidget for Footer<'a> {
     fn render<T: ActiveTheme>(&self, area: Rect, buf: &mut Buffer, ctx: &RenderContext<'_, T>) {
         let layout = FooterLayout::compute(area, self.view);
         let areas = layout.areas();
-        
+
         for (idx, shortcut) in self.view.shortcuts.iter().enumerate() {
             if idx >= areas.len() {
                 break;
@@ -55,14 +58,28 @@ impl<'a> BrainWidget for Footer<'a> {
             if sub_area.width < 5 {
                 continue;
             }
-            
+
             let key_w = (shortcut.key.len() + 4) as u16;
-            let badge = Badge { label: shortcut.key, token: ThemeToken::Primary };
-            badge.draw(Rect::new(sub_area.x, sub_area.y, key_w.min(sub_area.width), 1), buf, ctx);
-            
+            let badge = Badge {
+                label: shortcut.key,
+                token: ThemeToken::Primary,
+            };
+            badge.draw(
+                Rect::new(sub_area.x, sub_area.y, key_w.min(sub_area.width), 1),
+                buf,
+                ctx,
+            );
+
             if sub_area.width > key_w {
-                let label = Label { text: shortcut.description, token: ThemeToken::Muted };
-                label.draw(Rect::new(sub_area.x + key_w, sub_area.y, sub_area.width - key_w, 1), buf, ctx);
+                let label = Label {
+                    text: shortcut.description,
+                    token: ThemeToken::Muted,
+                };
+                label.draw(
+                    Rect::new(sub_area.x + key_w, sub_area.y, sub_area.width - key_w, 1),
+                    buf,
+                    ctx,
+                );
             }
         }
     }

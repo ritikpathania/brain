@@ -33,9 +33,11 @@ pub mod test_utils;
 #[cfg(any(test, feature = "test-utils"))]
 pub use test_utils::TestStorage;
 
-pub use store::SqliteStorage;
-pub use event_log::{StoredEvent, SqliteEventLog, EventLogRepository};
-pub use projection_checkpoint::SqliteProjectionCheckpointRepository;
+pub use event_log::{EventLogRepository, SqliteEventLog, StoredEvent};
 pub use jobs_projection::{JobReadModel, SqliteJobReadModelRepository};
-pub use sessions_projection::{SessionReadModel, SqliteSessionReadModelRepository, ReadModelRepository};
+pub use projection_checkpoint::SqliteProjectionCheckpointRepository;
 pub use search_projection::{SearchQuery, SqliteSearchRepository};
+pub use sessions_projection::{
+    ReadModelRepository, SessionReadModel, SqliteSessionReadModelRepository,
+};
+pub use store::SqliteStorage;

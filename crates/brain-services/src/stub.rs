@@ -1,6 +1,6 @@
 use brain_core::errors::BrainError;
 use brain_core::services::{RetrievalService, SessionService};
-use brain_domain::{Session, SessionTitle, SessionTimestamp, MemoryDTO, Node, NodeDTO, SessionId};
+use brain_domain::{MemoryDTO, Node, NodeDTO, Session, SessionId, SessionTimestamp, SessionTitle};
 use std::collections::HashMap;
 use std::sync::Mutex;
 

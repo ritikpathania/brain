@@ -1,6 +1,8 @@
 use crate::identifiers::NodeId;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, ConnectivityReport};
-use std::collections::{HashSet, HashMap};
+use crate::query::analytics::{
+    AnalyticsAlgorithm, Complexity, ConnectivityReport, GraphAnalyticsContext,
+};
+use std::collections::{HashMap, HashSet};
 
 /// Configuration parameters for connectivity diagnostics.
 #[derive(Debug, Clone, Default)]

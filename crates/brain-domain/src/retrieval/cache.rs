@@ -33,9 +33,7 @@
 //! * **Need very large read-mostly datasets?**
 //!   → `MmapStore`
 
-use crate::retrieval::models::{
-    SnapshotId, QueryRequest, CanonicalQuery, LogicalRetrievalPlan
-};
+use crate::retrieval::models::{CanonicalQuery, LogicalRetrievalPlan, QueryRequest, SnapshotId};
 
 /// Cache key for the query compilation layer.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -114,4 +112,3 @@ pub trait SnapshotCacheStore<K, V>: CacheStore<K, V> {
     /// Invalidates all entries associated with the specified snapshot_id, making them unobservable.
     fn invalidate_snapshot(&self, snapshot_id: SnapshotId);
 }
-

@@ -1,5 +1,7 @@
+use crate::agent::{
+    AgentExecutionEvent, AgentExecutionEventPayload, ExecutionId, ExecutionMetrics,
+};
 use std::time::{Duration, SystemTime};
-use crate::agent::{ExecutionId, ExecutionMetrics, AgentExecutionEvent, AgentExecutionEventPayload};
 
 /// Configurable overflow policy for bounded event queues.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -213,12 +215,10 @@ impl StreamEventMapper for DefaultStreamEventMapper {
             AgentExecutionEventPayload::ExecutionCancelled { .. } => {
                 StreamEventPayload::Cancelled(CancelledEvent {})
             }
-            _ => {
-                StreamEventPayload::Progress(ProgressEvent {
-                    message: "Activity recorded".to_string(),
-                    percentage: None,
-                })
-            }
+            _ => StreamEventPayload::Progress(ProgressEvent {
+                message: "Activity recorded".to_string(),
+                percentage: None,
+            }),
         };
 
         StreamEvent {
@@ -352,7 +352,9 @@ impl Default for ExecutionSubscribers {
 
 /// Accumulates stage start and end times to construct append-only timelines.
 pub struct TimelineBuilder {
-    starts: parking_lot::Mutex<std::collections::HashMap<ExecutionId, std::collections::HashMap<&'static str, SystemTime>>>,
+    starts: parking_lot::Mutex<
+        std::collections::HashMap<ExecutionId, std::collections::HashMap<&'static str, SystemTime>>,
+    >,
     entries: parking_lot::Mutex<std::collections::HashMap<ExecutionId, Vec<TimelineEntry>>>,
 }
 
@@ -483,7 +485,8 @@ impl MetricsCollector {
 
 /// Registry of subscribers facilitating broadcast loops.
 pub struct SubscriberHub {
-    pub(crate) subscribers: parking_lot::RwLock<std::collections::HashMap<ExecutionId, ExecutionSubscribers>>,
+    pub(crate) subscribers:
+        parking_lot::RwLock<std::collections::HashMap<ExecutionId, ExecutionSubscribers>>,
 }
 
 impl SubscriberHub {
@@ -610,7 +613,10 @@ pub struct ExecutionRuntimeState {
 
 impl ExecutionRuntimeState {
     /// Creates a new ExecutionRuntimeState.
-    pub fn new(cancellation: std::sync::Arc<crate::agent::CancellationTokenImpl>, execution_id: ExecutionId) -> Self {
+    pub fn new(
+        cancellation: std::sync::Arc<crate::agent::CancellationTokenImpl>,
+        execution_id: ExecutionId,
+    ) -> Self {
         let hub = std::sync::Arc::new(SubscriberHub::new());
         hub.register_execution(execution_id);
         Self {
@@ -624,12 +630,14 @@ impl ExecutionRuntimeState {
     /// Subscribes a new event stream to the execution.
     pub fn subscribe(&self, execution_id: ExecutionId) -> Option<ExecutionStream> {
         let queue = std::sync::Arc::new(SafeEventQueue::new(100, OverflowPolicy::SelectiveDrop));
-        self.hub.subscribe(execution_id, queue.clone()).map(|id| ExecutionStream {
-            id,
-            execution_id,
-            queue,
-            hub: self.hub.clone(),
-        })
+        self.hub
+            .subscribe(execution_id, queue.clone())
+            .map(|id| ExecutionStream {
+                id,
+                execution_id,
+                queue,
+                hub: self.hub.clone(),
+            })
     }
 
     /// Cancels execution.
@@ -668,7 +676,11 @@ impl ExecutionRuntimeState {
 
 /// The coordinator orchestrating mapping, broadcast, metrics, timelines, and cleanup states.
 pub struct StreamingRuntime {
-    states: std::sync::Arc<parking_lot::RwLock<std::collections::HashMap<ExecutionId, std::sync::Arc<ExecutionRuntimeState>>>>,
+    states: std::sync::Arc<
+        parking_lot::RwLock<
+            std::collections::HashMap<ExecutionId, std::sync::Arc<ExecutionRuntimeState>>,
+        >,
+    >,
     mapper: std::sync::Arc<dyn StreamEventMapper>,
 }
 
@@ -705,10 +717,10 @@ impl StreamingRuntime {
                 if let StreamEventPayload::Finished(ref mut f) = stream_event.payload {
                     if let Some(m) = state.metrics(execution_id) {
                         f.metrics = m;
-                      f.metrics.duration_ms = SystemTime::now()
-                          .duration_since(SystemTime::UNIX_EPOCH)
-                          .unwrap_or(Duration::ZERO)
-                          .as_millis() as u64; // Fallback or updated duration
+                        f.metrics.duration_ms = SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap_or(Duration::ZERO)
+                            .as_millis() as u64; // Fallback or updated duration
                     }
                 }
 
@@ -737,7 +749,8 @@ impl StreamingRuntime {
     /// Subscribes a new event stream to the registered execution.
     pub fn subscribe(&self, execution_id: ExecutionId) -> Option<ExecutionStream> {
         let lock = self.states.read();
-        lock.get(&execution_id).and_then(|s| s.subscribe(execution_id))
+        lock.get(&execution_id)
+            .and_then(|s| s.subscribe(execution_id))
     }
 
     /// Triggers cancellation for an execution.
@@ -759,5 +772,3 @@ impl StreamingRuntime {
             .unwrap_or_default()
     }
 }
-
-

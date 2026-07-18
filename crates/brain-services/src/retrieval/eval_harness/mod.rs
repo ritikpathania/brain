@@ -1,71 +1,70 @@
-/// Evaluation metrics sub-engine.
-pub mod metrics;
-/// Evaluation benchmark runner.
-pub mod runner;
-/// FTS retriever implementation.
-pub mod fts_retriever;
-/// Regression analyzer.
-pub mod regression;
-/// Semantic retriever implementation.
-pub mod semantic_retriever;
-/// Hybrid retriever implementation.
-pub mod hybrid_retriever;
-/// Linear ranking and feature extraction.
-pub mod ranking;
-/// Feature context metadata provider.
-pub mod provider;
 /// Calibration and weights optimization engine.
 pub mod calibration;
-/// Sensitivity and feature diagnostics engine.
-pub mod sensitivity;
 /// Feature correlation and redundancy engine.
 pub mod correlation;
-/// Feature pruning experiments engine.
-pub mod pruning;
-/// Supervised ranking models and dataset utilities.
-pub mod models;
 /// Cross-validation framework.
 pub mod cv;
+/// FTS retriever implementation.
+pub mod fts_retriever;
+/// Hybrid retriever implementation.
+pub mod hybrid_retriever;
+/// Evaluation metrics sub-engine.
+pub mod metrics;
+/// Supervised ranking models and dataset utilities.
+pub mod models;
+/// Feature context metadata provider.
+pub mod provider;
+/// Feature pruning experiments engine.
+pub mod pruning;
+/// Linear ranking and feature extraction.
+pub mod ranking;
+/// Regression analyzer.
+pub mod regression;
+/// Evaluation benchmark runner.
+pub mod runner;
+/// Semantic retriever implementation.
+pub mod semantic_retriever;
+/// Sensitivity and feature diagnostics engine.
+pub mod sensitivity;
 
 pub use calibration::{
-    CalibrationObjective, CalibrationOptions, CalibrationResult, EvaluationSession,
-    CalibrationEngine, MarkdownReportWriter, QueryEvaluationCache,
+    CalibrationEngine, CalibrationObjective, CalibrationOptions, CalibrationResult,
+    EvaluationSession, MarkdownReportWriter, QueryEvaluationCache,
+};
+pub use correlation::{
+    CorrelationEngine, CorrelationMethod, CorrelationReport, CorrelationReportWriter, Feature,
+    FeatureCorrelationMatrix, RedundancyLevel, RedundantFeaturePair,
+};
+pub use cv::{
+    CrossValidationResult, CrossValidationRunner, CrossValidationSummary, EvaluationMetric, Fold,
+    FoldAssigner, FoldEvaluationResult, MetricDistribution,
+};
+pub use models::{
+    EpochMetrics, FeatureImportance, FeatureImportanceAnalyzer, FeatureImportanceReport,
+    LambdaGradientComputer, LambdaMartMetadata, LambdaMartModel, LambdaMartTrainer,
+    LambdaMartTrainingConfig, LogisticRegressionModel, LogisticTrainer, LogisticTrainingConfig,
+    ModelSelectionResult, ModelSelector, RegressionDataset, RegressionDatasetBuilder,
+    RegressionTree, RegressionTreeTrainer, ScoreRanker, SelectionReason, TrainingDataset,
+    TrainingExample, TrainingHistory, TrainingSummary, TreeNode,
+};
+pub use pruning::{
+    DegradationImpact, PruningExperimentReport, PruningExperimentRunner, PruningFailureReason,
+    PruningOutcome, PruningReportWriter, PruningResult,
 };
 pub use sensitivity::{
     run_sensitivity_analysis, FeatureImpact, SensitivityReport, SensitivityReportWriter,
 };
-pub use correlation::{
-    Feature, CorrelationMethod, RedundancyLevel, RedundantFeaturePair,
-    FeatureCorrelationMatrix, CorrelationReport, CorrelationEngine, CorrelationReportWriter,
-};
-pub use pruning::{
-    DegradationImpact, PruningFailureReason, PruningOutcome, PruningResult,
-    PruningExperimentReport, PruningExperimentRunner, PruningReportWriter,
-};
-pub use models::{
-    ScoreRanker, TrainingExample, TrainingDataset, LogisticRegressionModel,
-    LogisticTrainingConfig, TrainingSummary, LogisticTrainer,
-    RegressionTree, TreeNode, RegressionTreeTrainer, RegressionDataset, RegressionDatasetBuilder,
-    LambdaGradientComputer, LambdaMartTrainingConfig, LambdaMartMetadata,
-    EpochMetrics, SelectionReason, ModelSelectionResult, TrainingHistory, ModelSelector,
-    LambdaMartModel, LambdaMartTrainer, FeatureImportance, FeatureImportanceReport,
-    FeatureImportanceAnalyzer,
-};
-pub use cv::{
-    Fold, FoldAssigner, FoldEvaluationResult, MetricDistribution, EvaluationMetric,
-    CrossValidationSummary, CrossValidationResult, CrossValidationRunner,
-};
 
 pub use fts_retriever::FtsRetriever;
-pub use runner::{
-    run_benchmark, BenchmarkReport, StableReport, MeasuredReport, AggregateMetrics,
-    AggregateLatency, QueryEvalResult, QueryDiagnostic, CandidateDiagnostic,
-};
-pub use regression::{compare_stable_reports, StableReportDiff};
-pub use semantic_retriever::SemanticRetriever;
 pub use hybrid_retriever::HybridRetriever;
-pub use ranking::{RankingWeights, LinearRanker, RankingRetriever};
 pub use provider::FeatureProvider;
+pub use ranking::{LinearRanker, RankingRetriever, RankingWeights};
+pub use regression::{compare_stable_reports, StableReportDiff};
+pub use runner::{
+    run_benchmark, AggregateLatency, AggregateMetrics, BenchmarkReport, CandidateDiagnostic,
+    MeasuredReport, QueryDiagnostic, QueryEvalResult, StableReport,
+};
+pub use semantic_retriever::SemanticRetriever;
 
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
@@ -165,7 +164,9 @@ pub fn sort_results_deterministically(results: &mut [RetrievalResult]) {
             }
             first = false;
         } else {
-            if res.channel_scores.len() != 1 || res.channel_scores.keys().next().copied() != common_channel {
+            if res.channel_scores.len() != 1
+                || res.channel_scores.keys().next().copied() != common_channel
+            {
                 common_channel = None;
                 break;
             }
@@ -276,11 +277,19 @@ pub fn validate_corpus(queries: &QueryCorpus, truth: &GroundTruthCorpus) -> Resu
     for q_id in &query_ids {
         let truth_item = match truth.ground_truth.get(*q_id) {
             Some(item) => item,
-            None => return Err(format!("Missing ground truth mapping for query_id: {}", q_id)),
+            None => {
+                return Err(format!(
+                    "Missing ground truth mapping for query_id: {}",
+                    q_id
+                ))
+            }
         };
 
         if truth_item.expected_node_ids.is_empty() {
-            return Err(format!("Query {} must have at least one expected node_id", q_id));
+            return Err(format!(
+                "Query {} must have at least one expected node_id",
+                q_id
+            ));
         }
 
         // 4. Verify all referenced nodes exist in the nodes array
@@ -305,7 +314,9 @@ pub fn validate_corpus(queries: &QueryCorpus, truth: &GroundTruthCorpus) -> Resu
     Ok(())
 }
 
-pub use crate::retrieval::ranking::feature_provider::{FeatureVector, RankingDecay, FeatureContext};
+pub use crate::retrieval::ranking::feature_provider::{
+    FeatureContext, FeatureVector, RankingDecay,
+};
 
 /// Pure translation layer extracting raw channel-local features from candidate RetrievalResult.
 pub struct FeatureExtractor {
@@ -316,7 +327,10 @@ impl FeatureExtractor {
     /// Instantiates a new FeatureExtractor with reference time and decay parameters.
     pub fn new(reference_time: u64, decay: RankingDecay) -> Self {
         Self {
-            inner: crate::retrieval::ranking::feature_provider::FeatureExtractor::new(reference_time, decay),
+            inner: crate::retrieval::ranking::feature_provider::FeatureExtractor::new(
+                reference_time,
+                decay,
+            ),
         }
     }
 

@@ -61,13 +61,17 @@ pub trait StorageBackend: Send + Sync {
 pub trait EventLogRepository: Send + Sync {
     /// Inserts an ingestion event into the SQLite event_log table.
     /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
-    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, String>;
+    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope)
+        -> Result<u64, String>;
 
     /// Checks if the event_id already exists in the log.
     fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, String>;
 
     /// Replays events starting after the given sequence number.
-    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, String>;
+    fn get_events_after(
+        &self,
+        sequence: u64,
+    ) -> Result<Vec<brain_integrations::IngestionEnvelope>, String>;
 }
 
 pub trait MemoryExtractor: Send + Sync {

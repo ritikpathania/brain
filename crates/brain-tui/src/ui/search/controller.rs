@@ -1,10 +1,10 @@
 //! Search Controller orchestrating lifetimes, generation sequences, and cancellation triggers.
 
+use crate::ui::search::types::{
+    SearchContext, SearchEventSink, SearchGeneration, SearchProvider, SearchQuery,
+};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use crate::ui::search::types::{
-    SearchQuery, SearchGeneration, SearchEventSink, SearchContext, SearchProvider
-};
 
 /// Represents an active query search context.
 pub struct SearchSession {

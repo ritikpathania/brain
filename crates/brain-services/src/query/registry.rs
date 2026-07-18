@@ -1,16 +1,16 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Duration;
-use parking_lot::Mutex;
-use tokio::sync::{watch, mpsc};
-use tokio::time::sleep;
+use crate::projections::{ProjectionId, ProjectionNotification, ProjectionNotificationBus};
+use crate::query::dto::{JobSummary, SearchSummary, SessionSummary};
+use crate::query::filters::{JobQuery, SearchQuery, SessionQuery};
+use crate::query::traits::{JobQueryService, SearchQueryService, SessionQueryService};
 use brain_core::errors::BrainError;
 use brain_events::SequenceNumber;
 use brain_storage::SqliteProjectionCheckpointRepository;
-use crate::projections::{ProjectionId, ProjectionNotificationBus, ProjectionNotification};
-use crate::query::dto::{SessionSummary, JobSummary, SearchSummary};
-use crate::query::filters::{SessionQuery, JobQuery, SearchQuery};
-use crate::query::traits::{SessionQueryService, JobQueryService, SearchQueryService};
+use parking_lot::Mutex;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::{mpsc, watch};
+use tokio::time::sleep;
 
 /// Strongly-typed key representing query types and parameters.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -113,7 +113,10 @@ impl QuerySubscriptionRegistry {
     }
 
     /// Subscribes to query updates. Performs an initial query execution on first registration.
-    pub fn subscribe(&self, key: SubscriptionKey) -> Result<watch::Receiver<QueryResponse>, BrainError> {
+    pub fn subscribe(
+        &self,
+        key: SubscriptionKey,
+    ) -> Result<watch::Receiver<QueryResponse>, BrainError> {
         let mut states = self.states.lock();
         if let Some(state) = states.get(&key) {
             return Ok(state.sender.subscribe());
@@ -125,16 +128,22 @@ impl QuerySubscriptionRegistry {
 
         let initial_seq = self.get_latest_checkpoint(&key)?;
 
-        states.insert(key, SubscriptionState {
-            last_seen_sequence: initial_seq,
-            latest_sequence: initial_seq,
-            sender: tx,
-        });
+        states.insert(
+            key,
+            SubscriptionState {
+                last_seen_sequence: initial_seq,
+                latest_sequence: initial_seq,
+                sender: tx,
+            },
+        );
 
         Ok(rx)
     }
 
-    fn handle_notification(&self, notification: ProjectionNotification) -> impl std::future::Future<Output = ()> + Send {
+    fn handle_notification(
+        &self,
+        notification: ProjectionNotification,
+    ) -> impl std::future::Future<Output = ()> + Send {
         let mut states = self.states.lock();
         let mut to_invalidate = Vec::new();
 
@@ -173,7 +182,10 @@ impl QuerySubscriptionRegistry {
                 let (should_run, seq) = {
                     let states = self.states.lock();
                     if let Some(state) = states.get(&key) {
-                        (state.latest_sequence > state.last_seen_sequence, state.latest_sequence)
+                        (
+                            state.latest_sequence > state.last_seen_sequence,
+                            state.latest_sequence,
+                        )
                     } else {
                         (false, SequenceNumber(0))
                     }

@@ -1,12 +1,11 @@
 use brain_domain::retrieval::{
-    SnapshotId, QueryRequest, LogicalRetrievalPlan,
-    PhysicalRetrievalPlan, CompilationResult, RetrievalResult,
-    CompiledQueryCacheKey, LogicalPlanCacheKey, PhysicalPlanCacheKey,
-    ResultCacheKey, LayerStats, ExecutionCacheStats, CacheStore, SnapshotCacheStore
+    CacheStore, CompilationResult, CompiledQueryCacheKey, ExecutionCacheStats, LayerStats,
+    LogicalPlanCacheKey, LogicalRetrievalPlan, PhysicalPlanCacheKey, PhysicalRetrievalPlan,
+    QueryRequest, ResultCacheKey, RetrievalResult, SnapshotCacheStore, SnapshotId,
 };
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 /// Thread-safe generator managing monotonic snapshot identities.
 #[derive(Debug, Default)]
@@ -136,30 +135,35 @@ where
     result_misses: AtomicU64,
 }
 
-impl Default for ExecutionCache<
-    InMemoryStore<CompiledQueryCacheKey, CompilationResult>,
-    InMemoryStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
-    InMemoryStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
-    InMemoryStore<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>,
-> {
+impl Default
+    for ExecutionCache<
+        InMemoryStore<CompiledQueryCacheKey, CompilationResult>,
+        InMemoryStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
+        InMemoryStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
+        InMemoryStore<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>,
+    >
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ExecutionCache<
-    InMemoryStore<CompiledQueryCacheKey, CompilationResult>,
-    InMemoryStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
-    InMemoryStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
-    InMemoryStore<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>,
-> {
+impl
+    ExecutionCache<
+        InMemoryStore<CompiledQueryCacheKey, CompilationResult>,
+        InMemoryStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
+        InMemoryStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
+        InMemoryStore<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>,
+    >
+{
     /// Creates a new ExecutionCache with default InMemoryStore backends.
     pub fn new() -> Self {
         Self {
             compiled: InMemoryStore::<CompiledQueryCacheKey, CompilationResult>::new(),
             logical: InMemoryStore::<LogicalPlanCacheKey, LogicalRetrievalPlan>::new(),
             physical: InMemoryStore::<PhysicalPlanCacheKey, PhysicalRetrievalPlan>::new(),
-            result: InMemoryStore::<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>::new(),
+            result: InMemoryStore::<ResultCacheKey, (RetrievalResult, PhysicalRetrievalPlan)>::new(
+            ),
             compiled_hits: AtomicU64::new(0),
             compiled_misses: AtomicU64::new(0),
             logical_hits: AtomicU64::new(0),
@@ -172,7 +176,8 @@ impl ExecutionCache<
     }
 }
 
-impl<CCompiled, CLogical, CPhysical, CResult> ExecutionCache<CCompiled, CLogical, CPhysical, CResult>
+impl<CCompiled, CLogical, CPhysical, CResult>
+    ExecutionCache<CCompiled, CLogical, CPhysical, CResult>
 where
     CCompiled: SnapshotCacheStore<CompiledQueryCacheKey, CompilationResult>,
     CLogical: SnapshotCacheStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
@@ -251,7 +256,10 @@ where
     }
 
     /// Fetches retrieval result if present.
-    pub fn get_retrieval_result(&self, key: &ResultCacheKey) -> Option<(RetrievalResult, PhysicalRetrievalPlan)> {
+    pub fn get_retrieval_result(
+        &self,
+        key: &ResultCacheKey,
+    ) -> Option<(RetrievalResult, PhysicalRetrievalPlan)> {
         let found = self.result.get(key);
         if found.is_some() {
             self.result_hits.fetch_add(1, Ordering::Relaxed);
@@ -262,7 +270,11 @@ where
     }
 
     /// Inserts retrieval result.
-    pub fn insert_retrieval_result(&self, key: ResultCacheKey, val: (RetrievalResult, PhysicalRetrievalPlan)) {
+    pub fn insert_retrieval_result(
+        &self,
+        key: ResultCacheKey,
+        val: (RetrievalResult, PhysicalRetrievalPlan),
+    ) {
         self.result.insert(key, val);
     }
 
@@ -322,10 +334,8 @@ where
         F: brain_domain::retrieval::fusion::CandidateFusionStrategy + Send + Sync,
         R: brain_domain::retrieval::ranking::RankingStrategy + Send + Sync,
     {
-        use brain_domain::retrieval::stream::{RetrievalEvent, RetrievalStage, CompletionReason};
-        use brain_domain::retrieval::{
-            PhysicalStep, RetrievedCandidate, Evidence
-        };
+        use brain_domain::retrieval::stream::{CompletionReason, RetrievalEvent, RetrievalStage};
+        use brain_domain::retrieval::{Evidence, PhysicalStep, RetrievedCandidate};
 
         if cancellation.is_cancelled() {
             let empty_report = brain_domain::retrieval::RetrievalExecutionReport {
@@ -425,7 +435,9 @@ where
                                             node_id: scored.node_id,
                                             source_id: "vector",
                                             local_score: *similarity,
-                                            explanation_fragments: explanation.evidence_list.clone(),
+                                            explanation_fragments: explanation
+                                                .evidence_list
+                                                .clone(),
                                         };
                                         sink.on_event(RetrievalEvent::CandidateFound(candidate));
                                         sink.on_event(RetrievalEvent::ExplanationUpdated {
@@ -451,7 +463,9 @@ where
                                             node_id: scored.node_id,
                                             source_id: "keyword",
                                             local_score: 0.75,
-                                            explanation_fragments: explanation.evidence_list.clone(),
+                                            explanation_fragments: explanation
+                                                .evidence_list
+                                                .clone(),
                                         };
                                         sink.on_event(RetrievalEvent::CandidateFound(candidate));
                                         sink.on_event(RetrievalEvent::ExplanationUpdated {
@@ -473,12 +487,18 @@ where
                             if let Some(explanation) = result.explanations.get(&scored.node_id) {
                                 for evidence in &explanation.evidence_list {
                                     if let Evidence::GraphTraversal { depth, .. } = evidence {
-                                        let score = if *depth > 0 { 0.5 / (*depth as f64) } else { 0.5 };
+                                        let score = if *depth > 0 {
+                                            0.5 / (*depth as f64)
+                                        } else {
+                                            0.5
+                                        };
                                         let candidate = RetrievedCandidate {
                                             node_id: scored.node_id,
                                             source_id: "graph_expansion",
                                             local_score: score,
-                                            explanation_fragments: explanation.evidence_list.clone(),
+                                            explanation_fragments: explanation
+                                                .evidence_list
+                                                .clone(),
                                         };
                                         sink.on_event(RetrievalEvent::CandidateFound(candidate));
                                         sink.on_event(RetrievalEvent::ExplanationUpdated {
@@ -497,13 +517,21 @@ where
 
             // Fusion Stage Replay
             let stage_fusion = RetrievalStage::Fusion;
-            sink.on_event(RetrievalEvent::StageStarted { stage: stage_fusion });
-            sink.on_event(RetrievalEvent::StageCompleted { stage: stage_fusion });
+            sink.on_event(RetrievalEvent::StageStarted {
+                stage: stage_fusion,
+            });
+            sink.on_event(RetrievalEvent::StageCompleted {
+                stage: stage_fusion,
+            });
 
             // Ranking Stage Replay
             let stage_ranking = RetrievalStage::Ranking;
-            sink.on_event(RetrievalEvent::StageStarted { stage: stage_ranking });
-            sink.on_event(RetrievalEvent::StageCompleted { stage: stage_ranking });
+            sink.on_event(RetrievalEvent::StageStarted {
+                stage: stage_ranking,
+            });
+            sink.on_event(RetrievalEvent::StageCompleted {
+                stage: stage_ranking,
+            });
 
             // Completed Event Replay
             sink.on_event(RetrievalEvent::Completed {

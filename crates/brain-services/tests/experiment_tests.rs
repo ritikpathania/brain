@@ -1,13 +1,15 @@
 use brain_core::retrieval::RetrievalRequest;
-use brain_domain::SessionId;
 use brain_domain::retrieval::experiment::{
-    ExperimentConfiguration, TrafficAllocation, Variant, RoutingStrategy
+    ExperimentConfiguration, RoutingStrategy, TrafficAllocation, Variant,
 };
-use brain_domain::retrieval::models::{WeightSnapshot, SnapshotMetadata, SnapshotVersion, CalibrationMetadata, RankingWeights};
+use brain_domain::retrieval::models::{
+    CalibrationMetadata, RankingWeights, SnapshotMetadata, SnapshotVersion, WeightSnapshot,
+};
 use brain_domain::temporal::TimePoint;
+use brain_domain::SessionId;
 use brain_services::retrieval::active_weights::DefaultActiveWeightProvider;
 use brain_services::retrieval::experiment::{
-    ExperimentRouter, DefaultExperimentRouter, CanaryExperimentRouter, fnv1a_hash
+    fnv1a_hash, CanaryExperimentRouter, DefaultExperimentRouter, ExperimentRouter,
 };
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -62,8 +64,14 @@ fn test_canary_experiment_router_sticky_and_invariants() {
     let provider = Arc::new(DefaultActiveWeightProvider::new(base_snap));
 
     let variants = vec![
-        Variant { id: "baseline".to_string(), snapshot: canary_snap.clone() },
-        Variant { id: "canary".to_string(), snapshot: make_dummy_snapshot(3) },
+        Variant {
+            id: "baseline".to_string(),
+            snapshot: canary_snap.clone(),
+        },
+        Variant {
+            id: "canary".to_string(),
+            snapshot: make_dummy_snapshot(3),
+        },
     ];
 
     let allocations = vec![
@@ -77,7 +85,8 @@ fn test_canary_experiment_router_sticky_and_invariants() {
         variants,
         allocations,
         RoutingStrategy::StickyHashRouting,
-    ).unwrap();
+    )
+    .unwrap();
 
     let router = CanaryExperimentRouter::new(provider, config);
 

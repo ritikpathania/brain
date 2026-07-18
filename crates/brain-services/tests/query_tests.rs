@@ -1,26 +1,26 @@
-use std::sync::Arc;
-use uuid::Uuid;
 use brain_core::repositories::SessionRepository;
 use brain_domain::jobs::{JobId, JobOwner, JobState, JobTimestamp};
 use brain_domain::{
-    Session, SessionId, SessionTitle, SessionTimestamp, Message, MessageId, MessageRole,
-    SearchDocument, SearchDocumentId, SearchDocumentKind, SearchMetadata
+    Message, MessageId, MessageRole, SearchDocument, SearchDocumentId, SearchDocumentKind,
+    SearchMetadata, Session, SessionId, SessionTimestamp, SessionTitle,
 };
-use brain_storage::{
-    TestStorage, SqliteJobReadModelRepository, SqliteSessionReadModelRepository,
-    SqliteSearchRepository, JobReadModel, SessionReadModel, SqliteEventLog, SqliteProjectionCheckpointRepository,
-    ReadModelRepository
-};
-use brain_events::{EventEnvelope, DomainEvent, EventLog};
-use brain_services::SystemEventLog;
-use brain_services::query::{
-    JobQuery, SessionQuery, SearchQuery, PaginationSpec, JobQueryService, SessionQueryService, SearchQueryService,
-    SqliteJobQueryService, SqliteSessionQueryService, SqliteSearchQueryService
-};
+use brain_events::{DomainEvent, EventEnvelope, EventLog};
 use brain_services::projections::{
-    ProjectionRunner, SessionProjectionReducer, SearchProjectionReducer,
-    ProjectionNotificationBus
+    ProjectionNotificationBus, ProjectionRunner, SearchProjectionReducer, SessionProjectionReducer,
 };
+use brain_services::query::{
+    JobQuery, JobQueryService, PaginationSpec, SearchQuery, SearchQueryService, SessionQuery,
+    SessionQueryService, SqliteJobQueryService, SqliteSearchQueryService,
+    SqliteSessionQueryService,
+};
+use brain_services::SystemEventLog;
+use brain_storage::{
+    JobReadModel, ReadModelRepository, SessionReadModel, SqliteEventLog,
+    SqliteJobReadModelRepository, SqliteProjectionCheckpointRepository, SqliteSearchRepository,
+    SqliteSessionReadModelRepository, TestStorage,
+};
+use std::sync::Arc;
+use uuid::Uuid;
 
 #[test]
 fn test_job_query_service() {
@@ -69,23 +69,27 @@ fn test_job_query_service() {
     assert_eq!(list_all[1].job_id, JobId(job_id1));
 
     // Query filtered
-    let query_filtered = service.list_jobs(JobQuery {
-        owner: Some(JobOwner::System),
-        state: Some(JobState::Pending),
-        pagination: None,
-    }).unwrap();
+    let query_filtered = service
+        .list_jobs(JobQuery {
+            owner: Some(JobOwner::System),
+            state: Some(JobState::Pending),
+            pagination: None,
+        })
+        .unwrap();
     assert_eq!(query_filtered.len(), 1);
     assert_eq!(query_filtered[0].job_id, JobId(job_id1));
 
     // Pagination limit
-    let paginated = service.list_jobs(JobQuery {
-        owner: None,
-        state: None,
-        pagination: Some(PaginationSpec {
-            limit: Some(1),
-            offset: None,
-        }),
-    }).unwrap();
+    let paginated = service
+        .list_jobs(JobQuery {
+            owner: None,
+            state: None,
+            pagination: Some(PaginationSpec {
+                limit: Some(1),
+                offset: None,
+            }),
+        })
+        .unwrap();
     assert_eq!(paginated.len(), 1);
     assert_eq!(paginated[0].job_id, JobId(job_id2));
 
@@ -102,7 +106,7 @@ fn test_session_query_service() {
     let test_storage = TestStorage::new();
     let pool = test_storage.store().pool().clone();
     let proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
-    
+
     // Core session repository interface is implemented by SqliteStorage
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
     let service = SqliteSessionQueryService::new(proj_repo.clone(), session_repo.clone());
@@ -134,17 +138,27 @@ fn test_session_query_service() {
     proj_repo.save(&s2_read).unwrap();
 
     // Create a real session aggregate to load messages from
-    let mut session = Session::new(session_id1, SessionTitle("Session 1".to_string()), SessionTimestamp(1000));
-    let msg1 = Message::new(MessageId::new(), MessageRole::User, "Hello user query service".to_string());
+    let mut session = Session::new(
+        session_id1,
+        SessionTitle("Session 1".to_string()),
+        SessionTimestamp(1000),
+    );
+    let msg1 = Message::new(
+        MessageId::new(),
+        MessageRole::User,
+        "Hello user query service".to_string(),
+    );
     session.add_message(msg1).unwrap();
     session_repo.save_session(&session_id1, &session).unwrap();
 
     // Query active list
-    let list_active = service.list_sessions(SessionQuery {
-        is_archived: Some(false),
-        is_pinned: None,
-        pagination: None,
-    }).unwrap();
+    let list_active = service
+        .list_sessions(SessionQuery {
+            is_archived: Some(false),
+            is_pinned: None,
+            pagination: None,
+        })
+        .unwrap();
     assert_eq!(list_active.len(), 1);
     assert_eq!(list_active[0].session_id, session_id1);
 
@@ -187,7 +201,13 @@ fn test_search_query_service() {
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].id, doc_id);
     assert_eq!(results[0].title, "Introduction to Rust");
-    assert_eq!(results[0].metadata, SearchMetadata::Session { archived: false, pinned: true });
+    assert_eq!(
+        results[0].metadata,
+        SearchMetadata::Session {
+            archived: false,
+            pinned: true
+        }
+    );
 }
 
 #[test]
@@ -201,7 +221,11 @@ fn test_cross_projection_consistency() {
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let search_repo = Arc::new(SqliteSearchRepository::new(pool));
 
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo, Arc::new(ProjectionNotificationBus::new()));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo,
+        Arc::new(ProjectionNotificationBus::new()),
+    );
 
     let session_reducer = SessionProjectionReducer::new(session_proj_repo.clone());
     let search_reducer = SearchProjectionReducer::new(search_repo.clone());
@@ -221,7 +245,9 @@ fn test_cross_projection_consistency() {
         title: SessionTitle("Old Session Name".to_string()),
         created_at: SessionTimestamp(100),
     });
-    event_log.append(&EventEnvelope::new("test".to_string(), ev1)).unwrap();
+    event_log
+        .append(&EventEnvelope::new("test".to_string(), ev1))
+        .unwrap();
 
     runner.catch_up().unwrap();
 
@@ -231,28 +257,37 @@ fn test_cross_projection_consistency() {
         title: SessionTitle("New Updated Title".to_string()),
         updated_at: SessionTimestamp(150),
     });
-    event_log.append(&EventEnvelope::new("test".to_string(), ev2)).unwrap();
+    event_log
+        .append(&EventEnvelope::new("test".to_string(), ev2))
+        .unwrap();
 
     runner.catch_up().unwrap();
 
     // Verify SessionQueryService returns new title
-    let session_details = session_query_service.get_session(&session_id).unwrap().unwrap();
+    let session_details = session_query_service
+        .get_session(&session_id)
+        .unwrap()
+        .unwrap();
     assert_eq!(session_details.title.0, "New Updated Title");
 
     // Verify SearchQueryService finds the new title
-    let search_res = search_query_service.search(SearchQuery {
-        text: "New Updated".to_string(),
-        kinds: None,
-        pagination: None,
-    }).unwrap();
+    let search_res = search_query_service
+        .search(SearchQuery {
+            text: "New Updated".to_string(),
+            kinds: None,
+            pagination: None,
+        })
+        .unwrap();
     assert_eq!(search_res.len(), 1);
     assert_eq!(search_res[0].title, "New Updated Title");
 
     // Verify SearchQueryService does NOT find the old title
-    let search_old_res = search_query_service.search(SearchQuery {
-        text: "Old Session".to_string(),
-        kinds: None,
-        pagination: None,
-    }).unwrap();
+    let search_old_res = search_query_service
+        .search(SearchQuery {
+            text: "Old Session".to_string(),
+            kinds: None,
+            pagination: None,
+        })
+        .unwrap();
     assert_eq!(search_old_res.len(), 0);
 }

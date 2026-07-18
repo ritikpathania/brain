@@ -1,6 +1,6 @@
+use chrono::Utc;
 use rusqlite::{params, Connection};
 use std::sync::{Arc, Mutex};
-use chrono::Utc;
 
 use crate::plugins::StorageBackend;
 use crate::storage::{ExtractedEdge, ExtractedNode};
@@ -48,12 +48,16 @@ impl LtmDatabase {
 
     /// Inserts an ingestion event into the SQLite event_log table.
     /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
-    pub fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, rusqlite::Error> {
+    pub fn insert_event(
+        &self,
+        envelope: &brain_integrations::IngestionEnvelope,
+    ) -> Result<u64, rusqlite::Error> {
         let conn_guard = self.conn.lock().unwrap();
 
         // 1. Check for duplicates
         let event_id_str = envelope.identity.event_id.to_string();
-        let mut check_stmt = conn_guard.prepare("SELECT sequence FROM event_log WHERE event_id = ?1")?;
+        let mut check_stmt =
+            conn_guard.prepare("SELECT sequence FROM event_log WHERE event_id = ?1")?;
         let mut rows = check_stmt.query(params![event_id_str])?;
         if let Some(row) = rows.next()? {
             let seq: i64 = row.get(0)?;
@@ -99,7 +103,10 @@ impl LtmDatabase {
     }
 
     /// Checks if the event_id already exists in the log.
-    pub fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, rusqlite::Error> {
+    pub fn is_duplicate_event(
+        &self,
+        event_id: &brain_domain::EventId,
+    ) -> Result<bool, rusqlite::Error> {
         let conn_guard = self.conn.lock().unwrap();
         let mut stmt = conn_guard.prepare("SELECT 1 FROM event_log WHERE event_id = ?1")?;
         let exists = stmt.exists(params![event_id.to_string()])?;
@@ -107,10 +114,14 @@ impl LtmDatabase {
     }
 
     /// Replays events starting after the given sequence number.
-    pub fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, rusqlite::Error> {
+    pub fn get_events_after(
+        &self,
+        sequence: u64,
+    ) -> Result<Vec<brain_integrations::IngestionEnvelope>, rusqlite::Error> {
         let conn_guard = self.conn.lock().unwrap();
-        let mut stmt = conn_guard.prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC")?;
-        
+        let mut stmt = conn_guard
+            .prepare("SELECT payload FROM event_log WHERE sequence > ?1 ORDER BY sequence ASC")?;
+
         let rows = stmt.query_map(params![sequence], |row| {
             let payload_str: String = row.get(0)?;
             Ok(payload_str)
@@ -119,8 +130,9 @@ impl LtmDatabase {
         let mut envelopes = Vec::new();
         for row in rows {
             let payload_str = row?;
-            let envelope: brain_integrations::IngestionEnvelope = serde_json::from_str(&payload_str)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            let envelope: brain_integrations::IngestionEnvelope =
+                serde_json::from_str(&payload_str)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
             envelopes.push(envelope);
         }
 
@@ -412,7 +424,8 @@ impl StorageBackend for LtmDatabase {
             match op {
                 brain_domain::bkf::SqliteOp::Node(delta) => match delta {
                     brain_domain::bkf::ProjectionDelta::Insert(node) => {
-                        let props_json = serde_json::to_string(&node.attributes).unwrap_or_default();
+                        let props_json =
+                            serde_json::to_string(&node.attributes).unwrap_or_default();
                         tx.execute(
                             "INSERT INTO nodes (id, label, type, properties, updated_at, lifecycle, validity, version_state) \
                              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) \
@@ -437,7 +450,8 @@ impl StorageBackend for LtmDatabase {
                         ).map_err(|e| e.to_string())?;
                     }
                     brain_domain::bkf::ProjectionDelta::Update { id, changes } => {
-                        let props_json = serde_json::to_string(&changes.attributes).unwrap_or_default();
+                        let props_json =
+                            serde_json::to_string(&changes.attributes).unwrap_or_default();
                         tx.execute(
                             "UPDATE nodes SET label = ?1, type = ?2, properties = ?3, updated_at = ?4, lifecycle = ?5, validity = ?6, version_state = ?7 WHERE id = ?8",
                             (
@@ -453,7 +467,8 @@ impl StorageBackend for LtmDatabase {
                         ).map_err(|e| e.to_string())?;
                     }
                     brain_domain::bkf::ProjectionDelta::Delete(id) => {
-                        tx.execute("DELETE FROM nodes WHERE id = ?1", [id]).map_err(|e| e.to_string())?;
+                        tx.execute("DELETE FROM nodes WHERE id = ?1", [id])
+                            .map_err(|e| e.to_string())?;
                     }
                 },
                 brain_domain::bkf::SqliteOp::Edge(delta) => match delta {
@@ -537,13 +552,19 @@ impl StorageBackend for LtmDatabase {
 }
 
 impl crate::plugins::traits::EventLogRepository for LtmDatabase {
-    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, String> {
+    fn insert_event(
+        &self,
+        envelope: &brain_integrations::IngestionEnvelope,
+    ) -> Result<u64, String> {
         self.insert_event(envelope).map_err(|e| e.to_string())
     }
     fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, String> {
         self.is_duplicate_event(event_id).map_err(|e| e.to_string())
     }
-    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, String> {
+    fn get_events_after(
+        &self,
+        sequence: u64,
+    ) -> Result<Vec<brain_integrations::IngestionEnvelope>, String> {
         self.get_events_after(sequence).map_err(|e| e.to_string())
     }
 }

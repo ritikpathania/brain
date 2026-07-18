@@ -1,11 +1,13 @@
 use crate::identifiers::NodeId;
-use crate::retrieval::models::{
-    PhysicalRetrievalPlan, PhysicalStep, RetrievalResult, RetrievedCandidate,
-    RetrievalExecutionContext, CanonicalQuery
-};
-use crate::retrieval::source::{RetrievalSource, VectorSource, KeywordSource, GraphExpansionSource};
 use crate::retrieval::fusion::CandidateFusionStrategy;
+use crate::retrieval::models::{
+    CanonicalQuery, PhysicalRetrievalPlan, PhysicalStep, RetrievalExecutionContext,
+    RetrievalResult, RetrievedCandidate,
+};
 use crate::retrieval::ranking::RankingStrategy;
+use crate::retrieval::source::{
+    GraphExpansionSource, KeywordSource, RetrievalSource, VectorSource,
+};
 use crate::retrieval::speculation::SpeculationStrategy;
 
 /// Interface to check if execution has been requested to abort.
@@ -61,7 +63,12 @@ enum SpeculationDecision {
 }
 
 /// Executor executing Optimized physical plans.
-pub struct RetrievalExecutor<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send + Sync> {
+pub struct RetrievalExecutor<
+    'a,
+    'b,
+    F: CandidateFusionStrategy + Send + Sync,
+    R: RankingStrategy + Send + Sync,
+> {
     /// Consolidated read context holding graph, indexes, and validations.
     pub context: &'b RetrievalExecutionContext<'a>,
     /// Chosen Candidate Fusion Strategy (e.g. Reciprocal Rank Fusion).
@@ -74,7 +81,9 @@ pub struct RetrievalExecutor<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R
     pub speculation_strategy: Box<dyn SpeculationStrategy>,
 }
 
-impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send + Sync> RetrievalExecutor<'a, 'b, F, R> {
+impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send + Sync>
+    RetrievalExecutor<'a, 'b, F, R>
+{
     /// Creates a new physical `RetrievalExecutor`.
     pub fn new(
         context: &'b RetrievalExecutionContext<'a>,
@@ -97,10 +106,7 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
     }
 
     /// Declares a new SpeculationStrategy for the executor (replacing existing strategy).
-    pub fn with_speculation_strategy(
-        mut self,
-        strategy: Box<dyn SpeculationStrategy>,
-    ) -> Self {
+    pub fn with_speculation_strategy(mut self, strategy: Box<dyn SpeculationStrategy>) -> Self {
         self.speculation_strategy = strategy;
         self
     }
@@ -117,7 +123,7 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
         }
         if cancellation.is_cancelled() {
             *has_terminated = true;
-            use crate::retrieval::stream::{RetrievalEvent, CompletionReason};
+            use crate::retrieval::stream::{CompletionReason, RetrievalEvent};
             let empty_report = crate::retrieval::models::RetrievalExecutionReport {
                 planning: crate::retrieval::models::PlanningMetadata {
                     estimated_cost: crate::retrieval::models::EstimatedCost {
@@ -180,13 +186,20 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
     /// Performs the retrieval instructions within a PhysicalRetrievalPlan.
     ///
     /// Monotonicity guarantee: Excludes any graph mutations or updates.
-    pub fn execute(&self, plan: PhysicalRetrievalPlan, cancellation: &dyn CancellationChecker) -> RetrievalResult {
+    pub fn execute(
+        &self,
+        plan: PhysicalRetrievalPlan,
+        cancellation: &dyn CancellationChecker,
+    ) -> RetrievalResult {
         let start_time = std::time::Instant::now();
         let mut planner_decisions = Vec::new();
         let mut optimizer_decisions = Vec::new();
 
         planner_decisions.push("Formulated logical retrieval sequence".to_string());
-        optimizer_decisions.push(format!("Optimized plan to {} steps", plan.physical_steps.len()));
+        optimizer_decisions.push(format!(
+            "Optimized plan to {} steps",
+            plan.physical_steps.len()
+        ));
 
         // Sequential execution mode fallback
         if self.policy == ExecutionPolicy::Sequential {
@@ -197,14 +210,22 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             for step in &plan.physical_steps {
                 if cancellation.is_cancelled() {
-                    return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
+                    return self.empty_cancelled_result(
+                        plan.cost,
+                        plan.heuristics_version,
+                        start_time,
+                    );
                 }
                 match step {
                     PhysicalStep::VectorRetrieve { query } => {
                         let mut clean_query = query.clone();
                         if query.contains("__delay_") {
                             if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                if let Some(ms) = delay_str
+                                    .split("ms")
+                                    .next()
+                                    .and_then(|s| s.parse::<u64>().ok())
+                                {
                                     std::thread::sleep(std::time::Duration::from_millis(ms));
                                 }
                             }
@@ -222,7 +243,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                         let mut clean_query = query.clone();
                         if query.contains("__delay_") {
                             if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                if let Some(ms) = delay_str
+                                    .split("ms")
+                                    .next()
+                                    .and_then(|s| s.parse::<u64>().ok())
+                                {
                                     std::thread::sleep(std::time::Duration::from_millis(ms));
                                 }
                             }
@@ -236,7 +261,10 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                         }
                         runs.push(candidates);
                     }
-                    PhysicalStep::ExpandNeighbors { source_nodes, policy } => {
+                    PhysicalStep::ExpandNeighbors {
+                        source_nodes,
+                        policy,
+                    } => {
                         let mut hydrated = source_nodes.clone();
                         if hydrated.is_empty() {
                             hydrated = seed_nodes.clone();
@@ -277,7 +305,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                     ranking_operations,
                 },
             };
-            return RetrievalResult { candidates, explanations, report };
+            return RetrievalResult {
+                candidates,
+                explanations,
+                report,
+            };
         }
 
         // Classify work into Independent and Dependent stages
@@ -309,15 +341,23 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         if self.policy == ExecutionPolicy::Speculative {
             if let Some((_dep_idx, _dep_step)) = dependent_step {
-                let query_str = plan.physical_steps.iter().find_map(|step| match step {
-                    PhysicalStep::VectorRetrieve { query } => Some(query.clone()),
-                    PhysicalStep::KeywordRetrieve { query } => Some(query.clone()),
-                    _ => None,
-                }).unwrap_or_default();
+                let query_str = plan
+                    .physical_steps
+                    .iter()
+                    .find_map(|step| match step {
+                        PhysicalStep::VectorRetrieve { query } => Some(query.clone()),
+                        PhysicalStep::KeywordRetrieve { query } => Some(query.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
 
                 let mut clean_query_str = query_str.clone();
                 if query_str.contains("__delay_") {
-                    clean_query_str = query_str.split("__delay_").next().unwrap_or_default().to_string();
+                    clean_query_str = query_str
+                        .split("__delay_")
+                        .next()
+                        .unwrap_or_default()
+                        .to_string();
                 }
 
                 let dummy_query = CanonicalQuery {
@@ -330,7 +370,9 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                     disable_expansion: false,
                 };
 
-                let spec_plan = self.speculation_strategy.predict(&dummy_query, self.context);
+                let spec_plan = self
+                    .speculation_strategy
+                    .predict(&dummy_query, self.context);
                 speculative_seeds = spec_plan.predicted_seeds;
                 runs_speculation = true;
             }
@@ -355,7 +397,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             let mut clean_query = query.clone();
                             if query.contains("__delay_") {
                                 if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                    if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                    if let Some(ms) = delay_str
+                                        .split("ms")
+                                        .next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                    {
                                         std::thread::sleep(std::time::Duration::from_millis(ms));
                                     }
                                 }
@@ -373,7 +419,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             let mut clean_query = query.clone();
                             if query.contains("__delay_") {
                                 if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                    if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                    if let Some(ms) = delay_str
+                                        .split("ms")
+                                        .next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                    {
                                         std::thread::sleep(std::time::Duration::from_millis(ms));
                                     }
                                 }
@@ -387,8 +437,12 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                                 seed_nodes.push(c.node_id);
                             }
                         }
-                        PhysicalStep::ExpandNeighbors { source_nodes, policy } => {
-                            let source = GraphExpansionSource::new(source_nodes.clone(), policy.clone());
+                        PhysicalStep::ExpandNeighbors {
+                            source_nodes,
+                            policy,
+                        } => {
+                            let source =
+                                GraphExpansionSource::new(source_nodes.clone(), policy.clone());
                             candidates = source.retrieve(self.context);
                             expansions_performed = candidates.len();
                             candidates_produced = candidates.len();
@@ -481,11 +535,18 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                 // If there is a dependent step, we run it sequentially on the main thread
                 if let Some((_idx, step)) = dependent_step {
                     if cancellation.is_cancelled() {
-                        return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
+                        return self.empty_cancelled_result(
+                            plan.cost,
+                            plan.heuristics_version,
+                            start_time,
+                        );
                     }
                     if let PhysicalStep::ExpandNeighbors { policy, .. } = step {
                         if !merged.seed_nodes.is_empty() {
-                            let source = GraphExpansionSource::new(merged.seed_nodes.clone(), policy.clone());
+                            let source = GraphExpansionSource::new(
+                                merged.seed_nodes.clone(),
+                                policy.clone(),
+                            );
                             let candidates = source.retrieve(self.context);
                             expansions_performed += candidates.len();
                             candidates_produced += candidates.len();
@@ -542,15 +603,18 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
         sink: &mut dyn crate::retrieval::stream::RetrievalSink,
         cancellation: &dyn CancellationChecker,
     ) -> RetrievalResult {
-        use crate::retrieval::stream::{RetrievalEvent, RetrievalStage, CompletionReason};
         use crate::retrieval::models::RetrievalExplanation;
+        use crate::retrieval::stream::{CompletionReason, RetrievalEvent, RetrievalStage};
 
         let start_time = std::time::Instant::now();
         let mut planner_decisions = Vec::new();
         let mut optimizer_decisions = Vec::new();
 
         planner_decisions.push("Formulated logical retrieval sequence".to_string());
-        optimizer_decisions.push(format!("Optimized plan to {} steps", plan.physical_steps.len()));
+        optimizer_decisions.push(format!(
+            "Optimized plan to {} steps",
+            plan.physical_steps.len()
+        ));
 
         let mut has_terminated = false;
 
@@ -567,14 +631,22 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             for step in &plan.physical_steps {
                 if self.check_cancel(cancellation, sink, &mut has_terminated) {
-                    return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
+                    return self.empty_cancelled_result(
+                        plan.cost,
+                        plan.heuristics_version,
+                        start_time,
+                    );
                 }
                 match step {
                     PhysicalStep::VectorRetrieve { query } => {
                         let mut clean_query = query.clone();
                         if query.contains("__delay_") {
                             if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                if let Some(ms) = delay_str
+                                    .split("ms")
+                                    .next()
+                                    .and_then(|s| s.parse::<u64>().ok())
+                                {
                                     std::thread::sleep(std::time::Duration::from_millis(ms));
                                 }
                             }
@@ -602,7 +674,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                         let mut clean_query = query.clone();
                         if query.contains("__delay_") {
                             if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                if let Some(ms) = delay_str
+                                    .split("ms")
+                                    .next()
+                                    .and_then(|s| s.parse::<u64>().ok())
+                                {
                                     std::thread::sleep(std::time::Duration::from_millis(ms));
                                 }
                             }
@@ -626,7 +702,10 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                         runs.push(candidates);
                         sink.on_event(RetrievalEvent::StageCompleted { stage });
                     }
-                    PhysicalStep::ExpandNeighbors { source_nodes, policy } => {
+                    PhysicalStep::ExpandNeighbors {
+                        source_nodes,
+                        policy,
+                    } => {
                         let mut hydrated = source_nodes.clone();
                         if hydrated.is_empty() {
                             hydrated = seed_nodes.clone();
@@ -659,20 +738,28 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
             }
 
             let stage_fusion = RetrievalStage::Fusion;
-            sink.on_event(RetrievalEvent::StageStarted { stage: stage_fusion });
+            sink.on_event(RetrievalEvent::StageStarted {
+                stage: stage_fusion,
+            });
             let fused = self.fusion_strategy.fuse(&runs);
             let candidates_fused = fused.len();
-            sink.on_event(RetrievalEvent::StageCompleted { stage: stage_fusion });
+            sink.on_event(RetrievalEvent::StageCompleted {
+                stage: stage_fusion,
+            });
 
             if self.check_cancel(cancellation, sink, &mut has_terminated) {
                 return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
             }
 
             let stage_ranking = RetrievalStage::Ranking;
-            sink.on_event(RetrievalEvent::StageStarted { stage: stage_ranking });
+            sink.on_event(RetrievalEvent::StageStarted {
+                stage: stage_ranking,
+            });
             let (candidates, explanations) = self.ranking_strategy.rank(&fused);
             let ranking_operations = candidates.len();
-            sink.on_event(RetrievalEvent::StageCompleted { stage: stage_ranking });
+            sink.on_event(RetrievalEvent::StageCompleted {
+                stage: stage_ranking,
+            });
 
             let elapsed_microseconds = start_time.elapsed().as_micros() as u64;
             let report = crate::retrieval::models::RetrievalExecutionReport {
@@ -690,7 +777,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                     ranking_operations,
                 },
             };
-            let result = RetrievalResult { candidates, explanations, report };
+            let result = RetrievalResult {
+                candidates,
+                explanations,
+                report,
+            };
             sink.on_event(RetrievalEvent::Completed {
                 reason: CompletionReason::Finished,
                 result: result.clone(),
@@ -723,15 +814,23 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         if self.policy == ExecutionPolicy::Speculative {
             if let Some((_dep_idx, _dep_step)) = dependent_step {
-                let query_str = plan.physical_steps.iter().find_map(|step| match step {
-                    PhysicalStep::VectorRetrieve { query } => Some(query.clone()),
-                    PhysicalStep::KeywordRetrieve { query } => Some(query.clone()),
-                    _ => None,
-                }).unwrap_or_default();
+                let query_str = plan
+                    .physical_steps
+                    .iter()
+                    .find_map(|step| match step {
+                        PhysicalStep::VectorRetrieve { query } => Some(query.clone()),
+                        PhysicalStep::KeywordRetrieve { query } => Some(query.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
 
                 let mut clean_query_str = query_str.clone();
                 if query_str.contains("__delay_") {
-                    clean_query_str = query_str.split("__delay_").next().unwrap_or_default().to_string();
+                    clean_query_str = query_str
+                        .split("__delay_")
+                        .next()
+                        .unwrap_or_default()
+                        .to_string();
                 }
 
                 let dummy_query = CanonicalQuery {
@@ -744,7 +843,9 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                     disable_expansion: false,
                 };
 
-                let spec_plan = self.speculation_strategy.predict(&dummy_query, self.context);
+                let spec_plan = self
+                    .speculation_strategy
+                    .predict(&dummy_query, self.context);
                 speculative_seeds = spec_plan.predicted_seeds;
                 runs_speculation = true;
             }
@@ -768,7 +869,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             let mut clean_query = query.clone();
                             if query.contains("__delay_") {
                                 if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                    if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                    if let Some(ms) = delay_str
+                                        .split("ms")
+                                        .next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                    {
                                         std::thread::sleep(std::time::Duration::from_millis(ms));
                                     }
                                 }
@@ -786,7 +891,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             let mut clean_query = query.clone();
                             if query.contains("__delay_") {
                                 if let Some(delay_str) = query.split("__delay_").nth(1) {
-                                    if let Some(ms) = delay_str.split("ms").next().and_then(|s| s.parse::<u64>().ok()) {
+                                    if let Some(ms) = delay_str
+                                        .split("ms")
+                                        .next()
+                                        .and_then(|s| s.parse::<u64>().ok())
+                                    {
                                         std::thread::sleep(std::time::Duration::from_millis(ms));
                                     }
                                 }
@@ -800,8 +909,12 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                                 seed_nodes.push(c.node_id);
                             }
                         }
-                        PhysicalStep::ExpandNeighbors { source_nodes, policy } => {
-                            let source = GraphExpansionSource::new(source_nodes.clone(), policy.clone());
+                        PhysicalStep::ExpandNeighbors {
+                            source_nodes,
+                            policy,
+                        } => {
+                            let source =
+                                GraphExpansionSource::new(source_nodes.clone(), policy.clone());
                             candidates = source.retrieve(self.context);
                             expansions_performed = candidates.len();
                             candidates_produced = candidates.len();
@@ -958,7 +1071,11 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                 // If there is a dependent step, we run it sequentially and emit its events
                 if let Some((_idx, step)) = dependent_step {
                     if self.check_cancel(cancellation, sink, &mut has_terminated) {
-                        return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
+                        return self.empty_cancelled_result(
+                            plan.cost,
+                            plan.heuristics_version,
+                            start_time,
+                        );
                     }
 
                     if let PhysicalStep::ExpandNeighbors { policy, .. } = step {
@@ -966,7 +1083,10 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
                             let stage = RetrievalStage::GraphExpansion;
                             sink.on_event(RetrievalEvent::StageStarted { stage });
 
-                            let source = GraphExpansionSource::new(merged.seed_nodes.clone(), policy.clone());
+                            let source = GraphExpansionSource::new(
+                                merged.seed_nodes.clone(),
+                                policy.clone(),
+                            );
                             let candidates = source.retrieve(self.context);
                             expansions_performed += candidates.len();
                             candidates_produced += candidates.len();
@@ -995,10 +1115,14 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         // Fusion Stage
         let stage_fusion = RetrievalStage::Fusion;
-        sink.on_event(RetrievalEvent::StageStarted { stage: stage_fusion });
+        sink.on_event(RetrievalEvent::StageStarted {
+            stage: stage_fusion,
+        });
         let fused = self.fusion_strategy.fuse(&merged.runs);
         let candidates_fused = fused.len();
-        sink.on_event(RetrievalEvent::StageCompleted { stage: stage_fusion });
+        sink.on_event(RetrievalEvent::StageCompleted {
+            stage: stage_fusion,
+        });
 
         if self.check_cancel(cancellation, sink, &mut has_terminated) {
             return self.empty_cancelled_result(plan.cost, plan.heuristics_version, start_time);
@@ -1006,10 +1130,14 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
         // Ranking Stage
         let stage_ranking = RetrievalStage::Ranking;
-        sink.on_event(RetrievalEvent::StageStarted { stage: stage_ranking });
+        sink.on_event(RetrievalEvent::StageStarted {
+            stage: stage_ranking,
+        });
         let (candidates, explanations) = self.ranking_strategy.rank(&fused);
         let ranking_operations = candidates.len();
-        sink.on_event(RetrievalEvent::StageCompleted { stage: stage_ranking });
+        sink.on_event(RetrievalEvent::StageCompleted {
+            stage: stage_ranking,
+        });
 
         let elapsed_microseconds = start_time.elapsed().as_micros() as u64;
 

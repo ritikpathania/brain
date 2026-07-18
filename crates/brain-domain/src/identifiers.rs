@@ -27,7 +27,6 @@ impl fmt::Display for SessionId {
     }
 }
 
-
 /// Strongly-typed identifier for a session goal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct GoalId(pub Uuid);
@@ -542,7 +541,9 @@ impl std::str::FromStr for AdapterId {
 }
 
 /// Strongly-typed identifier for an individual message's timestamp.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct MessageTimestamp(pub u64);
 
 impl fmt::Display for MessageTimestamp {
@@ -608,7 +609,3 @@ impl fmt::Display for EpochId {
         write!(f, "{}", self.0)
     }
 }
-
-
-
-

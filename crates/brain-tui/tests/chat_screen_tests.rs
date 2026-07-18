@@ -1,13 +1,13 @@
 mod common;
 
+use brain_tui::ui::layout::{LayoutEngine, ResponsiveProfile, SIDEBAR_BREAKPOINT};
+use brain_tui::ui::render::{IconSet, RenderContext};
+use brain_tui::ui::screen::Screen;
+use brain_tui::ui::theme::dark_theme;
+use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+use brain_tui::ui::widgets::ChatScreen;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use brain_tui::ui::theme::dark_theme;
-use brain_tui::ui::screen::Screen;
-use brain_tui::ui::render::{RenderContext, IconSet};
-use brain_tui::ui::widgets::view_models::{ChatScreenView, FocusTarget, ConnectionState};
-use brain_tui::ui::widgets::ChatScreen;
-use brain_tui::ui::layout::{LayoutEngine, ResponsiveProfile, SIDEBAR_BREAKPOINT};
 
 #[test]
 fn test_chat_screen_partition_invariants() {
@@ -39,7 +39,10 @@ fn test_chat_screen_partition_invariants() {
 
             let body_h = geometry.sidebar_area.height;
             assert_eq!(
-                geometry.status_bar_area.height + body_h + geometry.prompt_area.height + geometry.footer_area.height,
+                geometry.status_bar_area.height
+                    + body_h
+                    + geometry.prompt_area.height
+                    + geometry.footer_area.height,
                 area.height
             );
         }
@@ -64,7 +67,12 @@ fn test_chat_screen_golden_snapshots() {
     let theme = dark_theme();
     let icons = IconSet::new(true);
     let capabilities = common::mock_capabilities();
-    let ctx = RenderContext { theme, icons: &icons, capabilities, tick: 0 };
+    let ctx = RenderContext {
+        theme,
+        icons: &icons,
+        capabilities,
+        tick: 0,
+    };
 
     let view = ChatScreenView {
         session_title: "General Thread",

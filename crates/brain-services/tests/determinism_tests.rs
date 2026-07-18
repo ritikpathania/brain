@@ -33,12 +33,22 @@ fn test_query_and_sorting_determinism() {
         store.nodes().save(&sqlite).unwrap();
         store.nodes().save(&duckdb).unwrap();
 
-        store.edges().save(&Edge::new(brain_id, sqlite_id, RelationKind::Uses, 1.0)).unwrap();
-        store.edges().save(&Edge::new(brain_id, duckdb_id, RelationKind::Uses, 1.0)).unwrap();
+        store
+            .edges()
+            .save(&Edge::new(brain_id, sqlite_id, RelationKind::Uses, 1.0))
+            .unwrap();
+        store
+            .edges()
+            .save(&Edge::new(brain_id, duckdb_id, RelationKind::Uses, 1.0))
+            .unwrap();
 
         let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
         let pipeline = MemoryPipelineBuilder::new()
-            .register_source(Arc::new(StmMemorySource::new(cache_manager.clone(), store.clone(), registry.clone())))
+            .register_source(Arc::new(StmMemorySource::new(
+                cache_manager.clone(),
+                store.clone(),
+                registry.clone(),
+            )))
             .register_source(Arc::new(LtmMemorySource::new(store.clone(), registry)))
             .with_policy(CacheHydrationPolicy::OnHit)
             .with_cache_manager(cache_manager)
@@ -77,7 +87,10 @@ fn test_property_merging_determinism() {
     // Insert 1: Base properties
     let mut props1 = HashMap::new();
     props1.insert("version".to_string(), serde_json::json!(1.0));
-    props1.insert("desc".to_string(), serde_json::json!("original description"));
+    props1.insert(
+        "desc".to_string(),
+        serde_json::json!("original description"),
+    );
     let node1 = Node::new(node_id, "Test Node".to_string(), NodeType::Concept)
         .with_properties(props1)
         .with_updated_at(100);
@@ -100,9 +113,18 @@ fn test_property_merging_determinism() {
     let fetched = store.nodes().find_by_id(&node_id).unwrap().unwrap();
 
     // Verify deterministic merge output
-    assert_eq!(fetched.properties.get("version").unwrap(), &serde_json::json!(2.0));
-    assert_eq!(fetched.properties.get("desc").unwrap(), &serde_json::json!("original description"));
-    assert_eq!(fetched.properties.get("author").unwrap(), &serde_json::json!("developer"));
+    assert_eq!(
+        fetched.properties.get("version").unwrap(),
+        &serde_json::json!(2.0)
+    );
+    assert_eq!(
+        fetched.properties.get("desc").unwrap(),
+        &serde_json::json!("original description")
+    );
+    assert_eq!(
+        fetched.properties.get("author").unwrap(),
+        &serde_json::json!("developer")
+    );
     assert_eq!(fetched.label, "Test Node Updated");
 }
 
@@ -115,13 +137,28 @@ fn test_graph_traversal_determinism() {
     let n2 = NodeId::new();
     let n3 = NodeId::new();
 
-    store.nodes().save(&Node::new(n1, "N1".to_string(), NodeType::Concept)).unwrap();
-    store.nodes().save(&Node::new(n2, "N2".to_string(), NodeType::Concept)).unwrap();
-    store.nodes().save(&Node::new(n3, "N3".to_string(), NodeType::Concept)).unwrap();
+    store
+        .nodes()
+        .save(&Node::new(n1, "N1".to_string(), NodeType::Concept))
+        .unwrap();
+    store
+        .nodes()
+        .save(&Node::new(n2, "N2".to_string(), NodeType::Concept))
+        .unwrap();
+    store
+        .nodes()
+        .save(&Node::new(n3, "N3".to_string(), NodeType::Concept))
+        .unwrap();
 
     // Add edges in specific order
-    store.edges().save(&Edge::new(n1, n2, RelationKind::Uses, 0.5)).unwrap();
-    store.edges().save(&Edge::new(n2, n3, RelationKind::Uses, 0.8)).unwrap();
+    store
+        .edges()
+        .save(&Edge::new(n1, n2, RelationKind::Uses, 0.5))
+        .unwrap();
+    store
+        .edges()
+        .save(&Edge::new(n2, n3, RelationKind::Uses, 0.8))
+        .unwrap();
 
     let traversal_service = brain_services::retrieval::graph_service::Graph;
     let budget = brain_services::retrieval::graph_service::TraversalBudget {
@@ -134,8 +171,12 @@ fn test_graph_traversal_determinism() {
     };
 
     let registry = brain_domain::RelationRegistry::default_embedded();
-    let edges1 = traversal_service.expand_neighbors(store.as_ref(), &registry, &[n1], &budget).unwrap();
-    let edges2 = traversal_service.expand_neighbors(store.as_ref(), &registry, &[n1], &budget).unwrap();
+    let edges1 = traversal_service
+        .expand_neighbors(store.as_ref(), &registry, &[n1], &budget)
+        .unwrap();
+    let edges2 = traversal_service
+        .expand_neighbors(store.as_ref(), &registry, &[n1], &budget)
+        .unwrap();
 
     assert_eq!(edges1.len(), edges2.len());
     for (e1, e2) in edges1.iter().zip(edges2.iter()) {

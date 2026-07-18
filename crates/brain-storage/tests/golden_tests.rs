@@ -5,7 +5,10 @@ use std::path::Path;
 #[test]
 fn test_golden_node_v1_compatibility() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let file_path = Path::new(&manifest_dir).join("tests").join("golden").join("node_v1.json");
+    let file_path = Path::new(&manifest_dir)
+        .join("tests")
+        .join("golden")
+        .join("node_v1.json");
     let raw = fs::read_to_string(&file_path).unwrap();
 
     let node: Node = serde_json::from_str(&raw).unwrap();
@@ -13,7 +16,10 @@ fn test_golden_node_v1_compatibility() {
     // Verify correct fields mapped
     assert_eq!(node.label, "SQLite");
     assert_eq!(node.node_type, NodeKind::Database);
-    assert_eq!(node.properties.get("speed").unwrap().as_str().unwrap(), "fast");
+    assert_eq!(
+        node.properties.get("speed").unwrap().as_str().unwrap(),
+        "fast"
+    );
 
     // Verify reserialization is deterministic
     let serialized = serde_json::to_string_pretty(&node).unwrap();
@@ -25,7 +31,10 @@ fn test_golden_node_v1_compatibility() {
 #[test]
 fn test_golden_edge_v1_compatibility() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let file_path = Path::new(&manifest_dir).join("tests").join("golden").join("edge_v1.json");
+    let file_path = Path::new(&manifest_dir)
+        .join("tests")
+        .join("golden")
+        .join("edge_v1.json");
     let raw = fs::read_to_string(&file_path).unwrap();
 
     let edge: Edge = serde_json::from_str(&raw).unwrap();

@@ -1,9 +1,9 @@
 //! Allocation-free animated Spinner primitives.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// Different semantic styles of spinners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,7 +25,8 @@ pub struct Spinner {
 }
 
 impl Spinner {
-    const BRAILLE_FRAMES: &'static [&'static str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    const BRAILLE_FRAMES: &'static [&'static str] =
+        &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
     const LINE_FRAMES: &'static [&'static str] = &["|", "/", "-", "\\"];
 
     /// Draws the spinner to the screen buffer. Frame transition depends on `ctx.tick`.

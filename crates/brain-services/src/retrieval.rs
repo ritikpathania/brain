@@ -1,33 +1,33 @@
+/// Active weights snapshot provider abstractions.
+pub mod active_weights;
+/// Cache layers and snapshot execution management.
+pub mod cache;
+/// Cost calibration and feedback engine.
+pub mod calibration;
+/// Retrieval evaluation and benchmarking harness.
+pub mod eval_harness;
+/// Offline evaluation pipeline.
+pub mod evaluator;
+/// Experiment routing and canary deployments.
+pub mod experiment;
+/// Feature extraction pipeline for learned ranking.
+pub mod feature_extractor;
+/// Graph traversal, budgeting, and analysis services.
+pub mod graph_service;
+/// Dynamic loader for learned ranking models.
+pub mod model_loader;
+/// Deserializer and dynamic factory resolution for ranking models.
+pub mod model_resolver;
 /// Memory retrieval orchestrator pipeline, accumulator, and builder.
 pub mod pipeline;
 /// Contextual ranking strategies (BM25, Embeddings, Graph, and RRF).
 pub mod ranking;
 /// Concrete memory source implementations (STM, LTM, etc).
 pub mod source;
-/// Graph traversal, budgeting, and analysis services.
-pub mod graph_service;
-/// Cache layers and snapshot execution management.
-pub mod cache;
-/// Cost calibration and feedback engine.
-pub mod calibration;
 /// Durable SQLite cache store backend.
 pub mod sqlite_store;
 /// Temporal retrieval integration, projection views, and ranking.
 pub mod temporal;
-/// Active weights snapshot provider abstractions.
-pub mod active_weights;
-/// Feature extraction pipeline for learned ranking.
-pub mod feature_extractor;
-/// Offline evaluation pipeline.
-pub mod evaluator;
-/// Experiment routing and canary deployments.
-pub mod experiment;
-/// Deserializer and dynamic factory resolution for ranking models.
-pub mod model_resolver;
-/// Dynamic loader for learned ranking models.
-pub mod model_loader;
-/// Retrieval evaluation and benchmarking harness.
-pub mod eval_harness;
 
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
@@ -44,7 +44,8 @@ struct RepositoryEmbeddingLookup {
 
 impl brain_core::retrieval::EmbeddingLookup for RepositoryEmbeddingLookup {
     fn lookup(&self, node_id: &brain_domain::NodeId) -> Result<Option<Vec<f32>>, BrainError> {
-        self.repos.embeddings()
+        self.repos
+            .embeddings()
             .find_by_node_id(node_id)
             .map(|opt| opt.map(|e| e.vector))
     }
@@ -69,13 +70,21 @@ impl RetrievalServiceImpl {
             repos.clone(),
             registry.clone(),
         ));
-        let src_ltm = Arc::new(source::LtmMemorySource::new(repos.clone(), registry.clone()));
-        let src_vector = Arc::new(source::SemanticMemorySource::new(repos.clone(), query_embedding_service.clone()));
+        let src_ltm = Arc::new(source::LtmMemorySource::new(
+            repos.clone(),
+            registry.clone(),
+        ));
+        let src_vector = Arc::new(source::SemanticMemorySource::new(
+            repos.clone(),
+            query_embedding_service.clone(),
+        ));
 
         let strategy_bm25 = Arc::new(ranking::Bm25Ranking::default());
         let strategy_vector = Arc::new(ranking::EmbeddingRanking::new(
             query_embedding_service,
-            Arc::new(RepositoryEmbeddingLookup { repos: repos.clone() }),
+            Arc::new(RepositoryEmbeddingLookup {
+                repos: repos.clone(),
+            }),
         ));
         let rrf = Arc::new(ranking::RrfRanking::new(
             vec![(strategy_bm25, 1.0), (strategy_vector, 1.0)],
@@ -119,14 +128,18 @@ impl RetrievalServiceImpl {
         // Resolve ranking strategy based on policy
         let ranking_policy = config.retrieval().ranking_policy();
 
-        let ranking_strategy: Arc<dyn brain_core::retrieval::RankingStrategy> = match ranking_policy {
+        let ranking_strategy: Arc<dyn brain_core::retrieval::RankingStrategy> = match ranking_policy
+        {
             brain_config::schema::RankingPolicy::LearnedModel => {
                 let model_path = config.retrieval().model_path();
                 let ranker = model_path
                     .ok_or_else(|| BrainError::Configuration {
-                        message: "model_path must be configured for LearnedModel policy".to_string(),
+                        message: "model_path must be configured for LearnedModel policy"
+                            .to_string(),
                     })
-                    .and_then(|path| crate::retrieval::model_loader::ModelLoader::load_from_file(path));
+                    .and_then(|path| {
+                        crate::retrieval::model_loader::ModelLoader::load_from_file(path)
+                    });
 
                 match ranker {
                     Ok(score_ranker) => {
@@ -138,9 +151,10 @@ impl RetrievalServiceImpl {
                             recency_half_life_days: 30.0,
                             freshness_half_life_days: 90.0,
                         };
-                        let provider = Arc::new(ranking::feature_provider::SqliteFeatureProvider::new(
-                            storage.pool().clone(),
-                        ));
+                        let provider =
+                            Arc::new(ranking::feature_provider::SqliteFeatureProvider::new(
+                                storage.pool().clone(),
+                            ));
                         let embedding_lookup = Arc::new(RepositoryEmbeddingLookup {
                             repos: storage.clone() as Arc<dyn RepositorySet>,
                         });
@@ -204,7 +218,10 @@ impl RetrievalServiceImpl {
     }
 
     /// Executes the underlying hybrid search pipeline directly.
-    pub fn execute_pipeline(&self, request: &RetrievalRequest) -> Result<brain_core::retrieval::RetrievalResponse, BrainError> {
+    pub fn execute_pipeline(
+        &self,
+        request: &RetrievalRequest,
+    ) -> Result<brain_core::retrieval::RetrievalResponse, BrainError> {
         self.pipeline.execute(request)
     }
 }

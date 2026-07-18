@@ -1,37 +1,40 @@
-use crate::entities::{KnowledgeGraph, ExplanationChain, Edge};
+use crate::entities::{Edge, ExplanationChain, KnowledgeGraph};
 use crate::identifiers::{EdgeId, NodeId};
-use crate::validation::{ValidationReport, ValidationDiagnostic, AffectedElement};
 use crate::relations::RelationRegistry;
+use crate::validation::{AffectedElement, ValidationDiagnostic, ValidationReport};
 
-/// Path query traversal algorithms.
-pub mod path;
-/// Explanation expansion and reasoning queries.
-pub mod explanation;
-/// Diagnostic and validation report filters.
-pub mod validation;
 /// Graph metrics and connected component algorithms.
 pub mod analytics;
-/// Temporal explainability and recency context builders.
-pub mod temporal_explanation;
+/// Explanation expansion and reasoning queries.
+pub mod explanation;
 /// Consolidated single-turn inspector queries.
 pub mod inspector;
+/// Path query traversal algorithms.
+pub mod path;
+/// Temporal explainability and recency context builders.
+pub mod temporal_explanation;
+/// Diagnostic and validation report filters.
+pub mod validation;
 
-pub use inspector::{InspectorModel, RelationshipDTO, ProvenanceDTO, RetrievalExplanationDTO, ActivityLogEntry};
-
-pub use path::{PathQueryService};
-pub use explanation::{ExplanationQueryService};
-pub use validation::{ValidationQueryService};
-pub use temporal_explanation::{HistoricalExplanationBuilder, RecencyEvaluation};
-pub use analytics::{
-    AnalyticsFacade, DegreeCentrality, RelationDistribution, ProvenanceStats,
-    Complexity, AnalyticsAlgorithm, ConnectedComponents, Centrality, Distribution, ProvenanceStatistics,
-    GraphAnalyticsContext, PageRankResult, StronglyConnectedComponent, PageRankConfig,
-    ShortestPathConfig, CycleDetectionConfig, SccConfig, EdgeWeightProvider, UniformWeightProvider,
-    ConfidenceDistanceProvider, ConnectedComponentsConfig, CentralityConfig, DistributionConfig,
-    ProvenanceConfig, GraphTraversal, ShortestPath, CycleDetector, PageRank, StronglyConnectedComponents,
-    HeuristicProvider, ZeroHeuristic, AStarConfig, ClosenessConfig, ClosenessVariant, ConnectivityConfig,
-    ClosenessResult, ConnectivityReport, AStar, Closeness, Connectivity, RoutingAlgorithm
+pub use inspector::{
+    ActivityLogEntry, InspectorModel, ProvenanceDTO, RelationshipDTO, RetrievalExplanationDTO,
 };
+
+pub use analytics::{
+    AStar, AStarConfig, AnalyticsAlgorithm, AnalyticsFacade, Centrality, CentralityConfig,
+    Closeness, ClosenessConfig, ClosenessResult, ClosenessVariant, Complexity,
+    ConfidenceDistanceProvider, ConnectedComponents, ConnectedComponentsConfig, Connectivity,
+    ConnectivityConfig, ConnectivityReport, CycleDetectionConfig, CycleDetector, DegreeCentrality,
+    Distribution, DistributionConfig, EdgeWeightProvider, GraphAnalyticsContext, GraphTraversal,
+    HeuristicProvider, PageRank, PageRankConfig, PageRankResult, ProvenanceConfig,
+    ProvenanceStatistics, ProvenanceStats, RelationDistribution, RoutingAlgorithm, SccConfig,
+    ShortestPath, ShortestPathConfig, StronglyConnectedComponent, StronglyConnectedComponents,
+    UniformWeightProvider, ZeroHeuristic,
+};
+pub use explanation::ExplanationQueryService;
+pub use path::PathQueryService;
+pub use temporal_explanation::{HistoricalExplanationBuilder, RecencyEvaluation};
+pub use validation::ValidationQueryService;
 
 /// Traversal limit configuration.
 #[derive(Debug, Clone, Default)]
@@ -69,7 +72,10 @@ impl PathQuery {
     }
 
     /// Builder method to specify relation filters.
-    pub fn with_relations(mut self, relations: std::collections::HashSet<crate::identifiers::RelationId>) -> Self {
+    pub fn with_relations(
+        mut self,
+        relations: std::collections::HashSet<crate::identifiers::RelationId>,
+    ) -> Self {
         self.filters.relation_filter = Some(relations);
         self
     }
@@ -92,7 +98,11 @@ impl<'a> GraphQueryEngine<'a> {
         report: &'a ValidationReport,
         registry: &'a RelationRegistry,
     ) -> Self {
-        Self { graph, report, registry }
+        Self {
+            graph,
+            report,
+            registry,
+        }
     }
 
     /// Recursively explains the derivation reasoning chain for an edge.
@@ -101,12 +111,20 @@ impl<'a> GraphQueryEngine<'a> {
     }
 
     /// Finds all paths connecting the source node to the target node matching the specified query limits and filters.
-    pub fn find_paths(&self, source: &NodeId, target: &NodeId, query: &PathQuery) -> Vec<Vec<EdgeId>> {
+    pub fn find_paths(
+        &self,
+        source: &NodeId,
+        target: &NodeId,
+        query: &PathQuery,
+    ) -> Vec<Vec<EdgeId>> {
         PathQueryService::find_paths(self.graph, source, target, query)
     }
 
     /// Finds references to all diagnostics in the validation report that affect the target element.
-    pub fn find_diagnostics_for_element(&self, element: &AffectedElement) -> Vec<&'a ValidationDiagnostic> {
+    pub fn find_diagnostics_for_element(
+        &self,
+        element: &AffectedElement,
+    ) -> Vec<&'a ValidationDiagnostic> {
         ValidationQueryService::find_diagnostics_for_element(element, self.report)
     }
 
@@ -173,7 +191,10 @@ impl<'a> GraphQueryEngine<'a> {
     }
 
     /// Group nodes into directed strongly connected components using Tarjan's algorithm.
-    pub fn strongly_connected_components(&self, config: SccConfig) -> Vec<StronglyConnectedComponent> {
+    pub fn strongly_connected_components(
+        &self,
+        config: SccConfig,
+    ) -> Vec<StronglyConnectedComponent> {
         let ctx = GraphAnalyticsContext::new(self.graph);
         AnalyticsFacade::strongly_connected_components(&ctx, config)
     }
@@ -188,7 +209,14 @@ impl<'a> GraphQueryEngine<'a> {
         heuristic_provider: H,
     ) -> Option<Vec<NodeId>> {
         let ctx = GraphAnalyticsContext::new(self.graph);
-        AnalyticsFacade::astar_shortest_path(&ctx, source, target, config, weight_provider, heuristic_provider)
+        AnalyticsFacade::astar_shortest_path(
+            &ctx,
+            source,
+            target,
+            config,
+            weight_provider,
+            heuristic_provider,
+        )
     }
 
     /// Computes closeness centrality ranking for all nodes in the graph.

@@ -178,4 +178,3 @@ pub enum BackendEvent {
         sessions: Vec<crate::client::SessionSummary>,
     },
 }
-

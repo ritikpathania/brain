@@ -1,18 +1,16 @@
+use brain_tui::ui::application::{Application, ApplicationError, DaemonClient, UiEventSource};
+use brain_tui::ui::focus::{FocusManager, FocusProfile};
+use brain_tui::ui::interaction::{ChatState, Editor, MessageId, ScrollState, UiEvent};
+use brain_tui::ui::protocol::{BackendCommand, BackendEvent, RequestId};
+use brain_tui::ui::router::{ActiveScreen, ScreenRouter};
+use brain_tui::ui::scheduler::{MockRenderScheduler, RenderInvalidation, RenderReason};
+use brain_tui::ui::state::AppState;
+use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+use brain_tui::ui::widgets::ChatScreen;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as TokioMutex;
-use brain_tui::ui::interaction::{
-    Editor, ScrollState, ChatState, MessageId, UiEvent
-};
-use brain_tui::ui::focus::{FocusManager, FocusProfile};
-use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
-use brain_tui::ui::widgets::ChatScreen;
-use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
-use brain_tui::ui::state::AppState;
-use brain_tui::ui::protocol::{BackendCommand, BackendEvent, RequestId};
-use brain_tui::ui::scheduler::{MockRenderScheduler, RenderReason, RenderInvalidation};
-use brain_tui::ui::application::{Application, UiEventSource, DaemonClient, ApplicationError};
 
 const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
     session_title: "test",
@@ -95,12 +93,13 @@ async fn test_application_loop_orchestration() {
 
     // Spin up the app run loop in a background task
     let cancellation = app.cancellation().clone();
-    let handle = tokio::spawn(async move {
-        app.run(ui_source).await
-    });
+    let handle = tokio::spawn(async move { app.run(ui_source).await });
 
     // 1. Submit prompt text
-    ui_tx.send(UiEvent::SubmitPrompt("ping".to_string())).await.unwrap();
+    ui_tx
+        .send(UiEvent::SubmitPrompt("ping".to_string()))
+        .await
+        .unwrap();
 
     // Verify command sent
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
@@ -118,11 +117,14 @@ async fn test_application_loop_orchestration() {
     }
 
     // 2. Stream back event token
-    event_tx.send(BackendEvent::Token {
-        message: MessageId(2),
-        sequence: 1,
-        text: "pong".to_string(),
-    }).await.unwrap();
+    event_tx
+        .send(BackendEvent::Token {
+            message: MessageId(2),
+            sequence: 1,
+            text: "pong".to_string(),
+        })
+        .await
+        .unwrap();
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
@@ -149,7 +151,10 @@ async fn test_transport_independence() {
     };
     app_queue.run(queue_source).await.unwrap();
 
-    let queue_text = app_queue.state().chat().messages()[0].text.raw().to_string();
+    let queue_text = app_queue.state().chat().messages()[0]
+        .text
+        .raw()
+        .to_string();
 
     // Run using ChannelUiEventSource
     let (ui_tx, ui_rx) = mpsc::channel(10);
@@ -160,13 +165,20 @@ async fn test_transport_independence() {
         commands: commands2.clone(),
         event_rx: Arc::new(TokioMutex::new(event_rx2)),
     };
-    let mut app_channel = Application::new(make_test_app_state(), MockRenderScheduler::new(), client2);
+    let mut app_channel =
+        Application::new(make_test_app_state(), MockRenderScheduler::new(), client2);
 
-    ui_tx.send(UiEvent::SubmitPrompt("independence".to_string())).await.unwrap();
+    ui_tx
+        .send(UiEvent::SubmitPrompt("independence".to_string()))
+        .await
+        .unwrap();
     drop(ui_tx); // Closes UI source to terminate run loop gracefully
 
     app_channel.run(channel_source).await.unwrap();
-    let channel_text = app_channel.state().chat().messages()[0].text.raw().to_string();
+    let channel_text = app_channel.state().chat().messages()[0]
+        .text
+        .raw()
+        .to_string();
 
     assert_eq!(queue_text, channel_text);
     assert_eq!(queue_text, "independence");
@@ -228,18 +240,24 @@ async fn test_coalesced_render_scheduling() {
     let mut app = Application::new(state, scheduler, client);
 
     // Prompt submission must produce render requests
-    let req1 = app.handle_ui_event(UiEvent::SubmitPrompt("hello".to_string())).await.unwrap();
+    let req1 = app
+        .handle_ui_event(UiEvent::SubmitPrompt("hello".to_string()))
+        .await
+        .unwrap();
     assert!(req1.is_some());
     let req = req1.unwrap();
     assert_eq!(req.reason, RenderReason::Input);
     assert_eq!(req.invalidation, RenderInvalidation::EverythingStale);
 
     // Stream token must produce render requests
-    let req2 = app.handle_backend_event(BackendEvent::Token {
-        message: MessageId(2),
-        sequence: 1,
-        text: "hi".to_string(),
-    }).await.unwrap();
+    let req2 = app
+        .handle_backend_event(BackendEvent::Token {
+            message: MessageId(2),
+            sequence: 1,
+            text: "hi".to_string(),
+        })
+        .await
+        .unwrap();
     assert!(req2.is_some());
     let req_b = req2.unwrap();
     assert_eq!(req_b.reason, RenderReason::StreamToken);

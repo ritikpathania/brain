@@ -1,12 +1,12 @@
 //! ScrollView viewport viewport container widget.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::RenderContext;
 use crate::ui::primitives::Label;
+use crate::ui::render::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::{ScrollViewModel, MAX_VISIBLE_SCROLL_ROWS};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// Precomputed layout bounds for the ScrollView lines.
 pub struct ScrollViewLayout {
@@ -46,10 +46,13 @@ impl<'a> BrainWidget for ScrollViewWidget<'a> {
         let layout = ScrollViewLayout::compute(area, self.view);
         let line_areas = layout.line_areas();
         let start = self.view.scroll_offset.min(self.view.lines.len());
-        
+
         for idx in 0..line_areas.len() {
             let line = self.view.lines[start + idx];
-            let label = Label { text: line, token: ThemeToken::Muted };
+            let label = Label {
+                text: line,
+                token: ThemeToken::Muted,
+            };
             label.draw(line_areas[idx], buf, ctx);
         }
     }

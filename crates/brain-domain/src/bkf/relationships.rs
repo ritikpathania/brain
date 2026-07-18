@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use crate::bkf::facts::BKFTargetRef;
 use crate::bkf::ids::BkfRelationshipId;
 use crate::bkf::provenance::Provenance;
-use crate::bkf::facts::BKFTargetRef;
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 /// Stable extension point for relationship kind classification.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -1,8 +1,6 @@
-use brain_tui::state::{UiState, Action, UpdateResult};
-use brain_tui::ui::command::tool::{
-    ToolCallId, ToolId, ToolExecutionStatus, ToolProgressDetail
-};
 use brain_core::events::ProgressUnit;
+use brain_tui::state::{Action, UiState, UpdateResult};
+use brain_tui::ui::command::tool::{ToolCallId, ToolExecutionStatus, ToolId, ToolProgressDetail};
 
 #[test]
 fn test_tool_call_lifecycle_happy_path() {
@@ -22,7 +20,10 @@ fn test_tool_call_lifecycle_happy_path() {
     assert!(matches!(res, UpdateResult::Changed));
     assert_eq!(state.active_tool_calls.len(), 1);
     assert_eq!(state.pending_approvals.len(), 1);
-    assert_eq!(state.active_tool_calls[0].status, ToolExecutionStatus::PendingApproval);
+    assert_eq!(
+        state.active_tool_calls[0].status,
+        ToolExecutionStatus::PendingApproval
+    );
 
     // 2. Try to request same tool call again (Idempotency)
     let res = state.update(Action::ToolCallRequested {
@@ -42,7 +43,10 @@ fn test_tool_call_lifecycle_happy_path() {
     });
     assert!(matches!(res, UpdateResult::Changed));
     assert_eq!(state.pending_approvals.len(), 0);
-    assert_eq!(state.active_tool_calls[0].status, ToolExecutionStatus::Approved);
+    assert_eq!(
+        state.active_tool_calls[0].status,
+        ToolExecutionStatus::Approved
+    );
 
     // 4. Progress update (Monotonicity & Logs)
     let res = state.update(Action::ToolProgressReceived {
@@ -68,7 +72,10 @@ fn test_tool_call_lifecycle_happy_path() {
         }
     );
     assert_eq!(state.active_tool_calls[0].logs.len(), 1);
-    assert_eq!(state.active_tool_calls[0].logs[0].message, "Searching root directory");
+    assert_eq!(
+        state.active_tool_calls[0].logs[0].message,
+        "Searching root directory"
+    );
 
     // 5. Old sequence progress received (should be ignored)
     let res = state.update(Action::ToolProgressReceived {
@@ -103,7 +110,10 @@ fn test_tool_call_lifecycle_happy_path() {
     let attached = &state.message_tool_calls[&msg_id];
     assert_eq!(attached.len(), 1);
     assert_eq!(attached[0].call_id, call_id);
-    assert!(matches!(attached[0].status, ToolExecutionStatus::Completed { .. }));
+    assert!(matches!(
+        attached[0].status,
+        ToolExecutionStatus::Completed { .. }
+    ));
 }
 
 #[test]

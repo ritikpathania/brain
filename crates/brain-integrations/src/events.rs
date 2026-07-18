@@ -1,8 +1,8 @@
 //! Ingestion event structures and taxonomy registries.
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use specta::Type;
+use std::collections::BTreeMap;
 
 /// A transport-agnostic value tree, matching standard JSON/CBOR layouts.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Type)]

@@ -1,8 +1,10 @@
-use std::sync::Arc;
+use crate::projections::{
+    ProjectionId, ProjectionNotification, ProjectionNotificationBus, ReducerRegistry, StateReducer,
+};
 use brain_core::errors::BrainError;
 use brain_events::{EventLog, SequenceNumber};
 use brain_storage::SqliteProjectionCheckpointRepository;
-use crate::projections::{ReducerRegistry, StateReducer, ProjectionId, ProjectionNotification, ProjectionNotificationBus};
+use std::sync::Arc;
 
 /// Orchestrator coordinating sequential event catch-up and rebuild loops for stateful reducers.
 pub struct ProjectionRunner {
@@ -79,7 +81,11 @@ impl ProjectionRunner {
     }
 
     // Internal helper to batch catch up a specific reducer
-    fn catch_up_reducer(&self, id: ProjectionId, reducer: &mut dyn StateReducer) -> Result<(), BrainError> {
+    fn catch_up_reducer(
+        &self,
+        id: ProjectionId,
+        reducer: &mut dyn StateReducer,
+    ) -> Result<(), BrainError> {
         let db_name = to_db_name(id);
         let mut last_seq = self.checkpoint_repo.get_checkpoint(db_name)?;
         let mut advanced = false;
@@ -94,7 +100,10 @@ impl ProjectionRunner {
 
             for envelope in events {
                 let seq = envelope.sequence.ok_or_else(|| BrainError::Storage {
-                    message: format!("Event missing sequence ID in EventLog for projection ID {:?}", id),
+                    message: format!(
+                        "Event missing sequence ID in EventLog for projection ID {:?}",
+                        id
+                    ),
                     source: None,
                 })?;
 

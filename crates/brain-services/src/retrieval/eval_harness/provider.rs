@@ -17,7 +17,10 @@ impl FeatureProvider {
     }
 
     /// Loads the `FeatureContext` for a batch of `NodeId`s in a single pass.
-    pub fn load_contexts(&self, node_ids: &[NodeId]) -> Result<HashMap<NodeId, FeatureContext>, BrainError> {
+    pub fn load_contexts(
+        &self,
+        node_ids: &[NodeId],
+    ) -> Result<HashMap<NodeId, FeatureContext>, BrainError> {
         let mut contexts = HashMap::new();
         if node_ids.is_empty() {
             return Ok(contexts);
@@ -46,19 +49,28 @@ impl FeatureProvider {
 
         let params = rusqlite::params_from_iter(node_ids.iter().map(|id| id.0.to_string()));
 
-        let rows = stmt.query_map(params, |row| {
-            let id_str: String = row.get(0)?;
-            let updated_at: u64 = row.get(1)?;
-            let properties_json: String = row.get(2)?;
-            let graph_degree: u32 = row.get(3)?;
-            let access_count: u64 = row.get(4)?;
-            let last_observed_at: u64 = row.get(5)?;
+        let rows = stmt
+            .query_map(params, |row| {
+                let id_str: String = row.get(0)?;
+                let updated_at: u64 = row.get(1)?;
+                let properties_json: String = row.get(2)?;
+                let graph_degree: u32 = row.get(3)?;
+                let access_count: u64 = row.get(4)?;
+                let last_observed_at: u64 = row.get(5)?;
 
-            Ok((id_str, updated_at, properties_json, graph_degree, access_count, last_observed_at))
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query batch metadata: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+                Ok((
+                    id_str,
+                    updated_at,
+                    properties_json,
+                    graph_degree,
+                    access_count,
+                    last_observed_at,
+                ))
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query batch metadata: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         for row_res in rows {
             let (id_str, updated_at, properties_json, graph_degree, access_count, last_observed_at) =
@@ -76,7 +88,9 @@ impl FeatureProvider {
             let mut importance = None;
             let mut pinned = false;
             let mut provenance_confidence = None;
-            if let Ok(props) = serde_json::from_str::<HashMap<String, serde_json::Value>>(&properties_json) {
+            if let Ok(props) =
+                serde_json::from_str::<HashMap<String, serde_json::Value>>(&properties_json)
+            {
                 if let Some(imp) = props.get("importance").and_then(|v| v.as_f64()) {
                     importance = Some(imp);
                 }

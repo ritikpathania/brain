@@ -1,5 +1,7 @@
 use crate::entities::ProvenanceSource;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, ProvenanceStats, GraphAnalyticsContext};
+use crate::query::analytics::{
+    AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, ProvenanceStats,
+};
 
 /// Configuration settings for provenance statistics calculations.
 #[derive(Debug, Clone, Default)]

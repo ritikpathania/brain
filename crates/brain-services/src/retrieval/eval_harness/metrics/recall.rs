@@ -8,7 +8,7 @@ pub fn compute_recall_at_k(retrieved: &[NodeId], expected: &[NodeId], k: usize) 
     }
     let limit = std::cmp::min(k, retrieved.len());
     let retrieved_set: HashSet<&NodeId> = retrieved[..limit].iter().collect();
-    
+
     let mut hits = 0;
     for node_id in expected {
         if retrieved_set.contains(node_id) {
@@ -36,7 +36,7 @@ mod tests {
         let n3 = NodeId::new();
         let retrieved = vec![n1, n2, n3];
         let expected = vec![n1, n3];
-        
+
         // At K=1, only n1 is retrieved. Hits: 1 (n1). Total expected: 2. Recall = 0.5
         assert_eq!(compute_recall_at_k(&retrieved, &expected, 1), 0.5);
         // At K=3, both n1 and n3 are retrieved. Hits: 2. Recall = 1.0

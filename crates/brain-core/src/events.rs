@@ -106,7 +106,6 @@ pub enum StreamEventKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ToolCallId(pub String);
 
-
 /// Type-safe opaque identifier for a tool descriptor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ToolId(pub String);
@@ -287,7 +286,6 @@ impl RuntimeEvent for RuntimeRelationshipEvent {
         self
     }
 }
-
 
 #[cfg(test)]
 mod tests {

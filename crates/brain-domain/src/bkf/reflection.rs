@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::bkf::ir::CompiledKnowledge;
+use serde::{Deserialize, Serialize};
 
 /// A single finding identified during the offline critique phase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -128,7 +128,8 @@ impl ReflectionEngine {
         let mut items = Vec::new();
 
         // 1. Detect redundant/duplicate nodes based on simple lowercase label matching
-        let mut seen_labels: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        let mut seen_labels: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
         for node in &graph.nodes {
             let norm = node.label.to_lowercase();
             seen_labels.entry(norm).or_default().push(node.id.clone());
@@ -178,7 +179,10 @@ impl Planner {
 
         for finding in &findings.items {
             match finding {
-                FindingItem::RedundantNodes { nodes, suggested_canonical } => {
+                FindingItem::RedundantNodes {
+                    nodes,
+                    suggested_canonical,
+                } => {
                     for node in nodes {
                         if node != suggested_canonical {
                             operations.push(RewriteOperation::MergeNodes {
@@ -189,16 +193,31 @@ impl Planner {
                     }
                     rationales.push(format!("Merge duplicate nodes: {:?}", nodes));
                 }
-                FindingItem::WeakConnection { source, target, weight } => {
+                FindingItem::WeakConnection {
+                    source,
+                    target,
+                    weight,
+                } => {
                     operations.push(RewriteOperation::WeakenEdge {
                         source: source.clone(),
                         target: target.clone(),
                         amount: 0.1_f32,
                     });
-                    rationales.push(format!("Weaken weak edge {}->{} (weight={})", source, target, weight));
+                    rationales.push(format!(
+                        "Weaken weak edge {}->{} (weight={})",
+                        source, target, weight
+                    ));
                 }
-                FindingItem::InvalidRelation { source, target, relation, reason } => {
-                    rationales.push(format!("Invalid relation {}->{} ({}): {}", source, target, relation, reason));
+                FindingItem::InvalidRelation {
+                    source,
+                    target,
+                    relation,
+                    reason,
+                } => {
+                    rationales.push(format!(
+                        "Invalid relation {}->{} ({}): {}",
+                        source, target, relation, reason
+                    ));
                 }
                 FindingItem::MissingContext { node_id, key } => {
                     rationales.push(format!("Node {} is missing attribute {}", node_id, key));

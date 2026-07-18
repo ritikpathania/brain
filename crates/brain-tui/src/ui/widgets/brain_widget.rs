@@ -1,9 +1,9 @@
 //! Base rendering contract for all internal TUI widgets.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::ActiveTheme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::ActiveTheme;
-use crate::ui::render::context::RenderContext;
 
 /// Base widget trait accepting the active theme and terminal capabilities context.
 pub trait BrainWidget {

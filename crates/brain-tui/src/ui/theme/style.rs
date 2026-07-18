@@ -1,7 +1,7 @@
 //! ActiveTheme trait definitions.
 
-use ratatui::style::Style;
 use crate::ui::theme::token::ThemeToken;
+use ratatui::style::Style;
 
 /// A trait implemented by styles that can resolve theme tokens.
 pub trait ActiveTheme: Send + Sync {

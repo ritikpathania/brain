@@ -1,7 +1,7 @@
 use crate::schema::{
     BrainSettings, DatabaseSettings, EmbeddingProvider, LlmProvider, Merge, ModelSettings,
-    PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialSessionSettings,
-    SessionSettings, PartialRetrievalSettings, RankingPolicy, RetrievalSettings,
+    PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialRetrievalSettings,
+    PartialSessionSettings, RankingPolicy, RetrievalSettings, SessionSettings,
 };
 use brain_core::BrainError;
 use std::convert::TryFrom;
@@ -260,9 +260,11 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
             message: "retrieval section is missing".to_string(),
         })?;
         let retrieval = RetrievalSettings {
-            ranking_policy: ret.ranking_policy.ok_or_else(|| BrainError::Configuration {
-                message: "retrieval.ranking_policy is missing".to_string(),
-            })?,
+            ranking_policy: ret
+                .ranking_policy
+                .ok_or_else(|| BrainError::Configuration {
+                    message: "retrieval.ranking_policy is missing".to_string(),
+                })?,
             model_path: ret.model_path,
         };
 

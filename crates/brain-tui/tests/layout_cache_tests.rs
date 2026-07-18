@@ -8,9 +8,9 @@ fn test_layout_compilation_determinism() {
             level: 1,
             content: vec![InlineNode::Text("Determinism Test".to_string())],
         },
-        DocumentBlock::Paragraph(vec![
-            InlineNode::Text("This is a simple paragraph to verify that compilation is deterministic.".to_string())
-        ])
+        DocumentBlock::Paragraph(vec![InlineNode::Text(
+            "This is a simple paragraph to verify that compilation is deterministic.".to_string(),
+        )]),
     ];
 
     let tree_1 = LayoutEngine::compile(&blocks, 40);

@@ -3,8 +3,8 @@ use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::EmbeddingProvider;
 use brain_domain::{Embedding, Node, NodeId, NodeType};
 use brain_services::eval_harness::{
-    sort_results_deterministically, HybridRetriever, RetrievalChannel,
-    RetrievalResult, SemanticRetriever, Retriever,
+    sort_results_deterministically, HybridRetriever, RetrievalChannel, RetrievalResult, Retriever,
+    SemanticRetriever,
 };
 use brain_storage::TestStorage;
 use std::sync::Arc;
@@ -34,11 +34,19 @@ fn test_semantic_retriever_cosine_similarity() {
     // Save nodes
     sqlite
         .nodes()
-        .save(&Node::new(node_id_1, "rust code".to_string(), NodeType::Concept))
+        .save(&Node::new(
+            node_id_1,
+            "rust code".to_string(),
+            NodeType::Concept,
+        ))
         .unwrap();
     sqlite
         .nodes()
-        .save(&Node::new(node_id_2, "python code".to_string(), NodeType::Concept))
+        .save(&Node::new(
+            node_id_2,
+            "python code".to_string(),
+            NodeType::Concept,
+        ))
         .unwrap();
 
     // Save embeddings (dimension = 3)
@@ -65,17 +73,11 @@ fn test_semantic_retriever_cosine_similarity() {
     assert_eq!(results.len(), 2);
     // Node 1 should be first because it is perfectly aligned (cosine similarity = 1.0)
     assert_eq!(results[0].node_id, node_id_1);
-    assert_eq!(
-        results[0].score(RetrievalChannel::Semantic).unwrap(),
-        1.0
-    );
+    assert_eq!(results[0].score(RetrievalChannel::Semantic).unwrap(), 1.0);
 
     // Node 2 should be perpendicular (cosine similarity = 0.0)
     assert_eq!(results[1].node_id, node_id_2);
-    assert_eq!(
-        results[1].score(RetrievalChannel::Semantic).unwrap(),
-        0.0
-    );
+    assert_eq!(results[1].score(RetrievalChannel::Semantic).unwrap(), 0.0);
 }
 
 struct MockFtsRetriever {
@@ -135,12 +137,18 @@ fn test_hybrid_candidate_union_verification() {
         results: vec![
             RetrievalResult {
                 node_id: node_b,
-                channel_scores: std::collections::HashMap::from([(RetrievalChannel::Semantic, 0.92)]),
+                channel_scores: std::collections::HashMap::from([(
+                    RetrievalChannel::Semantic,
+                    0.92,
+                )]),
                 ranking_score: None,
             },
             RetrievalResult {
                 node_id: node_c,
-                channel_scores: std::collections::HashMap::from([(RetrievalChannel::Semantic, 0.75)]),
+                channel_scores: std::collections::HashMap::from([(
+                    RetrievalChannel::Semantic,
+                    0.75,
+                )]),
                 ranking_score: None,
             },
         ],
@@ -162,7 +170,10 @@ fn test_hybrid_candidate_union_verification() {
 
     // Node B is retrieved by BOTH FTS and Semantic
     let res_b = results.iter().find(|r| r.node_id == node_b).unwrap();
-    assert_eq!(res_b.channels(), vec![RetrievalChannel::Fts, RetrievalChannel::Semantic]);
+    assert_eq!(
+        res_b.channels(),
+        vec![RetrievalChannel::Fts, RetrievalChannel::Semantic]
+    );
     assert_eq!(res_b.score(RetrievalChannel::Fts), Some(6.2));
     assert_eq!(res_b.score(RetrievalChannel::Semantic), Some(0.92));
 

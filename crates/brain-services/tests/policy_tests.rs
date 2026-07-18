@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use brain_core::errors::BrainError;
-use brain_domain::{Node, NodeId, SessionId, NodeType};
-use brain_session::StmNode;
+use brain_domain::{Node, NodeId, NodeType, SessionId};
 use brain_services::conversation::{
-    PromotionContext, PromotionDecision, PromotionPolicy, StmView, SessionMetadata,
-    PromotionReason, RecencyPolicy, SemanticImportancePolicy, GoalAwarePolicy, UserPinnedPolicy,
-    CompositePolicy, WeightedCompositePolicy, LogicalOp, ExactStringGoalMatcher, PropertyImportanceScorer,
+    CompositePolicy, ExactStringGoalMatcher, GoalAwarePolicy, LogicalOp, PromotionContext,
+    PromotionDecision, PromotionPolicy, PromotionReason, PropertyImportanceScorer, RecencyPolicy,
+    SemanticImportancePolicy, SessionMetadata, StmView, UserPinnedPolicy, WeightedCompositePolicy,
 };
+use brain_session::StmNode;
 
 // --- Mock STM View ---
 
@@ -26,7 +26,10 @@ impl StmView for MockStmView {
     }
 }
 
-fn make_stm_node(label: &str, properties: std::collections::HashMap<String, serde_json::Value>) -> StmNode {
+fn make_stm_node(
+    label: &str,
+    properties: std::collections::HashMap<String, serde_json::Value>,
+) -> StmNode {
     let node = Node::new(NodeId::new(), label.to_string(), NodeType::Concept);
     StmNode {
         node: node.with_properties(properties),
@@ -44,7 +47,11 @@ struct EvalTrackingPolicy {
 
 impl EvalTrackingPolicy {
     fn new(eval_count: Arc<AtomicUsize>, result: bool, reason: PromotionReason) -> Self {
-        Self { eval_count, result, reason }
+        Self {
+            eval_count,
+            result,
+            reason,
+        }
     }
 }
 
@@ -54,7 +61,11 @@ impl PromotionPolicy for EvalTrackingPolicy {
         Ok(PromotionDecision {
             promote: self.result,
             confidence: if self.result { 1.0 } else { 0.0 },
-            reasons: if self.result { vec![self.reason] } else { vec![] },
+            reasons: if self.result {
+                vec![self.reason]
+            } else {
+                vec![]
+            },
         })
     }
 }
@@ -275,8 +286,16 @@ fn test_composite_policy_and_short_circuit() {
     let eval_count1 = Arc::new(AtomicUsize::new(0));
     let eval_count2 = Arc::new(AtomicUsize::new(0));
 
-    let p1 = Arc::new(EvalTrackingPolicy::new(eval_count1.clone(), false, PromotionReason::RecencyThreshold));
-    let p2 = Arc::new(EvalTrackingPolicy::new(eval_count2.clone(), true, PromotionReason::HighImportance));
+    let p1 = Arc::new(EvalTrackingPolicy::new(
+        eval_count1.clone(),
+        false,
+        PromotionReason::RecencyThreshold,
+    ));
+    let p2 = Arc::new(EvalTrackingPolicy::new(
+        eval_count2.clone(),
+        true,
+        PromotionReason::HighImportance,
+    ));
 
     let composite = CompositePolicy::new(vec![p1, p2], LogicalOp::And);
 
@@ -304,8 +323,16 @@ fn test_composite_policy_or_short_circuit() {
     let eval_count1 = Arc::new(AtomicUsize::new(0));
     let eval_count2 = Arc::new(AtomicUsize::new(0));
 
-    let p1 = Arc::new(EvalTrackingPolicy::new(eval_count1.clone(), true, PromotionReason::RecencyThreshold));
-    let p2 = Arc::new(EvalTrackingPolicy::new(eval_count2.clone(), false, PromotionReason::HighImportance));
+    let p1 = Arc::new(EvalTrackingPolicy::new(
+        eval_count1.clone(),
+        true,
+        PromotionReason::RecencyThreshold,
+    ));
+    let p2 = Arc::new(EvalTrackingPolicy::new(
+        eval_count2.clone(),
+        false,
+        PromotionReason::HighImportance,
+    ));
 
     let composite = CompositePolicy::new(vec![p1, p2], LogicalOp::Or);
 
@@ -326,23 +353,31 @@ fn test_composite_policy_or_short_circuit() {
     // p1 returns true, so p2 should NOT have been evaluated.
     assert_eq!(eval_count1.load(Ordering::SeqCst), 1);
     assert_eq!(eval_count2.load(Ordering::SeqCst), 0);
-    assert_eq!(dec.reasons, vec![PromotionReason::CompositeSatisfied, PromotionReason::RecencyThreshold]);
+    assert_eq!(
+        dec.reasons,
+        vec![
+            PromotionReason::CompositeSatisfied,
+            PromotionReason::RecencyThreshold
+        ]
+    );
 }
 
 #[test]
 fn test_weighted_composite_boundary() {
-    let p1 = Arc::new(EvalTrackingPolicy::new(Arc::new(AtomicUsize::new(0)), true, PromotionReason::RecencyThreshold));
-    let p2 = Arc::new(EvalTrackingPolicy::new(Arc::new(AtomicUsize::new(0)), false, PromotionReason::HighImportance));
+    let p1 = Arc::new(EvalTrackingPolicy::new(
+        Arc::new(AtomicUsize::new(0)),
+        true,
+        PromotionReason::RecencyThreshold,
+    ));
+    let p2 = Arc::new(EvalTrackingPolicy::new(
+        Arc::new(AtomicUsize::new(0)),
+        false,
+        PromotionReason::HighImportance,
+    ));
 
     // Threshold is 5.0. p1 weight is 5.0. Accumulated matches = 5.0.
     // This tests the exact boundary (accumulated == threshold).
-    let weighted = WeightedCompositePolicy::new(
-        vec![
-            (p1.clone(), 5.0),
-            (p2.clone(), 3.0),
-        ],
-        5.0,
-    );
+    let weighted = WeightedCompositePolicy::new(vec![(p1.clone(), 5.0), (p2.clone(), 3.0)], 5.0);
 
     let session_id = SessionId::new();
     let stm = MockStmView { nodes: vec![] };
@@ -357,7 +392,13 @@ fn test_weighted_composite_boundary() {
     let dec = weighted.should_promote(&ctx).unwrap();
     assert!(dec.promote);
     assert_eq!(dec.confidence, 5.0 / 8.0);
-    assert_eq!(dec.reasons, vec![PromotionReason::WeightedThresholdExceeded, PromotionReason::RecencyThreshold]);
+    assert_eq!(
+        dec.reasons,
+        vec![
+            PromotionReason::WeightedThresholdExceeded,
+            PromotionReason::RecencyThreshold
+        ]
+    );
 }
 
 #[test]

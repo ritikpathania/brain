@@ -1,4 +1,4 @@
-use brain_tui::ui::search::types::{PROVIDER_COMMANDS, SearchGeneration, SearchQuery};
+use brain_tui::ui::search::types::{SearchGeneration, SearchQuery, PROVIDER_COMMANDS};
 
 #[test]
 fn test_type_construction() {

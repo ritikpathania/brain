@@ -1,4 +1,4 @@
-use crate::entities::{KnowledgeGraph, Edge};
+use crate::entities::{Edge, KnowledgeGraph};
 use crate::identifiers::{EdgeId, NodeId};
 use crate::query::PathQuery;
 use std::collections::HashSet;
@@ -18,7 +18,15 @@ impl PathQueryService {
         let mut path = Vec::new();
         let mut results = Vec::new();
 
-        Self::find_paths_dfs(graph, source, target, query, &mut visited, &mut path, &mut results);
+        Self::find_paths_dfs(
+            graph,
+            source,
+            target,
+            query,
+            &mut visited,
+            &mut path,
+            &mut results,
+        );
 
         results.sort_by(|p1, p2| {
             let len_cmp = p1.len().cmp(&p2.len());

@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use brain_tui::ui::search::types::{
-    SearchEvent, SearchGeneration, SearchResult, SearchResultKind, SearchResultAction,
-    ProviderId, ProviderStatus, SearchFailure, PROVIDER_LOCAL_MESSAGES, PROVIDER_REMOTE_MESSAGES
-};
 use brain_tui::ui::search::aggregator::SearchAggregator;
+use brain_tui::ui::search::types::{
+    ProviderId, ProviderStatus, SearchEvent, SearchFailure, SearchGeneration, SearchResult,
+    SearchResultAction, SearchResultKind, PROVIDER_LOCAL_MESSAGES, PROVIDER_REMOTE_MESSAGES,
+};
+use std::collections::HashMap;
 
 fn make_dummy_result(title: &str, score: i32) -> SearchResult {
     SearchResult {
@@ -26,24 +26,24 @@ fn test_aggregator_generation_filtering() {
         generation: SearchGeneration(2),
         provider: p_local,
     });
-    
+
     // Older event (generation 1) should be ignored
     aggregator.handle_event(SearchEvent::Results {
         generation: SearchGeneration(1),
         provider: p_remote,
         results: vec![make_dummy_result("Stale result", 100)],
     });
-    
+
     let state = aggregator.view_state();
     assert_eq!(state.results().len(), 0); // Discarded
-    
+
     // Newer event (generation 2) should be accepted
     aggregator.handle_event(SearchEvent::Results {
         generation: SearchGeneration(2),
         provider: p_local,
         results: vec![make_dummy_result("Fresh local result", 50)],
     });
-    
+
     let state2 = aggregator.view_state();
     assert_eq!(state2.results().len(), 1);
     assert_eq!(state2.results()[0].title, "Fresh local result");
@@ -91,7 +91,8 @@ fn test_aggregator_out_of_order_finished_and_completeness() {
     });
 
     let state = aggregator.view_state();
-    let statuses: HashMap<ProviderId, ProviderStatus> = state.statuses().map(|(&k, &v)| (k, v)).collect();
+    let statuses: HashMap<ProviderId, ProviderStatus> =
+        state.statuses().map(|(&k, &v)| (k, v)).collect();
     assert_eq!(statuses.get(&p_local), Some(&ProviderStatus::Completed));
     assert_eq!(statuses.get(&p_remote), Some(&ProviderStatus::Idle));
     assert!(!aggregator.is_complete()); // remote is still Idle
@@ -104,8 +105,12 @@ fn test_aggregator_out_of_order_finished_and_completeness() {
     });
 
     let state2 = aggregator.view_state();
-    let statuses2: HashMap<ProviderId, ProviderStatus> = state2.statuses().map(|(&k, &v)| (k, v)).collect();
-    assert_eq!(statuses2.get(&p_remote), Some(&ProviderStatus::Failed(SearchFailure::Timeout)));
+    let statuses2: HashMap<ProviderId, ProviderStatus> =
+        state2.statuses().map(|(&k, &v)| (k, v)).collect();
+    assert_eq!(
+        statuses2.get(&p_remote),
+        Some(&ProviderStatus::Failed(SearchFailure::Timeout))
+    );
     assert!(aggregator.is_complete()); // Both completed/failed
 }
 
@@ -122,7 +127,7 @@ fn test_aggregator_view_state_idempotence() {
 
     let state_a = aggregator.view_state();
     let state_b = aggregator.view_state();
-    
+
     assert_eq!(state_a.generation(), state_b.generation());
     assert_eq!(state_a.query(), state_b.query());
     assert_eq!(state_a.results(), state_b.results());

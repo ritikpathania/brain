@@ -1,26 +1,30 @@
 use brain_tui::ui::command::{
-    CommandRegistry, CommandPolicy, CommandAvailabilityContext, Availability, AvailabilityReason,
+    Availability, AvailabilityReason, CommandAvailabilityContext, CommandPolicy, CommandRegistry,
     CHANGE_THEME, RENAME_SESSION, SWITCH_MODEL,
 };
-
 
 #[test]
 fn test_command_registry_lookups() {
     // Lookup by ID
-    let theme_cmd = CommandRegistry::find_by_id(CHANGE_THEME).expect("Should find Change Theme command");
+    let theme_cmd =
+        CommandRegistry::find_by_id(CHANGE_THEME).expect("Should find Change Theme command");
     assert_eq!(theme_cmd.title, "Change Theme");
     assert_eq!(theme_cmd.aliases, &["theme"]);
 
     // Lookup by name
-    let rename_cmd = CommandRegistry::find_by_name_or_alias("rename").expect("Should find Rename Session command");
+    let rename_cmd = CommandRegistry::find_by_name_or_alias("rename")
+        .expect("Should find Rename Session command");
     assert_eq!(rename_cmd.id, RENAME_SESSION);
 
     // Lookup by alias (case-insensitive check)
-    let switch_model_cmd = CommandRegistry::find_by_name_or_alias("MODEL").expect("Should find Switch Model command");
+    let switch_model_cmd =
+        CommandRegistry::find_by_name_or_alias("MODEL").expect("Should find Switch Model command");
     assert_eq!(switch_model_cmd.id, SWITCH_MODEL);
 
     // Non-existent command
-    assert!(CommandRegistry::find_by_id(brain_tui::ui::command::CommandId("nonexistent")).is_none());
+    assert!(
+        CommandRegistry::find_by_id(brain_tui::ui::command::CommandId("nonexistent")).is_none()
+    );
     assert!(CommandRegistry::find_by_name_or_alias("invalid_name").is_none());
 }
 
@@ -87,7 +91,7 @@ fn test_focus_restoration_cycle() {
     use brain_tui::ui::widgets::view_models::FocusTarget;
 
     let mut fm = FocusManager::new(FocusTarget::Sidebar, FocusProfile::Chat);
-    
+
     // First cycle
     let saved1 = fm.current();
     fm.save_focus(saved1);
@@ -97,7 +101,10 @@ fn test_focus_restoration_cycle() {
     let restored1 = fm.pop_saved_focus().expect("Should have saved focus");
     fm.set_focus(restored1);
     assert_eq!(fm.current(), FocusTarget::Sidebar);
-    assert!(fm.pop_saved_focus().is_none(), "Saved focus must be cleared after restoration");
+    assert!(
+        fm.pop_saved_focus().is_none(),
+        "Saved focus must be cleared after restoration"
+    );
 
     // Second cycle
     let saved2 = fm.current();
@@ -112,20 +119,22 @@ fn test_focus_restoration_cycle() {
 
 #[test]
 fn test_slash_completion_dispatch_trapping() {
-    use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction};
-    use brain_tui::ui::focus::{FocusManager, FocusProfile};
-    use brain_tui::ui::widgets::view_models::FocusTarget;
-    use brain_tui::ui::input::{InputAction, Command, TextInput};
+    use brain_domain::SessionId;
     use brain_tui::ui::command::completion::SlashCompletionState;
     use brain_tui::ui::command::palette::CommandPaletteState;
-    use brain_domain::SessionId;
-
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::input::{Command, InputAction, TextInput};
+    use brain_tui::ui::interaction::{
+        Dispatcher, Editor, InteractionContext, ScrollState, SidebarInteraction,
+    };
+    use brain_tui::ui::widgets::view_models::FocusTarget;
 
     struct DummyLookup;
     impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
-        fn title(&self, _id: SessionId) -> Option<&str> { None }
+        fn title(&self, _id: SessionId) -> Option<&str> {
+            None
+        }
     }
-
 
     let mut editor = Editor::new();
     let mut scroll = ScrollState::new();
@@ -135,7 +144,6 @@ fn test_slash_completion_dispatch_trapping() {
     let mut command_palette = CommandPaletteState::new();
     let visible_ids = vec![];
     let lookup = DummyLookup;
-
 
     let mut pending_approvals = vec![];
 
@@ -153,8 +161,10 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
 
     assert!(slash_completion.visible);
@@ -175,8 +185,10 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
 
     assert!(slash_completion.visible);
@@ -196,10 +208,11 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     // 4. Tab key -> should autocomplete to "/model " because we scrolled down
     let _ = Dispatcher::dispatch(
@@ -215,8 +228,10 @@ fn test_slash_completion_dispatch_trapping() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
 
     assert!(!slash_completion.visible);
@@ -225,8 +240,8 @@ fn test_slash_completion_dispatch_trapping() {
 
 #[test]
 fn test_command_palette_geometry_clamps() {
-    use ratatui::layout::Rect;
     use brain_tui::ui::layout::CommandPaletteGeometry;
+    use ratatui::layout::Rect;
 
     // Small terminal: should clamp width and height to their minimums
     let small_term = Rect::new(0, 0, 20, 5);
@@ -237,7 +252,7 @@ fn test_command_palette_geometry_clamps() {
     // Standard/Large terminal: should clamp width to [40, 80] and height to [8, 15]
     let large_term = Rect::new(0, 0, 120, 40);
     let area_large = CommandPaletteGeometry::compute(large_term);
-    assert_eq!(area_large.width, 80);  // max width clamp
+    assert_eq!(area_large.width, 80); // max width clamp
     assert_eq!(area_large.height, 15); // max height clamp
     assert_eq!(area_large.x, (120 - 80) / 2);
     assert_eq!(area_large.y, (40 - 15) / 2);
@@ -259,17 +274,21 @@ fn test_command_palette_filtering() {
 
 #[test]
 fn test_palette_parameter_collection_transitions() {
-    use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction};
-    use brain_tui::ui::focus::{FocusManager, FocusProfile};
-    use brain_tui::ui::widgets::view_models::FocusTarget;
-    use brain_tui::ui::input::{InputAction, Command, TextInput};
+    use brain_domain::SessionId;
     use brain_tui::ui::command::completion::SlashCompletionState;
     use brain_tui::ui::command::palette::{CommandPaletteState, PaletteStage};
-    use brain_domain::SessionId;
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::input::{Command, InputAction, TextInput};
+    use brain_tui::ui::interaction::{
+        Dispatcher, Editor, InteractionContext, ScrollState, SidebarInteraction,
+    };
+    use brain_tui::ui::widgets::view_models::FocusTarget;
 
     struct DummyLookup;
     impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
-        fn title(&self, _id: SessionId) -> Option<&str> { None }
+        fn title(&self, _id: SessionId) -> Option<&str> {
+            None
+        }
     }
 
     let mut editor = Editor::new();
@@ -297,8 +316,10 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
     assert!(command_palette.open);
     assert_eq!(focus.current(), FocusTarget::CommandPalette);
@@ -319,12 +340,14 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-            }
+                pending_approvals: &mut pending_approvals,
+                sessions: &[],
+                active_messages: &[],
+            },
         );
     }
     assert_eq!(command_palette.editor.text(), "theme");
-    
+
     // Check first match is Change Theme
     let matches: Vec<_> = command_palette.matches().collect();
     assert!(!matches.is_empty());
@@ -345,8 +368,10 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
     assert!(command_palette.open);
     if let PaletteStage::CollectParameter(state) = &command_palette.stage {
@@ -372,8 +397,10 @@ fn test_palette_parameter_collection_transitions() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-            }
+                pending_approvals: &mut pending_approvals,
+                sessions: &[],
+                active_messages: &[],
+            },
         );
     }
     assert_eq!(command_palette.editor.text(), "dark");
@@ -391,8 +418,10 @@ fn test_palette_parameter_collection_transitions() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
 
     // After all parameters are collected, command palette closes and focus is restored to Prompt!
@@ -402,22 +431,27 @@ fn test_palette_parameter_collection_transitions() {
 
 #[test]
 fn test_command_execution_pipeline() {
-    use brain_tui::ui::command::{
-        CommandExecutor, CommandInvocation, LocalStateMutation, ThemeId,
-    };
     use brain_tui::ui::command::palette::CommandPaletteState;
+    use brain_tui::ui::command::{CommandExecutor, CommandInvocation, LocalStateMutation, ThemeId};
 
-    use brain_tui::ui::interaction::{Editor, ScrollState, Dispatcher, InteractionContext, SidebarInteraction, UiEvent};
-    use brain_tui::ui::focus::{FocusManager, FocusProfile};
-    use brain_tui::ui::widgets::view_models::FocusTarget;
-    use brain_tui::ui::input::{InputAction, Command, TextInput};
-    use brain_tui::ui::command::completion::SlashCompletionState;
     use brain_domain::SessionId;
+    use brain_tui::ui::command::completion::SlashCompletionState;
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::input::{Command, InputAction, TextInput};
+    use brain_tui::ui::interaction::{
+        Dispatcher, Editor, InteractionContext, ScrollState, SidebarInteraction, UiEvent,
+    };
+    use brain_tui::ui::widgets::view_models::FocusTarget;
 
     // 1. Verify CommandExecutor::plan outputs
-    let theme_inv = CommandInvocation::ChangeTheme { theme: ThemeId("dark") };
+    let theme_inv = CommandInvocation::ChangeTheme {
+        theme: ThemeId("dark"),
+    };
     let plan = CommandExecutor::plan(theme_inv);
-    assert_eq!(plan.mutations, vec![LocalStateMutation::ApplyTheme(ThemeId("dark"))]);
+    assert_eq!(
+        plan.mutations,
+        vec![LocalStateMutation::ApplyTheme(ThemeId("dark"))]
+    );
     assert!(plan.backend_commands.is_empty());
 
     let session_id = SessionId::new();
@@ -426,7 +460,13 @@ fn test_command_execution_pipeline() {
         title: brain_tui::ui::command::SessionTitle("New Name".to_string()),
     };
     let plan_rename = CommandExecutor::plan(rename_inv);
-    assert_eq!(plan_rename.mutations, vec![LocalStateMutation::RenameSession(session_id, "New Name".to_string())]);
+    assert_eq!(
+        plan_rename.mutations,
+        vec![LocalStateMutation::RenameSession(
+            session_id,
+            "New Name".to_string()
+        )]
+    );
     assert_eq!(
         plan_rename.backend_commands,
         vec![brain_tui::ui::protocol::BackendCommand::RenameSession {
@@ -438,7 +478,9 @@ fn test_command_execution_pipeline() {
     // 2. Verify Dispatcher emits UiEvent::Command for no-parameter commands immediately
     struct DummyLookup;
     impl brain_tui::ui::interaction::sidebar::SessionLookup for DummyLookup {
-        fn title(&self, _id: SessionId) -> Option<&str> { None }
+        fn title(&self, _id: SessionId) -> Option<&str> {
+            None
+        }
     }
 
     let mut editor = Editor::new();
@@ -467,8 +509,10 @@ fn test_command_execution_pipeline() {
                 is_connected: true,
                 visible_ids: &visible_ids,
                 lookup: &lookup,
-                pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-            }
+                pending_approvals: &mut pending_approvals,
+                sessions: &[],
+                active_messages: &[],
+            },
         );
     }
 
@@ -485,24 +529,31 @@ fn test_command_execution_pipeline() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
 
     // Should close palette and emit ClearChat command event!
     assert!(!command_palette.open);
-    assert_eq!(res.ui_event, Some(UiEvent::Command(CommandInvocation::ClearChat)));
+    assert_eq!(
+        res.ui_event,
+        Some(UiEvent::Command(CommandInvocation::ClearChat))
+    );
 }
 
 #[test]
 fn test_command_palette_widget_rendering() {
+    use brain_tui::ui::command::completion::SlashCompletionState;
+    use brain_tui::ui::command::palette::{
+        CommandPaletteState, PaletteStage, ParameterCollectionState,
+    };
+    use brain_tui::ui::theme::Theme;
+    use brain_tui::ui::widgets::completion;
+    use brain_tui::ui::widgets::palette;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
-    use brain_tui::ui::theme::Theme;
-    use brain_tui::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState};
-    use brain_tui::ui::widgets::palette;
-    use brain_tui::ui::widgets::completion;
-    use brain_tui::ui::command::completion::SlashCompletionState;
 
     // 1. Render Search Stage
     let backend = TestBackend::new(80, 20);
@@ -514,9 +565,11 @@ fn test_command_palette_widget_rendering() {
     state.editor.insert('h');
 
     let area = ratatui::layout::Rect::new(10, 2, 60, 15);
-    terminal.draw(|f| {
-        palette::draw(f, area, &state, &theme);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            palette::draw(f, area, &state, &theme);
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     // Validate centering/sizing and title text exists in buffer
@@ -534,23 +587,27 @@ fn test_command_palette_widget_rendering() {
 
     // 2. Render CollectParameter Stage
     let mut state_param = CommandPaletteState::new();
-    state_param.stage = PaletteStage::CollectParameter(ParameterCollectionState::new(brain_tui::ui::command::CHANGE_THEME));
-    terminal.draw(|f| {
-        palette::draw(f, area, &state_param, &theme);
-    }).unwrap();
+    state_param.stage = PaletteStage::CollectParameter(ParameterCollectionState::new(
+        brain_tui::ui::command::CHANGE_THEME,
+    ));
+    terminal
+        .draw(|f| {
+            palette::draw(f, area, &state_param, &theme);
+        })
+        .unwrap();
 
     // 3. Render Slash Completion Popup
     let mut completion_state = SlashCompletionState::new();
     completion_state.visible = true;
     completion_state.query = "/t".to_string();
-    terminal.draw(|f| {
-        completion::draw(f, ratatui::layout::Rect::new(0, 0, 40, 10), &completion_state, &theme);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            completion::draw(
+                f,
+                ratatui::layout::Rect::new(0, 0, 40, 10),
+                &completion_state,
+                &theme,
+            );
+        })
+        .unwrap();
 }
-
-
-
-
-
-
-

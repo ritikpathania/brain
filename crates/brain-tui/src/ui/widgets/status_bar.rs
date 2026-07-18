@@ -1,13 +1,13 @@
 //! StatusBar widget drawing titles, statuses, and animation ticks.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
+use crate::ui::layout::{CellWidth, LayoutEngine, StatusBarMeasure};
 use crate::ui::primitives::{Spinner, SpinnerStyle};
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::{StatusBarView, StatusKind};
-use crate::ui::layout::{LayoutEngine, StatusBarMeasure, CellWidth};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// The StatusBar widget renderer.
 pub struct StatusBar<'a> {
@@ -22,7 +22,7 @@ impl<'a> BrainWidget for StatusBar<'a> {
             show_spinner: matches!(self.view.kind, StatusKind::Working),
         };
         let geometry = LayoutEngine::status_bar(area, &measure);
-        
+
         // Paint background
         buf.set_style(area, ctx.theme.style(ThemeToken::Background));
 
@@ -32,12 +32,14 @@ impl<'a> BrainWidget for StatusBar<'a> {
             geometry.title_area.y,
             self.view.title,
             geometry.title_area.width as usize,
-            ctx.theme.style(ThemeToken::Primary)
+            ctx.theme.style(ThemeToken::Primary),
         );
 
         // Paint optional spinner
         if geometry.spinner_area.width > 0 {
-            let spinner = Spinner { style: SpinnerStyle::Thinking };
+            let spinner = Spinner {
+                style: SpinnerStyle::Thinking,
+            };
             spinner.draw(geometry.spinner_area, buf, ctx);
         }
 
@@ -54,7 +56,7 @@ impl<'a> BrainWidget for StatusBar<'a> {
             geometry.status_area.y,
             self.view.message,
             geometry.status_area.width as usize,
-            ctx.theme.style(token)
+            ctx.theme.style(token),
         );
     }
 }

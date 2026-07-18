@@ -1,7 +1,7 @@
 use brain_domain::{
-    AffectedElement, DiagnosticCategory, DiagnosticSeverity, Edge, EdgeId,
+    AffectedElement, Derivation, DiagnosticCategory, DiagnosticSeverity, Edge, EdgeId,
     GraphValidator, KnowledgeGraph, Node, NodeId, NodeType, ProvenanceSource, RelationKind,
-    RelationRegistry, RuleId, Derivation
+    RelationRegistry, RuleId,
 };
 
 fn create_test_registry() -> RelationRegistry {
@@ -23,21 +23,35 @@ fn test_validator_pass_identity_missing_nodes() {
 
     let report = GraphValidator::validate(&graph, &registry);
     let diagnostics = report.diagnostics;
-    
+
     // Should generate VAL-001 (missing source node) and VAL-002 (missing target node)
     assert_eq!(diagnostics.len(), 2);
-    
+
     assert_eq!(diagnostics[0].code, "VAL-001");
     assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Error);
-    assert_eq!(diagnostics[0].category, DiagnosticCategory::ReferentialIntegrity);
-    assert!(diagnostics[0].affected.contains(&AffectedElement::Node(node_a)));
-    assert!(diagnostics[0].affected.contains(&AffectedElement::Edge(edge_id.clone())));
+    assert_eq!(
+        diagnostics[0].category,
+        DiagnosticCategory::ReferentialIntegrity
+    );
+    assert!(diagnostics[0]
+        .affected
+        .contains(&AffectedElement::Node(node_a)));
+    assert!(diagnostics[0]
+        .affected
+        .contains(&AffectedElement::Edge(edge_id.clone())));
 
     assert_eq!(diagnostics[1].code, "VAL-002");
     assert_eq!(diagnostics[1].severity, DiagnosticSeverity::Error);
-    assert_eq!(diagnostics[1].category, DiagnosticCategory::ReferentialIntegrity);
-    assert!(diagnostics[1].affected.contains(&AffectedElement::Node(node_b)));
-    assert!(diagnostics[1].affected.contains(&AffectedElement::Edge(edge_id)));
+    assert_eq!(
+        diagnostics[1].category,
+        DiagnosticCategory::ReferentialIntegrity
+    );
+    assert!(diagnostics[1]
+        .affected
+        .contains(&AffectedElement::Node(node_b)));
+    assert!(diagnostics[1]
+        .affected
+        .contains(&AffectedElement::Edge(edge_id)));
 }
 
 #[test]
@@ -58,12 +72,17 @@ fn test_validator_pass_registry_unknown_relation() {
 
     let report = GraphValidator::validate(&graph, &registry);
     let diagnostics = report.diagnostics;
-    
+
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "VAL-003");
-    assert_eq!(diagnostics[0].category, DiagnosticCategory::RegistryConformance);
+    assert_eq!(
+        diagnostics[0].category,
+        DiagnosticCategory::RegistryConformance
+    );
     assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Error);
-    assert!(diagnostics[0].affected.contains(&AffectedElement::Edge(edge_id)));
+    assert!(diagnostics[0]
+        .affected
+        .contains(&AffectedElement::Edge(edge_id)));
 }
 
 #[test]
@@ -82,12 +101,19 @@ fn test_validator_pass_structural_redundancy_and_self_loops() {
 
     let report = GraphValidator::validate(&graph, &registry);
     let diagnostics = report.diagnostics;
-    
+
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].code, "VAL-005");
-    assert_eq!(diagnostics[0].category, DiagnosticCategory::ReferentialIntegrity);
-    assert!(diagnostics[0].affected.contains(&AffectedElement::Edge(loop_id)));
-    assert!(diagnostics[0].affected.contains(&AffectedElement::Node(node_a)));
+    assert_eq!(
+        diagnostics[0].category,
+        DiagnosticCategory::ReferentialIntegrity
+    );
+    assert!(diagnostics[0]
+        .affected
+        .contains(&AffectedElement::Edge(loop_id)));
+    assert!(diagnostics[0]
+        .affected
+        .contains(&AffectedElement::Node(node_a)));
 }
 
 #[test]
@@ -163,10 +189,14 @@ fn test_validator_pass_explanation_cyclicity() {
 
     let report = GraphValidator::validate(&graph, &registry);
     let diagnostics = report.diagnostics;
-    
+
     // VAL-009 should be triggered due to circular reasoning
     let has_cycle_diagnostic = diagnostics.iter().any(|d| d.code == "VAL-009");
-    assert!(has_cycle_diagnostic, "Circular reasoning VAL-009 diagnostic not triggered. Diagnostics: {:?}", diagnostics);
+    assert!(
+        has_cycle_diagnostic,
+        "Circular reasoning VAL-009 diagnostic not triggered. Diagnostics: {:?}",
+        diagnostics
+    );
 }
 
 #[test]
@@ -181,10 +211,12 @@ fn test_validation_report_metrics_and_snapshot() {
     graph.add_node(Node::new(node_b, "NodeB".to_string(), NodeType::Concept));
 
     // 1 edge in graph
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+        .unwrap();
 
     let report = GraphValidator::validate(&graph, &registry);
-    
+
     assert!(report.summary.is_valid);
     assert_eq!(report.summary.total_errors, 0);
     assert_eq!(report.summary.total_warnings, 0);

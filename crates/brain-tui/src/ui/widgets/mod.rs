@@ -1,55 +1,55 @@
-/// Header widget displaying app title and status.
-pub mod header;
 /// Chat widget showing history message viewport.
 pub mod chat;
-/// Prompt input buffer bar widget.
-pub mod prompt;
-/// Status footer widget carrying shortcuts list.
-pub mod status;
-/// Sidebar widget listing session threads.
-pub mod sidebar;
+/// Header widget displaying app title and status.
+pub mod header;
 /// Interactive knowledge inspector widget.
 pub mod inspector;
+/// Prompt input buffer bar widget.
+pub mod prompt;
+/// Sidebar widget listing session threads.
+pub mod sidebar;
+/// Status footer widget carrying shortcuts list.
+pub mod status;
 
-/// Decoupled, immutable data structures for widgets.
-pub mod view_models;
 /// Widget rendering trait.
 pub mod brain_widget;
+/// Decoupled, immutable data structures for widgets.
+pub mod view_models;
 
-/// StatusBar widget primitives.
-pub mod status_bar;
-/// Footer widget primitives.
-pub mod footer;
-/// Panel widget primitives.
-pub mod panel;
-/// Dialog widget primitives.
-pub mod dialog;
-/// Section widget primitives.
-pub mod section;
-/// Toolbar widget primitives.
-pub mod toolbar;
-/// List widget primitives.
-pub mod list;
-/// ScrollView widget primitives.
-pub mod scroll_view;
-/// CommandHint widget primitives.
-pub mod command_hint;
-/// EmptyState widget primitives.
-pub mod empty_state;
 /// ChatScreen composer widget.
 pub mod chat_screen;
+/// CommandHint widget primitives.
+pub mod command_hint;
+/// Dialog widget primitives.
+pub mod dialog;
+/// EmptyState widget primitives.
+pub mod empty_state;
+/// Footer widget primitives.
+pub mod footer;
+/// List widget primitives.
+pub mod list;
+/// Panel widget primitives.
+pub mod panel;
+/// ScrollView widget primitives.
+pub mod scroll_view;
+/// Section widget primitives.
+pub mod section;
+/// StatusBar widget primitives.
+pub mod status_bar;
+/// Toolbar widget primitives.
+pub mod toolbar;
 
-pub use status_bar::StatusBar;
-pub use footer::Footer;
-pub use panel::Panel;
-pub use dialog::Dialog;
-pub use section::Section;
-pub use toolbar::Toolbar;
-pub use list::List;
-pub use scroll_view::ScrollViewWidget;
-pub use command_hint::CommandHint;
-pub use empty_state::EmptyState;
 pub use chat_screen::ChatScreen;
+pub use command_hint::CommandHint;
+pub use dialog::Dialog;
+pub use empty_state::EmptyState;
+pub use footer::Footer;
+pub use list::List;
+pub use panel::Panel;
+pub use scroll_view::ScrollViewWidget;
+pub use section::Section;
+pub use status_bar::StatusBar;
+pub use toolbar::Toolbar;
 
 /// Autocomplete suggestions overlay widget.
 pub mod completion;
@@ -57,4 +57,3 @@ pub mod completion;
 pub mod palette;
 /// Modal pinned context overlay widget.
 pub mod pinned_overlay;
-

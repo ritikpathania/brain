@@ -52,19 +52,19 @@ fn test_fts_benchmark_cold_and_warm_cache() {
     if regenerate {
         println!("REGENERATE_BASELINES=1 detected. Writing golden retrieval baselines...");
         let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
-        
+
         let cold_serialized = serde_json::to_string_pretty(&cold_report).unwrap();
         let warm_serialized = serde_json::to_string_pretty(&warm_report).unwrap();
-        
+
         fs::write(base_path.join("baseline_cold.json"), cold_serialized).unwrap();
         fs::write(base_path.join("baseline_warm.json"), warm_serialized).unwrap();
-        
+
         println!("Golden retrieval baselines successfully written.");
     } else {
         // Load baselines
         let baseline_cold_json = include_str!("evaluation/baseline_cold.json");
         let baseline_warm_json = include_str!("evaluation/baseline_warm.json");
-        
+
         let baseline_cold: BenchmarkReport = serde_json::from_str(baseline_cold_json).unwrap();
         let baseline_warm: BenchmarkReport = serde_json::from_str(baseline_warm_json).unwrap();
 
@@ -78,12 +78,22 @@ fn test_fts_benchmark_cold_and_warm_cache() {
     }
 
     // Secondary checks to ensure retriever diagnostics invariants
-    let q_001_res = warm_report.stable.query_results.iter().find(|r| r.query_id == "q_001").unwrap();
+    let q_001_res = warm_report
+        .stable
+        .query_results
+        .iter()
+        .find(|r| r.query_id == "q_001")
+        .unwrap();
     assert_eq!(q_001_res.status, "success");
     assert_eq!(q_001_res.recall_at_1, 1.0);
     assert_eq!(q_001_res.mrr, 1.0);
 
-    let q_001_diag = warm_report.measured.diagnostics.iter().find(|d| d.query_id == "q_001").unwrap();
+    let q_001_diag = warm_report
+        .measured
+        .diagnostics
+        .iter()
+        .find(|d| d.query_id == "q_001")
+        .unwrap();
     assert_eq!(
         q_001_diag.normalized_query,
         Some("how do i configure typescript client uds".to_string())

@@ -1,14 +1,15 @@
-use std::sync::Arc;
+use crate::retrieval::feature_extractor::FeatureExtractor;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::RetrievalRequest;
-use brain_domain::retrieval::models::{LinearRankingModel, RankingModel, WeightSnapshot};
-use brain_domain::retrieval::features::{FeatureNormalizer, NormalizationContext};
 use brain_domain::retrieval::evaluation::{
-    EvaluationDataset, EvaluationMetrics, EvaluationComparison, PublicationPolicy,
-    EvaluationMetadata, EvaluationReport, MetricCalculator, NdcgScore, MrrScore, RecallScore, PrecisionScore
+    EvaluationComparison, EvaluationDataset, EvaluationMetadata, EvaluationMetrics,
+    EvaluationReport, MetricCalculator, MrrScore, NdcgScore, PrecisionScore, PublicationPolicy,
+    RecallScore,
 };
-use crate::retrieval::feature_extractor::FeatureExtractor;
+use brain_domain::retrieval::features::{FeatureNormalizer, NormalizationContext};
+use brain_domain::retrieval::models::{LinearRankingModel, RankingModel, WeightSnapshot};
+use std::sync::Arc;
 
 /// Bundles dependencies and context for running evaluations.
 pub struct EvaluationContext<'a> {
@@ -34,8 +35,14 @@ pub struct OfflineEvaluator {
 
 impl OfflineEvaluator {
     /// Creates a new `OfflineEvaluator`.
-    pub fn new(extractor: Arc<dyn FeatureExtractor>, normalizer: Arc<dyn FeatureNormalizer>) -> Self {
-        Self { extractor, normalizer }
+    pub fn new(
+        extractor: Arc<dyn FeatureExtractor>,
+        normalizer: Arc<dyn FeatureNormalizer>,
+    ) -> Self {
+        Self {
+            extractor,
+            normalizer,
+        }
     }
 
     /// Executes offline evaluations on the given context.
@@ -72,17 +79,30 @@ impl OfflineEvaluator {
                 deadline: None,
             };
 
-            let raw = self.extractor.extract(&request, &case.candidates, &case.temporal_edges, context.repos)?;
-            let norm = self.normalizer.normalize(&raw, &context.normalizer_strategy)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+            let raw = self.extractor.extract(
+                &request,
+                &case.candidates,
+                &case.temporal_edges,
+                context.repos,
+            )?;
+            let norm = self
+                .normalizer
+                .normalize(&raw, &context.normalizer_strategy)
+                .map_err(|e| BrainError::Internal {
+                    message: format!("{:?}", e),
+                })?;
 
             let b_ranked = self.rank_candidates(&case.candidates, &norm, &baseline_model);
             let c_ranked = self.rank_candidates(&case.candidates, &norm, &candidate_model);
 
             let b_met = MetricCalculator::compute_metrics(&b_ranked, &case.judgments, context.k)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+                .map_err(|e| BrainError::Internal {
+                    message: format!("{:?}", e),
+                })?;
             let c_met = MetricCalculator::compute_metrics(&c_ranked, &case.judgments, context.k)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+                .map_err(|e| BrainError::Internal {
+                    message: format!("{:?}", e),
+                })?;
 
             baseline_ndcg += b_met.ndcg_k.value();
             baseline_mrr += b_met.mrr.value();
@@ -97,28 +117,52 @@ impl OfflineEvaluator {
             evaluated_cases += 1;
         }
 
-        let eval_count = if evaluated_cases > 0 { evaluated_cases as f64 } else { 1.0 };
+        let eval_count = if evaluated_cases > 0 {
+            evaluated_cases as f64
+        } else {
+            1.0
+        };
 
         let baseline_metrics = EvaluationMetrics {
-            ndcg_k: NdcgScore::new(baseline_ndcg / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            mrr: MrrScore::new(baseline_mrr / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            recall_k: RecallScore::new(baseline_recall / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            precision_k: PrecisionScore::new(baseline_precision / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
+            ndcg_k: NdcgScore::new(baseline_ndcg / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            mrr: MrrScore::new(baseline_mrr / eval_count).map_err(|e| BrainError::Internal {
+                message: format!("{:?}", e),
+            })?,
+            recall_k: RecallScore::new(baseline_recall / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            precision_k: PrecisionScore::new(baseline_precision / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
         };
 
         let candidate_metrics = EvaluationMetrics {
-            ndcg_k: NdcgScore::new(candidate_ndcg / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            mrr: MrrScore::new(candidate_mrr / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            recall_k: RecallScore::new(candidate_recall / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
-            precision_k: PrecisionScore::new(candidate_precision / eval_count)
-                .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?,
+            ndcg_k: NdcgScore::new(candidate_ndcg / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            mrr: MrrScore::new(candidate_mrr / eval_count).map_err(|e| BrainError::Internal {
+                message: format!("{:?}", e),
+            })?,
+            recall_k: RecallScore::new(candidate_recall / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
+            precision_k: PrecisionScore::new(candidate_precision / eval_count).map_err(|e| {
+                BrainError::Internal {
+                    message: format!("{:?}", e),
+                }
+            })?,
         };
 
         let ndcg_improvement = candidate_metrics.ndcg_k.value() - baseline_metrics.ndcg_k.value();
@@ -131,7 +175,9 @@ impl OfflineEvaluator {
             mrr_improvement,
         };
 
-        let recommendation = context.publication_policy.evaluate_recommendation(&comparison);
+        let recommendation = context
+            .publication_policy
+            .evaluate_recommendation(&comparison);
 
         let metadata = EvaluationMetadata {
             dataset_version: context.dataset.version.clone(),
@@ -156,16 +202,20 @@ impl OfflineEvaluator {
         signals: &[brain_domain::retrieval::models::RankingSignals],
         model: &LinearRankingModel,
     ) -> Vec<brain_domain::NodeId> {
-        let mut scored: Vec<(brain_domain::NodeId, f64)> = candidates.iter().enumerate().map(|(idx, node)| {
-            let score = model.score(&signals[idx]);
-            (node.id, score)
-        }).collect();
+        let mut scored: Vec<(brain_domain::NodeId, f64)> = candidates
+            .iter()
+            .enumerate()
+            .map(|(idx, node)| {
+                let score = model.score(&signals[idx]);
+                (node.id, score)
+            })
+            .collect();
 
         scored.sort_by(|a, b| {
             b.1.partial_cmp(&a.1)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.0.0.cmp(&b.0.0))
-          });
+                .then_with(|| a.0 .0.cmp(&b.0 .0))
+        });
 
         scored.into_iter().map(|(id, _)| id).collect()
     }

@@ -1,5 +1,5 @@
 use crate::errors::BrainError;
-use brain_domain::{Session, Edge, EdgeId, Embedding, Node, NodeId, SessionId};
+use brain_domain::{Edge, EdgeId, Embedding, Node, NodeId, Session, SessionId};
 
 /// Trait defining atomic CRUD operations for graph Nodes in the database.
 ///
@@ -102,4 +102,13 @@ pub trait RepositorySet: Send + Sync {
 pub trait StorageTransaction: Send + Sync {
     /// Returns the repositories bound to this transaction.
     fn repositories(&self) -> &dyn RepositorySet;
+}
+
+/// Trait representing a transactional storage engine.
+pub trait Storage: Send + Sync {
+    /// Executes the given closure in a single transaction.
+    fn run_transaction(
+        &self,
+        f: &mut dyn FnMut(&dyn StorageTransaction) -> Result<(), BrainError>,
+    ) -> Result<(), BrainError>;
 }

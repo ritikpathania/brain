@@ -1,14 +1,13 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use brain_domain::{
-    KnowledgeGraph, Node, NodeId, NodeType, Edge, RelationKind,
-    GraphAnalyticsContext, ConnectedComponents, Centrality, Distribution,
-    ProvenanceStatistics, ShortestPath, CycleDetector, PageRank,
-    StronglyConnectedComponents, ConnectedComponentsConfig, CentralityConfig,
-    DistributionConfig, ProvenanceConfig, ShortestPathConfig, CycleDetectionConfig,
-    PageRankConfig, SccConfig, UniformWeightProvider, AnalyticsAlgorithm,
-    AStar, AStarConfig, ZeroHeuristic, Closeness, ClosenessConfig, Connectivity, ConnectivityConfig,
-    RoutingAlgorithm
+    AStar, AStarConfig, AnalyticsAlgorithm, Centrality, CentralityConfig, Closeness,
+    ClosenessConfig, ConnectedComponents, ConnectedComponentsConfig, Connectivity,
+    ConnectivityConfig, CycleDetectionConfig, CycleDetector, Distribution, DistributionConfig,
+    Edge, GraphAnalyticsContext, KnowledgeGraph, Node, NodeId, NodeType, PageRank, PageRankConfig,
+    ProvenanceConfig, ProvenanceStatistics, RelationKind, RoutingAlgorithm, SccConfig,
+    ShortestPath, ShortestPathConfig, StronglyConnectedComponents, UniformWeightProvider,
+    ZeroHeuristic,
 };
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 fn generate_cyclic_ring_graph(num_nodes: usize) -> (KnowledgeGraph, Vec<NodeId>) {
     let mut graph = KnowledgeGraph::new();
@@ -22,12 +21,14 @@ fn generate_cyclic_ring_graph(num_nodes: usize) -> (KnowledgeGraph, Vec<NodeId>)
     }
     for i in 0..num_nodes {
         let target_idx = (i + 1) % num_nodes;
-        graph.add_edge(Edge::new(
-            node_ids[i],
-            node_ids[target_idx],
-            RelationKind::Uses,
-            1.0,
-        )).unwrap();
+        graph
+            .add_edge(Edge::new(
+                node_ids[i],
+                node_ids[target_idx],
+                RelationKind::Uses,
+                1.0,
+            ))
+            .unwrap();
     }
     (graph, node_ids)
 }
@@ -51,12 +52,16 @@ fn bench_index_construction(c: &mut Criterion) {
             });
         });
 
-        group.bench_with_input(BenchmarkId::new("reverse_adjacency_build", size), size, |b, _| {
-            b.iter(|| {
-                let ctx = GraphAnalyticsContext::new(&graph);
-                ctx.reverse_adjacency();
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("reverse_adjacency_build", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    let ctx = GraphAnalyticsContext::new(&graph);
+                    ctx.reverse_adjacency();
+                });
+            },
+        );
 
         group.bench_with_input(BenchmarkId::new("degrees_build", size), size, |b, _| {
             b.iter(|| {
@@ -80,11 +85,15 @@ fn bench_solvers_execution(c: &mut Criterion) {
         ctx.reverse_adjacency();
         ctx.degrees();
 
-        group.bench_with_input(BenchmarkId::new("ConnectedComponents", size), size, |b, _| {
-            b.iter(|| {
-                ConnectedComponents::new(&ctx, ConnectedComponentsConfig::default()).compute();
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("ConnectedComponents", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    ConnectedComponents::new(&ctx, ConnectedComponentsConfig::default()).compute();
+                });
+            },
+        );
 
         group.bench_with_input(BenchmarkId::new("Centrality", size), size, |b, _| {
             b.iter(|| {
@@ -98,17 +107,22 @@ fn bench_solvers_execution(c: &mut Criterion) {
             });
         });
 
-        group.bench_with_input(BenchmarkId::new("ProvenanceStatistics", size), size, |b, _| {
-            b.iter(|| {
-                ProvenanceStatistics::new(&ctx, ProvenanceConfig::default()).compute();
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("ProvenanceStatistics", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    ProvenanceStatistics::new(&ctx, ProvenanceConfig::default()).compute();
+                });
+            },
+        );
 
         group.bench_with_input(BenchmarkId::new("ShortestPath", size), size, |b, _| {
             let src = node_ids[0];
             let dst = node_ids[size / 2];
             b.iter(|| {
-                ShortestPath::new(&ctx, ShortestPathConfig::default(), UniformWeightProvider).compute(src, dst);
+                ShortestPath::new(&ctx, ShortestPathConfig::default(), UniformWeightProvider)
+                    .compute(src, dst);
             });
         });
 
@@ -130,33 +144,52 @@ fn bench_solvers_execution(c: &mut Criterion) {
             });
         }
 
-        group.bench_with_input(BenchmarkId::new("StronglyConnectedComponents", size), size, |b, _| {
-            b.iter(|| {
-                StronglyConnectedComponents::new(&ctx, SccConfig::default()).compute();
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("StronglyConnectedComponents", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    StronglyConnectedComponents::new(&ctx, SccConfig::default()).compute();
+                });
+            },
+        );
 
         group.bench_with_input(BenchmarkId::new("AStar", size), size, |b, _| {
             let src = node_ids[0];
             let dst = node_ids[size / 2];
             b.iter(|| {
-                AStar::new(&ctx, AStarConfig::default(), UniformWeightProvider, ZeroHeuristic).compute(src, dst);
+                AStar::new(
+                    &ctx,
+                    AStarConfig::default(),
+                    UniformWeightProvider,
+                    ZeroHeuristic,
+                )
+                .compute(src, dst);
             });
         });
 
         if *size <= 100 {
-            group.bench_with_input(BenchmarkId::new("ClosenessCentrality", size), size, |b, _| {
-                b.iter(|| {
-                    Closeness::new(&ctx, ClosenessConfig::default(), UniformWeightProvider).compute();
-                });
-            });
+            group.bench_with_input(
+                BenchmarkId::new("ClosenessCentrality", size),
+                size,
+                |b, _| {
+                    b.iter(|| {
+                        Closeness::new(&ctx, ClosenessConfig::default(), UniformWeightProvider)
+                            .compute();
+                    });
+                },
+            );
         }
 
-        group.bench_with_input(BenchmarkId::new("ConnectivityDiagnostics", size), size, |b, _| {
-            b.iter(|| {
-                Connectivity::new(&ctx, ConnectivityConfig::default()).compute();
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("ConnectivityDiagnostics", size),
+            size,
+            |b, _| {
+                b.iter(|| {
+                    Connectivity::new(&ctx, ConnectivityConfig::default()).compute();
+                });
+            },
+        );
     }
     group.finish();
 }
@@ -177,5 +210,10 @@ fn bench_combined_execution(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_index_construction, bench_solvers_execution, bench_combined_execution);
+criterion_group!(
+    benches,
+    bench_index_construction,
+    bench_solvers_execution,
+    bench_combined_execution
+);
 criterion_main!(benches);

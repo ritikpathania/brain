@@ -1,18 +1,21 @@
 mod common;
 
-use std::borrow::Cow;
+use brain_tui::ui::interaction::markdown::{
+    CitationNode, InlineNode, KeywordSyntaxHighlighter, MarkdownBlock, MarkdownLayout,
+    MarkdownParser, SelectionState, TableNode, VisualLine, VisualLineKind, VisualSpan, VisualStyle,
+};
+use brain_tui::ui::render::{IconSet, RenderContext};
+use brain_tui::ui::theme::{dark_theme, ActiveTheme};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Style, Modifier, Color};
-use brain_tui::ui::theme::{dark_theme, ActiveTheme};
-use brain_tui::ui::render::{RenderContext, IconSet};
-use brain_tui::ui::interaction::markdown::{
-    MarkdownParser, MarkdownLayout, KeywordSyntaxHighlighter,
-    SelectionState, VisualSpan, VisualStyle, VisualLine, VisualLineKind,
-    MarkdownBlock, InlineNode, TableNode, CitationNode
-};
+use ratatui::style::{Color, Modifier, Style};
+use std::borrow::Cow;
 
-fn map_span_for_test(span: &VisualSpan, theme: &Style, is_selected: bool) -> ratatui::text::Span<'static> {
+fn map_span_for_test(
+    span: &VisualSpan,
+    theme: &Style,
+    is_selected: bool,
+) -> ratatui::text::Span<'static> {
     let mut style = Style::default();
 
     match span.style {
@@ -116,8 +119,14 @@ fn test() {}
     let ast = MarkdownParser::parse(text);
 
     assert_eq!(ast.blocks.len(), 6);
-    assert!(matches!(ast.blocks[0], MarkdownBlock::Heading { level: 1, .. }));
-    assert!(matches!(ast.blocks[1], MarkdownBlock::Heading { level: 2, .. }));
+    assert!(matches!(
+        ast.blocks[0],
+        MarkdownBlock::Heading { level: 1, .. }
+    ));
+    assert!(matches!(
+        ast.blocks[1],
+        MarkdownBlock::Heading { level: 2, .. }
+    ));
     assert!(matches!(ast.blocks[2], MarkdownBlock::Paragraph(_)));
     assert!(matches!(ast.blocks[3], MarkdownBlock::CodeBlock { .. }));
     assert!(matches!(ast.blocks[4], MarkdownBlock::Table(_)));
@@ -185,31 +194,76 @@ fn test_rich_rendering_snapshots() {
     let theme = dark_theme();
     let icons = IconSet::new(true);
     let capabilities = common::mock_capabilities();
-    let ctx = RenderContext { theme: theme.clone(), icons: &icons, capabilities, tick: 0 };
+    let ctx = RenderContext {
+        theme: theme.clone(),
+        icons: &icons,
+        capabilities,
+        tick: 0,
+    };
     let text_style = theme.text;
     let highlighter = KeywordSyntaxHighlighter::new();
     let selection_none = SelectionState::new();
 
     let test_cases = vec![
-        ("rich_markdown_headers", "# Heading 1
+        (
+            "rich_markdown_headers",
+            "# Heading 1
 ## Heading 2
-### Heading 3", 80, &selection_none),
-        ("rich_markdown_code_block", "```rust
+### Heading 3",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_code_block",
+            "```rust
 fn main() {
     let value = 42;
     return value;
 }
-```", 80, &selection_none),
-        ("rich_markdown_table", "| Item | Qty | Cost |
+```",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_table",
+            "| Item | Qty | Cost |
 |---|---|---|
 | Apple | 10 | $5 |
-| Orange | 5 | $3 |", 80, &selection_none),
-        ("rich_markdown_inline_styles", "This is **bold** text, *italic* text, and `inline code` spans.", 80, &selection_none),
-        ("rich_markdown_nested_formatting", "Text containing [1] citation and `code` keywords like fn and let.", 80, &selection_none),
-        ("rich_markdown_malformed", "Unterminated **bold format `code fence
-| Unfinished Table", 80, &selection_none),
-        ("rich_markdown_wrapped_heading", "# A very long heading that must wrap under narrow width limits", 30, &selection_none),
-        ("rich_markdown_resize", "Responsive text resizing verification.", 15, &selection_none),
+| Orange | 5 | $3 |",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_inline_styles",
+            "This is **bold** text, *italic* text, and `inline code` spans.",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_nested_formatting",
+            "Text containing [1] citation and `code` keywords like fn and let.",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_malformed",
+            "Unterminated **bold format `code fence
+| Unfinished Table",
+            80,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_wrapped_heading",
+            "# A very long heading that must wrap under narrow width limits",
+            30,
+            &selection_none,
+        ),
+        (
+            "rich_markdown_resize",
+            "Responsive text resizing verification.",
+            15,
+            &selection_none,
+        ),
     ];
 
     for (name, content, width, selection) in test_cases {
@@ -224,9 +278,11 @@ fn main() {
 
     // Snapshot: rich_markdown_selected
     {
-        let ast = MarkdownParser::parse("Line 1 text
+        let ast = MarkdownParser::parse(
+            "Line 1 text
 Line 2 text
-Line 3 text");
+Line 3 text",
+        );
         let layout = MarkdownLayout::layout(&ast, 80, &highlighter);
         let mut selection = SelectionState::new();
         selection.select(0, 1);

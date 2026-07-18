@@ -3,6 +3,8 @@ use std::sync::Arc;
 use tokio::net::UnixListener;
 use tracing::error;
 
+use brain_services::BrainRuntime;
+
 use crate::plugins::PluginRegistry;
 use crate::server::handlers::handle_connection;
 use crate::storage::duckdb::AnalyticsEvent;
@@ -14,6 +16,7 @@ pub async fn start_uds_listener(
     plugin_registry: Arc<PluginRegistry>,
     metrics: Arc<DaemonMetrics>,
     analytics_tx: tokio::sync::mpsc::UnboundedSender<AnalyticsEvent>,
+    brain_runtime: Arc<BrainRuntime>,
 ) {
     loop {
         match listener.accept().await {
@@ -22,6 +25,7 @@ pub async fn start_uds_listener(
                 let registry_ref = Arc::clone(&plugin_registry);
                 let connection_metrics = Arc::clone(&metrics);
                 let connection_analytics_tx = analytics_tx.clone();
+                let runtime_ref = Arc::clone(&brain_runtime);
 
                 tokio::spawn(async move {
                     connection_metrics
@@ -33,6 +37,7 @@ pub async fn start_uds_listener(
                         registry_ref,
                         connection_metrics.clone(),
                         connection_analytics_tx,
+                        runtime_ref,
                     )
                     .await
                     {

@@ -1,9 +1,9 @@
 //! Allocation-free Divider primitives.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// A simple horizontal divider line.
 pub struct Divider;

@@ -5,13 +5,12 @@ use std::time::{Duration, Instant};
 
 use brain_core::errors::BrainError;
 use brain_core::services::RetrievalService;
-use brain_domain::{Session, ConversationId, MemoryDTO, SessionId, ToolCall};
+use brain_domain::{ConversationId, MemoryDTO, Session, SessionId, ToolCall};
 use brain_services::agent::engine::AgentExecutionEngine;
+use brain_services::agent::streaming::{DefaultStreamEventMapper, StreamingRuntime};
 use brain_services::agent::{
-    AgentToolExecutor, ExecutionPolicy,
-    ExecutionStatus, MemoryCommit, MemoryCommitService,
+    AgentToolExecutor, ExecutionPolicy, ExecutionStatus, MemoryCommit, MemoryCommitService,
 };
-use brain_services::agent::streaming::{StreamingRuntime, DefaultStreamEventMapper};
 
 fn create_default_test_engine(
     policy: ExecutionPolicy,
@@ -22,7 +21,9 @@ fn create_default_test_engine(
     streaming_runtime: Arc<StreamingRuntime>,
 ) -> AgentExecutionEngine {
     let reflection_engine = Arc::new(brain_services::agent::engine::ReflectionEngineImpl {
-        policy: brain_services::agent::engine::RegexReflectionPolicy { forbidden_pattern: "TODO".to_string() },
+        policy: brain_services::agent::engine::RegexReflectionPolicy {
+            forbidden_pattern: "TODO".to_string(),
+        },
     });
     let verification_engine = Arc::new(brain_services::agent::engine::VerificationEngineImpl::new(
         brain_services::agent::engine::SafeVerificationPolicy,
@@ -52,11 +53,7 @@ impl brain_core::agents::PlannerAgent for MockPlanner {
         "MockPlanner"
     }
 
-    fn plan_steps(
-        &self,
-        _task: &str,
-        _history: &Session,
-    ) -> Result<Vec<ToolCall>, BrainError> {
+    fn plan_steps(&self, _task: &str, _history: &Session) -> Result<Vec<ToolCall>, BrainError> {
         if self.should_fail {
             return Err(BrainError::Validation {
                 message: "Planner failure".to_string(),
@@ -557,7 +554,9 @@ async fn test_event_ordering_and_metrics_invariant() {
     }
 
     // Assert specific event types occur
-    assert!(events.iter().any(|e| matches!(e.payload, StreamEventPayload::Progress { .. })));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e.payload, StreamEventPayload::Progress { .. })));
     assert!(events.iter().any(|e| matches!(
         e.payload,
         StreamEventPayload::Stage(brain_services::agent::streaming::StageEvent {
@@ -661,7 +660,9 @@ async fn test_reflection_self_correction_loop() {
         "This is a TODO placeholder response".to_string(),
         "This is a clean response without placeholders".to_string(),
     ]));
-    let chat = Arc::new(MockMultiCallChat { responses: responses.clone() });
+    let chat = Arc::new(MockMultiCallChat {
+        responses: responses.clone(),
+    });
     let retrieval = Arc::new(MockRetrieval { nodes: vec![] });
     let tool_executor = Arc::new(MockToolExecutor {
         should_fail: false,
@@ -697,7 +698,10 @@ async fn test_reflection_self_correction_loop() {
     let handle = engine.execute(session_id, conv_id, "hello");
 
     let result = handle.wait().await.unwrap();
-    assert_eq!(result.response_text(), "This is a clean response without placeholders");
+    assert_eq!(
+        result.response_text(),
+        "This is a clean response without placeholders"
+    );
     assert!(committed.load(Ordering::SeqCst));
     // The vector should be empty because both responses were removed/consumed
     assert!(responses.lock().is_empty());

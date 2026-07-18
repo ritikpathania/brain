@@ -1,13 +1,13 @@
-use brain_tui::ui::widgets::view_models::{ConnectionState, FocusTarget, ChatScreenView};
+use brain_tui::ui::focus::{FocusManager, FocusProfile};
 use brain_tui::ui::interaction::chat::{ChatState, GenerationState};
 use brain_tui::ui::interaction::editor::Editor;
 use brain_tui::ui::interaction::scroll::ScrollState;
-use brain_tui::ui::focus::{FocusManager, FocusProfile};
 use brain_tui::ui::interaction::sidebar::SidebarInteraction;
-use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
-use brain_tui::ui::widgets::ChatScreen;
-use brain_tui::ui::state::AppState;
 use brain_tui::ui::interaction::MessageRole;
+use brain_tui::ui::router::{ActiveScreen, ScreenRouter};
+use brain_tui::ui::state::AppState;
+use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+use brain_tui::ui::widgets::ChatScreen;
 
 const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
     session_title: "",

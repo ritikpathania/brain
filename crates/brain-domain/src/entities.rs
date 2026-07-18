@@ -182,7 +182,7 @@ pub struct GraphVersion(u32);
 impl GraphVersion {
     /// Version 1 of the graph protocol.
     pub const V1: Self = Self(1);
-    
+
     /// Returns the raw u32 representation of the version.
     pub fn value(self) -> u32 {
         self.0
@@ -320,7 +320,9 @@ impl Node {
     pub fn merge_with(&mut self, other: &Self) {
         // 1. Merge properties
         for (k, v) in &other.properties {
-            self.properties.entry(k.clone()).or_insert_with(|| v.clone());
+            self.properties
+                .entry(k.clone())
+                .or_insert_with(|| v.clone());
         }
 
         // 2. Merge provenance monotonically
@@ -375,7 +377,10 @@ impl Node {
         };
 
         // Keep the oldest extraction timestamp to preserve historical provenance start time
-        self.provenance.extracted_at = self.provenance.extracted_at.min(other.provenance.extracted_at);
+        self.provenance.extracted_at = self
+            .provenance
+            .extracted_at
+            .min(other.provenance.extracted_at);
 
         // Keep maximum confidence
         self.provenance.confidence = self.provenance.confidence.max(other.provenance.confidence);
@@ -450,7 +455,9 @@ impl Edge {
     /// Strengthens the relationship weight by 0.1, capped at 1.0.
     pub fn strengthen(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
         if self.weight < 0.0 || self.weight > 1.0 {
-            return Err(crate::errors::DomainError::InvalidEdgeWeight(self.weight.to_string()));
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(
+                self.weight.to_string(),
+            ));
         }
         self.weight = (self.weight + 0.1).min(1.0);
         self.updated_at = current_unix_timestamp();
@@ -476,12 +483,15 @@ impl Edge {
         strategy: crate::relations::ConfidenceStrategy,
     ) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
         if self.weight < 0.0 || self.weight > 1.0 {
-            return Err(crate::errors::DomainError::InvalidEdgeWeight(self.weight.to_string()));
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(
+                self.weight.to_string(),
+            ));
         }
         if new_evidence_weight < 0.0 || new_evidence_weight > 1.0 {
-            return Err(crate::errors::DomainError::InvalidEdgeWeight(
-                format!("new_evidence_weight={}", new_evidence_weight),
-            ));
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
+                "new_evidence_weight={}",
+                new_evidence_weight
+            )));
         }
         self.weight = strategy.combine(self.weight, new_evidence_weight).min(1.0);
         self.updated_at = current_unix_timestamp();
@@ -494,12 +504,22 @@ impl Edge {
     }
 
     /// Decays the relationship weight exponentially.
-    pub fn decay(&mut self, half_life_secs: f64, delta_t_secs: f64) -> Result<(), crate::errors::DomainError> {
+    pub fn decay(
+        &mut self,
+        half_life_secs: f64,
+        delta_t_secs: f64,
+    ) -> Result<(), crate::errors::DomainError> {
         if half_life_secs <= 0.0 {
-            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!("half_life_secs={}", half_life_secs)));
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
+                "half_life_secs={}",
+                half_life_secs
+            )));
         }
         if delta_t_secs < 0.0 {
-            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!("delta_t_secs={}", delta_t_secs)));
+            return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
+                "delta_t_secs={}",
+                delta_t_secs
+            )));
         }
         let lambda = 2.0f64.ln() / half_life_secs;
         self.weight = self.weight * (-lambda * delta_t_secs).exp();
@@ -623,10 +643,14 @@ impl KnowledgeGraph {
     /// Validates referential integrity: the source and target nodes must exist.
     pub fn add_edge(&mut self, edge: Edge) -> Result<(), crate::errors::DomainError> {
         if !self.nodes.contains_key(&edge.source) {
-            return Err(crate::errors::DomainError::MissingSourceNode(edge.source.to_string()));
+            return Err(crate::errors::DomainError::MissingSourceNode(
+                edge.source.to_string(),
+            ));
         }
         if !self.nodes.contains_key(&edge.target) {
-            return Err(crate::errors::DomainError::MissingTargetNode(edge.target.to_string()));
+            return Err(crate::errors::DomainError::MissingTargetNode(
+                edge.target.to_string(),
+            ));
         }
         let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
         if self.edges.contains_key(&edge_id) {
@@ -771,11 +795,13 @@ impl Session {
             updated_at: timestamp,
             staged_events: Vec::new(),
         };
-        session.staged_events.push(crate::events::DomainEvent::SessionCreated {
-            session_id: id,
-            title,
-            created_at: timestamp,
-        });
+        session
+            .staged_events
+            .push(crate::events::DomainEvent::SessionCreated {
+                session_id: id,
+                title,
+                created_at: timestamp,
+            });
         session
     }
 
@@ -806,24 +832,31 @@ impl Session {
     pub fn rename(&mut self, title: SessionTitle, timestamp: SessionTimestamp) {
         self.title = title.clone();
         self.updated_at = timestamp;
-        self.staged_events.push(crate::events::DomainEvent::SessionRenamed {
-            session_id: self.id,
-            title,
-            updated_at: timestamp,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionRenamed {
+                session_id: self.id,
+                title,
+                updated_at: timestamp,
+            });
     }
 
     /// Archives a session.
-    pub fn archive(&mut self, timestamp: SessionTimestamp) -> Result<(), crate::errors::DomainError> {
+    pub fn archive(
+        &mut self,
+        timestamp: SessionTimestamp,
+    ) -> Result<(), crate::errors::DomainError> {
         if self.archived {
-            return Err(crate::errors::DomainError::SessionArchived(self.id.to_string()));
+            return Err(crate::errors::DomainError::SessionArchived(
+                self.id.to_string(),
+            ));
         }
         self.archived = true;
         self.updated_at = timestamp;
-        self.staged_events.push(crate::events::DomainEvent::SessionArchived {
-            session_id: self.id,
-            updated_at: timestamp,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionArchived {
+                session_id: self.id,
+                updated_at: timestamp,
+            });
         Ok(())
     }
 
@@ -831,38 +864,46 @@ impl Session {
     pub fn set_pinned(&mut self, pinned: bool, timestamp: SessionTimestamp) {
         self.pinned = pinned;
         self.updated_at = timestamp;
-        self.staged_events.push(crate::events::DomainEvent::SessionPinnedChanged {
-            session_id: self.id,
-            pinned,
-            updated_at: timestamp,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionPinnedChanged {
+                session_id: self.id,
+                pinned,
+                updated_at: timestamp,
+            });
     }
 
     /// Restores an archived session.
-    pub fn restore(&mut self, timestamp: SessionTimestamp) -> Result<(), crate::errors::DomainError> {
+    pub fn restore(
+        &mut self,
+        timestamp: SessionTimestamp,
+    ) -> Result<(), crate::errors::DomainError> {
         if !self.archived {
             return Ok(());
         }
         self.archived = false;
         self.updated_at = timestamp;
-        self.staged_events.push(crate::events::DomainEvent::SessionRestored {
-            session_id: self.id,
-            updated_at: timestamp,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionRestored {
+                session_id: self.id,
+                updated_at: timestamp,
+            });
         Ok(())
     }
 
     /// Staged event for deletion (this is processed by the projection as a deletion policy).
     pub fn delete(&mut self) {
-        self.staged_events.push(crate::events::DomainEvent::SessionDeleted {
-            session_id: self.id,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionDeleted {
+                session_id: self.id,
+            });
     }
 
     /// Adds a chat message.
     pub fn add_message(&mut self, message: Message) -> Result<(), crate::errors::DomainError> {
         if self.archived {
-            return Err(crate::errors::DomainError::SessionArchived(self.id.to_string()));
+            return Err(crate::errors::DomainError::SessionArchived(
+                self.id.to_string(),
+            ));
         }
         let snapshot = MessageSnapshot {
             id: message.id,
@@ -872,10 +913,11 @@ impl Session {
         };
         self.messages.push(message);
         self.updated_at = SessionTimestamp(current_unix_timestamp());
-        self.staged_events.push(crate::events::DomainEvent::MessageAdded {
-            session_id: self.id,
-            message: snapshot,
-        });
+        self.staged_events
+            .push(crate::events::DomainEvent::MessageAdded {
+                session_id: self.id,
+                message: snapshot,
+            });
         Ok(())
     }
 
@@ -883,10 +925,14 @@ impl Session {
     pub fn add_goal(&mut self, goal: Goal) -> Result<(), crate::errors::DomainError> {
         let trimmed = goal.text.trim();
         if trimmed.is_empty() {
-            return Err(crate::errors::DomainError::DuplicateGoal("Goal cannot be empty".to_string()));
+            return Err(crate::errors::DomainError::DuplicateGoal(
+                "Goal cannot be empty".to_string(),
+            ));
         }
         if self.goals.iter().any(|g| g.text == trimmed) {
-            return Err(crate::errors::DomainError::DuplicateGoal(trimmed.to_string()));
+            return Err(crate::errors::DomainError::DuplicateGoal(
+                trimmed.to_string(),
+            ));
         }
         self.goals.push(goal);
         self.updated_at = SessionTimestamp(current_unix_timestamp());
@@ -900,7 +946,9 @@ impl Session {
             self.updated_at = SessionTimestamp(current_unix_timestamp());
             Ok(())
         } else {
-            Err(crate::errors::DomainError::GoalNotFound(goal_id.to_string()))
+            Err(crate::errors::DomainError::GoalNotFound(
+                goal_id.to_string(),
+            ))
         }
     }
 
@@ -932,7 +980,10 @@ impl<'a> GraphBuilder<'a> {
     }
 
     /// Sets an optional EntityCanonicalizer for this builder session.
-    pub fn with_canonicalizer(mut self, canonicalizer: crate::canonical::EntityCanonicalizer) -> Self {
+    pub fn with_canonicalizer(
+        mut self,
+        canonicalizer: crate::canonical::EntityCanonicalizer,
+    ) -> Self {
         self.canonicalizer = Some(canonicalizer);
         self
     }
@@ -940,8 +991,9 @@ impl<'a> GraphBuilder<'a> {
     /// Adds a node to the graph, applying lexical normalization and alias resolution.
     pub fn add_node(mut self, mut node: Node) -> Self {
         let normalized = crate::canonical::Normalizer::normalize(&node.label);
-        
-        let resolved_id = self.canonicalizer
+
+        let resolved_id = self
+            .canonicalizer
             .as_ref()
             .and_then(|c| c.canonicalize(&node.label).1)
             .unwrap_or(node.id);
@@ -992,8 +1044,16 @@ impl<'a> GraphBuilder<'a> {
             )));
         }
 
-        let canon_source = self.node_redirection.get(&source).copied().unwrap_or(source);
-        let canon_target = self.node_redirection.get(&target).copied().unwrap_or(target);
+        let canon_source = self
+            .node_redirection
+            .get(&source)
+            .copied()
+            .unwrap_or(source);
+        let canon_target = self
+            .node_redirection
+            .get(&target)
+            .copied()
+            .unwrap_or(target);
 
         // Skip self-loops
         if canon_source == canon_target {
@@ -1103,4 +1163,3 @@ impl SearchDocument {
         }
     }
 }
-

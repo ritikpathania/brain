@@ -1,10 +1,9 @@
 use crate::identifiers::NodeId;
 use crate::query::analytics::{
-    GraphAnalyticsContext, EdgeWeightProvider,
-    heuristic::HeuristicProvider, RoutingAlgorithm
+    heuristic::HeuristicProvider, EdgeWeightProvider, GraphAnalyticsContext, RoutingAlgorithm,
 };
-use std::collections::{HashMap, BinaryHeap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 
 /// Configuration parameters for A* Search.
 #[derive(Debug, Clone, Default)]
@@ -29,7 +28,9 @@ impl PartialOrd for AStarNode {
 impl Ord for AStarNode {
     fn cmp(&self, other: &Self) -> Ordering {
         // Minimum f_score wins; break ties by NodeId for determinism
-        other.f_score.partial_cmp(&self.f_score)
+        other
+            .f_score
+            .partial_cmp(&self.f_score)
             .unwrap_or(Ordering::Equal)
             .then_with(|| other.node.cmp(&self.node))
     }
@@ -61,7 +62,9 @@ impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> AStar<'a, 'b, W, H> {
     }
 }
 
-impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> RoutingAlgorithm<'a, 'b> for AStar<'a, 'b, W, H> {
+impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> RoutingAlgorithm<'a, 'b>
+    for AStar<'a, 'b, W, H>
+{
     type Config = AStarConfig;
     type Result = Option<Vec<NodeId>>;
 
@@ -79,7 +82,9 @@ impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> RoutingAlgorithm<'a, '
         let mut came_from: HashMap<NodeId, NodeId> = HashMap::new();
         let mut g_scores: HashMap<NodeId, f64> = HashMap::new();
 
-        let h_start = self.heuristic_provider.estimate(source, target, self.context);
+        let h_start = self
+            .heuristic_provider
+            .estimate(source, target, self.context);
         g_scores.insert(source, 0.0);
         open_set.push(AStarNode {
             node: source,
@@ -110,7 +115,11 @@ impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> RoutingAlgorithm<'a, '
             }
 
             for &neighbor in adjacency.neighbors(u) {
-                if let Some(edge) = graph.edges.values().find(|e| e.source == u && e.target == neighbor) {
+                if let Some(edge) = graph
+                    .edges
+                    .values()
+                    .find(|e| e.source == u && e.target == neighbor)
+                {
                     let cost = self.weight_provider.weight(edge);
                     let tentative_g = g_scores.get(&u).cloned().unwrap_or(f64::INFINITY) + cost;
                     let existing_g = *g_scores.get(&neighbor).unwrap_or(&f64::INFINITY);
@@ -130,8 +139,10 @@ impl<'a, 'b, W: EdgeWeightProvider, H: HeuristicProvider> RoutingAlgorithm<'a, '
                     if should_update {
                         came_from.insert(neighbor, u);
                         g_scores.insert(neighbor, tentative_g);
-                        
-                        let h = self.heuristic_provider.estimate(neighbor, target, self.context);
+
+                        let h = self
+                            .heuristic_provider
+                            .estimate(neighbor, target, self.context);
                         open_set.push(AStarNode {
                             node: neighbor,
                             f_score: tentative_g + h,

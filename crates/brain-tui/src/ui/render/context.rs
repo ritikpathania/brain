@@ -1,7 +1,7 @@
 //! Unified RenderContext configuration and terminal capability discovery.
 
-use crate::ui::theme::ActiveTheme;
 use crate::ui::render::icon::IconSet;
+use crate::ui::theme::ActiveTheme;
 
 /// Supported levels of Unicode symbol rendering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -164,10 +164,7 @@ pub struct CapabilityResolver;
 
 impl CapabilityResolver {
     /// Pure associated function resolving observed capabilities and policy guidelines.
-    pub fn resolve(
-        caps: &RenderCapabilities,
-        policy: &CapabilityPolicy,
-    ) -> EffectiveCapabilities {
+    pub fn resolve(caps: &RenderCapabilities, policy: &CapabilityPolicy) -> EffectiveCapabilities {
         let unicode = if policy.force_ascii {
             UnicodeSupport::AsciiOnly
         } else {

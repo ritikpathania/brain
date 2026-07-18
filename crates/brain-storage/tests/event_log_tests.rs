@@ -1,5 +1,5 @@
-use uuid::Uuid;
 use brain_storage::{SqliteEventLog, TestStorage};
+use uuid::Uuid;
 
 #[test]
 fn test_sequential_write_and_read() {
@@ -12,9 +12,15 @@ fn test_sequential_write_and_read() {
     let id3 = Uuid::new_v4();
     let corr = Uuid::new_v4();
 
-    let seq1 = event_log.append(id1, corr, 100, "1.0", "src1", "system", "{}").unwrap();
-    let seq2 = event_log.append(id2, corr, 200, "1.0", "src2", "system", "{}").unwrap();
-    let seq3 = event_log.append(id3, corr, 300, "1.0", "src3", "system", "{}").unwrap();
+    let seq1 = event_log
+        .append(id1, corr, 100, "1.0", "src1", "system", "{}")
+        .unwrap();
+    let seq2 = event_log
+        .append(id2, corr, 200, "1.0", "src2", "system", "{}")
+        .unwrap();
+    let seq3 = event_log
+        .append(id3, corr, 300, "1.0", "src3", "system", "{}")
+        .unwrap();
 
     assert_eq!(seq1, 1);
     assert_eq!(seq2, 2);
@@ -61,9 +67,15 @@ fn test_strict_sequence_ordering() {
     let corr = Uuid::new_v4();
 
     // Append in sequence order: 1, 2, 3
-    event_log.append(id1, corr, 100, "1.0", "src1", "system", "{}").unwrap();
-    event_log.append(id2, corr, 50, "1.0", "src2", "system", "{}").unwrap();
-    event_log.append(id3, corr, 10, "1.0", "src3", "system", "{}").unwrap();
+    event_log
+        .append(id1, corr, 100, "1.0", "src1", "system", "{}")
+        .unwrap();
+    event_log
+        .append(id2, corr, 50, "1.0", "src2", "system", "{}")
+        .unwrap();
+    event_log
+        .append(id3, corr, 10, "1.0", "src3", "system", "{}")
+        .unwrap();
 
     // Verify read order sorts strictly by auto-increment sequence, not timestamp
     let results = event_log.read_from(1, 10).unwrap();
@@ -87,7 +99,9 @@ fn test_pagination_boundaries() {
 
     // Append 25 events
     for i in 1..=25 {
-        event_log.append(Uuid::new_v4(), corr, 1000 + i, "1.0", "src", "system", "{}").unwrap();
+        event_log
+            .append(Uuid::new_v4(), corr, 1000 + i, "1.0", "src", "system", "{}")
+            .unwrap();
     }
 
     // Page 1: sequence 1-10
@@ -111,8 +125,8 @@ fn test_pagination_boundaries() {
 
 #[test]
 fn test_ingestion_event_log_repository() {
+    use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent};
     use brain_storage::EventLogRepository;
-    use brain_integrations::{IngestionEnvelope, IngestionEvent, EventIdentity};
 
     let test_storage = TestStorage::new();
     let storage = test_storage.store();

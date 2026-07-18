@@ -1,6 +1,6 @@
+use crate::capability::ErasedCapability;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::capability::ErasedCapability;
 
 /// Generic capability registry managing dynamic capabilities.
 pub struct CapabilityRegistry<Target, Context, Error> {

@@ -3,9 +3,9 @@ use brain_core::retrieval::EmbeddingProvider;
 use brain_core::RepositorySet;
 use brain_domain::{Edge, Node, NodeId, NodeType, RelationKind};
 use brain_services::eval_harness::{
-    EvaluationSession, FtsRetriever, GroundTruthCorpus, HybridRetriever, QueryCorpus, RankingDecay,
-    SemanticRetriever, FeatureProvider, CorrelationEngine, CorrelationMethod, CorrelationReportWriter,
-    Feature,
+    CorrelationEngine, CorrelationMethod, CorrelationReportWriter, EvaluationSession, Feature,
+    FeatureProvider, FtsRetriever, GroundTruthCorpus, HybridRetriever, QueryCorpus, RankingDecay,
+    SemanticRetriever,
 };
 use brain_storage::TestStorage;
 use std::fs;
@@ -27,9 +27,12 @@ impl EmbeddingProvider for FixtureEmbeddingProvider {
     }
 
     fn embed(&self, text: &str) -> Result<Vec<f32>, BrainError> {
-        let fq = self.text_to_query.get(text).ok_or_else(|| {
-            BrainError::Validation { message: format!("Query text not found in fixture: {}", text) }
-        })?;
+        let fq = self
+            .text_to_query
+            .get(text)
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Query text not found in fixture: {}", text),
+            })?;
         Ok(fq.embedding.clone())
     }
 }
@@ -78,15 +81,25 @@ fn test_correlation_analysis_pearson_and_spearman() {
         let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
         let mut node = Node::new(node_id, n.content.clone(), NodeType::Concept);
         node.updated_at = n.properties.updated_at;
-        node.properties.insert("importance".to_string(), serde_json::json!(n.properties.importance));
-        node.properties.insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
-        node.properties.insert("provenance_confidence".to_string(), serde_json::json!(n.properties.provenance_confidence));
+        node.properties.insert(
+            "importance".to_string(),
+            serde_json::json!(n.properties.importance),
+        );
+        node.properties
+            .insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
+        node.properties.insert(
+            "provenance_confidence".to_string(),
+            serde_json::json!(n.properties.provenance_confidence),
+        );
         sqlite.nodes().save(&node).unwrap();
 
         // Save embedding
         sqlite
             .embeddings()
-            .save(&brain_domain::Embedding::new(node_id, n.properties.embedding.clone()))
+            .save(&brain_domain::Embedding::new(
+                node_id,
+                n.properties.embedding.clone(),
+            ))
             .unwrap();
 
         // Save access feedback events
@@ -119,7 +132,9 @@ fn test_correlation_analysis_pearson_and_spearman() {
             sqlite
                 .save_temporal_edge(&brain_domain::TemporalEdge {
                     edge: Edge::new(node_id, target_id, RelationKind::Uses, 1.0),
-                    observed_at: brain_domain::TimePoint::from_unix_seconds(n.properties.last_observed_at),
+                    observed_at: brain_domain::TimePoint::from_unix_seconds(
+                        n.properties.last_observed_at,
+                    ),
                     validity: brain_domain::temporal::TemporalValidity::new(vec![]),
                 })
                 .unwrap();
@@ -130,9 +145,13 @@ fn test_correlation_analysis_pearson_and_spearman() {
     let fts = FtsRetriever::new(sqlite.pool().clone());
     let mut text_to_query = std::collections::HashMap::new();
     for q in &queries.queries {
-        let embedding = q.embedding.clone().ok_or_else(|| {
-            BrainError::Validation { message: format!("Embedding not defined for query: {}", q.query_id) }
-        }).unwrap();
+        let embedding = q
+            .embedding
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Embedding not defined for query: {}", q.query_id),
+            })
+            .unwrap();
         text_to_query.insert(
             q.text.clone(),
             FixtureQuery {
@@ -152,23 +171,21 @@ fn test_correlation_analysis_pearson_and_spearman() {
     };
 
     // 5. Build session
-    let session = EvaluationSession::build(
-        &queries,
-        &ground_truth,
-        &hybrid,
-        &provider,
-        1000000,
-        decay,
-    )
-    .unwrap();
+    let session =
+        EvaluationSession::build(&queries, &ground_truth, &hybrid, &provider, 1000000, decay)
+            .unwrap();
 
     // 6. Run Pearson Correlation Analysis
-    let pearson_report = CorrelationEngine::run_analysis(&session, CorrelationMethod::Pearson, 0.7).unwrap();
+    let pearson_report =
+        CorrelationEngine::run_analysis(&session, CorrelationMethod::Pearson, 0.7).unwrap();
     assert_eq!(pearson_report.matrix.features.len(), 8);
 
     // Verify alphabetical ordering of features
     assert_eq!(pearson_report.matrix.features[0], Feature::AccessFrequency);
-    assert_eq!(pearson_report.matrix.features[7], Feature::SemanticSimilarity);
+    assert_eq!(
+        pearson_report.matrix.features[7],
+        Feature::SemanticSimilarity
+    );
 
     // Verify mathematical properties (diagonal == 1, symmetric matrix)
     for i in 0..8 {
@@ -185,10 +202,15 @@ fn test_correlation_analysis_pearson_and_spearman() {
     let pearson_md = CorrelationReportWriter::write_report(&pearson_report);
     let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
     fs::create_dir_all(&base_path).unwrap();
-    fs::write(base_path.join("controlled_correlation_report_pearson.md"), &pearson_md).unwrap();
+    fs::write(
+        base_path.join("controlled_correlation_report_pearson.md"),
+        &pearson_md,
+    )
+    .unwrap();
 
     // 7. Run Spearman Correlation Analysis
-    let spearman_report = CorrelationEngine::run_analysis(&session, CorrelationMethod::Spearman, 0.7).unwrap();
+    let spearman_report =
+        CorrelationEngine::run_analysis(&session, CorrelationMethod::Spearman, 0.7).unwrap();
     assert_eq!(spearman_report.matrix.features.len(), 8);
 
     // Verify Spearman mathematical properties
@@ -204,5 +226,9 @@ fn test_correlation_analysis_pearson_and_spearman() {
 
     // Write Spearman report
     let spearman_md = CorrelationReportWriter::write_report(&spearman_report);
-    fs::write(base_path.join("controlled_correlation_report_spearman.md"), &spearman_md).unwrap();
+    fs::write(
+        base_path.join("controlled_correlation_report_spearman.md"),
+        &spearman_md,
+    )
+    .unwrap();
 }

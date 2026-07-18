@@ -6,9 +6,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::sync::{mpsc, oneshot, Mutex};
 
+use crate::{BackpressurePolicy, ClientCommand};
 use brain_domain::{AdapterId, ClientId, ConversationId, EventId, SessionId, WorkspaceId};
 use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent};
-use crate::{BackpressurePolicy, ClientCommand};
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum BrainSdkError {
@@ -46,7 +46,7 @@ pub struct ClientConfig {
     pub max_batch_bytes: usize,
     pub flush_interval: Duration,
     pub backpressure_policy: BackpressurePolicy,
-    
+
     pub adapter_id: AdapterId,
     pub client_id: ClientId,
     pub workspace_id: WorkspaceId,
@@ -76,7 +76,10 @@ impl ClientConfig {
 pub trait ReplayStrategy: Send + Sync {
     async fn record(&self, envelope: IngestionEnvelope) -> Result<(), BrainSdkError>;
     async fn acknowledge(&self, event_id: &EventId) -> Result<(), BrainSdkError>;
-    async fn reconcile(&self, replay: ReplayResponse) -> Result<Vec<IngestionEnvelope>, BrainSdkError>;
+    async fn reconcile(
+        &self,
+        replay: ReplayResponse,
+    ) -> Result<Vec<IngestionEnvelope>, BrainSdkError>;
     async fn get_unacknowledged(&self) -> Vec<IngestionEnvelope>;
 }
 
@@ -106,7 +109,10 @@ impl ReplayStrategy for InMemoryReplayStrategy {
         Ok(())
     }
 
-    async fn reconcile(&self, replay: ReplayResponse) -> Result<Vec<IngestionEnvelope>, BrainSdkError> {
+    async fn reconcile(
+        &self,
+        replay: ReplayResponse,
+    ) -> Result<Vec<IngestionEnvelope>, BrainSdkError> {
         let mut guard = self.pending.lock().await;
         for ev in &replay.events {
             guard.remove(&ev.identity.event_id);
@@ -186,7 +192,7 @@ impl BrainClient {
         let state = Arc::new(std::sync::Mutex::new(RuntimeState::Disconnected));
         let last_sequence = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let replay_strategy = Arc::new(InMemoryReplayStrategy::new());
-        
+
         let runtime = ClientRuntime::new(
             Arc::clone(&config_arc),
             rx,
@@ -212,14 +218,18 @@ impl BrainClient {
     }
 
     pub fn last_sequence(&self) -> u64 {
-        self.last_sequence.load(std::sync::atomic::Ordering::Relaxed)
+        self.last_sequence
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub async fn get_unacknowledged_events(&self) -> Vec<IngestionEnvelope> {
         self.replay_strategy.get_unacknowledged().await
     }
 
-    pub async fn request_replay(&self, after_sequence: u64) -> Result<Vec<IngestionEnvelope>, BrainSdkError> {
+    pub async fn request_replay(
+        &self,
+        after_sequence: u64,
+    ) -> Result<Vec<IngestionEnvelope>, BrainSdkError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ClientCommand::Replay {
@@ -248,10 +258,14 @@ impl BrainClient {
         };
 
         let (reply_tx, reply_rx) = oneshot::channel();
-        
+
         match self.config.backpressure_policy {
             BackpressurePolicy::Block => {
-                self.tx.send(ClientCommand::Send { event: envelope.event, tx: reply_tx })
+                self.tx
+                    .send(ClientCommand::Send {
+                        event: envelope.event,
+                        tx: reply_tx,
+                    })
                     .await
                     .map_err(|_| BrainSdkError::ShuttingDown)?;
             }
@@ -259,14 +273,22 @@ impl BrainClient {
                 if self.tx.capacity() == 0 {
                     return Err(BrainSdkError::QueueFull);
                 }
-                self.tx.send(ClientCommand::Send { event: envelope.event, tx: reply_tx })
+                self.tx
+                    .send(ClientCommand::Send {
+                        event: envelope.event,
+                        tx: reply_tx,
+                    })
                     .await
                     .map_err(|_| BrainSdkError::ShuttingDown)?;
             }
             BackpressurePolicy::DropOldest => {
                 // DropOldest would normally pop from channel, but since standard mpsc channel
                 // doesn't support pop_front, we block. Or we fail. For now, let's treat as Block/Fail.
-                self.tx.send(ClientCommand::Send { event: envelope.event, tx: reply_tx })
+                self.tx
+                    .send(ClientCommand::Send {
+                        event: envelope.event,
+                        tx: reply_tx,
+                    })
                     .await
                     .map_err(|_| BrainSdkError::ShuttingDown)?;
             }
@@ -301,7 +323,10 @@ impl ClientRuntime {
         last_sequence: Arc<std::sync::atomic::AtomicU64>,
         replay_strategy: Arc<dyn ReplayStrategy>,
     ) -> Self {
-        let batch_strategy = Box::new(DefaultBatchStrategy::new(config.max_batch_size, config.max_batch_bytes));
+        let batch_strategy = Box::new(DefaultBatchStrategy::new(
+            config.max_batch_size,
+            config.max_batch_bytes,
+        ));
         Self {
             config,
             rx,
@@ -316,7 +341,10 @@ impl ClientRuntime {
 
     fn transition_to(&mut self, new_state: RuntimeState) {
         let mut guard = self.state.lock().unwrap();
-        println!("[SDK STATE] Transitioning from {:?} to {:?}", *guard, new_state);
+        println!(
+            "[SDK STATE] Transitioning from {:?} to {:?}",
+            *guard, new_state
+        );
         *guard = new_state;
     }
 
@@ -325,11 +353,15 @@ impl ClientRuntime {
         let keys: Vec<EventId> = self.pending_acks.keys().cloned().collect();
         for key in keys {
             if let Some(tx) = self.pending_acks.remove(&key) {
-                let _ = tx.send(Err(BrainSdkError::ConnectionFailed("Disconnected".to_string())));
+                let _ = tx.send(Err(BrainSdkError::ConnectionFailed(
+                    "Disconnected".to_string(),
+                )));
             }
         }
         if let Some(tx) = self.pending_replay_tx.take() {
-            let _ = tx.send(Err(BrainSdkError::ConnectionFailed("Disconnected".to_string())));
+            let _ = tx.send(Err(BrainSdkError::ConnectionFailed(
+                "Disconnected".to_string(),
+            )));
         }
     }
 
@@ -340,7 +372,7 @@ impl ClientRuntime {
             Duration::from_secs(5),
         );
         let start_time = Instant::now();
-        
+
         let mut reconnect_delay = Duration::from_millis(100);
         let mut reconnect_timer = Box::pin(tokio::time::sleep(Duration::from_millis(0)));
         let mut is_connecting = false;
@@ -367,7 +399,7 @@ impl ClientRuntime {
                             buf_reader = Some(BufReader::new(r));
                             is_connecting = false;
                             reconnect_delay = Duration::from_millis(100);
-                            
+
                             // Perform Handshake
                             self.transition_to(RuntimeState::Connecting);
                             let handshake_req = serde_json::json!({
@@ -383,7 +415,7 @@ impl ClientRuntime {
                             });
                             let mut handshake_str = serde_json::to_string(&handshake_wire).unwrap();
                             handshake_str.push('\n');
-                            
+
                             let mut handshake_ok = false;
                             if let Some(w_ref) = write_half.as_mut() {
                                 if w_ref.write_all(handshake_str.as_bytes()).await.is_ok() && w_ref.flush().await.is_ok() {
@@ -400,7 +432,7 @@ impl ClientRuntime {
                                     }
                                 }
                             }
-                            
+
                             if !handshake_ok {
                                 println!("[SDK UDS] Handshake failed. Disconnecting.");
                                 write_half = None;
@@ -680,7 +712,10 @@ impl ClientRuntime {
     }
 }
 
-async fn read_line_opt(reader: Option<&mut BufReader<tokio::net::unix::OwnedReadHalf>>, line: &mut String) -> std::io::Result<usize> {
+async fn read_line_opt(
+    reader: Option<&mut BufReader<tokio::net::unix::OwnedReadHalf>>,
+    line: &mut String,
+) -> std::io::Result<usize> {
     if let Some(r) = reader {
         r.read_line(line).await
     } else {

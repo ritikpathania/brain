@@ -1,7 +1,7 @@
 //! ChatScreen responsive geometry configurations.
 
-use ratatui::layout::Rect;
 use crate::ui::layout::cell_width::CellWidth;
+use ratatui::layout::Rect;
 
 /// Sidebar cell width.
 pub const SIDEBAR_WIDTH: CellWidth = CellWidth(25);

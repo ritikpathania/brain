@@ -1,6 +1,6 @@
-use crate::bkf::ir::{KnowledgeIR, CompiledKnowledge};
 use crate::bkf::compiler::PassResult;
 use crate::bkf::errors::BkfError;
+use crate::bkf::ir::{CompiledKnowledge, KnowledgeIR};
 
 /// Trait defining a semantics-preserving optimization pass.
 ///
@@ -28,8 +28,8 @@ impl OptimizerPass for EntityCanonicalizerPass {
     }
 
     fn run(&self, input: CompiledKnowledge) -> Result<PassResult<CompiledKnowledge>, BkfError> {
-        use std::collections::{HashMap, HashSet};
         use crate::bkf::compiler::{KppDiagnostic, KppSeverity};
+        use std::collections::{HashMap, HashSet};
 
         let mut diagnostics = Vec::new();
         let mut canonical_nodes = Vec::new();
@@ -44,7 +44,10 @@ impl OptimizerPass for EntityCanonicalizerPass {
                 diagnostics.push(KppDiagnostic {
                     code: "OPT-001".to_string(),
                     severity: KppSeverity::Info,
-                    message: format!("Canonicalizing duplicate node '{}' to canonical ID '{}'", node.id, canonical_id),
+                    message: format!(
+                        "Canonicalizing duplicate node '{}' to canonical ID '{}'",
+                        node.id, canonical_id
+                    ),
                     origin_pass: Some(self.id().to_string()),
                 });
             } else {
@@ -66,7 +69,12 @@ impl OptimizerPass for EntityCanonicalizerPass {
             }
 
             // Regenerate edge ID to match canonical sources/targets
-            edge.id = format!("{}-{}-{}", edge.source, edge.target, edge.relation.to_lowercase());
+            edge.id = format!(
+                "{}-{}-{}",
+                edge.source,
+                edge.target,
+                edge.relation.to_lowercase()
+            );
 
             // Deduplicate redundant edges (e.g. from duplicates merging)
             if seen_edges.insert(edge.id.clone()) {
@@ -110,9 +118,7 @@ impl KnowledgeOptimizer {
 
     /// Creates a default optimizer configuration.
     pub fn new_default() -> Self {
-        Self::new(vec![
-            Box::new(EntityCanonicalizerPass),
-        ])
+        Self::new(vec![Box::new(EntityCanonicalizerPass)])
     }
 
     /// Optimizes `KnowledgeIR` into `CompiledKnowledge` by chaining all optimization passes.
@@ -132,5 +138,3 @@ impl KnowledgeOptimizer {
         })
     }
 }
-
-

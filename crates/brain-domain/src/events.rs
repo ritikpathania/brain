@@ -1,9 +1,10 @@
 use crate::jobs::{
-    JobId, JobKind, JobPriority, JobOwner, JobTimestamp, JobProgress, JobFailureReason, ArtifactId, ArtifactKind, LogEntryId
+    ArtifactId, ArtifactKind, JobFailureReason, JobId, JobKind, JobOwner, JobPriority, JobProgress,
+    JobTimestamp, LogEntryId,
 };
 
-use crate::identifiers::{SessionId, SessionTitle, SessionTimestamp};
 use crate::entities::MessageSnapshot;
+use crate::identifiers::{SessionId, SessionTimestamp, SessionTitle};
 
 /// Domain events emitted by the Brain domain model.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]

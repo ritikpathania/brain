@@ -1,9 +1,9 @@
 //! Allocation-free Badge primitives.
 
+use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::context::RenderContext;
 
 /// A pill or badge primitive for displaying small status labels.
 pub struct Badge<'a> {
@@ -21,7 +21,7 @@ impl<'a> Badge<'a> {
         }
         let style = ctx.theme.style(self.token);
         let muted = ctx.theme.style(ThemeToken::Muted);
-        
+
         buf.set_string(area.x, area.y, " [", muted);
         let label_max = (area.width - 4) as usize;
         let final_len = self.label.len().min(label_max);

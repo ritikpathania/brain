@@ -1,13 +1,12 @@
+use brain_domain::retrieval::{
+    CacheStore, CanonicalQuery, CompilationMetadata, CompilationResult, CompiledQueryCacheKey,
+    QueryRequest, SnapshotCacheStore, SnapshotId,
+};
+use brain_services::retrieval::cache::InMemoryStore;
+use brain_services::retrieval::sqlite_store::{SQLiteConfig, SQLiteStore};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use brain_domain::retrieval::{
-    CacheStore, SnapshotCacheStore, SnapshotId,
-    CompiledQueryCacheKey, QueryRequest, CompilationResult, CanonicalQuery,
-    CompilationMetadata
-};
-use brain_services::retrieval::sqlite_store::{SQLiteStore, SQLiteConfig};
-use brain_services::retrieval::cache::InMemoryStore;
 
 fn dummy_metadata() -> CompilationMetadata {
     CompilationMetadata {
@@ -372,11 +371,15 @@ where
     let p99 = durations[len * 99 / 100].as_secs_f64() * 1000.0;
     let throughput = (config.iterations * 2) as f64 / total_elapsed.as_secs_f64();
 
-    let db_size = db_path.and_then(|p| std::fs::metadata(p).ok().map(|m| m.len())).unwrap_or(0);
-    let wal_size = db_path.and_then(|p| {
-        let wal_path = p.with_extension("db-wal");
-        std::fs::metadata(wal_path).ok().map(|m| m.len())
-    }).unwrap_or(0);
+    let db_size = db_path
+        .and_then(|p| std::fs::metadata(p).ok().map(|m| m.len()))
+        .unwrap_or(0);
+    let wal_size = db_path
+        .and_then(|p| {
+            let wal_path = p.with_extension("db-wal");
+            std::fs::metadata(wal_path).ok().map(|m| m.len())
+        })
+        .unwrap_or(0);
 
     MetricSummary {
         p50_ms: p50,
@@ -414,7 +417,8 @@ fn seed_db_fast(conn: &rusqlite::Connection, table_name: &str, count: usize) {
         CREATE INDEX IF NOT EXISTS idx_{}_snapshot ON {}(snapshot_id);
         INSERT OR REPLACE INTO schema_versions (table_name, version) VALUES ('{}', 2);",
         table_name, table_name, table_name, table_name
-    )).unwrap();
+    ))
+    .unwrap();
 
     conn.pragma_update(None, "synchronous", &"OFF").unwrap();
     conn.pragma_update(None, "journal_mode", &"MEMORY").unwrap();
@@ -430,7 +434,8 @@ fn seed_db_fast(conn: &rusqlite::Connection, table_name: &str, count: usize) {
         let key_str = format!("seeded_key_{}", i);
         let val_str = "seeded_val";
         let hash = format!("{:016x}", fnv1a_hash(&key_str));
-        stmt.execute(rusqlite::params![100, hash, key_str, val_str]).unwrap();
+        stmt.execute(rusqlite::params![100, hash, key_str, val_str])
+            .unwrap();
     }
 
     conn.execute("COMMIT", []).unwrap();
@@ -456,7 +461,9 @@ fn run_scaling_benchmark(db_path: &Path, sizes: &[usize]) -> Vec<ScalingPoint> {
             wal_enabled: true,
             busy_timeout: Duration::from_millis(500),
         };
-        let store = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, "scaling_table").unwrap();
+        let store =
+            SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, "scaling_table")
+                .unwrap();
 
         // Run measurement for lookup
         let mut lookup_durations = Vec::new();
@@ -500,7 +507,7 @@ fn run_scaling_benchmark(db_path: &Path, sizes: &[usize]) -> Vec<ScalingPoint> {
                     max_depth: None,
                     disable_expansion: false,
                 },
-        metadata: dummy_metadata(),
+                metadata: dummy_metadata(),
             };
 
             let op_start_insert = Instant::now();
@@ -522,11 +529,7 @@ fn run_scaling_benchmark(db_path: &Path, sizes: &[usize]) -> Vec<ScalingPoint> {
     results
 }
 
-fn run_concurrency_test<S>(
-    store: Arc<S>,
-    threads: usize,
-    workload: &str,
-) -> ConcurrencyPoint
+fn run_concurrency_test<S>(store: Arc<S>, threads: usize, workload: &str) -> ConcurrencyPoint
 where
     S: CacheStore<CompiledQueryCacheKey, CompilationResult> + 'static,
 {
@@ -618,8 +621,16 @@ where
     all_latencies.sort();
     let len = all_latencies.len();
 
-    let p50 = if len > 0 { all_latencies[len * 50 / 100].as_secs_f64() * 1000.0 } else { 0.0 };
-    let p99 = if len > 0 { all_latencies[len * 99 / 100].as_secs_f64() * 1000.0 } else { 0.0 };
+    let p50 = if len > 0 {
+        all_latencies[len * 50 / 100].as_secs_f64() * 1000.0
+    } else {
+        0.0
+    };
+    let p99 = if len > 0 {
+        all_latencies[len * 99 / 100].as_secs_f64() * 1000.0
+    } else {
+        0.0
+    };
     let throughput = len as f64 / total_elapsed.as_secs_f64();
 
     ConcurrencyPoint {
@@ -638,7 +649,9 @@ fn run_endurance_test(db_path: &Path) {
         wal_enabled: true,
         busy_timeout: Duration::from_millis(500),
     };
-    let store = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, "endurance_table").unwrap();
+    let store =
+        SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, "endurance_table")
+            .unwrap();
 
     {
         let conn = rusqlite::Connection::open(db_path).unwrap();
@@ -692,7 +705,10 @@ fn run_endurance_test(db_path: &Path) {
     let final_size = std::fs::metadata(db_path).unwrap().len();
 
     println!("Endurance validation finished in {:?}", duration);
-    println!("Peak RSS growth delta: {} bytes", end_rss.saturating_sub(start_rss));
+    println!(
+        "Peak RSS growth delta: {} bytes",
+        end_rss.saturating_sub(start_rss)
+    );
     println!("Final Database size: {} bytes", final_size);
 }
 
@@ -705,46 +721,97 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
     md.push_str("# Performance Validation & Concurrency Report\n\n");
 
     md.push_str("## Environment Metadata\n\n");
-    md.push_str(&format!("* **Git Commit SHA**: `{}`\n", report.env_metadata.git_commit));
-    md.push_str(&format!("* **Rust Version**: `{}`\n", report.env_metadata.rust_version));
-    md.push_str(&format!("* **Opt Profile**: `{}`\n", report.env_metadata.opt_profile));
-    md.push_str(&format!("* **CPU Model**: `{}`\n", report.env_metadata.cpu_model));
-    md.push_str(&format!("* **Cores**: `{}`\n", report.env_metadata.core_count));
+    md.push_str(&format!(
+        "* **Git Commit SHA**: `{}`\n",
+        report.env_metadata.git_commit
+    ));
+    md.push_str(&format!(
+        "* **Rust Version**: `{}`\n",
+        report.env_metadata.rust_version
+    ));
+    md.push_str(&format!(
+        "* **Opt Profile**: `{}`\n",
+        report.env_metadata.opt_profile
+    ));
+    md.push_str(&format!(
+        "* **CPU Model**: `{}`\n",
+        report.env_metadata.cpu_model
+    ));
+    md.push_str(&format!(
+        "* **Cores**: `{}`\n",
+        report.env_metadata.core_count
+    ));
     md.push_str(&format!("* **RAM**: `{}`\n", report.env_metadata.total_ram));
-    md.push_str(&format!("* **SQLite Version**: `{}`\n", report.env_metadata.sqlite_version));
+    md.push_str(&format!(
+        "* **SQLite Version**: `{}`\n",
+        report.env_metadata.sqlite_version
+    ));
     md.push_str(&format!("* **OS**: `{}`\n", report.env_metadata.os_name));
-    md.push_str(&format!("* **Timestamp**: `{}`\n\n", report.env_metadata.timestamp));
+    md.push_str(&format!(
+        "* **Timestamp**: `{}`\n\n",
+        report.env_metadata.timestamp
+    ));
 
     md.push_str("## Benchmark Configurations\n\n");
-    md.push_str(&format!("* Warmup duration: `{} ms`\n", report.config.warmup_duration_ms));
-    md.push_str(&format!("* Measurement duration: `{} ms`\n", report.config.measurement_duration_ms));
-    md.push_str(&format!("* Base iterations: `{}`\n", report.config.iterations));
-    md.push_str(&format!("* Random seed: `{}`\n\n", report.config.random_seed));
+    md.push_str(&format!(
+        "* Warmup duration: `{} ms`\n",
+        report.config.warmup_duration_ms
+    ));
+    md.push_str(&format!(
+        "* Measurement duration: `{} ms`\n",
+        report.config.measurement_duration_ms
+    ));
+    md.push_str(&format!(
+        "* Base iterations: `{}`\n",
+        report.config.iterations
+    ));
+    md.push_str(&format!(
+        "* Random seed: `{}`\n\n",
+        report.config.random_seed
+    ));
 
     md.push_str("## Benchmark Baseline Results\n\n");
     md.push_str("| Configuration | p50 (ms) | p95 (ms) | p99 (ms) | Throughput (ops/sec) | Peak RSS Delta (bytes) | File Size (bytes) | WAL size (bytes) |\n");
     md.push_str("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n");
-    
+
     let format_summary = |name: &str, s: &MetricSummary| {
         format!(
             "| **{}** | {:.4} | {:.4} | {:.4} | {:.1} | {} | {} | {} |\n",
-            name, s.p50_ms, s.p95_ms, s.p99_ms, s.throughput_ops_sec, s.peak_rss_bytes, s.db_file_size_bytes, s.wal_file_size_bytes
+            name,
+            s.p50_ms,
+            s.p95_ms,
+            s.p99_ms,
+            s.throughput_ops_sec,
+            s.peak_rss_bytes,
+            s.db_file_size_bytes,
+            s.wal_file_size_bytes
         )
     };
 
     md.push_str(&format_summary("InMemoryStore", &report.in_memory_results));
-    md.push_str(&format_summary("SQLite (Rollback Journal)", &report.sqlite_rollback_results));
+    md.push_str(&format_summary(
+        "SQLite (Rollback Journal)",
+        &report.sqlite_rollback_results,
+    ));
     md.push_str(&format_summary("SQLite (WAL)", &report.sqlite_wal_results));
-    md.push_str(&format_summary("SQLite (WAL + Tuned)", &report.sqlite_wal_tuned_results));
+    md.push_str(&format_summary(
+        "SQLite (WAL + Tuned)",
+        &report.sqlite_wal_tuned_results,
+    ));
     md.push_str("\n");
 
     md.push_str("## Scaling Curves (Lookup vs Database Size)\n\n");
-    md.push_str("| Database Size (Entries) | Lookup p50 (µs) | Lookup p95 (µs) | Insert p50 (µs) |\n");
+    md.push_str(
+        "| Database Size (Entries) | Lookup p50 (µs) | Lookup p95 (µs) | Insert p50 (µs) |\n",
+    );
     md.push_str("| :---: | :---: | :---: | :---: |\n");
     for pt in &report.scaling_results {
         md.push_str(&format!(
             "| {} | {:.2} | {:.2} | {:.2} |\n",
-            pt.entries_count, pt.lookup_latency_p50_us, pt.lookup_latency_p95_us, pt.insert_latency_p50_us
+            pt.entries_count,
+            pt.lookup_latency_p50_us,
+            pt.lookup_latency_p95_us,
+            pt.insert_latency_p50_us
         ));
     }
     md.push_str("\n");
@@ -764,7 +831,10 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
     md.push_str("| Capability | InMemory | SQLite |\n");
     md.push_str("| :--- | :---: | :---: |\n");
     for cap in &report.capabilities {
-        md.push_str(&format!("| {} | {} | {} |\n", cap.capability, cap.in_memory, cap.sqlite));
+        md.push_str(&format!(
+            "| {} | {} | {} |\n",
+            cap.capability, cap.in_memory, cap.sqlite
+        ));
     }
     md.push_str("\n");
 
@@ -781,12 +851,18 @@ fn write_report(report: &PerformanceReport, output_dir: &Path) {
     }
     std::fs::write(&csv_path, csv).unwrap();
 
-    println!("Report written successfully:\n  - {}\n  - {}", md_path.display(), csv_path.display());
+    println!(
+        "Report written successfully:\n  - {}\n  - {}",
+        md_path.display(),
+        csv_path.display()
+    );
 }
 
 fn main() {
     println!("Initializing Cache Performance Validation runner...");
-    let output_dir = Path::new("/Users/ritikpathania/.gemini/antigravity/brain/c358b7d8-8b51-4fac-8bd2-cbdd6e6d5436");
+    let output_dir = Path::new(
+        "/Users/ritikpathania/.gemini/antigravity/brain/c358b7d8-8b51-4fac-8bd2-cbdd6e6d5436",
+    );
     if !output_dir.exists() {
         std::fs::create_dir_all(output_dir).unwrap();
     }
@@ -882,7 +958,9 @@ fn main() {
         rust_version: "1.80.0".to_string(),
         opt_profile: "release".to_string(),
         cpu_model: get_cpu_model(),
-        core_count: std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0),
+        core_count: std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(0),
         total_ram: get_total_ram(),
         sqlite_version,
         os_name: std::env::consts::OS.to_string(),
@@ -890,14 +968,46 @@ fn main() {
     };
 
     let capabilities = vec![
-        BackendCapability { capability: "Durable", in_memory: "❌", sqlite: "✅" },
-        BackendCapability { capability: "Snapshot Isolation", in_memory: "✅", sqlite: "✅" },
-        BackendCapability { capability: "Atomic Writes", in_memory: "✅", sqlite: "✅" },
-        BackendCapability { capability: "Crash Recovery", in_memory: "❌", sqlite: "✅" },
-        BackendCapability { capability: "Concurrent Readers", in_memory: "✅", sqlite: "✅" },
-        BackendCapability { capability: "Concurrent Writers", in_memory: "N/A", sqlite: "✓ (Verified)" },
-        BackendCapability { capability: "Schema Migration", in_memory: "N/A", sqlite: "✅" },
-        BackendCapability { capability: "Collision Safe", in_memory: "N/A", sqlite: "✅" },
+        BackendCapability {
+            capability: "Durable",
+            in_memory: "❌",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Snapshot Isolation",
+            in_memory: "✅",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Atomic Writes",
+            in_memory: "✅",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Crash Recovery",
+            in_memory: "❌",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Concurrent Readers",
+            in_memory: "✅",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Concurrent Writers",
+            in_memory: "N/A",
+            sqlite: "✓ (Verified)",
+        },
+        BackendCapability {
+            capability: "Schema Migration",
+            in_memory: "N/A",
+            sqlite: "✅",
+        },
+        BackendCapability {
+            capability: "Collision Safe",
+            in_memory: "N/A",
+            sqlite: "✅",
+        },
     ];
 
     println!("Finalizing PerformanceReport builder...");

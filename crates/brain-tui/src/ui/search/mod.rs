@@ -1,13 +1,13 @@
 //! Unified global search omnibox components and pipelines.
 
-pub mod types;
-pub mod ranking;
 pub mod aggregator;
-pub mod providers;
 pub mod controller;
+pub mod providers;
+pub mod ranking;
+pub mod types;
 
-pub use types::*;
-pub use ranking::*;
 pub use aggregator::*;
-pub use providers::*;
 pub use controller::*;
+pub use providers::*;
+pub use ranking::*;
+pub use types::*;

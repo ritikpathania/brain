@@ -1,8 +1,7 @@
 use brain_domain::retrieval::{
-    SnapshotId, QueryRequest, LogicalRetrievalPlan,
-    PhysicalRetrievalPlan, CompilationResult, RetrievalResult,
-    CompiledQueryCacheKey, LogicalPlanCacheKey, PhysicalPlanCacheKey,
-    ResultCacheKey, CacheStore, SnapshotCacheStore, CanonicalQuery
+    CacheStore, CanonicalQuery, CompilationResult, CompiledQueryCacheKey, LogicalPlanCacheKey,
+    LogicalRetrievalPlan, PhysicalPlanCacheKey, PhysicalRetrievalPlan, QueryRequest,
+    ResultCacheKey, RetrievalResult, SnapshotCacheStore, SnapshotId,
 };
 use brain_services::retrieval::cache::{ExecutionCache, InMemoryStore};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -17,7 +16,11 @@ struct MockStore<K, V> {
 }
 
 impl<K, V> MockStore<K, V> {
-    fn new(gets: Arc<AtomicUsize>, inserts: Arc<AtomicUsize>, invalidations: Arc<AtomicUsize>) -> Self {
+    fn new(
+        gets: Arc<AtomicUsize>,
+        inserts: Arc<AtomicUsize>,
+        invalidations: Arc<AtomicUsize>,
+    ) -> Self {
         Self {
             inner: InMemoryStore::new(),
             gets,
@@ -93,9 +96,8 @@ where
 
 // Shared Behavioral Runner confirming invariant guarantees for any cache implementation
 fn run_cache_behavior_tests<CCompiled, CLogical, CPhysical, CResult>(
-    cache: &ExecutionCache<CCompiled, CLogical, CPhysical, CResult>
-)
-where
+    cache: &ExecutionCache<CCompiled, CLogical, CPhysical, CResult>,
+) where
     CCompiled: SnapshotCacheStore<CompiledQueryCacheKey, CompilationResult>,
     CLogical: SnapshotCacheStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
     CPhysical: SnapshotCacheStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
@@ -113,8 +115,14 @@ where
         max_depth: None,
     };
 
-    let key_compiled_a = CompiledQueryCacheKey { snapshot_id: snap_a, request: query_req.clone() };
-    let key_compiled_b = CompiledQueryCacheKey { snapshot_id: snap_b, request: query_req.clone() };
+    let key_compiled_a = CompiledQueryCacheKey {
+        snapshot_id: snap_a,
+        request: query_req.clone(),
+    };
+    let key_compiled_b = CompiledQueryCacheKey {
+        snapshot_id: snap_b,
+        request: query_req.clone(),
+    };
 
     let mock_result = CompilationResult {
         canonical_query: CanonicalQuery {
@@ -142,7 +150,10 @@ where
 
     let val_a = cache.get_compiled_query(&key_compiled_a);
     assert!(val_a.is_some());
-    assert_eq!(val_a.unwrap().canonical_query.semantic_query, "resolved query");
+    assert_eq!(
+        val_a.unwrap().canonical_query.semantic_query,
+        "resolved query"
+    );
 
     // 3. Snapshot Invalidation: Purged snapshot is unobservable, unaffected snapshot remains available
     cache.invalidate_snapshot(snap_a);
@@ -168,12 +179,8 @@ fn test_mock_store_behavior() {
     let store_physical = MockStore::new(gets.clone(), inserts.clone(), invalidations.clone());
     let store_result = MockStore::new(gets.clone(), inserts.clone(), invalidations.clone());
 
-    let cache = ExecutionCache::with_stores(
-        store_compiled,
-        store_logical,
-        store_physical,
-        store_result,
-    );
+    let cache =
+        ExecutionCache::with_stores(store_compiled, store_logical, store_physical, store_result);
 
     run_cache_behavior_tests(&cache);
 
@@ -192,10 +199,26 @@ fn test_cross_backend_equivalence() {
     let cache_in_memory = ExecutionCache::new();
 
     let cache_mock = ExecutionCache::with_stores(
-        MockStore::new(gets_mock.clone(), inserts_mock.clone(), invalidations_mock.clone()),
-        MockStore::new(gets_mock.clone(), inserts_mock.clone(), invalidations_mock.clone()),
-        MockStore::new(gets_mock.clone(), inserts_mock.clone(), invalidations_mock.clone()),
-        MockStore::new(gets_mock.clone(), inserts_mock.clone(), invalidations_mock.clone()),
+        MockStore::new(
+            gets_mock.clone(),
+            inserts_mock.clone(),
+            invalidations_mock.clone(),
+        ),
+        MockStore::new(
+            gets_mock.clone(),
+            inserts_mock.clone(),
+            invalidations_mock.clone(),
+        ),
+        MockStore::new(
+            gets_mock.clone(),
+            inserts_mock.clone(),
+            invalidations_mock.clone(),
+        ),
+        MockStore::new(
+            gets_mock.clone(),
+            inserts_mock.clone(),
+            invalidations_mock.clone(),
+        ),
     );
 
     let snap = SnapshotId::new(42);
@@ -207,7 +230,10 @@ fn test_cross_backend_equivalence() {
         max_visited: None,
         max_depth: None,
     };
-    let key = CompiledQueryCacheKey { snapshot_id: snap, request: query_req };
+    let key = CompiledQueryCacheKey {
+        snapshot_id: snap,
+        request: query_req,
+    };
     let val = CompilationResult {
         canonical_query: CanonicalQuery {
             semantic_query: "equiv output".to_string(),
@@ -237,7 +263,10 @@ fn test_cross_backend_equivalence() {
     // Equivalence Step 3: Hit retrieval value comparison
     let res_mem_2 = cache_in_memory.get_compiled_query(&key).unwrap();
     let res_mock_2 = cache_mock.get_compiled_query(&key).unwrap();
-    assert_eq!(res_mem_2.canonical_query.semantic_query, res_mock_2.canonical_query.semantic_query);
+    assert_eq!(
+        res_mem_2.canonical_query.semantic_query,
+        res_mock_2.canonical_query.semantic_query
+    );
 
     // Equivalence Step 4: Statistics equivalence
     let stats_mem = cache_in_memory.stats();

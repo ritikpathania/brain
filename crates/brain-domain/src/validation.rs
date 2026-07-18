@@ -1,6 +1,6 @@
-use crate::entities::{KnowledgeGraph, Edge};
+use crate::entities::{Edge, KnowledgeGraph};
+use crate::identifiers::{EdgeId, NodeId, RelationId};
 use crate::relations::RelationRegistry;
-use crate::identifiers::{NodeId, EdgeId, RelationId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -76,7 +76,11 @@ impl<'a> ValidationContext<'a> {
         for edge in graph.edges.values() {
             incoming.entry(edge.target).or_default().push(edge);
         }
-        Self { graph, registry, incoming }
+        Self {
+            graph,
+            registry,
+            incoming,
+        }
     }
 }
 
@@ -119,7 +123,7 @@ pub struct ValidationReport {
 pub trait ValidationPass {
     /// Unique stable identifier of the validation pass.
     fn id(&self) -> &'static str;
-    
+
     /// Stable descriptive overview of the pass scope.
     fn description(&self) -> &'static str;
 
@@ -150,7 +154,7 @@ impl GraphValidator {
             let prev_len = diagnostics.len();
             let elements_inspected = pass.run(&ctx, &mut diagnostics);
             let duration = start.elapsed();
-            
+
             metrics.push(PassMetric {
                 pass_id: pass.id().to_string(),
                 duration_ms: duration.as_secs_f64() * 1000.0,
@@ -162,8 +166,14 @@ impl GraphValidator {
         // Sort diagnostics stably (ValidationDiagnostic derives Ord)
         diagnostics.sort();
 
-        let total_errors = diagnostics.iter().filter(|d| d.severity == DiagnosticSeverity::Error).count();
-        let total_warnings = diagnostics.iter().filter(|d| d.severity == DiagnosticSeverity::Warning).count();
+        let total_errors = diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .count();
+        let total_warnings = diagnostics
+            .iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Warning)
+            .count();
 
         ValidationReport {
             diagnostics,
@@ -323,7 +333,10 @@ impl ValidationPass for ExplanationValidationPass {
                         code: "VAL-006".to_string(),
                         severity: DiagnosticSeverity::Error,
                         category: DiagnosticCategory::ExplanationCompleteness,
-                        message: format!("Inferred edge '{}' is missing a derivation record", edge_id),
+                        message: format!(
+                            "Inferred edge '{}' is missing a derivation record",
+                            edge_id
+                        ),
                         affected: vec![AffectedElement::Edge(edge_id.clone())],
                     });
                     continue;
@@ -409,7 +422,10 @@ fn check_cycles(
             code: "VAL-009".to_string(),
             severity: DiagnosticSeverity::Error,
             category: DiagnosticCategory::ExplanationAcyclicity,
-            message: format!("Circular reasoning cycle detected in derivation chain: {}", cycle_str),
+            message: format!(
+                "Circular reasoning cycle detected in derivation chain: {}",
+                cycle_str
+            ),
             affected: cycle_path.into_iter().map(AffectedElement::Edge).collect(),
         });
         return;

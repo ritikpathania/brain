@@ -1,12 +1,12 @@
 //! Generic vertical select list widget.
 
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use crate::ui::theme::{ActiveTheme, ThemeToken};
-use crate::ui::render::RenderContext;
 use crate::ui::primitives::Label;
+use crate::ui::render::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::widgets::brain_widget::BrainWidget;
 use crate::ui::widgets::view_models::{ListView, MAX_VISIBLE_LIST_ROWS};
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 
 /// Precomputed layout bounds for the List rows.
 pub struct ListLayout {
@@ -46,25 +46,41 @@ impl<'a> BrainWidget for List<'a> {
     fn render<T: ActiveTheme>(&self, area: Rect, buf: &mut Buffer, ctx: &RenderContext<'_, T>) {
         let layout = ListLayout::compute(area, self.view);
         let item_areas = layout.item_areas();
-        
+
         for idx in 0..item_areas.len() {
             let item = &self.view.items[idx];
             let item_area = item_areas[idx];
             if item_area.width < 2 {
                 continue;
             }
-            
+
             let (indicator, token) = if item.selected {
                 ("➔ ", ThemeToken::Primary)
             } else {
                 ("  ", ThemeToken::Muted)
             };
-            
-            buf.set_string(item_area.x, item_area.y, indicator, ctx.theme.style(ThemeToken::Muted));
-            
-            let style_token = if item.disabled { ThemeToken::Muted } else { token };
-            let label = Label { text: item.label, token: style_token };
-            label.draw(Rect::new(item_area.x + 2, item_area.y, item_area.width - 2, 1), buf, ctx);
+
+            buf.set_string(
+                item_area.x,
+                item_area.y,
+                indicator,
+                ctx.theme.style(ThemeToken::Muted),
+            );
+
+            let style_token = if item.disabled {
+                ThemeToken::Muted
+            } else {
+                token
+            };
+            let label = Label {
+                text: item.label,
+                token: style_token,
+            };
+            label.draw(
+                Rect::new(item_area.x + 2, item_area.y, item_area.width - 2, 1),
+                buf,
+                ctx,
+            );
         }
     }
 }

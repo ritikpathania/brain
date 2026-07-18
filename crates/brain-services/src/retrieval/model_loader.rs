@@ -5,12 +5,12 @@
 //! compatibility before deserializing the inner model, so incompatible models
 //! are rejected **before** inference begins.
 
-use std::sync::Arc;
-use serde::{Serialize, Deserialize};
-use brain_core::errors::BrainError;
-use crate::retrieval::ranking::score_ranker::ScoreRanker;
-use crate::retrieval::ranking::feature_provider::FEATURE_SCHEMA_VERSION;
 use crate::retrieval::eval_harness::{LambdaMartModel, LinearRanker};
+use crate::retrieval::ranking::feature_provider::FEATURE_SCHEMA_VERSION;
+use crate::retrieval::ranking::score_ranker::ScoreRanker;
+use brain_core::errors::BrainError;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 // ---------------------------------------------------------------------------
 // Versioning constants
@@ -48,7 +48,6 @@ pub struct ModelMetadata {
     ///
     /// Informational only — used for logging and operational tracing.
     pub trainer_version: u32,
-
     // -----------------------------------------------------------------------
     // Future: artifact provenance fields (deferred — no correctness impact)
     //

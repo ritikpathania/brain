@@ -1,15 +1,15 @@
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use async_trait::async_trait;
-use tokio_util::sync::CancellationToken;
 use brain_core::errors::BrainError;
 use brain_domain::{Message, MessageId as DomainMessageId, MessageRole, SessionId};
-use brain_tui::client::{ExecutionClient, ExecutionRequest, EventReceiver, SessionSummary};
-use brain_tui::ui::search::types::{
-    SearchQuery, SearchGeneration, SearchEventSink, SearchEvent, SearchContext, SearchResultKind,
-    SearchProvider
-};
+use brain_tui::client::{EventReceiver, ExecutionClient, ExecutionRequest, SessionSummary};
 use brain_tui::ui::search::providers::RemoteMessagesProvider;
+use brain_tui::ui::search::types::{
+    SearchContext, SearchEvent, SearchEventSink, SearchGeneration, SearchProvider, SearchQuery,
+    SearchResultKind,
+};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 
 struct MockSearchClient {
     delay_ms: u64,
@@ -21,20 +21,39 @@ impl ExecutionClient for MockSearchClient {
         let (_, rx) = tokio::sync::mpsc::unbounded_channel();
         Ok(EventReceiver::new(rx, CancellationToken::new()))
     }
-    async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> { Ok(vec![]) }
-    async fn load_session(&self, _id: SessionId) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
-    async fn delete_session(&self, _id: SessionId) -> Result<(), BrainError> { Ok(()) }
-    async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> { Ok(()) }
+    async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> {
+        Ok(vec![])
+    }
+    async fn load_session(&self, _id: SessionId) -> Result<Vec<Message>, BrainError> {
+        Ok(vec![])
+    }
+    async fn delete_session(&self, _id: SessionId) -> Result<(), BrainError> {
+        Ok(())
+    }
+    async fn approve_tool_call(
+        &self,
+        _call_id: brain_core::events::ToolCallId,
+        _approved: bool,
+    ) -> Result<(), BrainError> {
+        Ok(())
+    }
 
     async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError> {
         if self.delay_ms > 0 {
             tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
         }
-        let m1 = Message::new(DomainMessageId::new(), MessageRole::User, format!("Found message: {}", query));
+        let m1 = Message::new(
+            DomainMessageId::new(),
+            MessageRole::User,
+            format!("Found message: {}", query),
+        );
         Ok(vec![m1])
     }
 
-    async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+    async fn inspect_node(
+        &self,
+        id: brain_domain::NodeId,
+    ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
         let entity = brain_domain::dtos::NodeDTO::new(
             id.to_string(),
             "Mock Node".to_string(),
@@ -102,7 +121,7 @@ async fn test_remote_messages_provider_success() {
     let events = sink.get_events();
     assert_eq!(events.len(), 3);
     assert!(matches!(events[0], SearchEvent::Started { .. }));
-    
+
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "Found message: target query");
@@ -138,8 +157,8 @@ async fn test_remote_messages_provider_cancellation() {
     tokio::time::sleep(Duration::from_millis(150)).await;
 
     let events = sink.get_events();
-    
-    // Only Started event should have been emitted before cancellation, 
+
+    // Only Started event should have been emitted before cancellation,
     // and Results/Finished must not be emitted.
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0], SearchEvent::Started { .. }));

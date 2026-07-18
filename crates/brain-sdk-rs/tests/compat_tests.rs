@@ -6,14 +6,19 @@ fn test_protocol_compatibility() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let schema_dir = manifest_dir.join("../../protocol/schema/v1");
 
-    let identity_schema_str = std::fs::read_to_string(schema_dir.join("event_identity.schema.json")).unwrap();
-    let envelope_schema_str = std::fs::read_to_string(schema_dir.join("ingestion_envelope.schema.json")).unwrap();
+    let identity_schema_str =
+        std::fs::read_to_string(schema_dir.join("event_identity.schema.json")).unwrap();
+    let envelope_schema_str =
+        std::fs::read_to_string(schema_dir.join("ingestion_envelope.schema.json")).unwrap();
 
     let identity_val: serde_json::Value = serde_json::from_str(&identity_schema_str).unwrap();
     let envelope_val: serde_json::Value = serde_json::from_str(&envelope_schema_str).unwrap();
 
     let validator = jsonschema::JSONSchema::options()
-        .with_document("json-schema:///event_identity.schema.json".to_string(), identity_val)
+        .with_document(
+            "json-schema:///event_identity.schema.json".to_string(),
+            identity_val,
+        )
         .compile(&envelope_val)
         .expect("Failed to compile JSON Schema");
 
@@ -35,8 +40,10 @@ fn test_protocol_compatibility() {
             }
 
             // SDK Deserialization
-            let envelope: IngestionEnvelope = serde_json::from_str(&fixture_str)
-                .unwrap_or_else(|e| panic!("Failed to deserialize valid fixture {:?}: {}", path, e));
+            let envelope: IngestionEnvelope =
+                serde_json::from_str(&fixture_str).unwrap_or_else(|e| {
+                    panic!("Failed to deserialize valid fixture {:?}: {}", path, e)
+                });
 
             // SDK Canonical Re-serialization
             let serialized_canonical = brain_integrations::to_canonical_json(&envelope).unwrap();
@@ -78,7 +85,8 @@ fn test_protocol_compatibility() {
     }
 
     // 3. Forward Compatibility - Unknown Fields
-    let unknown_fields_path = manifest_dir.join("../../protocol/fixtures/v1/forward/unknown_fields.json");
+    let unknown_fields_path =
+        manifest_dir.join("../../protocol/fixtures/v1/forward/unknown_fields.json");
     let unknown_fields_str = std::fs::read_to_string(&unknown_fields_path).unwrap();
     let unknown_fields_val: serde_json::Value = serde_json::from_str(&unknown_fields_str).unwrap();
 
@@ -98,7 +106,8 @@ fn test_protocol_compatibility() {
     assert!(validator.is_valid(&serialized_val));
 
     // 4. Forward Compatibility - Unknown Event Type
-    let unknown_event_path = manifest_dir.join("../../protocol/fixtures/v1/forward/unknown_event_type.json");
+    let unknown_event_path =
+        manifest_dir.join("../../protocol/fixtures/v1/forward/unknown_event_type.json");
     let unknown_event_str = std::fs::read_to_string(&unknown_event_path).unwrap();
     let unknown_event_val: serde_json::Value = serde_json::from_str(&unknown_event_str).unwrap();
 

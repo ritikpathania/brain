@@ -10,7 +10,10 @@ pub trait Specification<T> {
     where
         Self: Sized,
     {
-        AndSpecification { left: self, right: other }
+        AndSpecification {
+            left: self,
+            right: other,
+        }
     }
 
     /// Combines this specification with another using logical OR.
@@ -18,7 +21,10 @@ pub trait Specification<T> {
     where
         Self: Sized,
     {
-        OrSpecification { left: self, right: other }
+        OrSpecification {
+            left: self,
+            right: other,
+        }
     }
 
     /// Negates this specification.
@@ -90,7 +96,10 @@ pub struct IsExpired {
 impl IsExpired {
     /// Creates a new `IsExpired` specification with given TTL and custom current timestamp.
     pub fn new(ttl_seconds: u64, current_time: u64) -> Self {
-        Self { ttl_seconds, current_time }
+        Self {
+            ttl_seconds,
+            current_time,
+        }
     }
 
     /// Creates a new `IsExpired` specification with given TTL and system current timestamp.
@@ -99,7 +108,10 @@ impl IsExpired {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        Self { ttl_seconds, current_time }
+        Self {
+            ttl_seconds,
+            current_time,
+        }
     }
 }
 

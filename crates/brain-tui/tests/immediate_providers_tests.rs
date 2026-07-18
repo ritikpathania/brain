@@ -1,13 +1,13 @@
-use std::sync::{Arc, Mutex};
-use tokio_util::sync::CancellationToken;
-use brain_tui::ui::search::types::{
-    SearchQuery, SearchGeneration, SearchEventSink, SearchEvent, SearchContext, SearchResultKind,
-    SearchProvider
-};
-use brain_tui::ui::search::providers::{CommandsProvider, SessionsProvider, LocalMessagesProvider};
-use brain_tui::state::SessionViewModel;
 use brain_domain::{Message, MessageId, MessageRole, SessionId};
+use brain_tui::state::SessionViewModel;
+use brain_tui::ui::search::providers::{CommandsProvider, LocalMessagesProvider, SessionsProvider};
+use brain_tui::ui::search::types::{
+    SearchContext, SearchEvent, SearchEventSink, SearchGeneration, SearchProvider, SearchQuery,
+    SearchResultKind,
+};
+use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
+use tokio_util::sync::CancellationToken;
 
 struct MockEventSink {
     events: Arc<Mutex<Vec<SearchEvent>>>,
@@ -50,10 +50,18 @@ fn create_search_context() -> SearchContext {
         pinned: false,
         archived: true,
     };
-    
-    let m1 = Message::new(MessageId::new(), MessageRole::User, "Hello world rust code".to_string());
-    let m2 = Message::new(MessageId::new(), MessageRole::Assistant, "This is an assistant response".to_string());
-    
+
+    let m1 = Message::new(
+        MessageId::new(),
+        MessageRole::User,
+        "Hello world rust code".to_string(),
+    );
+    let m2 = Message::new(
+        MessageId::new(),
+        MessageRole::Assistant,
+        "This is an assistant response".to_string(),
+    );
+
     SearchContext {
         sessions: vec![s1, s2],
         active_messages: vec![m1, m2],
@@ -69,13 +77,13 @@ fn test_commands_provider() {
         text: "theme".to_string(),
     };
     let context = create_search_context();
-    
+
     provider.search(&query, &context, CancellationToken::new(), sink.clone());
-    
+
     let events = sink.get_events();
     assert_eq!(events.len(), 3);
     assert!(matches!(events[0], SearchEvent::Started { .. }));
-    
+
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert!(results.len() > 0);
         assert_eq!(results[0].kind, SearchResultKind::Command);
@@ -95,12 +103,12 @@ fn test_sessions_provider() {
         text: "arch".to_string(),
     };
     let context = create_search_context();
-    
+
     provider.search(&query, &context, CancellationToken::new(), sink.clone());
-    
+
     let events = sink.get_events();
     assert_eq!(events.len(), 3);
-    
+
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].title, "Rust Architecture");
@@ -120,12 +128,12 @@ fn test_local_messages_provider() {
         text: "assistant".to_string(),
     };
     let context = create_search_context();
-    
+
     provider.search(&query, &context, CancellationToken::new(), sink.clone());
-    
+
     let events = sink.get_events();
     assert_eq!(events.len(), 3);
-    
+
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].title, "This is an assistant response");

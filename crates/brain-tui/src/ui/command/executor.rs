@@ -1,6 +1,6 @@
 //! Pure execution engine mapping command invocations to execution plans.
 
-use crate::ui::command::{ThemeId, ModelId, SessionTitle};
+use crate::ui::command::{ModelId, SessionTitle, ThemeId};
 use crate::ui::protocol::BackendCommand;
 use brain_domain::SessionId;
 
@@ -76,11 +76,19 @@ impl CommandInvocation {
         match command_id {
             crate::ui::command::CHANGE_THEME => {
                 let theme_param = collected.iter().find(|p| p.id.0 == "theme")?;
-                if let crate::ui::command::palette::ParameterValue::Theme(theme_id) = theme_param.value {
+                if let crate::ui::command::palette::ParameterValue::Theme(theme_id) =
+                    theme_param.value
+                {
                     Some(CommandInvocation::ChangeTheme { theme: theme_id })
-                } else if let crate::ui::command::palette::ParameterValue::String(ref s) = theme_param.value {
+                } else if let crate::ui::command::palette::ParameterValue::String(ref s) =
+                    theme_param.value
+                {
                     Some(CommandInvocation::ChangeTheme {
-                        theme: crate::ui::command::ThemeId(if s.contains("contrast") { "high_contrast" } else { "dark" })
+                        theme: crate::ui::command::ThemeId(if s.contains("contrast") {
+                            "high_contrast"
+                        } else {
+                            "dark"
+                        }),
                     })
                 } else {
                     None
@@ -89,7 +97,9 @@ impl CommandInvocation {
             crate::ui::command::RENAME_SESSION => {
                 let session_id = active_session?;
                 let title_param = collected.iter().find(|p| p.id.0 == "title")?;
-                if let crate::ui::command::palette::ParameterValue::String(ref s) = title_param.value {
+                if let crate::ui::command::palette::ParameterValue::String(ref s) =
+                    title_param.value
+                {
                     Some(CommandInvocation::RenameSession {
                         session_id,
                         title: crate::ui::command::SessionTitle(s.clone()),
@@ -112,23 +122,25 @@ impl CommandInvocation {
             }
             crate::ui::command::SWITCH_MODEL => {
                 let model_param = collected.iter().find(|p| p.id.0 == "model")?;
-                if let crate::ui::command::palette::ParameterValue::Model(ref model_id) = model_param.value {
-                    Some(CommandInvocation::SwitchModel { model: model_id.clone() })
-                } else if let crate::ui::command::palette::ParameterValue::String(ref s) = model_param.value {
-                    Some(CommandInvocation::SwitchModel { model: crate::ui::command::ModelId(s.clone()) })
+                if let crate::ui::command::palette::ParameterValue::Model(ref model_id) =
+                    model_param.value
+                {
+                    Some(CommandInvocation::SwitchModel {
+                        model: model_id.clone(),
+                    })
+                } else if let crate::ui::command::palette::ParameterValue::String(ref s) =
+                    model_param.value
+                {
+                    Some(CommandInvocation::SwitchModel {
+                        model: crate::ui::command::ModelId(s.clone()),
+                    })
                 } else {
                     None
                 }
             }
-            crate::ui::command::CLEAR_CHAT => {
-                Some(CommandInvocation::ClearChat)
-            }
-            crate::ui::command::SHOW_HELP => {
-                Some(CommandInvocation::ShowHelp)
-            }
-            crate::ui::command::TOGGLE_REFLECTION => {
-                Some(CommandInvocation::ToggleReflection)
-            }
+            crate::ui::command::CLEAR_CHAT => Some(CommandInvocation::ClearChat),
+            crate::ui::command::SHOW_HELP => Some(CommandInvocation::ShowHelp),
+            crate::ui::command::TOGGLE_REFLECTION => Some(CommandInvocation::ToggleReflection),
             _ => None,
         }
     }
@@ -155,7 +167,10 @@ impl CommandExecutor {
                 backend_commands: vec![],
             },
             CommandInvocation::RenameSession { session_id, title } => ExecutionPlan {
-                mutations: vec![LocalStateMutation::RenameSession(session_id, title.0.clone())],
+                mutations: vec![LocalStateMutation::RenameSession(
+                    session_id,
+                    title.0.clone(),
+                )],
                 backend_commands: vec![BackendCommand::RenameSession {
                     session_id,
                     title: Some(title.0),

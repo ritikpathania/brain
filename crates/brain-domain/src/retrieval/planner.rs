@@ -1,7 +1,7 @@
 use crate::retrieval::models::{
-    RetrievalRequest, QueryRequest, CanonicalQuery, LogicalRetrievalPlan,
-    LogicalStep, StoppingCriterion, ExpansionPolicy, CompilationMetadata, CompilationResult,
-    Diagnostic, Severity, CompilerPhase, DiagnosticCode
+    CanonicalQuery, CompilationMetadata, CompilationResult, CompilerPhase, Diagnostic,
+    DiagnosticCode, ExpansionPolicy, LogicalRetrievalPlan, LogicalStep, QueryRequest,
+    RetrievalRequest, Severity, StoppingCriterion,
 };
 
 /// Trait defining the contract for query compiler pipeline passes.
@@ -18,11 +18,7 @@ pub trait CompilerPass: Send + Sync {
     fn phase(&self) -> CompilerPhase;
 
     /// Apply transformations on the CanonicalQuery and record diagnostics.
-    fn apply(
-        &self,
-        query: CanonicalQuery,
-        metadata: &mut CompilationMetadata,
-    ) -> CanonicalQuery;
+    fn apply(&self, query: CanonicalQuery, metadata: &mut CompilationMetadata) -> CanonicalQuery;
 }
 
 /// Lexical normalizer cleaning casing and whitespaces.
@@ -37,13 +33,17 @@ impl CompilerPass for LexicalNormalizer {
         CompilerPhase::Lexical
     }
 
-    fn apply(&self, mut query: CanonicalQuery, metadata: &mut CompilationMetadata) -> CanonicalQuery {
+    fn apply(
+        &self,
+        mut query: CanonicalQuery,
+        metadata: &mut CompilationMetadata,
+    ) -> CanonicalQuery {
         metadata.passes_executed.push(self.id().to_string());
-        
+
         let trimmed = query.semantic_query.trim().to_lowercase();
         // Replace multiple consecutive whitespaces with a single space
         query.semantic_query = trimmed.split_whitespace().collect::<Vec<&str>>().join(" ");
-        
+
         metadata.diagnostics.push(Diagnostic {
             code: DiagnosticCode::QueryNormalized,
             severity: Severity::Info,
@@ -67,7 +67,11 @@ impl CompilerPass for SemanticRewriter {
         CompilerPhase::Semantic
     }
 
-    fn apply(&self, mut query: CanonicalQuery, metadata: &mut CompilationMetadata) -> CanonicalQuery {
+    fn apply(
+        &self,
+        mut query: CanonicalQuery,
+        metadata: &mut CompilationMetadata,
+    ) -> CanonicalQuery {
         metadata.passes_executed.push(self.id().to_string());
 
         if query.semantic_query == "postgres" {
@@ -104,7 +108,11 @@ impl CompilerPass for ConstantFolder {
         CompilerPhase::Optimization
     }
 
-    fn apply(&self, mut query: CanonicalQuery, metadata: &mut CompilationMetadata) -> CanonicalQuery {
+    fn apply(
+        &self,
+        mut query: CanonicalQuery,
+        metadata: &mut CompilationMetadata,
+    ) -> CanonicalQuery {
         metadata.passes_executed.push(self.id().to_string());
 
         if query.max_depth == Some(0) || query.max_visited == Some(0) {
@@ -147,22 +155,28 @@ fn phase_order(phase: CompilerPhase) -> usize {
 
 impl QueryCompiler {
     /// Constructs a new QueryCompiler with explicit pass list and validates ordering and uniqueness.
-    pub fn new(passes: Vec<Box<dyn CompilerPass>>) -> Result<Self, crate::retrieval::models::CompilerBuildError> {
+    pub fn new(
+        passes: Vec<Box<dyn CompilerPass>>,
+    ) -> Result<Self, crate::retrieval::models::CompilerBuildError> {
         let mut last_phase_order = 0;
         let mut seen_ids = std::collections::HashSet::new();
 
         for pass in &passes {
             let pass_id = pass.id();
             if !seen_ids.insert(pass_id) {
-                return Err(crate::retrieval::models::CompilerBuildError::DuplicatePass(pass_id.to_string()));
+                return Err(crate::retrieval::models::CompilerBuildError::DuplicatePass(
+                    pass_id.to_string(),
+                ));
             }
             let phase = pass.phase();
             let current_order = phase_order(phase);
             if current_order < last_phase_order {
-                return Err(crate::retrieval::models::CompilerBuildError::InvalidPassOrdering {
-                    pass_id: pass_id.to_string(),
-                    phase,
-                });
+                return Err(
+                    crate::retrieval::models::CompilerBuildError::InvalidPassOrdering {
+                        pass_id: pass_id.to_string(),
+                        phase,
+                    },
+                );
             }
             last_phase_order = current_order;
         }
@@ -171,12 +185,16 @@ impl QueryCompiler {
             if phase.is_required() {
                 let has_phase = passes.iter().any(|pass| pass.phase() == *phase);
                 if !has_phase {
-                    return Err(crate::retrieval::models::CompilerBuildError::MissingRequiredPhase(*phase));
+                    return Err(
+                        crate::retrieval::models::CompilerBuildError::MissingRequiredPhase(*phase),
+                    );
                 }
             }
         }
 
-        Ok(Self { passes: passes.into() })
+        Ok(Self {
+            passes: passes.into(),
+        })
     }
 
     /// Constructs the default compiler pipeline.
@@ -185,7 +203,8 @@ impl QueryCompiler {
             Box::new(LexicalNormalizer),
             Box::new(SemanticRewriter),
             Box::new(ConstantFolder),
-        ]).expect("Default compiler pipeline must be valid")
+        ])
+        .expect("Default compiler pipeline must be valid")
     }
 
     /// Compiles a declarative `QueryRequest` into a `CompilationResult`.
@@ -252,8 +271,12 @@ impl RetrievalPlanner {
     /// Formulates an initial side-effect-free logical plan to satisfy a CanonicalQuery.
     pub fn plan(&self, query: &CanonicalQuery) -> LogicalRetrievalPlan {
         let mut steps = Vec::new();
-        steps.push(LogicalStep::VectorRetrieve { query: query.semantic_query.clone() });
-        steps.push(LogicalStep::KeywordRetrieve { query: query.semantic_query.clone() });
+        steps.push(LogicalStep::VectorRetrieve {
+            query: query.semantic_query.clone(),
+        });
+        steps.push(LogicalStep::KeywordRetrieve {
+            query: query.semantic_query.clone(),
+        });
 
         if !query.disable_expansion {
             let mut criteria = Vec::new();

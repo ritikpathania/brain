@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use brain_core::errors::BrainError;
-use brain_core::repositories::SessionRepository;
-use brain_domain::{SessionId, SessionTitle, MessageTimestamp};
-use brain_storage::{SqliteSessionReadModelRepository, SessionReadModel};
-use crate::query::dto::{SessionSummary, SessionDetails, MessageDTO};
+use crate::query::dto::{MessageDTO, SessionDetails, SessionSummary};
 use crate::query::filters::SessionQuery;
 use crate::query::traits::SessionQueryService;
+use brain_core::errors::BrainError;
+use brain_core::repositories::SessionRepository;
+use brain_domain::{MessageTimestamp, SessionId, SessionTitle};
+use brain_storage::{SessionReadModel, SqliteSessionReadModelRepository};
+use std::sync::Arc;
 
 /// Concrete implementation of `SessionQueryService` backing by Sqlite projection read models and core session store.
 pub struct SqliteSessionQueryService {
@@ -45,12 +45,9 @@ impl SessionQueryService for SqliteSessionQueryService {
             None => (None, None),
         };
 
-        let rows = self.projection_repo.query(
-            query.is_archived,
-            query.is_pinned,
-            limit,
-            offset,
-        )?;
+        let rows = self
+            .projection_repo
+            .query(query.is_archived, query.is_pinned, limit, offset)?;
 
         let mut summaries = Vec::new();
         for row in rows {

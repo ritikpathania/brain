@@ -1,6 +1,8 @@
 //! Command palette state machine and interaction data structures.
 
-use crate::ui::command::{CommandId, CommandDescriptor, ParameterDescriptor, ThemeId, ModelId, ParameterId};
+use crate::ui::command::{
+    CommandDescriptor, CommandId, ModelId, ParameterDescriptor, ParameterId, ThemeId,
+};
 use crate::ui::interaction::Editor;
 use brain_domain::SessionId;
 
@@ -32,7 +34,10 @@ impl ParameterCollectionState {
     }
 
     /// Resolves the descriptor of the parameter currently being collected.
-    pub fn current_parameter<'a>(&self, descriptor: &'a CommandDescriptor) -> Option<&'a ParameterDescriptor> {
+    pub fn current_parameter<'a>(
+        &self,
+        descriptor: &'a CommandDescriptor,
+    ) -> Option<&'a ParameterDescriptor> {
         descriptor.parameters.get(self.collected.len())
     }
 }
@@ -111,9 +116,10 @@ impl CommandPaletteState {
             std::sync::Arc::new(crate::ui::search::providers::SessionsProvider),
             std::sync::Arc::new(crate::ui::search::providers::LocalMessagesProvider),
         ];
-        let async_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> = vec![
-            std::sync::Arc::new(crate::ui::search::providers::RemoteMessagesProvider::new(client)),
-        ];
+        let async_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> =
+            vec![std::sync::Arc::new(
+                crate::ui::search::providers::RemoteMessagesProvider::new(client),
+            )];
         let expected_providers = vec![
             crate::ui::search::types::PROVIDER_COMMANDS,
             crate::ui::search::types::PROVIDER_SESSIONS,
@@ -126,12 +132,18 @@ impl CommandPaletteState {
             async_providers,
             sink,
         ));
-        self.search_aggregator = Some(crate::ui::search::aggregator::SearchAggregator::new(expected_providers));
+        self.search_aggregator = Some(crate::ui::search::aggregator::SearchAggregator::new(
+            expected_providers,
+        ));
         self.view_state = crate::ui::search::types::SearchViewState::default();
     }
 
     /// Triggers a new search query execution.
-    pub fn trigger_search(&mut self, text: String, context: &crate::ui::search::types::SearchContext) {
+    pub fn trigger_search(
+        &mut self,
+        text: String,
+        context: &crate::ui::search::types::SearchContext,
+    ) {
         if let Some(ref mut agg) = self.search_aggregator {
             agg.set_query(text.clone());
         }
@@ -166,18 +178,22 @@ impl CommandPaletteState {
     /// Filter COMMANDS matching the current search term.
     pub fn matches(&self) -> impl Iterator<Item = &'static crate::ui::command::CommandDescriptor> {
         let term = self.editor.text().to_lowercase();
-        crate::ui::command::COMMANDS.iter()
-            .filter(move |cmd| {
-                cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly
-                    && (cmd.title.to_lowercase().contains(&term)
-                        || cmd.aliases.iter().any(|alias| alias.to_lowercase().contains(&term))
-                        || cmd.keywords.iter().any(|kw| kw.to_lowercase().contains(&term)))
-            })
+        crate::ui::command::COMMANDS.iter().filter(move |cmd| {
+            cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly
+                && (cmd.title.to_lowercase().contains(&term)
+                    || cmd
+                        .aliases
+                        .iter()
+                        .any(|alias| alias.to_lowercase().contains(&term))
+                    || cmd
+                        .keywords
+                        .iter()
+                        .any(|kw| kw.to_lowercase().contains(&term)))
+        })
     }
 }
 
 impl crate::ui::layout::Overlay for CommandPaletteState {
-
     fn is_visible(&self) -> bool {
         self.open
     }
@@ -186,4 +202,3 @@ impl crate::ui::layout::Overlay for CommandPaletteState {
         crate::ui::layout::CommandPaletteGeometry::compute(screen_area)
     }
 }
-

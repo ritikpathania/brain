@@ -6,7 +6,12 @@ use std::collections::HashSet;
 /// - 1.0 if the retrieved node is in `expected` (primary targets)
 /// - 0.5 if the retrieved node is in `acceptable` (alternative matches)
 /// - 0.0 otherwise.
-pub fn compute_ndcg_at_k(retrieved: &[NodeId], expected: &[NodeId], acceptable: &[NodeId], k: usize) -> f64 {
+pub fn compute_ndcg_at_k(
+    retrieved: &[NodeId],
+    expected: &[NodeId],
+    acceptable: &[NodeId],
+    k: usize,
+) -> f64 {
     if retrieved.is_empty() || expected.is_empty() || k == 0 {
         return 0.0;
     }

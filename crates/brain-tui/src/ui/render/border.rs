@@ -1,13 +1,13 @@
 //! Border layout and frame drawing helpers.
 
-use ratatui::widgets::{Block, Borders, BorderType};
-use crate::ui::theme::{ActiveTheme, ThemeToken};
 use crate::ui::render::context::RenderContext;
+use crate::ui::theme::{ActiveTheme, ThemeToken};
+use ratatui::widgets::{Block, BorderType, Borders};
 
 /// Helper to render borders consistently across widgets.
 pub struct BorderRenderer;
 
-// NOTE: Block is returned temporarily for M1. We will refactor this to draw 
+// NOTE: Block is returned temporarily for M1. We will refactor this to draw
 // borders directly onto the Buffer in a later milestone to match all primitives.
 impl BorderRenderer {
     /// Constructs a rounded themed border block.

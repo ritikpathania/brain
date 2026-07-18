@@ -1,11 +1,11 @@
+use brain_domain::retrieval::{
+    CacheStore, CompiledQueryCacheKey, LogicalPlanCacheKey, PhysicalPlanCacheKey, ResultCacheKey,
+    SnapshotCacheStore, SnapshotId,
+};
+use rusqlite::Connection;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use rusqlite::Connection;
-use brain_domain::retrieval::{
-    CacheStore, SnapshotCacheStore, SnapshotId,
-    CompiledQueryCacheKey, LogicalPlanCacheKey, PhysicalPlanCacheKey, ResultCacheKey
-};
 
 /// Configuration settings for SQLiteStore caching.
 #[derive(Debug, Clone)]
@@ -212,7 +212,10 @@ fn parse_sql_type(ty_str: &str) -> Result<SqlType, String> {
     let normalized = ty_str.to_uppercase();
     if normalized.contains("INT") {
         Ok(SqlType::Integer)
-    } else if normalized.contains("CHAR") || normalized.contains("TEXT") || normalized.contains("CLOB") {
+    } else if normalized.contains("CHAR")
+        || normalized.contains("TEXT")
+        || normalized.contains("CLOB")
+    {
         Ok(SqlType::Text)
     } else if normalized.contains("BLOB") {
         Ok(SqlType::Blob)
@@ -258,7 +261,10 @@ fn expected_table(table_name: &str) -> ExpectedTable {
     }
 }
 
-fn observe_table(conn: &Connection, table_name: &str) -> Result<Option<ObservedTable>, SchemaVerificationError> {
+fn observe_table(
+    conn: &Connection,
+    table_name: &str,
+) -> Result<Option<ObservedTable>, SchemaVerificationError> {
     let mut stmt = conn.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")?;
     let exists = stmt.exists([table_name])?;
     if !exists {
@@ -276,11 +282,13 @@ fn observe_table(conn: &Connection, table_name: &str) -> Result<Option<ObservedT
 
         let ty = match parse_sql_type(&ty_str) {
             Ok(t) => t,
-            Err(e) => return Err(SchemaVerificationError::UnsupportedSqlType {
-                table: table_name.to_string(),
-                column: name,
-                sqlite_type: e,
-            }),
+            Err(e) => {
+                return Err(SchemaVerificationError::UnsupportedSqlType {
+                    table: table_name.to_string(),
+                    column: name,
+                    sqlite_type: e,
+                })
+            }
         };
 
         // Standardize Column Names to static lifetimes matching expectations if equal
@@ -335,7 +343,10 @@ fn observe_table(conn: &Connection, table_name: &str) -> Result<Option<ObservedT
 }
 
 impl ObservedSchema {
-    fn from_connection(conn: &Connection, table_names: &[String]) -> Result<Self, SchemaVerificationError> {
+    fn from_connection(
+        conn: &Connection,
+        table_names: &[String],
+    ) -> Result<Self, SchemaVerificationError> {
         let mut tables = Vec::new();
         for table_name in table_names {
             if let Some(table) = observe_table(conn, table_name)? {
@@ -348,9 +359,15 @@ impl ObservedSchema {
     }
 }
 
-fn verify_schema(expected: &ExpectedSchema, observed: &ObservedSchema) -> Result<(), SchemaVerificationError> {
+fn verify_schema(
+    expected: &ExpectedSchema,
+    observed: &ObservedSchema,
+) -> Result<(), SchemaVerificationError> {
     for expected_table in &expected.tables {
-        let observed_table = observed.tables.iter().find(|t| t.name == expected_table.name)
+        let observed_table = observed
+            .tables
+            .iter()
+            .find(|t| t.name == expected_table.name)
             .ok_or_else(|| SchemaVerificationError::MissingTable(expected_table.name.clone()))?;
 
         let mut expected_cols = expected_table.columns.to_vec();
@@ -408,7 +425,10 @@ fn verify_schema(expected: &ExpectedSchema, observed: &ObservedSchema) -> Result
         expected_indexes.sort_by(|a, b| a.name.cmp(&b.name));
 
         for ei in &expected_indexes {
-            let oi = observed_table.indexes.iter().find(|i| i.name == ei.name)
+            let oi = observed_table
+                .indexes
+                .iter()
+                .find(|i| i.name == ei.name)
                 .ok_or_else(|| SchemaVerificationError::MissingIndex(ei.name.clone()))?;
 
             if ei.unique != oi.unique {
@@ -438,17 +458,20 @@ fn migrate_schema(conn: &Connection, table_name: &str) -> rusqlite::Result<()> {
         "CREATE TABLE IF NOT EXISTS schema_versions (
             table_name TEXT PRIMARY KEY,
             version INTEGER NOT NULL
-        );"
+        );",
     )?;
 
-    let mut current_version: i32 = conn.query_row(
-        "SELECT version FROM schema_versions WHERE table_name = ?",
-        [table_name],
-        |row| row.get(0)
-    ).unwrap_or(-1);
+    let mut current_version: i32 = conn
+        .query_row(
+            "SELECT version FROM schema_versions WHERE table_name = ?",
+            [table_name],
+            |row| row.get(0),
+        )
+        .unwrap_or(-1);
 
     if current_version == -1 {
-        let table_exists = conn.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")?
+        let table_exists = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")?
             .exists([table_name])?;
         if table_exists {
             current_version = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
@@ -473,7 +496,7 @@ fn migrate_schema(conn: &Connection, table_name: &str) -> rusqlite::Result<()> {
         version = 1;
         conn.execute(
             "INSERT OR REPLACE INTO schema_versions (table_name, version) VALUES (?, ?)",
-            rusqlite::params![table_name, 1]
+            rusqlite::params![table_name, 1],
         )?;
     }
 
@@ -486,7 +509,7 @@ fn migrate_schema(conn: &Connection, table_name: &str) -> rusqlite::Result<()> {
         ))?;
         conn.execute(
             "INSERT OR REPLACE INTO schema_versions (table_name, version) VALUES (?, ?)",
-            rusqlite::params![table_name, 2]
+            rusqlite::params![table_name, 2],
         )?;
     }
 
@@ -542,8 +565,13 @@ where
         let hash = compute_key_hash(&key_str);
 
         let conn = self.conn.lock().unwrap();
-        let query = format!("SELECT value_blob FROM {} WHERE key_hash = ? AND key_blob = ?", self.table_name);
-        let val_str: String = conn.query_row(&query, [&hash, &key_str], |row| row.get(0)).ok()?;
+        let query = format!(
+            "SELECT value_blob FROM {} WHERE key_hash = ? AND key_blob = ?",
+            self.table_name
+        );
+        let val_str: String = conn
+            .query_row(&query, [&hash, &key_str], |row| row.get(0))
+            .ok()?;
 
         serde_json::from_str(&val_str).ok()
     }
@@ -571,7 +599,13 @@ where
             self.table_name
         );
 
-        if tx.execute(&query, rusqlite::params![snapshot_id, hash, key_str, val_str]).is_err() {
+        if tx
+            .execute(
+                &query,
+                rusqlite::params![snapshot_id, hash, key_str, val_str],
+            )
+            .is_err()
+        {
             return;
         }
 
@@ -588,13 +622,20 @@ where
             Err(_) => return None,
         };
 
-        let select_query = format!("SELECT value_blob FROM {} WHERE key_hash = ? AND key_blob = ?", self.table_name);
-        let val_str: String = match tx.query_row(&select_query, [&hash, &key_str], |row| row.get(0)) {
+        let select_query = format!(
+            "SELECT value_blob FROM {} WHERE key_hash = ? AND key_blob = ?",
+            self.table_name
+        );
+        let val_str: String = match tx.query_row(&select_query, [&hash, &key_str], |row| row.get(0))
+        {
             Ok(s) => s,
             Err(_) => return None,
         };
 
-        let delete_query = format!("DELETE FROM {} WHERE key_hash = ? AND key_blob = ?", self.table_name);
+        let delete_query = format!(
+            "DELETE FROM {} WHERE key_hash = ? AND key_blob = ?",
+            self.table_name
+        );
         if tx.execute(&delete_query, [&hash, &key_str]).is_err() {
             return None;
         }

@@ -8,11 +8,11 @@
 //! The subscriber does NOT use `tokio`. It deliberately relies on `std::sync::mpsc`
 //! to stay sync-first, deterministic, and easy to test.
 
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::Receiver;
-use std::thread;
-use brain_core::events::{RuntimeEvent, TaskProgress};
 use crate::correlation::CorrelationIndex;
+use brain_core::events::{RuntimeEvent, TaskProgress};
+use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 /// Background subscriber that feeds `TaskProgress` events into a `CorrelationIndex`.
 ///
@@ -21,7 +21,7 @@ use crate::correlation::CorrelationIndex;
 pub struct ObservabilitySubscriber {
     index: Arc<Mutex<CorrelationIndex>>,
     /// Join handle for the background thread. Held so the thread is joined on drop.
-    _handle: thread::JoinHandle<()>,
+    handle: Option<thread::JoinHandle<()>>,
 }
 
 impl ObservabilitySubscriber {
@@ -45,7 +45,7 @@ impl ObservabilitySubscriber {
                             }
                         }
                         Err(_) => {
-                            // Channel closed \u2014 sender dropped. Exit cleanly.
+                            // Channel closed — sender dropped. Exit cleanly.
                             break;
                         }
                     }
@@ -55,12 +55,20 @@ impl ObservabilitySubscriber {
 
         Self {
             index,
-            _handle: handle,
+            handle: Some(handle),
         }
     }
 
     /// Returns a reference to the shared `CorrelationIndex` for querying.
     pub fn index(&self) -> Arc<Mutex<CorrelationIndex>> {
         Arc::clone(&self.index)
+    }
+}
+
+impl Drop for ObservabilitySubscriber {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle.take() {
+            let _ = h.join();
+        }
     }
 }

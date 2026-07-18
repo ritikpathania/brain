@@ -1,5 +1,5 @@
+use crate::retrieval::{RetrievalExplanation, RetrievalResult, RetrievedCandidate};
 use crate::NodeId;
-use crate::retrieval::{RetrievedCandidate, RetrievalExplanation, RetrievalResult};
 
 /// Telemetry identifier representing each stage of the query compilation and execution pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

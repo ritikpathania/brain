@@ -1,10 +1,10 @@
 //! Search event aggregator and reactive view state compiler.
 
-use std::collections::HashMap;
-use crate::ui::search::types::{
-    SearchEvent, SearchGeneration, SearchResult, ProviderId, ProviderStatus, SearchViewState
-};
 use crate::ui::search::ranking::RankingEngine;
+use crate::ui::search::types::{
+    ProviderId, ProviderStatus, SearchEvent, SearchGeneration, SearchResult, SearchViewState,
+};
+use std::collections::HashMap;
 
 /// The SearchAggregator consumes provider search events, filters them by generation,
 /// accumulates active results, and compiles read-only ViewState snapshots.
@@ -69,22 +69,28 @@ impl SearchAggregator {
             SearchEvent::Started { provider, .. } => {
                 self.statuses.insert(provider, ProviderStatus::Searching);
             }
-            SearchEvent::Results { provider, results, .. } => {
+            SearchEvent::Results {
+                provider, results, ..
+            } => {
                 // Duplicate Results events replace the previous ones for this provider
                 self.collected_results.insert(provider, results);
             }
             SearchEvent::Finished { provider, .. } => {
                 self.statuses.insert(provider, ProviderStatus::Completed);
             }
-            SearchEvent::Failed { provider, reason, .. } => {
-                self.statuses.insert(provider, ProviderStatus::Failed(reason));
+            SearchEvent::Failed {
+                provider, reason, ..
+            } => {
+                self.statuses
+                    .insert(provider, ProviderStatus::Failed(reason));
             }
         }
     }
 
     /// Generates a pure ViewState snapshot of the current aggregator state.
     pub fn view_state(&self) -> SearchViewState {
-        let flattened: Vec<SearchResult> = self.collected_results.values().flatten().cloned().collect();
+        let flattened: Vec<SearchResult> =
+            self.collected_results.values().flatten().cloned().collect();
         let ranked = self.ranking_engine.rank(&self.active_query_text, flattened);
 
         SearchViewState {
@@ -99,7 +105,10 @@ impl SearchAggregator {
     /// Invariant: A provider that never emitted `Started` is treated as `Idle`, not `Completed`.
     pub fn is_complete(&self) -> bool {
         self.statuses.values().all(|&status| {
-            matches!(status, ProviderStatus::Completed | ProviderStatus::Failed(_))
+            matches!(
+                status,
+                ProviderStatus::Completed | ProviderStatus::Failed(_)
+            )
         })
     }
 

@@ -1,5 +1,6 @@
 use crate::retrieval::models::{
-    LogicalRetrievalPlan, LogicalStep, PhysicalRetrievalPlan, PhysicalStep, EstimatedCost, CostHeuristics
+    CostHeuristics, EstimatedCost, LogicalRetrievalPlan, LogicalStep, PhysicalRetrievalPlan,
+    PhysicalStep,
 };
 
 /// Optimizer translating Logical Retrieval Plans to Physical ones.
@@ -7,7 +8,11 @@ pub struct PlanOptimizer;
 
 impl PlanOptimizer {
     /// Translates a logical plan into an optimized, executable physical plan using cost heuristics.
-    pub fn optimize(&self, plan: LogicalRetrievalPlan, heuristics: &CostHeuristics) -> PhysicalRetrievalPlan {
+    pub fn optimize(
+        &self,
+        plan: LogicalRetrievalPlan,
+        heuristics: &CostHeuristics,
+    ) -> PhysicalRetrievalPlan {
         let mut physical_steps = Vec::new();
         let mut vector_cost = 0.0;
         let mut keyword_cost = 0.0;
@@ -27,15 +32,29 @@ impl PlanOptimizer {
                         keyword_cost += heuristics.weights.keyword_weight;
                     }
                 }
-                LogicalStep::ExpandNeighbors { source_nodes, policy } => {
-                    physical_steps.push(PhysicalStep::ExpandNeighbors { source_nodes, policy });
+                LogicalStep::ExpandNeighbors {
+                    source_nodes,
+                    policy,
+                } => {
+                    physical_steps.push(PhysicalStep::ExpandNeighbors {
+                        source_nodes,
+                        policy,
+                    });
                     expansion_cost += heuristics.weights.expansion_weight;
                 }
             }
         }
 
-        let fusion_cost = if physical_steps.len() > 1 { heuristics.weights.fusion_weight } else { 0.0 };
-        let ranking_cost = if !physical_steps.is_empty() { heuristics.weights.ranking_weight } else { 0.0 };
+        let fusion_cost = if physical_steps.len() > 1 {
+            heuristics.weights.fusion_weight
+        } else {
+            0.0
+        };
+        let ranking_cost = if !physical_steps.is_empty() {
+            heuristics.weights.ranking_weight
+        } else {
+            0.0
+        };
 
         let cost = EstimatedCost {
             vector_cost,

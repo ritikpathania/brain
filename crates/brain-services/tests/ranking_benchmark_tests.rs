@@ -1,10 +1,9 @@
 use brain_core::errors::BrainError;
 use brain_core::RepositorySet;
-use brain_domain::{NodeId, Node, NodeType, Edge, RelationKind};
+use brain_domain::{Edge, Node, NodeId, NodeType, RelationKind};
 use brain_services::eval_harness::{
-    FeatureVector, FeatureContext, FeatureExtractor, FeatureProvider, LinearRanker,
-    RankingRetriever, RankingWeights, RankingDecay, RetrievalChannel, RetrievalResult,
-    Retriever, run_benchmark,
+    run_benchmark, FeatureContext, FeatureExtractor, FeatureProvider, FeatureVector, LinearRanker,
+    RankingDecay, RankingRetriever, RankingWeights, RetrievalChannel, RetrievalResult, Retriever,
 };
 use brain_storage::TestStorage;
 use std::collections::HashMap;
@@ -76,7 +75,9 @@ fn test_ranking_retriever_sorting() {
         },
     ];
 
-    let mock = MockRetriever { results: candidates };
+    let mock = MockRetriever {
+        results: candidates,
+    };
     let weights = RankingWeights {
         lexical: 1.0,
         semantic: 2.0,
@@ -126,7 +127,7 @@ fn test_feature_extractor_math() {
         pinned: true, // Should force importance to 1.0
         provenance_confidence: Some(0.85),
         graph_degree: Some(3), // log(4.0) = 1.386294361
-        access_count: Some(1),  // log(2.0) = 0.69314718
+        access_count: Some(1), // log(2.0) = 0.69314718
         last_observed_at: Some(reference_time - 86400), // 1 day ago
     };
 
@@ -165,24 +166,34 @@ fn test_feature_provider_loading() {
     let mut node1 = Node::new(node_id_1, "rust".to_string(), NodeType::Concept);
     node1.updated_at = 500;
     node1.provenance.confidence = 0.75;
-    node1.properties.insert("importance".to_string(), serde_json::json!(0.8));
-    node1.properties.insert("pinned".to_string(), serde_json::json!(true));
-    node1.properties.insert("provenance_confidence".to_string(), serde_json::json!(0.75));
+    node1
+        .properties
+        .insert("importance".to_string(), serde_json::json!(0.8));
+    node1
+        .properties
+        .insert("pinned".to_string(), serde_json::json!(true));
+    node1
+        .properties
+        .insert("provenance_confidence".to_string(), serde_json::json!(0.75));
 
     let mut node2 = Node::new(node_id_2, "python".to_string(), NodeType::Concept);
     node2.updated_at = 800;
     node2.provenance.confidence = 0.95;
-    node2.properties.insert("provenance_confidence".to_string(), serde_json::json!(0.95));
+    node2
+        .properties
+        .insert("provenance_confidence".to_string(), serde_json::json!(0.95));
 
     sqlite.nodes().save(&node1).unwrap();
     sqlite.nodes().save(&node2).unwrap();
 
     // 2. Add temporal edge to test graph_degree and last_observed_at
-    sqlite.save_temporal_edge(&brain_domain::TemporalEdge {
-        edge: Edge::new(node_id_1, node_id_2, RelationKind::Uses, 1.0),
-        observed_at: brain_domain::TimePoint::from_unix_seconds(900),
-        validity: brain_domain::temporal::TemporalValidity::new(vec![]),
-    }).unwrap();
+    sqlite
+        .save_temporal_edge(&brain_domain::TemporalEdge {
+            edge: Edge::new(node_id_1, node_id_2, RelationKind::Uses, 1.0),
+            observed_at: brain_domain::TimePoint::from_unix_seconds(900),
+            validity: brain_domain::temporal::TemporalValidity::new(vec![]),
+        })
+        .unwrap();
 
     // 3. Add feedback event to test access_count
     let conn = sqlite.pool().get().unwrap();
@@ -245,7 +256,8 @@ fn test_ranking_retriever_harness_integration() {
     let node_a = NodeId(uuid::Uuid::parse_str(node_a_str).unwrap());
     let node_b = NodeId(uuid::Uuid::parse_str(node_b_str).unwrap());
 
-    let ground_truth_json = format!(r#"{{
+    let ground_truth_json = format!(
+        r#"{{
         "version": 1,
         "nodes": [
             {{
@@ -266,7 +278,9 @@ fn test_ranking_retriever_harness_integration() {
                 "minimum_rank": {{}}
             }}
         }}
-    }}"#, node_b_str, node_a_str, node_b_str, node_a_str);
+    }}"#,
+        node_b_str, node_a_str, node_b_str, node_a_str
+    );
 
     let candidates = vec![
         RetrievalResult {
@@ -287,7 +301,9 @@ fn test_ranking_retriever_harness_integration() {
         },
     ];
 
-    let mock = MockRetriever { results: candidates };
+    let mock = MockRetriever {
+        results: candidates,
+    };
     let weights = RankingWeights {
         lexical: 0.1,
         semantic: 10.0,
@@ -301,7 +317,8 @@ fn test_ranking_retriever_harness_integration() {
     let ranker = LinearRanker::new(weights);
     let ranking_retriever = RankingRetriever::new(mock, ranker);
 
-    let report = run_benchmark(queries_json, &ground_truth_json, &ranking_retriever, "cold").unwrap();
+    let report =
+        run_benchmark(queries_json, &ground_truth_json, &ranking_retriever, "cold").unwrap();
 
     assert_eq!(report.stable.metrics.total_queries, 1);
     assert_eq!(report.stable.metrics.successful_queries, 1);
@@ -310,6 +327,10 @@ fn test_ranking_retriever_harness_integration() {
     let q_diag = &report.measured.diagnostics[0];
     assert_eq!(q_diag.candidates.len(), 2);
 
-    let cand_b = q_diag.candidates.iter().find(|c| c.node_id == node_b_str).unwrap();
+    let cand_b = q_diag
+        .candidates
+        .iter()
+        .find(|c| c.node_id == node_b_str)
+        .unwrap();
     assert_eq!(cand_b.ranked_score, Some(9.8));
 }

@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use parking_lot::Mutex;
+use crate::projections::{ProjectionId, StateReducer};
 use brain_core::errors::BrainError;
-use crate::projections::{StateReducer, ProjectionId};
+use parking_lot::Mutex;
+use std::collections::HashMap;
 
 /// Registry mapping typed ProjectionId enums to stateful event projections.
 pub struct ReducerRegistry {

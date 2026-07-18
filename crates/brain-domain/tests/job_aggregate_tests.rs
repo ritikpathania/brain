@@ -1,12 +1,11 @@
+use brain_domain::{
+    ArtifactId, ArtifactKind, DomainEvent, Job, JobCapability, JobDescription, JobError,
+    JobFailureReason, JobId, JobKind, JobOwner, JobPriority, JobProgress, JobState, JobTimestamp,
+    LogEntryId, ProgressUnit,
+};
 use std::collections::BTreeSet;
 use std::num::NonZeroU64;
 use uuid::Uuid;
-use brain_domain::{
-    Job, JobId, JobKind, JobPriority, JobOwner, JobDescription,
-    JobTimestamp, JobState, JobCapability, JobProgress, ProgressUnit,
-    ArtifactId, ArtifactKind, LogEntryId, JobFailureReason, DomainEvent,
-    JobError
-};
 
 fn create_test_job() -> Job {
     let id = JobId(Uuid::new_v4());
@@ -149,18 +148,24 @@ fn test_append_only_logs_and_artifacts() {
     assert!(job.start(JobTimestamp(101)).is_ok());
 
     // Log append
-    assert!(job.append_log(JobTimestamp(102), "Step 1".to_string()).is_ok());
+    assert!(job
+        .append_log(JobTimestamp(102), "Step 1".to_string())
+        .is_ok());
     assert_eq!(job.logs().len(), 1);
     assert_eq!(job.logs()[0].id, LogEntryId(NonZeroU64::new(1).unwrap()));
     assert_eq!(job.logs()[0].message, "Step 1");
 
-    assert!(job.append_log(JobTimestamp(103), "Step 2".to_string()).is_ok());
+    assert!(job
+        .append_log(JobTimestamp(103), "Step 2".to_string())
+        .is_ok());
     assert_eq!(job.logs().len(), 2);
     assert_eq!(job.logs()[1].id, LogEntryId(NonZeroU64::new(2).unwrap()));
 
     // Artifact production
     let art_id = ArtifactId(Uuid::new_v4());
-    assert!(job.produce_artifact(art_id, ArtifactKind::Json, b"{}".to_vec()).is_ok());
+    assert!(job
+        .produce_artifact(art_id, ArtifactKind::Json, b"{}".to_vec())
+        .is_ok());
     assert_eq!(job.artifacts().len(), 1);
     assert_eq!(job.artifacts()[0].id, art_id);
     assert_eq!(job.artifacts()[0].kind, ArtifactKind::Json);
@@ -180,7 +185,9 @@ fn test_determinate_progress() {
     assert_eq!(job.progress(), progress);
 
     let events = job.drain_events();
-    assert!(events.iter().any(|e| matches!(e, DomainEvent::JobProgressed { .. })));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, DomainEvent::JobProgressed { .. })));
 }
 
 #[test]

@@ -3,7 +3,9 @@ use crate::retrieval::eval_harness::{EvaluationSession, FeatureExtractor, Featur
 use brain_core::errors::BrainError;
 
 /// Enumeration of all 8 ranking features.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum Feature {
     /// Number of times the node was selected in query results.
     AccessFrequency,

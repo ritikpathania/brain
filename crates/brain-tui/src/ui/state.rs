@@ -1,21 +1,20 @@
 //! AppState aggregate root unifying all UI and routing components.
 
-use crate::ui::interaction::{
-    Editor, ScrollState, ChatState, GenerationState, MessageId, MessageRole
-};
 use crate::ui::focus::FocusManager;
-use crate::ui::router::ScreenRouter;
+use crate::ui::interaction::{
+    ChatState, Editor, GenerationState, MessageId, MessageRole, ScrollState,
+};
 use crate::ui::protocol::FinishReason;
+use crate::ui::router::ScreenRouter;
 
-use crate::ui::interaction::sidebar::SidebarInteraction;
 use crate::ui::command::completion::SlashCompletionState;
 use crate::ui::command::palette::CommandPaletteState;
-use crate::ui::command::tool::{ToolCallId, ToolId, ToolProgressDetail, ToolExecution, ToolApproval, ToolExecutionStatus, ToolLogEntry};
+use crate::ui::command::tool::{
+    ToolApproval, ToolCallId, ToolExecution, ToolExecutionStatus, ToolId, ToolLogEntry,
+    ToolProgressDetail,
+};
+use crate::ui::interaction::sidebar::SidebarInteraction;
 use std::time::SystemTime;
-
-
-
-
 
 use crate::client::SessionSummary;
 use brain_domain::SessionId;
@@ -34,13 +33,25 @@ pub struct AppState<'a> {
     router: ScreenRouter<'a>,
     active_tool_calls: Vec<crate::ui::command::tool::ToolExecution>,
     pending_approvals: Vec<crate::ui::command::tool::ToolApproval>,
-    message_tool_calls: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>>,
+    message_tool_calls: std::collections::HashMap<
+        crate::ui::interaction::MessageId,
+        Vec<crate::ui::command::tool::ToolExecution>,
+    >,
     /// User-facing retrieval metadata objects.
-    pub retrievals: std::collections::HashMap<brain_domain::bkf::retrieval::RetrievalId, brain_domain::bkf::retrieval::RetrievalInfo>,
+    pub retrievals: std::collections::HashMap<
+        brain_domain::bkf::retrieval::RetrievalId,
+        brain_domain::bkf::retrieval::RetrievalInfo,
+    >,
     /// Map from UI MessageId to associated retrievals.
-    pub message_retrievals: std::collections::HashMap<crate::ui::interaction::MessageId, Vec<brain_domain::bkf::retrieval::RetrievalId>>,
+    pub message_retrievals: std::collections::HashMap<
+        crate::ui::interaction::MessageId,
+        Vec<brain_domain::bkf::retrieval::RetrievalId>,
+    >,
     /// Chronological list of events in the session timeline.
-    pub timeline: Vec<(crate::ui::interaction::timeline::EventOrdinal, crate::ui::interaction::timeline::TimelineItem)>,
+    pub timeline: Vec<(
+        crate::ui::interaction::timeline::EventOrdinal,
+        crate::ui::interaction::timeline::TimelineItem,
+    )>,
     /// Monotonically increasing sequence number for timeline events.
     pub next_ordinal: u64,
     /// Toggle state for showing/hiding reflection logs.
@@ -155,8 +166,6 @@ impl<'a> AppState<'a> {
         &mut self.command_palette
     }
 
-
-
     /// Read-only accessor for active tool calls.
     pub fn active_tool_calls(&self) -> &[crate::ui::command::tool::ToolExecution] {
         &self.active_tool_calls
@@ -168,7 +177,12 @@ impl<'a> AppState<'a> {
     }
 
     /// Read-only accessor for message tool calls.
-    pub fn message_tool_calls(&self) -> &std::collections::HashMap<crate::ui::interaction::MessageId, Vec<crate::ui::command::tool::ToolExecution>> {
+    pub fn message_tool_calls(
+        &self,
+    ) -> &std::collections::HashMap<
+        crate::ui::interaction::MessageId,
+        Vec<crate::ui::command::tool::ToolExecution>,
+    > {
         &self.message_tool_calls
     }
 
@@ -272,13 +286,20 @@ impl<'a> AppState<'a> {
     /// Domain operation to submit a user message and set up the assistant placeholder response.
     pub fn submit_user_message(&mut self, text: String) -> (MessageId, MessageId) {
         let user_id = self.chat.push_message(MessageRole::User, text);
-        let assistant_id = self.chat.push_message(MessageRole::Assistant, String::new());
+        let assistant_id = self
+            .chat
+            .push_message(MessageRole::Assistant, String::new());
         self.generation = GenerationState::Waiting;
         (user_id, assistant_id)
     }
 
     /// Domain operation to append a streaming token response cell.
-    pub fn append_stream_token(&mut self, id: MessageId, sequence: u64, text: &str) -> Result<(), &'static str> {
+    pub fn append_stream_token(
+        &mut self,
+        id: MessageId,
+        sequence: u64,
+        text: &str,
+    ) -> Result<(), &'static str> {
         match self.generation {
             GenerationState::Waiting => {
                 self.chat.append_token(id, text)?;
@@ -288,7 +309,10 @@ impl<'a> AppState<'a> {
                 };
                 Ok(())
             }
-            GenerationState::Streaming { message, last_sequence } => {
+            GenerationState::Streaming {
+                message,
+                last_sequence,
+            } => {
                 if message != id {
                     return Err("Message ID mismatch in active stream");
                 }
@@ -363,7 +387,9 @@ impl<'a> AppState<'a> {
     /// Transition active generation state to Error and append the error message.
     pub fn handle_submission_error(&mut self, assistant_id: MessageId, error_message: String) {
         let _ = self.chat.append_token(assistant_id, &error_message);
-        self.generation = GenerationState::Error { message: assistant_id };
+        self.generation = GenerationState::Error {
+            message: assistant_id,
+        };
     }
 
     /// Domain operation when tool call is requested by backend.
@@ -378,7 +404,11 @@ impl<'a> AppState<'a> {
         if self.active_tool_calls.iter().any(|t| t.call_id == call_id) {
             return;
         }
-        if self.message_tool_calls.values().any(|list| list.iter().any(|t| t.call_id == call_id)) {
+        if self
+            .message_tool_calls
+            .values()
+            .any(|list| list.iter().any(|t| t.call_id == call_id))
+        {
             return;
         }
 
@@ -410,7 +440,11 @@ impl<'a> AppState<'a> {
         detail: ToolProgressDetail,
         log_message: String,
     ) {
-        if let Some(tool) = self.active_tool_calls.iter_mut().find(|t| t.call_id == call_id) {
+        if let Some(tool) = self
+            .active_tool_calls
+            .iter_mut()
+            .find(|t| t.call_id == call_id)
+        {
             if tool.status.is_terminal() {
                 return;
             }
@@ -429,29 +463,49 @@ impl<'a> AppState<'a> {
     }
 
     /// Domain operation to receive a final tool outcome result.
-    pub fn handle_tool_result(&mut self, message: MessageId, call_id: ToolCallId, result: String, is_error: bool) {
-        if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+    pub fn handle_tool_result(
+        &mut self,
+        message: MessageId,
+        call_id: ToolCallId,
+        result: String,
+        is_error: bool,
+    ) {
+        if let Some(pos) = self
+            .active_tool_calls
+            .iter()
+            .position(|t| t.call_id == call_id)
+        {
             let mut tool = self.active_tool_calls.remove(pos);
             if is_error {
                 tool.status = ToolExecutionStatus::Failed { error: result };
             } else {
                 tool.status = ToolExecutionStatus::Completed { result };
             }
-            self.message_tool_calls.entry(message).or_default().push(tool);
+            self.message_tool_calls
+                .entry(message)
+                .or_default()
+                .push(tool);
         }
     }
 
     /// Domain operation to record user approval or denial.
     pub fn handle_approve_tool_call(&mut self, call_id: ToolCallId, approved: bool) {
         self.pending_approvals.retain(|a| a.call_id != call_id);
-        if let Some(pos) = self.active_tool_calls.iter().position(|t| t.call_id == call_id) {
+        if let Some(pos) = self
+            .active_tool_calls
+            .iter()
+            .position(|t| t.call_id == call_id)
+        {
             if approved {
                 self.active_tool_calls[pos].status = ToolExecutionStatus::Approved;
             } else {
                 let mut tool = self.active_tool_calls.remove(pos);
                 tool.status = ToolExecutionStatus::Denied;
                 let msg_id = tool.message_id;
-                self.message_tool_calls.entry(msg_id).or_default().push(tool);
+                self.message_tool_calls
+                    .entry(msg_id)
+                    .or_default()
+                    .push(tool);
             }
         }
     }
@@ -462,7 +516,11 @@ impl<'a> AppState<'a> {
     }
 
     /// Domain operation when context chunk is retrieved.
-    pub fn handle_retrieval_retrieved(&mut self, message: MessageId, info: brain_domain::bkf::retrieval::RetrievalInfo) {
+    pub fn handle_retrieval_retrieved(
+        &mut self,
+        message: MessageId,
+        info: brain_domain::bkf::retrieval::RetrievalInfo,
+    ) {
         let id = info.id;
         self.retrievals.insert(id, info);
         self.message_retrievals.entry(message).or_default().push(id);
@@ -478,4 +536,3 @@ impl<'a> AppState<'a> {
         let _ = message;
     }
 }
-

@@ -1,6 +1,6 @@
 use crate::identifiers::NodeId;
 use crate::retrieval::models::{
-    RetrievedCandidate, Evidence, RetrievalExecutionContext, ExpansionPolicy, StoppingCriterion
+    Evidence, ExpansionPolicy, RetrievalExecutionContext, RetrievedCandidate, StoppingCriterion,
 };
 use std::collections::{HashSet, VecDeque};
 
@@ -34,7 +34,11 @@ impl RetrievalSource for VectorSource {
         let mut candidates = Vec::new();
         let graph = context.graph;
         for (&id, node) in &graph.nodes {
-            if node.label.to_lowercase().contains(&self.query.to_lowercase()) {
+            if node
+                .label
+                .to_lowercase()
+                .contains(&self.query.to_lowercase())
+            {
                 candidates.push(RetrievedCandidate {
                     node_id: id,
                     source_id: self.source_id(),
@@ -69,7 +73,11 @@ impl RetrievalSource for KeywordSource {
         let mut candidates = Vec::new();
         let graph = context.graph;
         for (&id, node) in &graph.nodes {
-            if node.label.to_lowercase().contains(&self.query.to_lowercase()) {
+            if node
+                .label
+                .to_lowercase()
+                .contains(&self.query.to_lowercase())
+            {
                 candidates.push(RetrievedCandidate {
                     node_id: id,
                     source_id: self.source_id(),
@@ -144,7 +152,10 @@ impl RetrievalSource for GraphExpansionSource {
                     node_id: u,
                     source_id: self.source_id(),
                     local_score: score,
-                    explanation_fragments: vec![Evidence::GraphTraversal { depth, from: self.seeds[0] }],
+                    explanation_fragments: vec![Evidence::GraphTraversal {
+                        depth,
+                        from: self.seeds[0],
+                    }],
                 });
             }
 
@@ -157,7 +168,11 @@ impl RetrievalSource for GraphExpansionSource {
                     continue;
                 }
 
-                if let Some(edge) = graph.edges.values().find(|e| e.source == u && e.target == neighbor) {
+                if let Some(edge) = graph
+                    .edges
+                    .values()
+                    .find(|e| e.source == u && e.target == neighbor)
+                {
                     if (edge.provenance.confidence as f64) < min_confidence {
                         continue;
                     }

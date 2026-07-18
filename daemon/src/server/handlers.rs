@@ -3,7 +3,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
-use tracing::{error, info};
+use tracing::{error, info, warn};
+
+use brain_core::events::CorrelationId;
+use brain_core::evolution::{Observation, Provenance};
+use brain_services::BrainRuntime;
 
 use crate::plugins::PluginRegistry;
 use crate::retrieval::pipeline::run_retrieval_pipeline;
@@ -20,6 +24,7 @@ pub async fn handle_connection(
     plugin_registry: Arc<PluginRegistry>,
     metrics: Arc<DaemonMetrics>,
     analytics_tx: tokio::sync::mpsc::UnboundedSender<AnalyticsEvent>,
+    brain_runtime: Arc<BrainRuntime>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (reader, mut writer) = stream.split();
     let mut buf_reader = BufReader::new(reader);
@@ -65,7 +70,13 @@ pub async fn handle_connection(
         }
 
         let (action, payload, req_id, is_versioned, workspace_context) = match request {
-            ClientRequest::Versioned(req) => (req.action, req.body, Some(req.id), true, req.workspace_context),
+            ClientRequest::Versioned(req) => (
+                req.action,
+                req.body,
+                Some(req.id),
+                true,
+                req.workspace_context,
+            ),
             ClientRequest::Legacy(req) => (req.action, req.payload, None, false, Vec::new()),
         };
 
@@ -95,6 +106,78 @@ pub async fn handle_connection(
                     node_id: node.id.clone(),
                     content_length: payload.len() as u64,
                 });
+
+                // --- BrainRuntime ingestion (alongside existing path) ---
+                //
+                // The runtime receives every ingest observation and runs it through
+                // the full canonicalize → reflect → event-dispatch pipeline.
+                //
+                // This call is non-fatal: if it fails, the existing STM/LTM path
+                // has already succeeded and the client response is unaffected.
+                //
+                // Counters are sampled from independent atomics; a scrape that
+                // observes attempts > successes + failures indicates an in-flight
+                // request. Use long-term rates, not single samples.
+                {
+                    let obs = Observation {
+                        payload: payload.as_bytes().to_vec(),
+                        media_type: "text/plain".to_string(),
+                        provenance: Provenance {
+                            source_adapter: "daemon-uds".to_string(),
+                            timestamp: std::time::SystemTime::now(),
+                            correlation_id: CorrelationId::new_v4(),
+                        },
+                    };
+                    // runtime.ingest() is synchronous (runs on the current thread).
+                    // It is safe to call from async context — it completes quickly
+                    // and does not block the executor for a meaningful duration.
+                    let rt_start = Instant::now();
+                    metrics.runtime_ingest_attempts.fetch_add(1, Ordering::Relaxed);
+
+                    match brain_runtime.ingest(obs) {
+                        Ok(result) => {
+                            let rt_elapsed = rt_start.elapsed().as_micros() as u64;
+                            metrics
+                                .runtime_ingest_successes
+                                .fetch_add(1, Ordering::Relaxed);
+                            metrics
+                                .runtime_ingest_latency_us
+                                .fetch_add(rt_elapsed, Ordering::Relaxed);
+
+                            metrics
+                                .runtime_canonicalization_latency_us
+                                .fetch_add(result.stage_timings.canonicalization.as_micros() as u64, Ordering::Relaxed);
+                            metrics
+                                .runtime_reflection_latency_us
+                                .fetch_add(result.stage_timings.reflection.as_micros() as u64, Ordering::Relaxed);
+                            metrics
+                                .runtime_dispatch_latency_us
+                                .fetch_add(result.stage_timings.dispatch.as_micros() as u64, Ordering::Relaxed);
+
+                            if let Ok(mut reservoir) = metrics.runtime_latency_reservoir.lock() {
+                                reservoir.observe(rt_elapsed);
+                            }
+
+                            info!(
+                                component = "runtime",
+                                epoch = result.epoch.0,
+                                entities = result.affected_entities.len(),
+                                latency_us = rt_elapsed,
+                                "BrainRuntime ingestion succeeded"
+                            );
+                        }
+                        Err(e) => {
+                            metrics
+                                .runtime_ingest_failures
+                                .fetch_add(1, Ordering::Relaxed);
+                            warn!(
+                                component = "runtime",
+                                error = %e,
+                                "BrainRuntime ingestion failed (non-fatal — STM path succeeded)"
+                            );
+                        }
+                    }
+                }
 
                 let msg = format!(
                     "Ingested node '{}' (Epoch {}) successfully",
@@ -127,10 +210,11 @@ pub async fn handle_connection(
                     .unwrap_or(0);
 
                 // 1. Send StreamEvent::Start
-                let start_ev = ServerResponse::Stream(crate::server::protocol::StreamEvent::Start {
-                    stream_id: stream_id.clone(),
-                    metadata: serde_json::json!({}),
-                });
+                let start_ev =
+                    ServerResponse::Stream(crate::server::protocol::StreamEvent::Start {
+                        stream_id: stream_id.clone(),
+                        metadata: serde_json::json!({}),
+                    });
                 let mut start_json = serde_json::to_string(&start_ev)?;
                 start_json.push('\n');
                 writer.write_all(start_json.as_bytes()).await?;
@@ -140,13 +224,14 @@ pub async fn handle_connection(
 
                 // Send progress update 1
                 seq += 1;
-                let progress_ev = ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
-                    stream_id: stream_id.clone(),
-                    sequence: seq,
-                    progress: 0.1,
-                    message: "Starting query retrieval...".to_string(),
-                    metadata: serde_json::json!({}),
-                });
+                let progress_ev =
+                    ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
+                        stream_id: stream_id.clone(),
+                        sequence: seq,
+                        progress: 0.1,
+                        message: "Starting query retrieval...".to_string(),
+                        metadata: serde_json::json!({}),
+                    });
                 let mut progress_json = serde_json::to_string(&progress_ev)?;
                 progress_json.push('\n');
                 writer.write_all(progress_json.as_bytes()).await?;
@@ -174,13 +259,14 @@ pub async fn handle_connection(
 
                 // Send progress update 2
                 seq += 1;
-                let progress_ev2 = ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
-                    stream_id: stream_id.clone(),
-                    sequence: seq,
-                    progress: 0.5,
-                    message: "Running hybrid retrieval...".to_string(),
-                    metadata: serde_json::json!({}),
-                });
+                let progress_ev2 =
+                    ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
+                        stream_id: stream_id.clone(),
+                        sequence: seq,
+                        progress: 0.5,
+                        message: "Running hybrid retrieval...".to_string(),
+                        metadata: serde_json::json!({}),
+                    });
                 let mut progress_json2 = serde_json::to_string(&progress_ev2)?;
                 progress_json2.push('\n');
                 writer.write_all(progress_json2.as_bytes()).await?;
@@ -282,13 +368,22 @@ pub async fn handle_connection(
                         // Send header chunk
                         seq += 1;
                         // Show a clean, user-facing header listing result count and source.
-                        let plural = if matches.len() == 1 { "result" } else { "results" };
-                        let header_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
-                            stream_id: stream_id.clone(),
-                            sequence: seq,
-                            content: format!("Found {} {} from your memory graph:\n", matches.len(), plural),
-                            metadata: serde_json::json!({}),
-                        });
+                        let plural = if matches.len() == 1 {
+                            "result"
+                        } else {
+                            "results"
+                        };
+                        let header_chunk =
+                            ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
+                                stream_id: stream_id.clone(),
+                                sequence: seq,
+                                content: format!(
+                                    "Found {} {} from your memory graph:\n",
+                                    matches.len(),
+                                    plural
+                                ),
+                                metadata: serde_json::json!({}),
+                            });
                         let mut chunk_json = serde_json::to_string(&header_chunk)?;
                         chunk_json.push('\n');
                         writer.write_all(chunk_json.as_bytes()).await?;
@@ -310,7 +405,8 @@ pub async fn handle_connection(
                             };
 
                             // Truncate long content for a clean preview.
-                            let preview: String = node.content
+                            let preview: String = node
+                                .content
                                 .lines()
                                 .next()
                                 .unwrap_or(&node.content)
@@ -328,12 +424,23 @@ pub async fn handle_connection(
                             let mut clean_preview = clean_preview.trim().to_string();
                             // If anything like "google organization" is left, clean it
                             if clean_preview.starts_with(&node.label) {
-                                clean_preview = clean_preview.trim_start_matches(&node.label).trim().to_string();
+                                clean_preview = clean_preview
+                                    .trim_start_matches(&node.label)
+                                    .trim()
+                                    .to_string();
                             }
                             if clean_preview.starts_with(&node.node_type) {
-                                clean_preview = clean_preview.trim_start_matches(&node.node_type).trim().to_string();
+                                clean_preview = clean_preview
+                                    .trim_start_matches(&node.node_type)
+                                    .trim()
+                                    .to_string();
                             }
-                            clean_preview = clean_preview.trim_start_matches(|c| c == ' ' || c == '-' || c == '>' || c == '(' || c == ')').trim().to_string();
+                            clean_preview = clean_preview
+                                .trim_start_matches(|c| {
+                                    c == ' ' || c == '-' || c == '>' || c == '(' || c == ')'
+                                })
+                                .trim()
+                                .to_string();
 
                             // In debug mode expose raw identifiers for diagnostics.
                             let debug_mode = std::env::var("BRAIN_DEBUG").is_ok();
@@ -345,7 +452,7 @@ pub async fn handle_connection(
                             if debug_mode {
                                 entry.push_str(&format!(" `[{}]`", node.id));
                             }
-                            
+
                             // Only append preview line if there is clean unique content
                             if !clean_preview.is_empty() {
                                 entry.push_str(&format!("\n> {}\n", clean_preview));
@@ -354,25 +461,30 @@ pub async fn handle_connection(
                             }
 
                             if !node.connections.is_empty() {
-                                let related: Vec<String> = node.connections.iter()
+                                let related: Vec<String> = node
+                                    .connections
+                                    .iter()
                                     .map(|r| format!("{} ({})", r.target, r.relation))
                                     .take(5)
                                     .collect();
                                 entry.push_str(&format!("  Related: {}\n", related.join(" · ")));
                             }
 
-                            let match_chunk = ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
-                                stream_id: stream_id.clone(),
-                                sequence: seq,
-                                content: entry,
-                                metadata: serde_json::json!({}),
-                            });
+                            let match_chunk = ServerResponse::Stream(
+                                crate::server::protocol::StreamEvent::Chunk {
+                                    stream_id: stream_id.clone(),
+                                    sequence: seq,
+                                    content: entry,
+                                    metadata: serde_json::json!({}),
+                                },
+                            );
                             let mut chunk_json = serde_json::to_string(&match_chunk)?;
                             chunk_json.push('\n');
                             writer.write_all(chunk_json.as_bytes()).await?;
                             writer.flush().await?;
                             if pacing_ms > 0 {
-                                tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
+                                tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms))
+                                    .await;
                             }
                         }
                     } else {
@@ -394,11 +506,12 @@ pub async fn handle_connection(
                     }
                 } else {
                     seq += 1;
-                    let cancel_ev = ServerResponse::Stream(crate::server::protocol::StreamEvent::Cancelled {
-                        stream_id: stream_id.clone(),
-                        sequence: seq,
-                        metadata: serde_json::json!({}),
-                    });
+                    let cancel_ev =
+                        ServerResponse::Stream(crate::server::protocol::StreamEvent::Cancelled {
+                            stream_id: stream_id.clone(),
+                            sequence: seq,
+                            metadata: serde_json::json!({}),
+                        });
                     let mut cancel_json = serde_json::to_string(&cancel_ev)?;
                     cancel_json.push('\n');
                     writer.write_all(cancel_json.as_bytes()).await?;
@@ -415,9 +528,11 @@ pub async fn handle_connection(
                     err_json.push('\n');
                     writer.write_all(err_json.as_bytes()).await?;
                     writer.flush().await?;
-                    
+
                     let query_elapsed = query_start.elapsed().as_micros() as u64;
-                    metrics.sum_query_latency_us.fetch_add(query_elapsed, Ordering::Relaxed);
+                    metrics
+                        .sum_query_latency_us
+                        .fetch_add(query_elapsed, Ordering::Relaxed);
                     let _ = analytics_tx.send(AnalyticsEvent::Query {
                         correlation_id,
                         query_text: payload.clone(),
@@ -429,7 +544,9 @@ pub async fn handle_connection(
 
                 if resp_msg.is_empty() {
                     let query_elapsed = query_start.elapsed().as_micros() as u64;
-                    metrics.sum_query_latency_us.fetch_add(query_elapsed, Ordering::Relaxed);
+                    metrics
+                        .sum_query_latency_us
+                        .fetch_add(query_elapsed, Ordering::Relaxed);
 
                     let _ = analytics_tx.send(AnalyticsEvent::Query {
                         correlation_id,
@@ -441,11 +558,12 @@ pub async fn handle_connection(
                     // Emit stream_end carrying context_used in metadata.
                     // Old TUI clients that do not read stream_end.metadata are unaffected.
                     seq += 1;
-                    let end_ev = ServerResponse::Stream(crate::server::protocol::StreamEvent::End {
-                        stream_id: stream_id.clone(),
-                        sequence: seq,
-                        metadata: serde_json::json!({ "context_used": context_used }),
-                    });
+                    let end_ev =
+                        ServerResponse::Stream(crate::server::protocol::StreamEvent::End {
+                            stream_id: stream_id.clone(),
+                            sequence: seq,
+                            metadata: serde_json::json!({ "context_used": context_used }),
+                        });
                     let mut end_json = serde_json::to_string(&end_ev)?;
                     end_json.push('\n');
                     writer.write_all(end_json.as_bytes()).await?;
@@ -459,13 +577,17 @@ pub async fn handle_connection(
                 let ingest_start = Instant::now();
 
                 // 1. Parse payload as IngestionEnvelope
-                let envelope: Result<brain_integrations::IngestionEnvelope, serde_json::Error> = serde_json::from_str(&payload);
+                let envelope: Result<brain_integrations::IngestionEnvelope, serde_json::Error> =
+                    serde_json::from_str(&payload);
 
                 let response = match envelope {
                     Ok(env) => {
                         // 2. Validate version
                         if env.event_model_version != "1.0" {
-                            let msg = format!("Unsupported event model version: {}", env.event_model_version);
+                            let msg = format!(
+                                "Unsupported event model version: {}",
+                                env.event_model_version
+                            );
                             if is_versioned {
                                 ServerResponse::Error(VersionedError {
                                     version: "1.0".to_string(),
@@ -486,7 +608,7 @@ pub async fn handle_connection(
                             match active_storage_res {
                                 Ok(active_storage) => {
                                     let event_log = active_storage.event_log();
-                                    
+
                                     match event_log {
                                         Some(db) => {
                                             // 4. Ingest and persist
@@ -515,7 +637,11 @@ pub async fn handle_connection(
 
                                                     if let Some(text) = text_to_ingest {
                                                         let mut state_guard = state.write().await;
-                                                        let session = state_guard.entry(session_id.clone()).or_insert_with(stm::SessionContext::new);
+                                                        let session = state_guard
+                                                            .entry(session_id.clone())
+                                                            .or_insert_with(
+                                                                stm::SessionContext::new,
+                                                            );
                                                         session.ingest(text);
                                                     }
 
@@ -531,13 +657,15 @@ pub async fn handle_connection(
                                                     );
 
                                                     if is_versioned {
-                                                        ServerResponse::Response(VersionedResponse {
-                                                            version: "1.0".to_string(),
-                                                            msg_type: "Response".to_string(),
-                                                            id: req_id.unwrap_or(0),
-                                                            status: "success".to_string(),
-                                                            body: ack_body,
-                                                        })
+                                                        ServerResponse::Response(
+                                                            VersionedResponse {
+                                                                version: "1.0".to_string(),
+                                                                msg_type: "Response".to_string(),
+                                                                id: req_id.unwrap_or(0),
+                                                                status: "success".to_string(),
+                                                                body: ack_body,
+                                                            },
+                                                        )
                                                     } else {
                                                         ServerResponse::Legacy(LegacyResponse {
                                                             status: "ok".to_string(),
@@ -546,7 +674,10 @@ pub async fn handle_connection(
                                                     }
                                                 }
                                                 Err(e) => {
-                                                    let msg = format!("Failed to insert event into WAL: {}", e);
+                                                    let msg = format!(
+                                                        "Failed to insert event into WAL: {}",
+                                                        e
+                                                    );
                                                     if is_versioned {
                                                         ServerResponse::Error(VersionedError {
                                                             version: "1.0".to_string(),
@@ -565,7 +696,8 @@ pub async fn handle_connection(
                                             }
                                         }
                                         None => {
-                                            let msg = "Active storage backend is not SQLite".to_string();
+                                            let msg =
+                                                "Active storage backend is not SQLite".to_string();
                                             if is_versioned {
                                                 ServerResponse::Error(VersionedError {
                                                     version: "1.0".to_string(),
@@ -630,7 +762,9 @@ pub async fn handle_connection(
                 Some(response)
             }
             "replay" => {
-                let sequence = if let Ok(pos) = serde_json::from_str::<brain_integrations::ReplayPosition>(&payload) {
+                let sequence = if let Ok(pos) =
+                    serde_json::from_str::<brain_integrations::ReplayPosition>(&payload)
+                {
                     pos.sequence
                 } else if let Ok(seq) = payload.parse::<u64>() {
                     seq
@@ -642,49 +776,29 @@ pub async fn handle_connection(
                 let response = match active_storage_res {
                     Ok(active_storage) => {
                         let event_log = active_storage.event_log();
-                        
+
                         match event_log {
-                            Some(db) => {
-                                match db.get_events_after(sequence) {
-                                    Ok(events) => {
-                                        match serde_json::to_string(&events) {
-                                            Ok(body) => {
-                                                if is_versioned {
-                                                    ServerResponse::Response(VersionedResponse {
-                                                        version: "1.0".to_string(),
-                                                        msg_type: "Response".to_string(),
-                                                        id: req_id.unwrap_or(0),
-                                                        status: "success".to_string(),
-                                                        body,
-                                                    })
-                                                } else {
-                                                    ServerResponse::Legacy(LegacyResponse {
-                                                        status: "ok".to_string(),
-                                                        message: body,
-                                                    })
-                                                }
-                                            }
-                                            Err(e) => {
-                                                let msg = format!("Failed to serialize replayed events: {}", e);
-                                                if is_versioned {
-                                                    ServerResponse::Error(VersionedError {
-                                                        version: "1.0".to_string(),
-                                                        msg_type: "Error".to_string(),
-                                                        id: req_id.unwrap_or(0),
-                                                        status: "error".to_string(),
-                                                        body: msg,
-                                                    })
-                                                } else {
-                                                    ServerResponse::Legacy(LegacyResponse {
-                                                        status: "error".to_string(),
-                                                        message: msg,
-                                                    })
-                                                }
-                                            }
+                            Some(db) => match db.get_events_after(sequence) {
+                                Ok(events) => match serde_json::to_string(&events) {
+                                    Ok(body) => {
+                                        if is_versioned {
+                                            ServerResponse::Response(VersionedResponse {
+                                                version: "1.0".to_string(),
+                                                msg_type: "Response".to_string(),
+                                                id: req_id.unwrap_or(0),
+                                                status: "success".to_string(),
+                                                body,
+                                            })
+                                        } else {
+                                            ServerResponse::Legacy(LegacyResponse {
+                                                status: "ok".to_string(),
+                                                message: body,
+                                            })
                                         }
                                     }
                                     Err(e) => {
-                                        let msg = format!("Failed to retrieve replayed events: {}", e);
+                                        let msg =
+                                            format!("Failed to serialize replayed events: {}", e);
                                         if is_versioned {
                                             ServerResponse::Error(VersionedError {
                                                 version: "1.0".to_string(),
@@ -700,8 +814,25 @@ pub async fn handle_connection(
                                             })
                                         }
                                     }
+                                },
+                                Err(e) => {
+                                    let msg = format!("Failed to retrieve replayed events: {}", e);
+                                    if is_versioned {
+                                        ServerResponse::Error(VersionedError {
+                                            version: "1.0".to_string(),
+                                            msg_type: "Error".to_string(),
+                                            id: req_id.unwrap_or(0),
+                                            status: "error".to_string(),
+                                            body: msg,
+                                        })
+                                    } else {
+                                        ServerResponse::Legacy(LegacyResponse {
+                                            status: "error".to_string(),
+                                            message: msg,
+                                        })
+                                    }
                                 }
-                            }
+                            },
                             None => {
                                 let msg = "Active storage backend is not SQLite".to_string();
                                 if is_versioned {
@@ -802,8 +933,14 @@ pub async fn handle_connection(
                                     Ok(connections) => {
                                         for edge in connections {
                                             let is_outgoing = edge.source == node.id;
-                                            let neighbor_id = if is_outgoing { edge.target.clone() } else { edge.source.clone() };
-                                            if let Ok(neighbors) = active_storage.get_nodes_by_ids(&[neighbor_id.clone()]) {
+                                            let neighbor_id = if is_outgoing {
+                                                edge.target.clone()
+                                            } else {
+                                                edge.source.clone()
+                                            };
+                                            if let Ok(neighbors) = active_storage
+                                                .get_nodes_by_ids(&[neighbor_id.clone()])
+                                            {
                                                 if !neighbors.is_empty() {
                                                     let neighbor = &neighbors[0];
                                                     relationships.push(brain_domain::query::inspector::RelationshipDTO {
@@ -831,11 +968,15 @@ pub async fn handle_connection(
                                 };
 
                                 let mut recent_activity = Vec::new();
-                                recent_activity.push(brain_domain::query::inspector::ActivityLogEntry {
-                                    timestamp: 0,
-                                    action: "Ingested".to_string(),
-                                    details: format!("Entity extracted from source location by system."),
-                                });
+                                recent_activity.push(
+                                    brain_domain::query::inspector::ActivityLogEntry {
+                                        timestamp: 0,
+                                        action: "Ingested".to_string(),
+                                        details: format!(
+                                            "Entity extracted from source location by system."
+                                        ),
+                                    },
+                                );
 
                                 let model = brain_domain::query::inspector::InspectorModel {
                                     entity,
@@ -864,7 +1005,10 @@ pub async fn handle_connection(
                                         }
                                     }
                                     Err(e) => {
-                                        let msg = format!("Failed to serialize InspectorModel JSON: {}", e);
+                                        let msg = format!(
+                                            "Failed to serialize InspectorModel JSON: {}",
+                                            e
+                                        );
                                         if is_versioned {
                                             ServerResponse::Error(VersionedError {
                                                 version: "1.0".to_string(),

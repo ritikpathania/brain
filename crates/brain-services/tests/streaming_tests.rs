@@ -1,14 +1,12 @@
+use brain_core::extensibility::CancellationToken;
+use brain_services::agent::streaming::{
+    DefaultStreamEventMapper, OverflowPolicy, ProgressEvent, SafeEventQueue, StreamEvent,
+    StreamEventPayload, StreamingRuntime, TokenEvent,
+};
+use brain_services::agent::{AgentExecutionEvent, AgentExecutionEventPayload, ExecutionId};
+use brain_tools::CancellationTokenImpl;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use brain_core::extensibility::CancellationToken;
-use brain_services::agent::{
-    AgentExecutionEvent, AgentExecutionEventPayload, ExecutionId,
-};
-use brain_services::agent::streaming::{
-    DefaultStreamEventMapper, OverflowPolicy, StreamEventPayload, StreamingRuntime,
-    SafeEventQueue, StreamEvent, ProgressEvent, TokenEvent,
-};
-use brain_tools::CancellationTokenImpl;
 
 #[tokio::test]
 async fn test_selective_drop_backpressure() {
@@ -104,14 +102,15 @@ async fn test_selective_drop_backpressure() {
 
     // Verify queue items
     let mut items = Vec::new();
-    let stream = brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
+    let stream =
+        brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
 
     while let Some(evt) = stream.next().await {
         items.push(evt);
     }
 
     assert_eq!(items.len(), 4);
-    
+
     // T1
     if let StreamEventPayload::Token(t) = &items[0].payload {
         assert_eq!(t.token, "T1");
@@ -180,7 +179,8 @@ async fn test_drop_oldest_overflow() {
     queue.close();
 
     let mut items = Vec::new();
-    let stream = brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
+    let stream =
+        brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
     while let Some(evt) = stream.next().await {
         items.push(evt);
     }
@@ -237,7 +237,8 @@ async fn test_drop_newest_overflow() {
     queue.close();
 
     let mut items = Vec::new();
-    let stream = brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
+    let stream =
+        brain_services::agent::streaming::ExecutionStream::new_test(Arc::new(queue), execution_id);
     while let Some(evt) = stream.next().await {
         items.push(evt);
     }
@@ -267,7 +268,9 @@ async fn test_streaming_runtime_lifecycle() {
     runtime.register(execution_id, rx, cancellation.clone());
 
     // Subscribe to execution
-    let stream = runtime.subscribe(execution_id).expect("Should subscribe successfully");
+    let stream = runtime
+        .subscribe(execution_id)
+        .expect("Should subscribe successfully");
 
     // Emit events
     let t_start = SystemTime::now();
@@ -279,7 +282,8 @@ async fn test_streaming_runtime_lifecycle() {
             session_id: brain_domain::SessionId::new(),
             prompt: "ping".to_string(),
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     tx.send(AgentExecutionEvent {
         execution_id,
@@ -289,7 +293,8 @@ async fn test_streaming_runtime_lifecycle() {
             session_id: brain_domain::SessionId::new(),
             stage: "Planning",
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     tx.send(AgentExecutionEvent {
         execution_id,
@@ -300,7 +305,8 @@ async fn test_streaming_runtime_lifecycle() {
             stage: "Planning",
             duration_ms: 20,
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     tx.send(AgentExecutionEvent {
         execution_id,
@@ -310,7 +316,8 @@ async fn test_streaming_runtime_lifecycle() {
             session_id: brain_domain::SessionId::new(),
             token: "hello world".to_string(),
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     tx.send(AgentExecutionEvent {
         execution_id,
@@ -320,7 +327,8 @@ async fn test_streaming_runtime_lifecycle() {
             session_id: brain_domain::SessionId::new(),
             response: "done".to_string(),
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     // Close sender to complete the stream pipeline
     drop(tx);
@@ -345,11 +353,13 @@ async fn test_streaming_runtime_lifecycle() {
 
     // Verify metrics collector snapshot
     // Since FinishedEvent was mapped, it injected the metrics snapshot
-    let finished_opt = events.iter().find(|e| matches!(e.payload, StreamEventPayload::Finished(_)));
+    let finished_opt = events
+        .iter()
+        .find(|e| matches!(e.payload, StreamEventPayload::Finished(_)));
     assert!(finished_opt.is_some());
     if let StreamEventPayload::Finished(f) = &finished_opt.unwrap().payload {
         assert_eq!(f.metrics.tokens_used, 2); // "hello", "world"
-        assert_eq!(f.metrics.step_count, 1);  // Planning stage completed
+        assert_eq!(f.metrics.step_count, 1); // Planning stage completed
     }
 }
 
@@ -371,7 +381,8 @@ async fn test_subscriber_joins_mid_execution() {
             session_id: brain_domain::SessionId::new(),
             prompt: "first".to_string(),
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     // Briefly sleep to let first event process
     tokio::time::sleep(Duration::from_millis(10)).await;
@@ -387,7 +398,8 @@ async fn test_subscriber_joins_mid_execution() {
             session_id: brain_domain::SessionId::new(),
             token: "second".to_string(),
         },
-    }).unwrap();
+    })
+    .unwrap();
 
     drop(tx);
 
@@ -413,7 +425,7 @@ async fn test_cancellation_propagation() {
     runtime.register(execution_id, rx, cancellation.clone());
 
     assert!(!cancellation.is_cancelled());
-    
+
     // Cancel through runtime
     let success = runtime.cancel(execution_id);
     assert!(success);

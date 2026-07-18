@@ -1,5 +1,5 @@
-use brain_application::{ApplicationError, ApplicationEvent};
 use crate::protocol::{JsonRpcError, JsonRpcNotification};
+use brain_application::{ApplicationError, ApplicationEvent};
 
 /// Explicit error mapping layer translating ApplicationErrors to JSON-RPC 2.0 errors.
 pub struct McpErrorMapper;

@@ -49,7 +49,8 @@ impl SpeculationStrategy for SubstringSpeculationStrategy {
         context: &RetrievalExecutionContext,
     ) -> SpeculationPlan {
         let mut predicted_seeds = Vec::new();
-        let query_words: Vec<String> = query.semantic_query
+        let query_words: Vec<String> = query
+            .semantic_query
             .split_whitespace()
             .map(|w| w.to_lowercase())
             .collect();

@@ -1,24 +1,35 @@
-use brain_domain::retrieval::models::{
-    RankingWeight, NormalizedSignal, SnapshotVersion, CalibrationMetadata,
-    SnapshotMetadata, RankingWeights, WeightSnapshot,
-    RankingSignals, RankingModelVersion,
-    RankingModel, LinearRankingModel
-};
 use brain_domain::consolidation::MetricConstructionError;
+use brain_domain::retrieval::models::{
+    CalibrationMetadata, LinearRankingModel, NormalizedSignal, RankingModel, RankingModelVersion,
+    RankingSignals, RankingWeight, RankingWeights, SnapshotMetadata, SnapshotVersion,
+    WeightSnapshot,
+};
 use brain_domain::temporal::TimePoint;
 
 #[test]
 fn test_ranking_weight_validation() {
     assert!(RankingWeight::new(1.5).is_ok());
-    assert!(matches!(RankingWeight::new(-0.1), Err(MetricConstructionError::OutOfRange { .. })));
-    assert!(matches!(RankingWeight::new(f64::NAN), Err(MetricConstructionError::NotFinite { .. })));
+    assert!(matches!(
+        RankingWeight::new(-0.1),
+        Err(MetricConstructionError::OutOfRange { .. })
+    ));
+    assert!(matches!(
+        RankingWeight::new(f64::NAN),
+        Err(MetricConstructionError::NotFinite { .. })
+    ));
 }
 
 #[test]
 fn test_normalized_signal_validation() {
     assert!(NormalizedSignal::new(0.5).is_ok());
-    assert!(matches!(NormalizedSignal::new(-0.01), Err(MetricConstructionError::OutOfRange { .. })));
-    assert!(matches!(NormalizedSignal::new(1.01), Err(MetricConstructionError::OutOfRange { .. })));
+    assert!(matches!(
+        NormalizedSignal::new(-0.01),
+        Err(MetricConstructionError::OutOfRange { .. })
+    ));
+    assert!(matches!(
+        NormalizedSignal::new(1.01),
+        Err(MetricConstructionError::OutOfRange { .. })
+    ));
 }
 
 #[test]
@@ -71,10 +82,7 @@ fn test_snapshot_metadata_and_snapshot() {
         RankingWeight::new(1.0).unwrap(),
     );
 
-    let snapshot = WeightSnapshot {
-        metadata,
-        weights,
-    };
+    let snapshot = WeightSnapshot { metadata, weights };
 
     assert_eq!(snapshot.metadata.version.value(), 42);
 }

@@ -1,7 +1,7 @@
 use brain_domain::{
-    Edge, KnowledgeGraph, Node, NodeType, RelationRegistry, RelationDefinition,
-    RelationId, RelationKind, ConfidenceStrategy, Directionality, InferenceEngine,
-    SuppressionEngine, NodeId, EdgeId, ProvenanceSource
+    ConfidenceStrategy, Directionality, Edge, EdgeId, InferenceEngine, KnowledgeGraph, Node,
+    NodeId, NodeType, ProvenanceSource, RelationDefinition, RelationId, RelationKind,
+    RelationRegistry, SuppressionEngine,
 };
 
 fn create_test_registry() -> RelationRegistry {
@@ -106,9 +106,15 @@ fn test_inference_transitive_fixed_point() {
     graph.add_node(Node::new(node_d, "NodeD".to_string(), NodeType::Concept));
 
     // A -uses-> B (0.9), B -uses-> C (0.8), C -uses-> D (0.7)
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
-    graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8)).unwrap();
-    graph.add_edge(Edge::new(node_c, node_d, RelationKind::Uses, 0.7)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_c, node_d, RelationKind::Uses, 0.7))
+        .unwrap();
 
     let inferred_edges = InferenceEngine::infer(&graph, &registry);
 
@@ -163,8 +169,12 @@ fn test_inference_idempotence_and_determinism() {
     graph.add_node(Node::new(node_c, "NodeC".to_string(), NodeType::Concept));
 
     // A -uses-> B (0.9), B -uses-> C (0.8)
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
-    graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8))
+        .unwrap();
 
     let pass_1 = InferenceEngine::infer(&graph, &registry);
 
@@ -177,7 +187,11 @@ fn test_inference_idempotence_and_determinism() {
     let pass_2 = InferenceEngine::infer(&graph_with_pass_1, &registry);
 
     // pass_2 must be completely empty since pass_1 reached the fixed point!
-    assert!(pass_2.is_empty(), "Inference is not idempotent! Found new derived edges: {:?}", pass_2);
+    assert!(
+        pass_2.is_empty(),
+        "Inference is not idempotent! Found new derived edges: {:?}",
+        pass_2
+    );
 }
 
 #[test]
@@ -193,8 +207,12 @@ fn test_suppression_data_driven() {
 
     // Insert fallback relation (associated_with: fallback_suppression == false)
     // Insert specific relation (develops: fallback_suppression == true)
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::AssociatedWith, 0.5)).unwrap();
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Develops, 0.8)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::AssociatedWith, 0.5))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Develops, 0.8))
+        .unwrap();
 
     let graph_suppressed = SuppressionEngine::apply_suppression(graph, &registry);
 
@@ -232,7 +250,9 @@ fn test_inference_explainability_recursive() {
     }
 
     let trans_id = EdgeId::new(node_a, node_c, RelationKind::Uses.id());
-    let explanation = graph.explain_edge(&trans_id).expect("Explanation should exist");
+    let explanation = graph
+        .explain_edge(&trans_id)
+        .expect("Explanation should exist");
 
     assert_eq!(explanation.rule, Some(brain_domain::RuleId::Transitive));
     assert_eq!(explanation.supporting_chains.len(), 2);
@@ -244,11 +264,19 @@ fn test_inference_explainability_recursive() {
 
     let mut expected_supporting = vec![edge1_id, edge2_id];
     expected_supporting.sort();
-    
+
     // In EdgeId implementation, it has target and source fields.
     // Let's build their IDs using EdgeId::new(source, target, relation)
-    let id1 = EdgeId::new(sub_edge_1.edge.source, sub_edge_1.edge.target, sub_edge_1.edge.relation.id());
-    let id2 = EdgeId::new(sub_edge_2.edge.source, sub_edge_2.edge.target, sub_edge_2.edge.relation.id());
+    let id1 = EdgeId::new(
+        sub_edge_1.edge.source,
+        sub_edge_1.edge.target,
+        sub_edge_1.edge.relation.id(),
+    );
+    let id2 = EdgeId::new(
+        sub_edge_2.edge.source,
+        sub_edge_2.edge.target,
+        sub_edge_2.edge.relation.id(),
+    );
 
     let mut actual_supporting = vec![id1, id2];
     actual_supporting.sort();
@@ -260,7 +288,7 @@ fn test_inference_explainability_recursive() {
 #[test]
 fn test_derivation_determinism_invariant() {
     let registry = create_test_registry();
-    
+
     let node_a = NodeId::new();
     let node_b = NodeId::new();
     let node_c = NodeId::new();
@@ -272,10 +300,18 @@ fn test_derivation_determinism_invariant() {
     graph.add_node(Node::new(node_c, "NodeC".to_string(), NodeType::Concept));
     graph.add_node(Node::new(node_d, "NodeD".to_string(), NodeType::Concept));
 
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
-    graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8)).unwrap();
-    graph.add_edge(Edge::new(node_a, node_d, RelationKind::Uses, 0.9)).unwrap();
-    graph.add_edge(Edge::new(node_d, node_c, RelationKind::Uses, 0.9)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_d, RelationKind::Uses, 0.9))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_d, node_c, RelationKind::Uses, 0.9))
+        .unwrap();
 
     let inferred = InferenceEngine::infer(&graph, &registry);
     let mut graph_final = graph.clone();
@@ -288,7 +324,7 @@ fn test_derivation_determinism_invariant() {
 
     let deriv = derived_edge.derivation.as_ref().unwrap();
     assert_eq!(deriv.rule, brain_domain::RuleId::Transitive);
-    
+
     let path_b = {
         let mut v = vec![
             EdgeId::new(node_a, node_b, RelationKind::Uses.id()),
@@ -314,12 +350,16 @@ fn test_derivation_determinism_invariant() {
 fn assert_explanation_completeness(graph: &KnowledgeGraph) {
     for (edge_id, edge) in &graph.edges {
         if edge.provenance.source == ProvenanceSource::Inferred {
-            let deriv = edge.derivation.as_ref().expect("Inferred edge must have derivation record");
+            let deriv = edge
+                .derivation
+                .as_ref()
+                .expect("Inferred edge must have derivation record");
             for sup_id in &deriv.supporting_edges {
                 assert!(
                     graph.edges.contains_key(sup_id),
                     "Supporting edge {} for inferred edge {} does not exist in the graph",
-                    sup_id, edge_id
+                    sup_id,
+                    edge_id
                 );
             }
         }

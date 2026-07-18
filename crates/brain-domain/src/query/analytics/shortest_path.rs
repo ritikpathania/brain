@@ -1,8 +1,9 @@
-use crate::query::analytics::{GraphAnalyticsContext, weights::EdgeWeightProvider, RoutingAlgorithm};
+use crate::query::analytics::{
+    weights::EdgeWeightProvider, GraphAnalyticsContext, RoutingAlgorithm,
+};
 use crate::NodeId;
-use std::collections::{HashMap, BinaryHeap};
 use std::cmp::Ordering;
-
+use std::collections::{BinaryHeap, HashMap};
 
 /// Configuration settings for shortest path query.
 #[derive(Debug, Clone, Default)]
@@ -35,7 +36,10 @@ impl PartialOrd for State {
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
         // Reverse ordering for min-heap (binary heap is a max-heap by default)
-        let cost_cmp = other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal);
+        let cost_cmp = other
+            .cost
+            .partial_cmp(&self.cost)
+            .unwrap_or(Ordering::Equal);
         if cost_cmp != Ordering::Equal {
             return cost_cmp;
         }
@@ -83,7 +87,10 @@ impl<'a, 'b, W: EdgeWeightProvider> RoutingAlgorithm<'a, 'b> for ShortestPath<'a
         let mut heap = BinaryHeap::new();
 
         distances.insert(source, 0.0);
-        heap.push(State { node: source, cost: 0.0 });
+        heap.push(State {
+            node: source,
+            cost: 0.0,
+        });
 
         while let Some(State { node, cost }) = heap.pop() {
             if node == target {
@@ -138,7 +145,10 @@ impl<'a, 'b, W: EdgeWeightProvider> RoutingAlgorithm<'a, 'b> for ShortestPath<'a
                     if should_update {
                         distances.insert(next, next_cost);
                         predecessors.insert(next, node);
-                        heap.push(State { node: next, cost: next_cost });
+                        heap.push(State {
+                            node: next,
+                            cost: next_cost,
+                        });
                     }
                 }
             }

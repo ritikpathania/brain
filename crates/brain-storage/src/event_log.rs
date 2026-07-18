@@ -1,8 +1,8 @@
 //! Storage repository and model for the database event log.
 
+use brain_core::errors::BrainError;
 use rusqlite::params;
 use uuid::Uuid;
-use brain_core::errors::BrainError;
 
 /// Database model representing a row in the system event log.
 #[derive(Debug, Clone)]
@@ -74,7 +74,11 @@ impl SqliteEventLog {
     }
 
     /// Reads events from the log starting at a specific sequence ID.
-    pub fn read_from(&self, start_sequence: u64, limit: usize) -> Result<Vec<StoredEvent>, BrainError> {
+    pub fn read_from(
+        &self,
+        start_sequence: u64,
+        limit: usize,
+    ) -> Result<Vec<StoredEvent>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -91,35 +95,47 @@ impl SqliteEventLog {
             source: Some(Box::new(e)),
         })?;
 
-        let rows = stmt.query_map(params![start_sequence as i64, limit as i64], |row| {
-            let sequence: i64 = row.get(0)?;
-            let event_id_str: String = row.get(1)?;
-            let correlation_id_str: String = row.get(2)?;
-            let timestamp_ms: i64 = row.get(3)?;
-            let version: String = row.get(4)?;
-            let source: String = row.get(5)?;
-            let topic: String = row.get(6)?;
-            let payload_json: String = row.get(7)?;
+        let rows = stmt
+            .query_map(params![start_sequence as i64, limit as i64], |row| {
+                let sequence: i64 = row.get(0)?;
+                let event_id_str: String = row.get(1)?;
+                let correlation_id_str: String = row.get(2)?;
+                let timestamp_ms: i64 = row.get(3)?;
+                let version: String = row.get(4)?;
+                let source: String = row.get(5)?;
+                let topic: String = row.get(6)?;
+                let payload_json: String = row.get(7)?;
 
-            let event_id = Uuid::parse_str(&event_id_str)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e)))?;
-            let correlation_id = Uuid::parse_str(&correlation_id_str)
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(2, rusqlite::types::Type::Text, Box::new(e)))?;
+                let event_id = Uuid::parse_str(&event_id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
+                let correlation_id = Uuid::parse_str(&correlation_id_str).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })?;
 
-            Ok(StoredEvent {
-                sequence: sequence as u64,
-                event_id,
-                correlation_id,
-                timestamp_ms: timestamp_ms as u64,
-                version,
-                source,
-                topic,
-                payload_json,
+                Ok(StoredEvent {
+                    sequence: sequence as u64,
+                    event_id,
+                    correlation_id,
+                    timestamp_ms: timestamp_ms as u64,
+                    version,
+                    source,
+                    topic,
+                    payload_json,
+                })
             })
-        }).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query system event log: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query system event log: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         let mut results = Vec::new();
         for row in rows {
@@ -140,14 +156,14 @@ impl SqliteEventLog {
             source: Some(Box::new(e)),
         })?;
 
-        let seq_opt: Option<i64> = conn.query_row(
-            "SELECT MAX(sequence) FROM system_event_log",
-            [],
-            |row| row.get(0)
-        ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to query max sequence: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+        let seq_opt: Option<i64> = conn
+            .query_row("SELECT MAX(sequence) FROM system_event_log", [], |row| {
+                row.get(0)
+            })
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to query max sequence: {}", e),
+                source: Some(Box::new(e)),
+            })?;
 
         Ok(seq_opt.unwrap_or(0) as u64)
     }
@@ -157,11 +173,17 @@ impl SqliteEventLog {
 pub trait EventLogRepository: Send + Sync {
     /// Inserts an ingestion event into the event_log table.
     /// Performs deduplication by checking event_id. If duplicate, returns Ok(existing_sequence).
-    fn insert_event(&self, envelope: &brain_integrations::IngestionEnvelope) -> Result<u64, BrainError>;
+    fn insert_event(
+        &self,
+        envelope: &brain_integrations::IngestionEnvelope,
+    ) -> Result<u64, BrainError>;
 
     /// Checks if the event_id already exists in the log.
     fn is_duplicate_event(&self, event_id: &brain_domain::EventId) -> Result<bool, BrainError>;
 
     /// Replays events starting after the given sequence number.
-    fn get_events_after(&self, sequence: u64) -> Result<Vec<brain_integrations::IngestionEnvelope>, BrainError>;
+    fn get_events_after(
+        &self,
+        sequence: u64,
+    ) -> Result<Vec<brain_integrations::IngestionEnvelope>, BrainError>;
 }

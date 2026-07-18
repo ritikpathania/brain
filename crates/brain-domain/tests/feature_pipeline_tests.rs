@@ -1,15 +1,25 @@
 use brain_domain::retrieval::features::{
-    RawFeatureVector, NormalizationContext, FeatureNormalizer, MinMaxNormalizer,
-    FeaturePipelineReporter
+    FeatureNormalizer, FeaturePipelineReporter, MinMaxNormalizer, NormalizationContext,
+    RawFeatureVector,
 };
-use brain_domain::{Node, NodeType, NodeId};
+use brain_domain::{Node, NodeId, NodeType};
 
 #[test]
 fn test_min_max_normalizer_batch_min_max() {
     let normalizer = MinMaxNormalizer;
     let raw = vec![
-        RawFeatureVector { semantic: 10.0, graph: 1.0, recency: 0.1, temporal: 5.0 },
-        RawFeatureVector { semantic: 20.0, graph: 3.0, recency: 0.9, temporal: 5.0 },
+        RawFeatureVector {
+            semantic: 10.0,
+            graph: 1.0,
+            recency: 0.1,
+            temporal: 5.0,
+        },
+        RawFeatureVector {
+            semantic: 20.0,
+            graph: 3.0,
+            recency: 0.9,
+            temporal: 5.0,
+        },
     ];
     let context = NormalizationContext::BatchMinMax;
     let signals = normalizer.normalize(&raw, &context).unwrap();
@@ -33,9 +43,12 @@ fn test_min_max_normalizer_batch_min_max() {
 #[test]
 fn test_min_max_normalizer_fixed_ranges() {
     let normalizer = MinMaxNormalizer;
-    let raw = vec![
-        RawFeatureVector { semantic: 15.0, graph: 2.0, recency: 0.5, temporal: 4.0 },
-    ];
+    let raw = vec![RawFeatureVector {
+        semantic: 15.0,
+        graph: 2.0,
+        recency: 0.5,
+        temporal: 4.0,
+    }];
     let context = NormalizationContext::FixedRanges {
         semantic_range: (10.0, 20.0),
         graph_range: (0.0, 4.0),
@@ -56,8 +69,18 @@ fn test_min_max_normalizer_fixed_ranges() {
 fn test_invariant_normalization_stability_and_ordering() {
     let normalizer = MinMaxNormalizer;
     let raw1 = vec![
-        RawFeatureVector { semantic: 1.0, graph: 10.0, recency: 0.2, temporal: 3.0 },
-        RawFeatureVector { semantic: 2.0, graph: 20.0, recency: 0.8, temporal: 6.0 },
+        RawFeatureVector {
+            semantic: 1.0,
+            graph: 10.0,
+            recency: 0.2,
+            temporal: 3.0,
+        },
+        RawFeatureVector {
+            semantic: 2.0,
+            graph: 20.0,
+            recency: 0.8,
+            temporal: 6.0,
+        },
     ];
     let raw2 = raw1.clone();
     let context = NormalizationContext::BatchMinMax;
@@ -75,14 +98,21 @@ fn test_invariant_normalization_stability_and_ordering() {
 
 #[test]
 fn test_feature_pipeline_reporter() {
-    let raw = vec![
-        RawFeatureVector { semantic: 10.0, graph: 1.0, recency: 0.1, temporal: 5.0 },
-    ];
+    let raw = vec![RawFeatureVector {
+        semantic: 10.0,
+        graph: 1.0,
+        recency: 0.1,
+        temporal: 5.0,
+    }];
     let context = NormalizationContext::BatchMinMax;
     let signals = MinMaxNormalizer.normalize(&raw, &context).unwrap();
 
     let node_id = NodeId::new();
-    let nodes = vec![Node::new(node_id, "TestNode".to_string(), NodeType::Concept)];
+    let nodes = vec![Node::new(
+        node_id,
+        "TestNode".to_string(),
+        NodeType::Concept,
+    )];
 
     let reports = FeaturePipelineReporter::build_reports(&nodes, &raw, &signals, &context);
     assert_eq!(reports.len(), 1);

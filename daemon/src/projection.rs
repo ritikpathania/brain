@@ -1,4 +1,4 @@
-use brain_domain::{KnowledgeGraph, validation::ValidationReport};
+use brain_domain::{validation::ValidationReport, KnowledgeGraph};
 use duckdb::{params, Connection};
 
 /// Relational representation of a graph Node for analytical projection.
@@ -101,7 +101,8 @@ impl ProjectionBuilder {
                 id: node.id.to_string(),
                 label: node.label.clone(),
                 node_type: format!("{:?}", node.node_type),
-                properties_json: serde_json::to_string(&node.properties).unwrap_or_else(|_| "{}".to_string()),
+                properties_json: serde_json::to_string(&node.properties)
+                    .unwrap_or_else(|_| "{}".to_string()),
                 updated_at: node.updated_at as i64,
             });
         }
@@ -130,7 +131,8 @@ impl ProjectionBuilder {
                     target: edge.target.to_string(),
                     relation: edge.relation.to_string(),
                     rule: format!("{:?}", deriv.rule),
-                    supporting_edges_json: serde_json::to_string(&supporting_ids).unwrap_or_else(|_| "[]".to_string()),
+                    supporting_edges_json: serde_json::to_string(&supporting_ids)
+                        .unwrap_or_else(|_| "[]".to_string()),
                 });
             }
         }
@@ -149,8 +151,12 @@ impl ProjectionBuilder {
                 .iter()
                 .map(|elem| match elem {
                     brain_domain::validation::AffectedElement::Node(n) => format!("Node({})", n),
-                    brain_domain::validation::AffectedElement::Edge(e) => format!("Edge({}-{}-{})", e.source, e.target, e.relation),
-                    brain_domain::validation::AffectedElement::Relation(r) => format!("Relation({})", r),
+                    brain_domain::validation::AffectedElement::Edge(e) => {
+                        format!("Edge({}-{}-{})", e.source, e.target, e.relation)
+                    }
+                    brain_domain::validation::AffectedElement::Relation(r) => {
+                        format!("Relation({})", r)
+                    }
                 })
                 .collect();
 
@@ -160,7 +166,8 @@ impl ProjectionBuilder {
                 severity: format!("{:?}", diag.severity),
                 category: format!("{:?}", diag.category),
                 message: diag.message.clone(),
-                affected_elements_json: serde_json::to_string(&affected_strings).unwrap_or_else(|_| "[]".to_string()),
+                affected_elements_json: serde_json::to_string(&affected_strings)
+                    .unwrap_or_else(|_| "[]".to_string()),
             });
         }
 
@@ -227,7 +234,7 @@ impl DuckDBWriter {
                 message VARCHAR,
                 affected_elements VARCHAR,
                 PRIMARY KEY (run_id, code, affected_elements)
-            );"
+            );",
         )?;
 
         let tx = conn.transaction()?;
@@ -244,7 +251,7 @@ impl DuckDBWriter {
                      label = excluded.label,
                      type = excluded.type,
                      properties = excluded.properties,
-                     updated_at = excluded.updated_at"
+                     updated_at = excluded.updated_at",
             )?;
 
             for node in &model.nodes {
@@ -347,9 +354,11 @@ pub struct DuckDBAnalyticsEngine;
 
 impl DuckDBAnalyticsEngine {
     /// Calculates aggregate edge count statistics grouped by edge provenance.
-    pub fn get_provenance_stats(conn: &Connection) -> Result<std::collections::HashMap<String, usize>, duckdb::Error> {
+    pub fn get_provenance_stats(
+        conn: &Connection,
+    ) -> Result<std::collections::HashMap<String, usize>, duckdb::Error> {
         let mut stmt = conn.prepare(
-            "SELECT source_provenance, COUNT(*) FROM analytics_edges GROUP BY source_provenance"
+            "SELECT source_provenance, COUNT(*) FROM analytics_edges GROUP BY source_provenance",
         )?;
         let mut rows = stmt.query([])?;
         let mut stats = std::collections::HashMap::new();
@@ -362,7 +371,9 @@ impl DuckDBAnalyticsEngine {
     }
 
     /// Retrieves chronological historical validation run summary trends.
-    pub fn get_validation_trends(conn: &Connection) -> Result<Vec<ValidationTrendRecord>, duckdb::Error> {
+    pub fn get_validation_trends(
+        conn: &Connection,
+    ) -> Result<Vec<ValidationTrendRecord>, duckdb::Error> {
         let mut stmt = conn.prepare(
             "SELECT run_id, total_errors, total_warnings, is_valid FROM analytics_validation_runs ORDER BY run_at ASC"
         )?;
@@ -380,13 +391,16 @@ impl DuckDBAnalyticsEngine {
     }
 
     /// Evaluates degree centrality over projected edges returning the top central nodes in sorted order.
-    pub fn get_top_central_nodes(conn: &Connection, limit: usize) -> Result<Vec<(String, usize)>, duckdb::Error> {
+    pub fn get_top_central_nodes(
+        conn: &Connection,
+        limit: usize,
+    ) -> Result<Vec<(String, usize)>, duckdb::Error> {
         let mut stmt = conn.prepare(
             "SELECT node, COUNT(*) as degree FROM (
                 SELECT source as node FROM analytics_edges
                 UNION ALL
                 SELECT target as node FROM analytics_edges
-            ) GROUP BY node ORDER BY degree DESC, node ASC LIMIT ?"
+            ) GROUP BY node ORDER BY degree DESC, node ASC LIMIT ?",
         )?;
         let mut rows = stmt.query(params![limit as i64])?;
         let mut results = Vec::new();
@@ -402,7 +416,10 @@ impl DuckDBAnalyticsEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use brain_domain::{KnowledgeGraph, Node, NodeType, Edge, RelationKind, NodeId, EdgeId, ProvenanceSource, Derivation, RuleId, RelationRegistry};
+    use brain_domain::{
+        Derivation, Edge, EdgeId, KnowledgeGraph, Node, NodeId, NodeType, ProvenanceSource,
+        RelationKind, RelationRegistry, RuleId,
+    };
 
     #[test]
     fn test_projection_builder_completeness_and_duckdb_writer() {
@@ -418,7 +435,7 @@ mod tests {
 
         let edge1 = Edge::new(node_a, node_b, RelationKind::Uses, 0.9);
         let edge1_id = EdgeId::new(node_a, node_b, RelationKind::Uses.id());
-        
+
         let mut edge2 = Edge::new(node_b, node_c, RelationKind::Uses, 0.8);
         edge2.provenance.source = ProvenanceSource::Inferred;
         edge2.derivation = Some(Derivation {
@@ -444,19 +461,25 @@ mod tests {
         DuckDBWriter::write(&mut conn, &model).unwrap();
 
         // Verify Node count in DuckDB
-        let mut stmt = conn.prepare("SELECT COUNT(*) FROM analytics_nodes").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT COUNT(*) FROM analytics_nodes")
+            .unwrap();
         let mut rows = stmt.query([]).unwrap();
         let count: i64 = rows.next().unwrap().unwrap().get(0).unwrap();
         assert_eq!(count, 3);
 
         // Verify Edge count in DuckDB
-        let mut stmt = conn.prepare("SELECT COUNT(*) FROM analytics_edges").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT COUNT(*) FROM analytics_edges")
+            .unwrap();
         let mut rows = stmt.query([]).unwrap();
         let count: i64 = rows.next().unwrap().unwrap().get(0).unwrap();
         assert_eq!(count, 2);
 
         // Verify Derivation count in DuckDB
-        let mut stmt = conn.prepare("SELECT COUNT(*) FROM analytics_derivations").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT COUNT(*) FROM analytics_derivations")
+            .unwrap();
         let mut rows = stmt.query([]).unwrap();
         let count: i64 = rows.next().unwrap().unwrap().get(0).unwrap();
         assert_eq!(count, 1);
@@ -476,19 +499,25 @@ mod tests {
         graph.add_node(Node::new(node_c, "NodeC".to_string(), NodeType::Concept));
 
         // Create 2 edges: A -> B, B -> C
-        graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
-        graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8)).unwrap();
+        graph
+            .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+            .unwrap();
+        graph
+            .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.8))
+            .unwrap();
 
         let report = brain_domain::validation::GraphValidator::validate(&graph, &registry);
         let model1 = ProjectionBuilder::build(&graph, &report);
 
         let mut conn = Connection::open_in_memory().unwrap();
-        
+
         // Write run 1
         DuckDBWriter::write(&mut conn, &model1).unwrap();
 
         // Verify metadata schema versioning
-        let mut stmt = conn.prepare("SELECT projection_version, schema_version FROM analytics_projection_metadata").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT projection_version, schema_version FROM analytics_projection_metadata")
+            .unwrap();
         let mut rows = stmt.query([]).unwrap();
         let row = rows.next().unwrap().unwrap();
         let proj_v: i32 = row.get(0).unwrap();

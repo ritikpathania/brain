@@ -1,6 +1,8 @@
 pub mod client;
 
-pub use client::{BrainClient, ClientConfig, BrainSdkError, IngestAck, ReplayResponse, RuntimeState};
+pub use client::{
+    BrainClient, BrainSdkError, ClientConfig, IngestAck, ReplayResponse, RuntimeState,
+};
 
 /// Backpressure policies when SDK queues are full
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +25,9 @@ pub enum ClientCommand {
     /// Request event replay from sequence
     Replay {
         after_sequence: u64,
-        tx: tokio::sync::oneshot::Sender<Result<Vec<brain_integrations::IngestionEnvelope>, BrainSdkError>>,
+        tx: tokio::sync::oneshot::Sender<
+            Result<Vec<brain_integrations::IngestionEnvelope>, BrainSdkError>,
+        >,
     },
     /// Gracefully shutdown the runtime
     Shutdown {

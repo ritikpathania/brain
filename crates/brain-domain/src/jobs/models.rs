@@ -1,8 +1,8 @@
 //! Value objects and types associated with the Job aggregate.
 
-use serde::{Serialize, Deserialize};
-use std::num::NonZeroU64;
 use crate::identifiers::SessionId;
+use serde::{Deserialize, Serialize};
+use std::num::NonZeroU64;
 
 /// Strongly-typed identifier for background jobs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -177,6 +177,10 @@ pub struct LogEntry {
 impl LogEntry {
     /// Creates a new `LogEntry` instance.
     pub fn new(id: LogEntryId, timestamp: JobTimestamp, message: String) -> Self {
-        Self { id, timestamp, message }
+        Self {
+            id,
+            timestamp,
+            message,
+        }
     }
 }

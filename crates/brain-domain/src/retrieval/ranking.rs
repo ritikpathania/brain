@@ -1,5 +1,7 @@
 use crate::identifiers::NodeId;
-use crate::retrieval::models::{RetrievedCandidate, ScoredCandidate, RetrievalExplanation, Evidence};
+use crate::retrieval::models::{
+    Evidence, RetrievalExplanation, RetrievedCandidate, ScoredCandidate,
+};
 use std::collections::HashMap;
 
 /// Trait defining the contract for normalizing and sorting fused candidate lists.
@@ -27,7 +29,8 @@ impl RankingStrategy for NormalizedTieBreakerRanking {
             return (Vec::new(), HashMap::new());
         }
 
-        let max_score = candidates.iter()
+        let max_score = candidates
+            .iter()
             .map(|c| c.local_score)
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(1.0);
@@ -52,7 +55,8 @@ impl RankingStrategy for NormalizedTieBreakerRanking {
         }
 
         scored.sort_by(|a, b| {
-            b.score.partial_cmp(&a.score)
+            b.score
+                .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| a.node_id.cmp(&b.node_id))
         });

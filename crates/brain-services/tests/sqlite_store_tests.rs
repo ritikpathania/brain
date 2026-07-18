@@ -1,11 +1,12 @@
 use brain_domain::retrieval::{
-    SnapshotId, QueryRequest, LogicalRetrievalPlan,
-    PhysicalRetrievalPlan, CompilationResult, RetrievalResult,
-    CompiledQueryCacheKey, LogicalPlanCacheKey, PhysicalPlanCacheKey,
-    ResultCacheKey, CacheStore, SnapshotCacheStore, CanonicalQuery
+    CacheStore, CanonicalQuery, CompilationResult, CompiledQueryCacheKey, LogicalPlanCacheKey,
+    LogicalRetrievalPlan, PhysicalPlanCacheKey, PhysicalRetrievalPlan, QueryRequest,
+    ResultCacheKey, RetrievalResult, SnapshotCacheStore, SnapshotId,
 };
-use brain_services::retrieval::sqlite_store::{SQLiteStore, SQLiteConfig, SchemaVerificationError, SqlType};
 use brain_services::retrieval::cache::ExecutionCache;
+use brain_services::retrieval::sqlite_store::{
+    SQLiteConfig, SQLiteStore, SchemaVerificationError, SqlType,
+};
 use std::time::Duration;
 struct TempDbFile {
     path: std::path::PathBuf,
@@ -37,9 +38,8 @@ fn get_temp_db_config() -> (TempDbFile, SQLiteConfig) {
 }
 
 fn run_cache_behavior_tests<CCompiled, CLogical, CPhysical, CResult>(
-    cache: &ExecutionCache<CCompiled, CLogical, CPhysical, CResult>
-)
-where
+    cache: &ExecutionCache<CCompiled, CLogical, CPhysical, CResult>,
+) where
     CCompiled: SnapshotCacheStore<CompiledQueryCacheKey, CompilationResult>,
     CLogical: SnapshotCacheStore<LogicalPlanCacheKey, LogicalRetrievalPlan>,
     CPhysical: SnapshotCacheStore<PhysicalPlanCacheKey, PhysicalRetrievalPlan>,
@@ -57,8 +57,14 @@ where
         max_depth: None,
     };
 
-    let key_compiled_a = CompiledQueryCacheKey { snapshot_id: snap_a, request: query_req.clone() };
-    let key_compiled_b = CompiledQueryCacheKey { snapshot_id: snap_b, request: query_req.clone() };
+    let key_compiled_a = CompiledQueryCacheKey {
+        snapshot_id: snap_a,
+        request: query_req.clone(),
+    };
+    let key_compiled_b = CompiledQueryCacheKey {
+        snapshot_id: snap_b,
+        request: query_req.clone(),
+    };
 
     let mock_result = CompilationResult {
         canonical_query: CanonicalQuery {
@@ -86,7 +92,10 @@ where
 
     let val_a = cache.get_compiled_query(&key_compiled_a);
     assert!(val_a.is_some());
-    assert_eq!(val_a.unwrap().canonical_query.semantic_query, "resolved query");
+    assert_eq!(
+        val_a.unwrap().canonical_query.semantic_query,
+        "resolved query"
+    );
 
     // 3. Snapshot Invalidation
     cache.invalidate_snapshot(snap_a);
@@ -104,12 +113,8 @@ fn test_sqlite_store_behavioral_equivalence() {
     let store_physical = SQLiteStore::new(config.clone(), "physical_cache").unwrap();
     let store_result = SQLiteStore::new(config.clone(), "result_cache").unwrap();
 
-    let cache = ExecutionCache::with_stores(
-        store_compiled,
-        store_logical,
-        store_physical,
-        store_result,
-    );
+    let cache =
+        ExecutionCache::with_stores(store_compiled, store_logical, store_physical, store_result);
 
     run_cache_behavior_tests(&cache);
 }
@@ -150,7 +155,9 @@ fn test_sqlite_store_durable_persistence() {
 
     {
         // Open, insert, and drop store
-        let store = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config.clone(), table).unwrap();
+        let store =
+            SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config.clone(), table)
+                .unwrap();
         store.insert(key.clone(), val.clone());
         let fetched = store.get(&key).unwrap();
         assert_eq!(fetched.canonical_query.semantic_query, "persisted query");
@@ -163,7 +170,9 @@ fn test_sqlite_store_durable_persistence() {
             wal_enabled: true,
             busy_timeout: Duration::from_millis(500),
         };
-        let store = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config_reopen, table).unwrap();
+        let store =
+            SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config_reopen, table)
+                .unwrap();
         let fetched = store.get(&key).unwrap();
         assert_eq!(fetched.canonical_query.semantic_query, "persisted query");
     }
@@ -302,7 +311,8 @@ fn test_sqlite_store_schema_migration_older_version() {
             );
             PRAGMA user_version = 1;",
             table
-        )).unwrap();
+        ))
+        .unwrap();
     }
 
     {
@@ -329,7 +339,8 @@ fn test_sqlite_store_schema_verification_failure_on_corruption() {
             );
             PRAGMA user_version = 2;",
             table
-        )).unwrap();
+        ))
+        .unwrap();
     }
 
     // SQLiteStore initialization should fail structural schema verification because value_blob column is missing
@@ -363,7 +374,8 @@ fn test_sqlite_store_schema_verification_failure_on_type_mismatch() {
             );
             PRAGMA user_version = 2;",
             table
-        )).unwrap();
+        ))
+        .unwrap();
     }
 
     // SQLiteStore initialization should fail because snapshot_id is TEXT, expected INTEGER
@@ -371,7 +383,12 @@ fn test_sqlite_store_schema_verification_failure_on_type_mismatch() {
     assert!(store.is_err());
     let err = store.err().unwrap();
     match err {
-        SchemaVerificationError::UnexpectedColumnType { table: t, col: c, expected, actual } => {
+        SchemaVerificationError::UnexpectedColumnType {
+            table: t,
+            col: c,
+            expected,
+            actual,
+        } => {
             assert_eq!(t, table);
             assert_eq!(c, "snapshot_id");
             assert_eq!(expected, SqlType::Integer);
@@ -387,7 +404,8 @@ fn test_sqlite_store_repeated_startups_no_migrations() {
     let table = "repeated_table";
 
     // First startup creates table and sets user_version = 2
-    let store_1 = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config.clone(), table);
+    let store_1 =
+        SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config.clone(), table);
     assert!(store_1.is_ok());
 
     // Verify schema verification succeeds on second startup
@@ -401,7 +419,8 @@ fn test_sqlite_store_hash_collision_handling() {
     let table = "collision_table";
 
     // Initialize the store and table
-    let _store = SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, table).unwrap();
+    let _store =
+        SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, table).unwrap();
 
     // Manually insert two entries with identical hash but different key blobs into the table
     let conn = rusqlite::Connection::open(&temp_file.path).unwrap();
@@ -446,7 +465,16 @@ fn test_sqlite_store_hash_collision_handling() {
     // Wait, the store computes the hash using fnv1a_hash on the serialized key.
     // If the hash computed is different from "colliding_hash", get() won't find it.
     // But we can check that both keys were successfully stored under the same key_hash:
-    let count: i64 = conn.query_row(&format!("SELECT COUNT(*) FROM {} WHERE key_hash = 'colliding_hash'", table), [], |r| r.get(0)).unwrap();
+    let count: i64 = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM {} WHERE key_hash = 'colliding_hash'",
+                table
+            ),
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(count, 2);
 
     // Verify that the database primary key and unique constraint allows them to coexist without overwriting
@@ -456,4 +484,3 @@ fn test_sqlite_store_hash_collision_handling() {
     let result_b: String = conn.query_row(&format!("SELECT value_blob FROM {} WHERE key_hash = 'colliding_hash' AND key_blob LIKE '%query B%'", table), [], |r| r.get(0)).unwrap();
     assert!(result_b.contains("result B"));
 }
-

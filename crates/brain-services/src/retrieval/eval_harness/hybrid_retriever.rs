@@ -21,7 +21,10 @@ impl<F: Retriever, S: Retriever> Retriever for HybridRetriever<F, S> {
         let fts_results = self.fts.retrieve(query)?;
         let sem_results = self.semantic.retrieve(query)?;
 
-        let mut merged: HashMap<NodeId, HashMap<crate::retrieval::eval_harness::RetrievalChannel, f64>> = HashMap::new();
+        let mut merged: HashMap<
+            NodeId,
+            HashMap<crate::retrieval::eval_harness::RetrievalChannel, f64>,
+        > = HashMap::new();
 
         for res in fts_results {
             merged.insert(res.node_id, res.channel_scores);

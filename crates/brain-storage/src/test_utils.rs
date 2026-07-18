@@ -32,6 +32,14 @@ impl TestStorage {
         std::sync::Arc::new(self.storage.clone())
     }
 
+    /// Returns the underlying storage as `Arc<dyn Storage>`.
+    ///
+    /// Use this when passing storage to service constructors that expect the trait object
+    /// (e.g. `SqliteCanonicalizer::new`, `SqliteProjector::new`, `SqliteProjectionManager::new`).
+    pub fn storage_dyn(&self) -> std::sync::Arc<dyn brain_core::repositories::Storage> {
+        std::sync::Arc::new(self.storage.clone())
+    }
+
     /// Asserts that no database connections are currently leaked/active outside the pool.
     pub fn assert_clean(&self) {
         let state = self.storage.pool().state();

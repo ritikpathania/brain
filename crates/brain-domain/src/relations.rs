@@ -77,7 +77,9 @@ pub enum RelationRegistryError {
     EmptyDisplayName(RelationId),
 
     /// Error returned when a relation references an inverse ID that is not defined in the registry.
-    #[error("Relation '{relation}' specifies inverse '{inverse}' which does not exist in the registry")]
+    #[error(
+        "Relation '{relation}' specifies inverse '{inverse}' which does not exist in the registry"
+    )]
     MissingInverse {
         /// The referencing relation ID.
         relation: RelationId,
@@ -141,17 +143,20 @@ impl RelationRegistry {
         for def in definitions.values() {
             // Undirected implies symmetric
             if def.directionality == Directionality::Undirected && !def.symmetry {
-                return Err(RelationRegistryError::UndirectedNotSymmetric(def.id.clone()));
+                return Err(RelationRegistryError::UndirectedNotSymmetric(
+                    def.id.clone(),
+                ));
             }
 
             if let Some(ref inv) = def.inverse {
                 // Inverse must exist in the registry
-                let inv_def = definitions.get(inv).ok_or_else(|| {
-                    RelationRegistryError::MissingInverse {
-                        relation: def.id.clone(),
-                        inverse: inv.clone(),
-                    }
-                })?;
+                let inv_def =
+                    definitions
+                        .get(inv)
+                        .ok_or_else(|| RelationRegistryError::MissingInverse {
+                            relation: def.id.clone(),
+                            inverse: inv.clone(),
+                        })?;
 
                 // Symmetric relations can only have themselves as an inverse
                 if def.symmetry && inv != &def.id {
@@ -220,8 +225,8 @@ impl RelationRegistry {
     /// Loads a default RelationRegistry from the embedded relations.json file.
     pub fn default_embedded() -> Self {
         let json_str = include_str!("../../../protocol/relations.json");
-        let defs: Vec<RelationDefinition> = serde_json::from_str(json_str)
-            .expect("Failed to deserialize embedded relations.json");
+        let defs: Vec<RelationDefinition> =
+            serde_json::from_str(json_str).expect("Failed to deserialize embedded relations.json");
         Self::new(defs).expect("Failed to construct default RelationRegistry")
     }
 
@@ -230,7 +235,8 @@ impl RelationRegistry {
         if let Some(def) = self.get(relation) {
             TraversalPolicy {
                 can_follow_forward: true,
-                can_follow_backward: def.directionality == Directionality::Undirected || def.symmetry,
+                can_follow_backward: def.directionality == Directionality::Undirected
+                    || def.symmetry,
             }
         } else {
             TraversalPolicy {

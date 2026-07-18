@@ -94,11 +94,7 @@ impl Graph {
                     }
                 }
 
-                let next_node = if is_forward {
-                    edge.target
-                } else {
-                    edge.source
-                };
+                let next_node = if is_forward { edge.target } else { edge.source };
 
                 let edge_key = (edge.source, edge.target, edge.relation.to_string());
                 if traversed_edges.contains(&edge_key) {
@@ -143,7 +139,11 @@ pub trait GraphAnalyzer: Send + Sync {
 /// - Never computes analysis independently (takes an existing report as input).
 pub trait GraphMaintenanceService: Send + Sync {
     /// Applies the computed analysis report back to persistence.
-    fn apply_analysis(&self, repos: &dyn RepositorySet, report: AnalysisReport) -> Result<(), BrainError>;
+    fn apply_analysis(
+        &self,
+        repos: &dyn RepositorySet,
+        report: AnalysisReport,
+    ) -> Result<(), BrainError>;
 }
 
 /// Placeholder implementation of GraphAnalyzer for Phase 2.
@@ -162,7 +162,11 @@ impl GraphAnalyzer for PlaceholderGraphAnalyzer {
 pub struct PlaceholderGraphMaintenanceService;
 
 impl GraphMaintenanceService for PlaceholderGraphMaintenanceService {
-    fn apply_analysis(&self, _repos: &dyn RepositorySet, _report: AnalysisReport) -> Result<(), BrainError> {
+    fn apply_analysis(
+        &self,
+        _repos: &dyn RepositorySet,
+        _report: AnalysisReport,
+    ) -> Result<(), BrainError> {
         Ok(())
     }
 }

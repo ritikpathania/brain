@@ -16,7 +16,10 @@ fn floats_different(a: f64, b: f64) -> bool {
 
 /// Performs a semantic comparison of current and baseline StableReport structures.
 /// Returns Ok(()) if they are identical in metrics and query outcomes, or a detailed Err containing the diff.
-pub fn compare_stable_reports(current: &StableReport, baseline: &StableReport) -> Result<(), String> {
+pub fn compare_stable_reports(
+    current: &StableReport,
+    baseline: &StableReport,
+) -> Result<(), String> {
     if current.metadata.schema_version != baseline.metadata.schema_version {
         return Err(format!(
             "Schema version mismatch: current={}, baseline={}",
@@ -55,7 +58,8 @@ pub fn compare_stable_reports(current: &StableReport, baseline: &StableReport) -
         diff.changed_metrics.push("mean_precision_at_5".to_string());
     }
     if floats_different(m_curr.mean_precision_at_10, m_base.mean_precision_at_10) {
-        diff.changed_metrics.push("mean_precision_at_10".to_string());
+        diff.changed_metrics
+            .push("mean_precision_at_10".to_string());
     }
     if floats_different(m_curr.mean_mrr, m_base.mean_mrr) {
         diff.changed_metrics.push("mean_mrr".to_string());
@@ -159,7 +163,7 @@ pub fn compare_stable_reports(current: &StableReport, baseline: &StableReport) -
     // Format human-readable regression error message
     let mut msg = String::new();
     msg.push_str("Stable benchmark regression detected.\n");
-    
+
     if !metrics.is_empty() {
         msg.push_str("\nMetrics:\n");
         for m in metrics {

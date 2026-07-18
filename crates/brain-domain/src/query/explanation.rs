@@ -1,4 +1,4 @@
-use crate::entities::{KnowledgeGraph, ExplanationChain};
+use crate::entities::{ExplanationChain, KnowledgeGraph};
 use crate::identifiers::EdgeId;
 use std::collections::HashSet;
 

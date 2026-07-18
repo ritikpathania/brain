@@ -1,8 +1,8 @@
 //! Dialog geometry configurations.
 
-use ratatui::layout::Rect;
 use crate::ui::layout::cell_width::CellWidth;
 use crate::ui::widgets::view_models::MAX_DIALOG_BUTTONS;
+use ratatui::layout::Rect;
 
 /// Pure numeric sizing parameters for the Dialog layout.
 pub struct DialogMeasure<'a> {

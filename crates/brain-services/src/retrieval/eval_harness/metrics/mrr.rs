@@ -35,11 +35,11 @@ mod tests {
         let n2 = NodeId::new();
         let n3 = NodeId::new();
         let retrieved = vec![n1, n2, n3];
-        
+
         // Expected is n2. Index is 1 (2nd item). MRR = 0.5
         assert_eq!(compute_mrr(&retrieved, &vec![n2], &[]), 0.5);
         // Expected is n3. Index is 2 (3rd item). MRR = 0.3333333333333333
         let mrr3 = compute_mrr(&retrieved, &vec![n3], &[]);
-        assert!((mrr3 - 1.0/3.0).abs() < 1e-9);
+        assert!((mrr3 - 1.0 / 3.0).abs() < 1e-9);
     }
 }

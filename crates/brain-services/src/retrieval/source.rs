@@ -12,7 +12,8 @@ pub(crate) fn calculate_token_overlap_score(node: &brain_domain::Node, query: &s
         .map(|s| s.to_string())
         .collect();
 
-    let label_tokens: std::collections::HashSet<String> = node.label
+    let label_tokens: std::collections::HashSet<String> = node
+        .label
         .to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
         .filter(|s| !s.is_empty())
@@ -97,7 +98,9 @@ impl MemorySource for StmMemorySource {
                     continue;
                 };
 
-                if !candidates.contains_key(&neighbor_id) && !request.exclude_ids.contains(&neighbor_id) {
+                if !candidates.contains_key(&neighbor_id)
+                    && !request.exclude_ids.contains(&neighbor_id)
+                {
                     if let Some((_, parent_score, _)) = candidates.get(&matched_id) {
                         expansions.push((neighbor_id, parent_score * 0.5));
                     }
@@ -143,7 +146,10 @@ pub struct LtmMemorySource {
 
 impl LtmMemorySource {
     /// Creates a new LtmMemorySource.
-    pub fn new(repos: Arc<dyn RepositorySet>, registry: Arc<brain_domain::RelationRegistry>) -> Self {
+    pub fn new(
+        repos: Arc<dyn RepositorySet>,
+        registry: Arc<brain_domain::RelationRegistry>,
+    ) -> Self {
         Self { repos, registry }
     }
 }
@@ -200,7 +206,9 @@ impl MemorySource for LtmMemorySource {
                     continue;
                 };
 
-                if !candidates.contains_key(&neighbor_id) && !request.exclude_ids.contains(&neighbor_id) {
+                if !candidates.contains_key(&neighbor_id)
+                    && !request.exclude_ids.contains(&neighbor_id)
+                {
                     if let Some((_, parent_score)) = candidates.get(&matched_id) {
                         expansions.push((neighbor_id, parent_score * 0.5));
                     }
@@ -256,7 +264,8 @@ fn get_predefined_centroids() -> &'static [Vec<f32>] {
             let mut v = vec![0.0f32; 384];
             let mut norm_sq = 0.0f32;
             for i in 0..384 {
-                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0).sin() as f32;
+                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0)
+                    .sin() as f32;
                 v[i] = val;
                 norm_sq += val * val;
             }
@@ -305,7 +314,10 @@ pub struct SemanticMemorySource {
 
 impl SemanticMemorySource {
     /// Creates a new `SemanticMemorySource`.
-    pub fn new(repos: Arc<dyn RepositorySet>, query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>) -> Self {
+    pub fn new(
+        repos: Arc<dyn RepositorySet>,
+        query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
+    ) -> Self {
         Self {
             repos,
             query_embedding_service,
@@ -339,8 +351,10 @@ impl MemorySource for SemanticMemorySource {
         let comps_this_query;
         let candidates = if total_count < 2000 {
             // Bypass IVF: Flat brute force scan
-            self.bypass_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            self.cosine_computations.fetch_add(total_count, std::sync::atomic::Ordering::SeqCst);
+            self.bypass_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.cosine_computations
+                .fetch_add(total_count, std::sync::atomic::Ordering::SeqCst);
             comps_this_query = total_count;
             tracing::info!(
                 target: "brain::telemetry::retrieval",
@@ -354,20 +368,27 @@ impl MemorySource for SemanticMemorySource {
             all_embeddings
         } else {
             // IVF Probing: Query centroids and retrieve top 2 partition subsets
-            self.activation_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.activation_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let centroids = get_predefined_centroids();
             let mut centroid_similarities = Vec::with_capacity(8);
             for (c_id, centroid) in centroids.iter().enumerate() {
                 let sim = cosine_similarity(&query_vector, centroid);
                 centroid_similarities.push((c_id as i32, sim));
             }
-            self.cosine_computations.fetch_add(8, std::sync::atomic::Ordering::SeqCst);
+            self.cosine_computations
+                .fetch_add(8, std::sync::atomic::Ordering::SeqCst);
 
-            centroid_similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            centroid_similarities
+                .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
             let top_2_centroid_ids = vec![centroid_similarities[0].0, centroid_similarities[1].0];
 
-            let partitioned = self.repos.embeddings().find_by_centroids(&top_2_centroid_ids)?;
-            self.cosine_computations.fetch_add(partitioned.len(), std::sync::atomic::Ordering::SeqCst);
+            let partitioned = self
+                .repos
+                .embeddings()
+                .find_by_centroids(&top_2_centroid_ids)?;
+            self.cosine_computations
+                .fetch_add(partitioned.len(), std::sync::atomic::Ordering::SeqCst);
             comps_this_query = 8 + partitioned.len();
             tracing::info!(
                 target: "brain::telemetry::retrieval",

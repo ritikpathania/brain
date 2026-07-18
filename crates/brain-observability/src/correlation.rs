@@ -1,8 +1,8 @@
 //! Correlation index: maps `CorrelationId` to a list of operation spans.
 
-use std::collections::HashMap;
-use brain_core::events::{CorrelationId, TaskProgress, TaskState};
 use crate::timeline::{OperationSpan, OperationTimeline};
+use brain_core::events::{CorrelationId, TaskProgress, TaskState};
+use std::collections::HashMap;
 
 /// Cross-correlation index accumulating spans from `TaskProgress` events.
 ///

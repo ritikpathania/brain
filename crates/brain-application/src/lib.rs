@@ -9,7 +9,11 @@ pub mod application;
 pub mod context;
 /// Semantic application error classifications.
 pub mod errors;
+/// Application data transfer objects.
+pub mod dto;
 
 pub use application::{BrainApplication, IngestionResponse};
-pub use context::{ApplicationRequestId, ExecutionContext, ProgressEvent, ApplicationEvent, ApplicationEventSink};
+pub use context::{
+    ApplicationEvent, ApplicationEventSink, ApplicationRequestId, ExecutionContext, ProgressEvent,
+};
 pub use errors::ApplicationError;

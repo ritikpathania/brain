@@ -1,19 +1,19 @@
-use std::sync::Arc;
-use std::collections::HashSet;
 use brain_core::errors::BrainError;
 use brain_core::repositories::{
-    RepositorySet, NodeRepository, EdgeRepository, EmbeddingRepository,
-    SessionRepository, ConfigRepository
+    ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, RepositorySet,
+    SessionRepository,
 };
-use brain_core::retrieval::{
-    RankingStrategy, RetrievalRequest, CacheHydrationPolicy
-};
+use brain_core::retrieval::{CacheHydrationPolicy, RankingStrategy, RetrievalRequest};
 use brain_domain::{
-    Node, Edge, EdgeId, NodeId, SessionId, MemoryDTO, Evidence,
-    temporal::{TemporalSnapshot, TemporalQuery, TemporalProjector, RecencyPolicy, TimePoint, TemporalEdge}
+    temporal::{
+        RecencyPolicy, TemporalEdge, TemporalProjector, TemporalQuery, TemporalSnapshot, TimePoint,
+    },
+    Edge, EdgeId, Evidence, MemoryDTO, Node, NodeId, SessionId,
 };
-use brain_storage::SqliteStorage;
 use brain_session::SessionCacheManager;
+use brain_storage::SqliteStorage;
+use std::collections::HashSet;
+use std::sync::Arc;
 
 /// A read-only repository decorator that filters edges based on a temporal visibility snapshot.
 pub struct ProjectedRepositoryView {
@@ -94,19 +94,25 @@ impl EdgeRepository for ProjectedEdgeRepository {
 
     fn get_connections(&self, node_id: &NodeId) -> Result<Vec<Edge>, BrainError> {
         let raw = self.underlying.edges().get_connections(node_id)?;
-        let filtered = raw.into_iter().filter(|edge| {
-            let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
-            self.active_edge_ids.contains(&edge_id)
-        }).collect();
+        let filtered = raw
+            .into_iter()
+            .filter(|edge| {
+                let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
+                self.active_edge_ids.contains(&edge_id)
+            })
+            .collect();
         Ok(filtered)
     }
 
     fn list_all(&self) -> Result<Vec<Edge>, BrainError> {
         let raw = self.underlying.edges().list_all()?;
-        let filtered = raw.into_iter().filter(|edge| {
-            let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
-            self.active_edge_ids.contains(&edge_id)
-        }).collect();
+        let filtered = raw
+            .into_iter()
+            .filter(|edge| {
+                let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
+                self.active_edge_ids.contains(&edge_id)
+            })
+            .collect();
         Ok(filtered)
     }
 }
@@ -137,11 +143,7 @@ impl TemporalRankingStrategy {
 }
 
 impl RankingStrategy for TemporalRankingStrategy {
-    fn rank(
-        &self,
-        request: &RetrievalRequest,
-        nodes: Vec<Node>,
-    ) -> Result<Vec<Node>, BrainError> {
+    fn rank(&self, request: &RetrievalRequest, nodes: Vec<Node>) -> Result<Vec<Node>, BrainError> {
         // Run base ranking strategy to get matched nodes
         let base_ranked = self.base_strategy.rank(request, nodes)?;
 
@@ -151,14 +153,17 @@ impl RankingStrategy for TemporalRankingStrategy {
 
         // Fetch all temporal edges to lookup node observation times
         let temp_edges = self.storage.list_all_temporal_edges()?;
-        let mut node_recency: std::collections::HashMap<NodeId, u64> = std::collections::HashMap::new();
+        let mut node_recency: std::collections::HashMap<NodeId, u64> =
+            std::collections::HashMap::new();
 
         for te in &temp_edges {
             let t = te.observed_at.unix_seconds();
-            node_recency.entry(te.edge.source)
+            node_recency
+                .entry(te.edge.source)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
-            node_recency.entry(te.edge.target)
+            node_recency
+                .entry(te.edge.target)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
         }
@@ -167,9 +172,11 @@ impl RankingStrategy for TemporalRankingStrategy {
             .into_iter()
             .map(|node| {
                 // Calculate match score
-                let base_score = crate::retrieval::source::calculate_token_overlap_score(&node, &request.query) as f64;
+                let base_score =
+                    crate::retrieval::source::calculate_token_overlap_score(&node, &request.query)
+                        as f64;
                 let obs_time = node_recency.get(&node.id).cloned().unwrap_or(0);
-                
+
                 let reference_secs = self.reference_time.unix_seconds();
                 let _elapsed = reference_secs.saturating_sub(obs_time) as f64;
 
@@ -222,7 +229,13 @@ impl TemporalRetrievalService {
         query: &str,
         limit: usize,
         temporal_query: &TemporalQuery,
-    ) -> Result<(Vec<MemoryDTO>, std::collections::HashMap<NodeId, Vec<Evidence>>), BrainError> {
+    ) -> Result<
+        (
+            Vec<MemoryDTO>,
+            std::collections::HashMap<NodeId, Vec<Evidence>>,
+        ),
+        BrainError,
+    > {
         let request = RetrievalRequest {
             session_id: *session_id,
             query: query.to_string(),
@@ -249,8 +262,8 @@ impl TemporalRetrievalService {
             self.registry.clone(),
         ));
 
-        let mut builder = crate::retrieval::pipeline::MemoryPipelineBuilder::new()
-            .register_source(ltm_source);
+        let mut builder =
+            crate::retrieval::pipeline::MemoryPipelineBuilder::new().register_source(ltm_source);
 
         if let Some(ref cache_manager) = self.cache_manager {
             builder = builder
@@ -285,13 +298,16 @@ impl TemporalRetrievalService {
         let mut explanations = std::collections::HashMap::new();
 
         // Build node recency map to explain decay rankings
-        let mut node_recency: std::collections::HashMap<NodeId, u64> = std::collections::HashMap::new();
+        let mut node_recency: std::collections::HashMap<NodeId, u64> =
+            std::collections::HashMap::new();
         for te in &temporal_edges {
             let t = te.observed_at.unix_seconds();
-            node_recency.entry(te.edge.source)
+            node_recency
+                .entry(te.edge.source)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
-            node_recency.entry(te.edge.target)
+            node_recency
+                .entry(te.edge.target)
                 .and_modify(|existing| *existing = std::cmp::max(*existing, t))
                 .or_insert(t);
         }
@@ -309,19 +325,36 @@ impl TemporalRetrievalService {
                 .iter()
                 .filter(|te| {
                     (te.edge.source == node.id || te.edge.target == node.id)
-                        && snapshot.active_edge_ids.contains(&EdgeId::new(te.edge.source, te.edge.target, te.edge.relation.id()))
+                        && snapshot.active_edge_ids.contains(&EdgeId::new(
+                            te.edge.source,
+                            te.edge.target,
+                            te.edge.relation.id(),
+                        ))
                 })
                 .collect();
 
             // Enforce strictly deterministic ordering of visibility evidence
             active_connected_edges.sort_by(|a, b| {
-                a.edge.source.0.cmp(&b.edge.source.0)
+                a.edge
+                    .source
+                    .0
+                    .cmp(&b.edge.source.0)
                     .then_with(|| a.edge.target.0.cmp(&b.edge.target.0))
-                    .then_with(|| a.edge.relation.id().as_str().cmp(b.edge.relation.id().as_str()))
+                    .then_with(|| {
+                        a.edge
+                            .relation
+                            .id()
+                            .as_str()
+                            .cmp(b.edge.relation.id().as_str())
+                    })
             });
 
             for te in active_connected_edges {
-                let visibility = brain_domain::query::HistoricalExplanationBuilder::build_visibility_evidence(te, temporal_query);
+                let visibility =
+                    brain_domain::query::HistoricalExplanationBuilder::build_visibility_evidence(
+                        te,
+                        temporal_query,
+                    );
                 node_evidences.push(visibility);
             }
 
@@ -337,7 +370,10 @@ impl TemporalRetrievalService {
                 if let RecencyPolicy::None = temporal_query.recency_policy {
                     // Do not append RecencyDecay for None policy to satisfy exact completeness mapping
                 } else {
-                    let decay_evidence = brain_domain::query::HistoricalExplanationBuilder::build_decay_evidence(&eval);
+                    let decay_evidence =
+                        brain_domain::query::HistoricalExplanationBuilder::build_decay_evidence(
+                            &eval,
+                        );
                     node_evidences.push(decay_evidence);
                 }
             }
@@ -380,37 +416,44 @@ impl RankingStrategy for LearnedTemporalScorer {
             return Ok(nodes);
         }
 
-        use brain_domain::retrieval::features::{MinMaxNormalizer, FeatureNormalizer, NormalizationContext};
-        use crate::retrieval::feature_extractor::{FeatureExtractor, DefaultFeatureExtractor};
+        use crate::retrieval::feature_extractor::{DefaultFeatureExtractor, FeatureExtractor};
+        use brain_domain::retrieval::features::{
+            FeatureNormalizer, MinMaxNormalizer, NormalizationContext,
+        };
 
         // 1. Fetch temporal edges and project snapshot
         let temp_edges = self.storage.list_all_temporal_edges()?;
-        let snapshot = brain_domain::temporal::TemporalProjector::project(&temp_edges, &brain_domain::temporal::TemporalQuery {
-            reference_time: self.reference_time,
-            visibility: brain_domain::temporal::TemporalVisibility::Historical,
-            recency_policy: self.recency_policy.clone(),
-        });
-        let projected_repos = ProjectedRepositoryView::new(
-            self.storage.clone() as Arc<dyn RepositorySet>,
-            snapshot,
+        let snapshot = brain_domain::temporal::TemporalProjector::project(
+            &temp_edges,
+            &brain_domain::temporal::TemporalQuery {
+                reference_time: self.reference_time,
+                visibility: brain_domain::temporal::TemporalVisibility::Historical,
+                recency_policy: self.recency_policy.clone(),
+            },
         );
+        let projected_repos =
+            ProjectedRepositoryView::new(self.storage.clone() as Arc<dyn RepositorySet>, snapshot);
 
         // 2. Extract raw features using FeatureExtractor
-        let extractor = DefaultFeatureExtractor::new(
-            self.reference_time,
-            self.recency_policy.clone(),
-        );
+        let extractor =
+            DefaultFeatureExtractor::new(self.reference_time, self.recency_policy.clone());
         let raw_features = extractor.extract(request, &nodes, &temp_edges, &projected_repos)?;
 
         // 3. Normalize features using FeatureNormalizer & NormalizationContext
         let normalizer = MinMaxNormalizer;
         let context = NormalizationContext::BatchMinMax;
-        let normalized_signals = normalizer.normalize(&raw_features, &context)
-            .map_err(|e| BrainError::Internal { message: format!("{:?}", e) })?;
+        let normalized_signals =
+            normalizer
+                .normalize(&raw_features, &context)
+                .map_err(|e| BrainError::Internal {
+                    message: format!("{:?}", e),
+                })?;
 
         // 4. Load active weights model and score nodes
         let routing_decision = self.weight_provider.route_decision(request)?;
-        let model = crate::retrieval::model_resolver::ModelDeserializer::resolve(&routing_decision.snapshot)?;
+        let model = crate::retrieval::model_resolver::ModelDeserializer::resolve(
+            &routing_decision.snapshot,
+        )?;
 
         let mut scored_nodes = Vec::with_capacity(nodes.len());
         for (idx, node) in nodes.into_iter().enumerate() {

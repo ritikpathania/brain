@@ -1,7 +1,7 @@
 use crate::retrieval::eval_harness::{
-    metrics::{compute_mrr, compute_precision_at_k, compute_recall_at_k, compute_ndcg_at_k},
-    FeatureContext, FeatureExtractor, LinearRanker, RankingWeights, RetrievalResult,
-    Retriever, GroundTruthCorpus, QueryCorpus,
+    metrics::{compute_mrr, compute_ndcg_at_k, compute_precision_at_k, compute_recall_at_k},
+    FeatureContext, FeatureExtractor, GroundTruthCorpus, LinearRanker, QueryCorpus, RankingWeights,
+    RetrievalResult, Retriever,
 };
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
@@ -132,7 +132,9 @@ impl EvaluationSession {
                 .map(|s| {
                     uuid::Uuid::parse_str(s)
                         .map(NodeId)
-                        .map_err(|e| BrainError::Internal { message: format!("Invalid UUID: {}", e) })
+                        .map_err(|e| BrainError::Internal {
+                            message: format!("Invalid UUID: {}", e),
+                        })
                 })
                 .collect::<Result<Vec<NodeId>, BrainError>>()?;
 
@@ -142,7 +144,9 @@ impl EvaluationSession {
                 .map(|s| {
                     uuid::Uuid::parse_str(s)
                         .map(NodeId)
-                        .map_err(|e| BrainError::Internal { message: format!("Invalid UUID: {}", e) })
+                        .map_err(|e| BrainError::Internal {
+                            message: format!("Invalid UUID: {}", e),
+                        })
                 })
                 .collect::<Result<Vec<NodeId>, BrainError>>()?;
 
@@ -219,7 +223,8 @@ impl EvaluationSession {
             crate::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
             let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
 
-            let recall_at_5 = compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+            let recall_at_5 =
+                compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
             let precision_at_5 = compute_precision_at_k(
                 &retrieved_ids,
                 &query_cache.expected_node_ids,
@@ -252,7 +257,11 @@ impl EvaluationSession {
             success_count += 1;
         }
 
-        let divisor = if success_count > 0 { success_count as f64 } else { 1.0 };
+        let divisor = if success_count > 0 {
+            success_count as f64
+        } else {
+            1.0
+        };
 
         CalibrationResult {
             weights,
@@ -265,7 +274,11 @@ impl EvaluationSession {
     }
 
     /// Evaluates in-memory candidate cache against a generic trained model.
-    pub fn evaluate_model<M: crate::retrieval::eval_harness::models::ScoreRanker>(&self, model: &M, weights: RankingWeights) -> CalibrationResult {
+    pub fn evaluate_model<M: crate::retrieval::eval_harness::models::ScoreRanker>(
+        &self,
+        model: &M,
+        weights: RankingWeights,
+    ) -> CalibrationResult {
         let extractor = FeatureExtractor::new(self.reference_time, self.decay);
 
         let mut sum_recall_at_5 = 0.0;
@@ -292,7 +305,8 @@ impl EvaluationSession {
             crate::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
             let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
 
-            let recall_at_5 = compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+            let recall_at_5 =
+                compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
             let precision_at_5 = compute_precision_at_k(
                 &retrieved_ids,
                 &query_cache.expected_node_ids,
@@ -325,7 +339,11 @@ impl EvaluationSession {
             success_count += 1;
         }
 
-        let divisor = if success_count > 0 { success_count as f64 } else { 1.0 };
+        let divisor = if success_count > 0 {
+            success_count as f64
+        } else {
+            1.0
+        };
 
         CalibrationResult {
             weights,
@@ -396,7 +414,9 @@ impl CalibrationEngine {
         results.sort_by(|a, b| {
             let score_a = objective.score(a);
             let score_b = objective.score(b);
-            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         results
@@ -455,7 +475,10 @@ impl MarkdownReportWriter {
         }
 
         if results.len() > 50 {
-            report.push_str(&format!("\n*(Truncated {} configurations...)*\n", results.len() - 50));
+            report.push_str(&format!(
+                "\n*(Truncated {} configurations...)*\n",
+                results.len() - 50
+            ));
         }
 
         report

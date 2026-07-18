@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use crate::bkf::ids::*;
 use crate::bkf::facts::BKFTargetRef;
+use crate::bkf::ids::*;
+use serde::{Deserialize, Serialize};
 
 /// Index reference to a vector embedding stored externally.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

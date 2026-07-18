@@ -1,14 +1,14 @@
-use std::sync::Arc;
 use brain_core::repositories::NodeRepository;
 use brain_domain::{
-    Node, Edge, NodeType, RelationKind, NodeId, SessionId,
     temporal::{
-        TimePoint, TimeInterval, TemporalValidity, RecencyPolicy,
-        TemporalVisibility, TemporalQuery, TemporalEdge
-    }
+        RecencyPolicy, TemporalEdge, TemporalQuery, TemporalValidity, TemporalVisibility,
+        TimeInterval, TimePoint,
+    },
+    Edge, Node, NodeId, NodeType, RelationKind, SessionId,
 };
-use brain_storage::TestStorage;
 use brain_services::retrieval::temporal::TemporalRetrievalService;
+use brain_storage::TestStorage;
+use std::sync::Arc;
 
 #[test]
 fn test_temporal_retrieval_and_invariants() {
@@ -41,7 +41,11 @@ fn test_temporal_retrieval_and_invariants() {
     e1.updated_at = 5;
     let te1 = TemporalEdge {
         edge: e1,
-        validity: TemporalValidity::new(vec![TimeInterval::new(TimePoint::from_unix_seconds(10), Some(TimePoint::from_unix_seconds(20))).unwrap()]),
+        validity: TemporalValidity::new(vec![TimeInterval::new(
+            TimePoint::from_unix_seconds(10),
+            Some(TimePoint::from_unix_seconds(20)),
+        )
+        .unwrap()]),
         observed_at: TimePoint::from_unix_seconds(5),
     };
     store.save_temporal_edge(&te1).unwrap();
@@ -51,7 +55,11 @@ fn test_temporal_retrieval_and_invariants() {
     e2.updated_at = 15;
     let te2 = TemporalEdge {
         edge: e2,
-        validity: TemporalValidity::new(vec![TimeInterval::new(TimePoint::from_unix_seconds(20), Some(TimePoint::from_unix_seconds(30))).unwrap()]),
+        validity: TemporalValidity::new(vec![TimeInterval::new(
+            TimePoint::from_unix_seconds(20),
+            Some(TimePoint::from_unix_seconds(30)),
+        )
+        .unwrap()]),
         observed_at: TimePoint::from_unix_seconds(15),
     };
     store.save_temporal_edge(&te2).unwrap();
@@ -63,16 +71,32 @@ fn test_temporal_retrieval_and_invariants() {
         recency_policy: RecencyPolicy::None,
     };
     // Search for "EntityA"
-    let (res_15, _) = service.retrieve_temporal(&session_id, "EntityA", 10, &query_15).unwrap();
+    let (res_15, _) = service
+        .retrieve_temporal(&session_id, "EntityA", 10, &query_15)
+        .unwrap();
     assert!(!res_15.is_empty(), "EntityA should be found");
-    let dto_a_15 = res_15.iter().find(|dto| dto.node.label == "EntityA").unwrap();
-    assert!(!dto_a_15.outgoing_edges.is_empty(), "EntityA should have active outgoing edges at T=15");
-    
+    let dto_a_15 = res_15
+        .iter()
+        .find(|dto| dto.node.label == "EntityA")
+        .unwrap();
+    assert!(
+        !dto_a_15.outgoing_edges.is_empty(),
+        "EntityA should have active outgoing edges at T=15"
+    );
+
     // Search for "EntityC"
-    let (res_15_c, _) = service.retrieve_temporal(&session_id, "EntityC", 10, &query_15).unwrap();
+    let (res_15_c, _) = service
+        .retrieve_temporal(&session_id, "EntityC", 10, &query_15)
+        .unwrap();
     assert!(!res_15_c.is_empty(), "EntityC should be found");
-    let dto_c_15 = res_15_c.iter().find(|dto| dto.node.label == "EntityC").unwrap();
-    assert!(dto_c_15.outgoing_edges.is_empty(), "EntityC should NOT have active outgoing edges at T=15");
+    let dto_c_15 = res_15_c
+        .iter()
+        .find(|dto| dto.node.label == "EntityC")
+        .unwrap();
+    assert!(
+        dto_c_15.outgoing_edges.is_empty(),
+        "EntityC should NOT have active outgoing edges at T=15"
+    );
 
     // Invariant 2: Historical "As Of" Retrieval at T=25
     let query_25 = TemporalQuery {
@@ -80,30 +104,68 @@ fn test_temporal_retrieval_and_invariants() {
         visibility: TemporalVisibility::Current,
         recency_policy: RecencyPolicy::None,
     };
-    let (res_25_a, _) = service.retrieve_temporal(&session_id, "EntityA", 10, &query_25).unwrap();
+    let (res_25_a, _) = service
+        .retrieve_temporal(&session_id, "EntityA", 10, &query_25)
+        .unwrap();
     assert!(!res_25_a.is_empty(), "EntityA should be found");
-    let dto_a_25 = res_25_a.iter().find(|dto| dto.node.label == "EntityA").unwrap();
-    assert!(dto_a_25.outgoing_edges.is_empty(), "EntityA should have no outgoing edges at T=25 (validity ended)");
-    
-    let (res_25_c, _) = service.retrieve_temporal(&session_id, "EntityC", 10, &query_25).unwrap();
+    let dto_a_25 = res_25_a
+        .iter()
+        .find(|dto| dto.node.label == "EntityA")
+        .unwrap();
+    assert!(
+        dto_a_25.outgoing_edges.is_empty(),
+        "EntityA should have no outgoing edges at T=25 (validity ended)"
+    );
+
+    let (res_25_c, _) = service
+        .retrieve_temporal(&session_id, "EntityC", 10, &query_25)
+        .unwrap();
     assert!(!res_25_c.is_empty(), "EntityC should be found");
-    let dto_c_25 = res_25_c.iter().find(|dto| dto.node.label == "EntityC").unwrap();
-    assert!(!dto_c_25.outgoing_edges.is_empty(), "EntityC should have outgoing edges at T=25");
+    let dto_c_25 = res_25_c
+        .iter()
+        .find(|dto| dto.node.label == "EntityC")
+        .unwrap();
+    assert!(
+        !dto_c_25.outgoing_edges.is_empty(),
+        "EntityC should have outgoing edges at T=25"
+    );
 
     // Invariant 3: Interval Intersection Visibility
     let query_interval = TemporalQuery {
         reference_time: TimePoint::from_unix_seconds(22),
-        visibility: TemporalVisibility::Interval(TimeInterval::new(TimePoint::from_unix_seconds(15), Some(TimePoint::from_unix_seconds(25))).unwrap()),
+        visibility: TemporalVisibility::Interval(
+            TimeInterval::new(
+                TimePoint::from_unix_seconds(15),
+                Some(TimePoint::from_unix_seconds(25)),
+            )
+            .unwrap(),
+        ),
         recency_policy: RecencyPolicy::None,
     };
-    let (res_interval_a, _) = service.retrieve_temporal(&session_id, "EntityA", 10, &query_interval).unwrap();
-    let (res_interval_c, _) = service.retrieve_temporal(&session_id, "EntityC", 10, &query_interval).unwrap();
-    
-    let dto_a_int = res_interval_a.iter().find(|dto| dto.node.label == "EntityA").unwrap();
-    let dto_c_int = res_interval_c.iter().find(|dto| dto.node.label == "EntityC").unwrap();
-    
-    assert!(!dto_a_int.outgoing_edges.is_empty(), "EntityA edges intersect [15, 25) with ref 22");
-    assert!(!dto_c_int.outgoing_edges.is_empty(), "EntityC edges intersect [15, 25) with ref 22");
+    let (res_interval_a, _) = service
+        .retrieve_temporal(&session_id, "EntityA", 10, &query_interval)
+        .unwrap();
+    let (res_interval_c, _) = service
+        .retrieve_temporal(&session_id, "EntityC", 10, &query_interval)
+        .unwrap();
+
+    let dto_a_int = res_interval_a
+        .iter()
+        .find(|dto| dto.node.label == "EntityA")
+        .unwrap();
+    let dto_c_int = res_interval_c
+        .iter()
+        .find(|dto| dto.node.label == "EntityC")
+        .unwrap();
+
+    assert!(
+        !dto_a_int.outgoing_edges.is_empty(),
+        "EntityA edges intersect [15, 25) with ref 22"
+    );
+    assert!(
+        !dto_c_int.outgoing_edges.is_empty(),
+        "EntityC edges intersect [15, 25) with ref 22"
+    );
 
     // Invariant 4: Recency-Aware Preference Ranking
     // Add Node E
@@ -137,6 +199,8 @@ fn test_temporal_retrieval_and_invariants() {
         visibility: TemporalVisibility::Current,
         recency_policy: RecencyPolicy::Linear { horizon_secs: 30.0 },
     };
-    let (res_decay, _) = service.retrieve_temporal(&session_id, "CommonLabel", 10, &query_decay).unwrap();
+    let (res_decay, _) = service
+        .retrieve_temporal(&session_id, "CommonLabel", 10, &query_decay)
+        .unwrap();
     assert!(!res_decay.is_empty());
 }

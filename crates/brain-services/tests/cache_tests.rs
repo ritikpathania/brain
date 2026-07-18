@@ -1,15 +1,14 @@
-use brain_domain::{
-    KnowledgeGraph, Node, NodeId, NodeType, Edge, RelationKind,
-    GraphAnalyticsContext, RelationRegistry
-};
-use brain_domain::retrieval::{
-    RetrievalRequest, RetrievalPlanner, PlanOptimizer, RetrievalExecutor,
-    ReciprocalRankFusion, NormalizedTieBreakerRanking, QueryCompiler,
-    RetrievalExecutionContext, QueryRequest,
-    RetrievalEvent, RecordingSink, CostHeuristics, NeverCancelled
-};
-use brain_services::retrieval::cache::{SnapshotGenerator, ExecutionCache};
 use brain_domain::retrieval::cache::CompiledQueryCacheKey;
+use brain_domain::retrieval::{
+    CostHeuristics, NeverCancelled, NormalizedTieBreakerRanking, PlanOptimizer, QueryCompiler,
+    QueryRequest, ReciprocalRankFusion, RecordingSink, RetrievalEvent, RetrievalExecutionContext,
+    RetrievalExecutor, RetrievalPlanner, RetrievalRequest,
+};
+use brain_domain::{
+    Edge, GraphAnalyticsContext, KnowledgeGraph, Node, NodeId, NodeType, RelationKind,
+    RelationRegistry,
+};
+use brain_services::retrieval::cache::{ExecutionCache, SnapshotGenerator};
 
 fn create_test_graph() -> (KnowledgeGraph, NodeId, NodeId, NodeId) {
     let mut graph = KnowledgeGraph::new();
@@ -18,11 +17,23 @@ fn create_test_graph() -> (KnowledgeGraph, NodeId, NodeId, NodeId) {
     let node_c = NodeId::new();
 
     graph.add_node(Node::new(node_a, "Rust".to_string(), NodeType::Concept));
-    graph.add_node(Node::new(node_b, "Cargo package manager".to_string(), NodeType::Concept));
-    graph.add_node(Node::new(node_c, "Compiler tools".to_string(), NodeType::Concept));
+    graph.add_node(Node::new(
+        node_b,
+        "Cargo package manager".to_string(),
+        NodeType::Concept,
+    ));
+    graph.add_node(Node::new(
+        node_c,
+        "Compiler tools".to_string(),
+        NodeType::Concept,
+    ));
 
-    graph.add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9)).unwrap();
-    graph.add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.7)).unwrap();
+    graph
+        .add_edge(Edge::new(node_a, node_b, RelationKind::Uses, 0.9))
+        .unwrap();
+    graph
+        .add_edge(Edge::new(node_b, node_c, RelationKind::Uses, 0.7))
+        .unwrap();
 
     (graph, node_a, node_b, node_c)
 }
@@ -98,20 +109,32 @@ fn test_layered_execution_cache() {
     assert_eq!(events_uncached.len(), events_cached.len());
     for (ev_u, ev_c) in events_uncached.iter().zip(events_cached.iter()) {
         match (ev_u, ev_c) {
-            (RetrievalEvent::StageStarted { stage: s1 }, RetrievalEvent::StageStarted { stage: s2 }) => {
+            (
+                RetrievalEvent::StageStarted { stage: s1 },
+                RetrievalEvent::StageStarted { stage: s2 },
+            ) => {
                 assert_eq!(s1, s2);
             }
-            (RetrievalEvent::StageCompleted { stage: s1 }, RetrievalEvent::StageCompleted { stage: s2 }) => {
+            (
+                RetrievalEvent::StageCompleted { stage: s1 },
+                RetrievalEvent::StageCompleted { stage: s2 },
+            ) => {
                 assert_eq!(s1, s2);
             }
             (RetrievalEvent::CandidateFound(c1), RetrievalEvent::CandidateFound(c2)) => {
                 assert_eq!(c1.node_id, c2.node_id);
                 assert_eq!(c1.source_id, c2.source_id);
             }
-            (RetrievalEvent::ExplanationUpdated { node_id: n1, .. }, RetrievalEvent::ExplanationUpdated { node_id: n2, .. }) => {
+            (
+                RetrievalEvent::ExplanationUpdated { node_id: n1, .. },
+                RetrievalEvent::ExplanationUpdated { node_id: n2, .. },
+            ) => {
                 assert_eq!(n1, n2);
             }
-            (RetrievalEvent::Completed { reason: r1, .. }, RetrievalEvent::Completed { reason: r2, .. }) => {
+            (
+                RetrievalEvent::Completed { reason: r1, .. },
+                RetrievalEvent::Completed { reason: r2, .. },
+            ) => {
                 assert_eq!(r1, r2);
             }
             _ => panic!("Event mismatch under cached execution!"),

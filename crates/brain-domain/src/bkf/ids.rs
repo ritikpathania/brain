@@ -29,11 +29,23 @@ macro_rules! define_bkf_id {
     };
 }
 
-define_bkf_id!(BkfDocumentId, "Strongly-typed identifier for a BKF Document.");
+define_bkf_id!(
+    BkfDocumentId,
+    "Strongly-typed identifier for a BKF Document."
+);
 define_bkf_id!(BkfSectionId, "Strongly-typed identifier for a BKF Section.");
 define_bkf_id!(BkfBlockId, "Strongly-typed identifier for a BKF Block.");
 define_bkf_id!(BkfEntityId, "Strongly-typed identifier for a BKF Entity.");
-define_bkf_id!(BkfRelationshipId, "Strongly-typed identifier for a BKF Relationship.");
+define_bkf_id!(
+    BkfRelationshipId,
+    "Strongly-typed identifier for a BKF Relationship."
+);
 define_bkf_id!(BkfFactId, "Strongly-typed identifier for a BKF Fact.");
-define_bkf_id!(BkfCitationId, "Strongly-typed identifier for a BKF Citation.");
-define_bkf_id!(BkfAttachmentId, "Strongly-typed identifier for a BKF Attachment.");
+define_bkf_id!(
+    BkfCitationId,
+    "Strongly-typed identifier for a BKF Citation."
+);
+define_bkf_id!(
+    BkfAttachmentId,
+    "Strongly-typed identifier for a BKF Attachment."
+);

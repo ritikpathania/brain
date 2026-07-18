@@ -1,5 +1,5 @@
-use tokio::sync::broadcast;
 use brain_events::SequenceNumber;
+use tokio::sync::broadcast;
 
 /// Strongly-typed identifier to identify distinct projections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

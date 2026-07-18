@@ -1,20 +1,20 @@
-use brain_tui::ui::interaction::{
-    Editor, ScrollState, Dispatcher, InteractionContext, DispatchResult,
-    SidebarInteraction, SessionLookup
-};
 use brain_tui::ui::command::completion::SlashCompletionState;
 use brain_tui::ui::command::palette::CommandPaletteState;
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
+use brain_tui::ui::interaction::{
+    DispatchResult, Dispatcher, Editor, InteractionContext, ScrollState, SessionLookup,
+    SidebarInteraction,
+};
 
-
-use brain_tui::ui::widgets::view_models::FocusTarget;
-use brain_tui::ui::input::{InputAction, Command, TextInput};
 use brain_domain::SessionId;
-
+use brain_tui::ui::input::{Command, InputAction, TextInput};
+use brain_tui::ui::widgets::view_models::FocusTarget;
 
 struct DummyLookup;
 impl SessionLookup for DummyLookup {
-    fn title(&self, _id: SessionId) -> Option<&str> { None }
+    fn title(&self, _id: SessionId) -> Option<&str> {
+        None
+    }
 }
 
 #[test]
@@ -23,7 +23,7 @@ fn test_editor_cursor_reversibility() {
     editor.insert('a');
     editor.insert('b');
     editor.insert('c');
-    
+
     assert_eq!(editor.text(), "abc");
     assert_eq!(editor.cursor().byte_index, 3);
     assert_eq!(editor.cursor().visual_col, 3);
@@ -44,7 +44,7 @@ fn test_editor_cursor_reversibility() {
 #[test]
 fn test_editor_boundary_deletes() {
     let mut editor = Editor::new();
-    
+
     // Backspacing on empty buffer is a safe no-op
     editor.backspace();
     assert_eq!(editor.text(), "");
@@ -57,7 +57,7 @@ fn test_editor_boundary_deletes() {
 
     editor.insert('x');
     editor.insert('y');
-    
+
     // Cursor is at end (idx 2). Deleting at end is a safe no-op
     editor.delete();
     assert_eq!(editor.text(), "xy");
@@ -135,14 +135,19 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(
         res,
-        DispatchResult { needs_render: false, should_exit: true, ui_event: None }
+        DispatchResult {
+            needs_render: false,
+            should_exit: true,
+            ui_event: None
+        }
     );
 
     // FocusNext action sets needs_render = true
@@ -159,14 +164,19 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(
         res,
-        DispatchResult { needs_render: true, should_exit: false, ui_event: None }
+        DispatchResult {
+            needs_render: true,
+            should_exit: false,
+            ui_event: None
+        }
     );
 
     // Reset focus back to Prompt so the following text input is not ignored by the sidebar focus filter
@@ -186,14 +196,19 @@ fn test_dispatcher_exit_needs_render() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(
         res,
-        DispatchResult { needs_render: true, should_exit: false, ui_event: None }
+        DispatchResult {
+            needs_render: true,
+            should_exit: false,
+            ui_event: None
+        }
     );
     assert_eq!(editor.text(), "z");
 }
@@ -220,7 +235,7 @@ fn test_separation_of_concerns() {
     // Scroll operations must NOT modify editor state or cursor state
     let original_text = editor.text().to_string();
     let original_cursor = editor.cursor();
-    
+
     Dispatcher::dispatch(
         InputAction::Command(Command::ScrollDown),
         &mut InteractionContext {
@@ -234,10 +249,11 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(scroll.offset(), 1);
     assert_eq!(editor.text(), original_text);
@@ -258,10 +274,11 @@ fn test_separation_of_concerns() {
             is_connected: true,
             visible_ids: &visible_ids,
             lookup: &lookup,
-            pending_approvals: &mut pending_approvals, sessions: &[], active_messages: &[],
-        }
+            pending_approvals: &mut pending_approvals,
+            sessions: &[],
+            active_messages: &[],
+        },
     );
-
 
     assert_eq!(editor.cursor().byte_index, 1);
     assert_eq!(scroll.offset(), original_offset);

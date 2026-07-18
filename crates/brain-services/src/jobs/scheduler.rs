@@ -1,19 +1,16 @@
 //! Background job scheduler with queueing, priority FIFO, cycles, and dependency resolution.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
-use parking_lot::RwLock;
-use thiserror::Error;
-use brain_domain::{
-    Job, JobId, JobKind, JobPriority, JobState, JobTimestamp
-};
 use super::executor::{
-    JobExecutorRegistry, JobExecutionContext, JobExecutionResult,
-    JobExecutionFailure
+    JobExecutionContext, JobExecutionFailure, JobExecutionResult, JobExecutorRegistry,
 };
 use super::publisher::DomainEventPublisher;
+use brain_domain::{Job, JobId, JobKind, JobPriority, JobState, JobTimestamp};
+use parking_lot::RwLock;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
+use thiserror::Error;
+use tokio::sync::{mpsc, oneshot};
+use tokio_util::sync::CancellationToken;
 
 /// Monotonic enqueue ordinal to preserve submission order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -123,7 +120,10 @@ impl JobScheduler {
     ) -> Self {
         let (tx, rx) = mpsc::channel(100);
         let jobs = Arc::new(RwLock::new(HashMap::new()));
-        let scheduler = Self { tx, jobs: jobs.clone() };
+        let scheduler = Self {
+            tx,
+            jobs: jobs.clone(),
+        };
 
         let inner = SchedulerInner {
             jobs: HashMap::new(),
@@ -147,7 +147,11 @@ impl JobScheduler {
     }
 
     /// Submit a job to the scheduler.
-    pub async fn submit(&self, job: Job, dependencies: BTreeSet<JobId>) -> Result<(), SchedulerError> {
+    pub async fn submit(
+        &self,
+        job: Job,
+        dependencies: BTreeSet<JobId>,
+    ) -> Result<(), SchedulerError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(SchedulerCommand::Submit {
@@ -198,7 +202,11 @@ async fn scheduler_actor_loop(
 ) {
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            SchedulerCommand::Submit { job, dependencies, reply } => {
+            SchedulerCommand::Submit {
+                job,
+                dependencies,
+                reply,
+            } => {
                 let job_id = job.id();
                 let job_kind = job.kind();
 
@@ -274,7 +282,13 @@ async fn scheduler_actor_loop(
                 }
 
                 let _ = reply.send(Ok(()));
-                dispatch_ready_jobs(&mut inner, &registry, &shared_jobs, &self_tx, &event_publisher);
+                dispatch_ready_jobs(
+                    &mut inner,
+                    &registry,
+                    &shared_jobs,
+                    &self_tx,
+                    &event_publisher,
+                );
             }
 
             SchedulerCommand::Cancel { job_id, reply } => {
@@ -365,7 +379,9 @@ async fn scheduler_actor_loop(
                     for dep_id in completed_dependents {
                         if let Some(dep_sj) = inner.jobs.get_mut(&dep_id) {
                             dep_sj.dependencies.remove(&job_id);
-                            if dep_sj.dependencies.is_empty() && dep_sj.job.state() == JobState::Pending {
+                            if dep_sj.dependencies.is_empty()
+                                && dep_sj.job.state() == JobState::Pending
+                            {
                                 readied.push(RunnableJob {
                                     id: dep_id,
                                     priority: dep_sj.job.priority(),
@@ -384,7 +400,13 @@ async fn scheduler_actor_loop(
                     cascade_cancellation(job_id, &mut inner, &shared_jobs, &event_publisher);
                 }
 
-                dispatch_ready_jobs(&mut inner, &registry, &shared_jobs, &self_tx, &event_publisher);
+                dispatch_ready_jobs(
+                    &mut inner,
+                    &registry,
+                    &shared_jobs,
+                    &self_tx,
+                    &event_publisher,
+                );
             }
         }
     }
@@ -426,17 +448,19 @@ fn dispatch_ready_jobs(
                 tokio::spawn(async move {
                     let executor = registry_clone.get(job_kind);
                     let ctx = JobExecutionContext::new(token);
-                    
+
                     let res = if let Some(exec) = executor {
                         exec.execute(job_id, &ctx).await
                     } else {
                         Err(JobExecutionFailure("No executor registered".to_string()))
                     };
 
-                    let _ = worker_tx.send(SchedulerCommand::WorkerFinished {
-                        job_id,
-                        result: res,
-                    }).await;
+                    let _ = worker_tx
+                        .send(SchedulerCommand::WorkerFinished {
+                            job_id,
+                            result: res,
+                        })
+                        .await;
                 });
             }
         } else {
@@ -488,7 +512,10 @@ fn cascade_cancellation(
 }
 
 fn is_terminal(state: JobState) -> bool {
-    matches!(state, JobState::Completed | JobState::Failed | JobState::Cancelled)
+    matches!(
+        state,
+        JobState::Completed | JobState::Failed | JobState::Cancelled
+    )
 }
 
 fn current_unix_timestamp() -> u64 {

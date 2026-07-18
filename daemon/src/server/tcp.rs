@@ -10,8 +10,7 @@ pub async fn start_health_server(
     metrics: Arc<DaemonMetrics>,
     analytics_db: Arc<AnalyticsDatabase>,
 ) {
-    let port = std::env::var("BRAIN_HEALTH_PORT")
-        .unwrap_or_else(|_| "8080".to_string());
+    let port = std::env::var("BRAIN_HEALTH_PORT").unwrap_or_else(|_| "8080".to_string());
     let addr = format!("127.0.0.1:{}", port);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
@@ -98,8 +97,56 @@ pub async fn start_health_server(
                             0.0
                         };
 
+                        // Sprint 7 — runtime parity derived values
+                        let rt_attempts =
+                            metrics_ref.runtime_ingest_attempts.load(Ordering::Relaxed);
+                        let rt_successes =
+                            metrics_ref.runtime_ingest_successes.load(Ordering::Relaxed);
+                        let rt_failures =
+                            metrics_ref.runtime_ingest_failures.load(Ordering::Relaxed);
+                        let rt_success_rate = if rt_attempts > 0 {
+                            rt_successes as f64 / rt_attempts as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_avg_lat_us = if rt_successes > 0 {
+                            metrics_ref
+                                .runtime_ingest_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_latency_ratio = if i_lat_us > 0.0 {
+                            rt_avg_lat_us / i_lat_us
+                        } else {
+                            0.0
+                        };
+
+                        let rt_canon_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_reflect_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_dispatch_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+
+                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                            reservoir.percentiles()
+                        } else {
+                            (0, 0, 0)
+                        };
+
                         let response_body = format!(
-                            r#"{{"cache_hit_rate":{},"cache_hits":{},"cache_misses":{},"total_queries":{},"total_ingests":{},"active_workers":{},"queue_depth":{},"avg_query_latency_us":{},"avg_ingest_latency_us":{},"avg_extraction_latency_us":{},"avg_sqlite_latency_us":{},"avg_ipc_latency_us":{}}}"#,
+                            r#"{{"cache_hit_rate":{},"cache_hits":{},"cache_misses":{},"total_queries":{},"total_ingests":{},"active_workers":{},"queue_depth":{},"avg_query_latency_us":{},"avg_ingest_latency_us":{},"avg_extraction_latency_us":{},"avg_sqlite_latency_us":{},"avg_ipc_latency_us":{},"runtime_ingest_attempts":{},"runtime_ingest_successes":{},"runtime_ingest_failures":{},"runtime_ingest_success_rate":{},"runtime_avg_ingest_latency_us":{},"legacy_avg_ingest_latency_us":{},"runtime_ingest_latency_ratio":{},"runtime_avg_canonicalization_us":{},"runtime_avg_reflection_us":{},"runtime_avg_dispatch_us":{},"runtime_p50_latency_us":{},"runtime_p95_latency_us":{},"runtime_p99_latency_us":{}}}"#,
                             hit_rate,
                             hits,
                             misses,
@@ -111,7 +158,20 @@ pub async fn start_health_server(
                             i_lat_us,
                             ext_lat_us,
                             sql_lat_us,
-                            ipc_lat_us
+                            ipc_lat_us,
+                            rt_attempts,
+                            rt_successes,
+                            rt_failures,
+                            rt_success_rate,
+                            rt_avg_lat_us,
+                            i_lat_us,
+                            rt_latency_ratio,
+                            rt_canon_lat_us,
+                            rt_reflect_lat_us,
+                            rt_dispatch_lat_us,
+                            p50,
+                            p95,
+                            p99
                         );
                         ("200 OK", "application/json", response_body)
                     } else if request.contains("GET /metrics ") {
@@ -167,6 +227,58 @@ pub async fn start_health_server(
                         let sql_lat_sec = sql_lat_us / 1_000_000.0;
                         let ipc_lat_sec = ipc_lat_us / 1_000_000.0;
 
+                        // Sprint 7 — runtime parity derived values
+                        let rt_attempts =
+                            metrics_ref.runtime_ingest_attempts.load(Ordering::Relaxed);
+                        let rt_successes =
+                            metrics_ref.runtime_ingest_successes.load(Ordering::Relaxed);
+                        let rt_failures =
+                            metrics_ref.runtime_ingest_failures.load(Ordering::Relaxed);
+                        let rt_success_rate = if rt_attempts > 0 {
+                            rt_successes as f64 / rt_attempts as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_avg_lat_us = if rt_successes > 0 {
+                            metrics_ref
+                                .runtime_ingest_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_avg_lat_sec = rt_avg_lat_us / 1_000_000.0;
+                        let rt_latency_ratio = if i_lat_us > 0.0 {
+                            rt_avg_lat_us / i_lat_us
+                        } else {
+                            0.0
+                        };
+
+                        let rt_canon_lat_sec = if rt_successes > 0 {
+                            (metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                        } else {
+                            0.0
+                        };
+                        let rt_reflect_lat_sec = if rt_successes > 0 {
+                            (metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                        } else {
+                            0.0
+                        };
+                        let rt_dispatch_lat_sec = if rt_successes > 0 {
+                            (metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64) / 1_000_000.0
+                        } else {
+                            0.0
+                        };
+
+                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                            reservoir.percentiles()
+                        } else {
+                            (0, 0, 0)
+                        };
+                        let p50_sec = p50 as f64 / 1_000_000.0;
+                        let p95_sec = p95 as f64 / 1_000_000.0;
+                        let p99_sec = p99 as f64 / 1_000_000.0;
+
                         let prometheus_body = format!(
                             r#"# HELP brain_cache_hit_rate Rate of queries served from volatile short-term memory
 # TYPE brain_cache_hit_rate gauge
@@ -192,7 +304,7 @@ brain_queue_depth {}
 # HELP brain_avg_query_latency_seconds Average query processing time in seconds
 # TYPE brain_avg_query_latency_seconds gauge
 brain_avg_query_latency_seconds {}
-# HELP brain_avg_ingest_latency_seconds Average ingest processing time in seconds
+# HELP brain_avg_ingest_latency_seconds Average legacy ingest processing time in seconds
 # TYPE brain_avg_ingest_latency_seconds gauge
 brain_avg_ingest_latency_seconds {}
 # HELP brain_avg_extraction_latency_seconds Average extraction processing time in seconds
@@ -204,6 +316,43 @@ brain_avg_sqlite_latency_seconds {}
 # HELP brain_avg_ipc_latency_seconds Average IPC roundtrip latency in seconds
 # TYPE brain_avg_ipc_latency_seconds gauge
 brain_avg_ipc_latency_seconds {}
+# HELP brain_runtime_ingest_attempts_total BrainRuntime ingest attempts (Sprint 7 parity)
+# TYPE brain_runtime_ingest_attempts_total counter
+brain_runtime_ingest_attempts_total {}
+# HELP brain_runtime_ingest_successes_total BrainRuntime ingest successes
+# TYPE brain_runtime_ingest_successes_total counter
+brain_runtime_ingest_successes_total {}
+# HELP brain_runtime_ingest_failures_total BrainRuntime ingest failures (non-fatal)
+# TYPE brain_runtime_ingest_failures_total counter
+brain_runtime_ingest_failures_total {}
+# HELP brain_runtime_ingest_success_rate Fraction of runtime ingests that succeeded (0.0-1.0)
+# TYPE brain_runtime_ingest_success_rate gauge
+# NOTE: sampled from independent atomics; use trends over time, not single scrapes
+brain_runtime_ingest_success_rate {}
+# HELP brain_runtime_avg_ingest_latency_seconds Average BrainRuntime ingest latency in seconds
+# TYPE brain_runtime_avg_ingest_latency_seconds gauge
+brain_runtime_avg_ingest_latency_seconds {}
+# HELP brain_runtime_ingest_latency_ratio Runtime latency relative to legacy (1.0 = parity)
+# TYPE brain_runtime_ingest_latency_ratio gauge
+brain_runtime_ingest_latency_ratio {}
+# HELP brain_runtime_avg_canonicalization_seconds Average BrainRuntime canonicalization stage latency in seconds
+# TYPE brain_runtime_avg_canonicalization_seconds gauge
+brain_runtime_avg_canonicalization_seconds {}
+# HELP brain_runtime_avg_reflection_seconds Average BrainRuntime reflection stage latency in seconds
+# TYPE brain_runtime_avg_reflection_seconds gauge
+brain_runtime_avg_reflection_seconds {}
+# HELP brain_runtime_avg_dispatch_seconds Average BrainRuntime dispatch stage latency in seconds
+# TYPE brain_runtime_avg_dispatch_seconds gauge
+brain_runtime_avg_dispatch_seconds {}
+# HELP brain_runtime_p50_latency_seconds P50 BrainRuntime ingest latency in seconds
+# TYPE brain_runtime_p50_latency_seconds gauge
+brain_runtime_p50_latency_seconds {}
+# HELP brain_runtime_p95_latency_seconds P95 BrainRuntime ingest latency in seconds
+# TYPE brain_runtime_p95_latency_seconds gauge
+brain_runtime_p95_latency_seconds {}
+# HELP brain_runtime_p99_latency_seconds P99 BrainRuntime ingest latency in seconds
+# TYPE brain_runtime_p99_latency_seconds gauge
+brain_runtime_p99_latency_seconds {}
 "#,
                             hit_rate,
                             hits,
@@ -216,9 +365,78 @@ brain_avg_ipc_latency_seconds {}
                             i_lat_sec,
                             ext_lat_sec,
                             sql_lat_sec,
-                            ipc_lat_sec
+                            ipc_lat_sec,
+                            rt_attempts,
+                            rt_successes,
+                            rt_failures,
+                            rt_success_rate,
+                            rt_avg_lat_sec,
+                            rt_latency_ratio,
+                            rt_canon_lat_sec,
+                            rt_reflect_lat_sec,
+                            rt_dispatch_lat_sec,
+                            p50_sec,
+                            p95_sec,
+                            p99_sec
                         );
                         ("200 OK", "text/plain; version=0.0.4", prometheus_body)
+                    } else if request.contains("GET /metrics/runtime ") {
+                        let rt_attempts =
+                            metrics_ref.runtime_ingest_attempts.load(Ordering::Relaxed);
+                        let rt_successes =
+                            metrics_ref.runtime_ingest_successes.load(Ordering::Relaxed);
+                        let rt_failures =
+                            metrics_ref.runtime_ingest_failures.load(Ordering::Relaxed);
+                        let rt_success_rate = if rt_attempts > 0 {
+                            rt_successes as f64 / rt_attempts as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_avg_lat_us = if rt_successes > 0 {
+                            metrics_ref
+                                .runtime_ingest_latency_us
+                                .load(Ordering::Relaxed) as f64
+                                / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_canon_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_canonicalization_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_reflect_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_reflection_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+                        let rt_dispatch_lat_us = if rt_successes > 0 {
+                            metrics_ref.runtime_dispatch_latency_us.load(Ordering::Relaxed) as f64 / rt_successes as f64
+                        } else {
+                            0.0
+                        };
+
+                        let (p50, p95, p99) = if let Ok(reservoir) = metrics_ref.runtime_latency_reservoir.lock() {
+                            reservoir.percentiles()
+                        } else {
+                            (0, 0, 0)
+                        };
+
+                        let response_body = format!(
+                            r#"{{"status":"ok","ingests":{{"attempts":{},"successes":{},"failures":{},"success_rate":{}}},"latency":{{"avg_us":{},"p50_us":{},"p95_us":{},"p99_us":{}}},"stages":{{"canonicalization_avg_us":{},"reflection_avg_us":{},"dispatch_avg_us":{}}},"note":"Sampled from independent atomics. Use trends, not single scrapes."}}"#,
+                            rt_attempts,
+                            rt_successes,
+                            rt_failures,
+                            rt_success_rate,
+                            rt_avg_lat_us,
+                            p50,
+                            p95,
+                            p99,
+                            rt_canon_lat_us,
+                            rt_reflect_lat_us,
+                            rt_dispatch_lat_us
+                        );
+                        ("200 OK", "application/json", response_body)
                     } else if request.contains("GET /analytics/summary ") {
                         match analytics_ref.get_summary() {
                             Ok(sum) => (

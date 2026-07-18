@@ -1,7 +1,9 @@
 use crate::identifiers::NodeId;
-use crate::query::analytics::{AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, StronglyConnectedComponent};
-use std::collections::{HashMap, HashSet};
+use crate::query::analytics::{
+    AnalyticsAlgorithm, Complexity, GraphAnalyticsContext, StronglyConnectedComponent,
+};
 use std::cmp;
+use std::collections::{HashMap, HashSet};
 
 /// Configuration settings for strongly connected components query.
 #[derive(Debug, Clone, Default)]

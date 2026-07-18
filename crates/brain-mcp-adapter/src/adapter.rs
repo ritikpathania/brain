@@ -1,9 +1,11 @@
+use crate::mapping::{McpErrorMapper, McpEventMapper};
+use crate::protocol::{JsonRpcNotification, JsonRpcRequest, JsonRpcResponse};
+use crate::registry::CapabilityRegistry;
+use brain_application::{
+    ApplicationEvent, ApplicationEventSink, BrainApplication, ExecutionContext,
+};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use brain_application::{BrainApplication, ExecutionContext, ApplicationEvent, ApplicationEventSink};
-use crate::protocol::{JsonRpcRequest, JsonRpcResponse, JsonRpcNotification};
-use crate::registry::CapabilityRegistry;
-use crate::mapping::{McpErrorMapper, McpEventMapper};
 
 /// Stdio progress event dispatcher.
 struct StdioEventSink {
@@ -58,7 +60,7 @@ impl McpAdapter {
         }
 
         match req.method.as_str() {
-             "initialize" => {
+            "initialize" => {
                 let caps_list: Vec<&str> = self.registry.list().iter().map(|c| c.name()).collect();
                 let res = serde_json::json!({
                     "protocolVersion": "2024-11-05",
@@ -80,18 +82,23 @@ impl McpAdapter {
                 }
             }
             "tools/list" => {
-                let mcp_tools: Vec<serde_json::Value> = self.registry.list().iter().map(|cap| {
-                    serde_json::json!({
-                        "name": format!("brain_{}", cap.name()),
-                        "description": cap.description(),
-                        "inputSchema": cap.input_schema()
+                let mcp_tools: Vec<serde_json::Value> = self
+                    .registry
+                    .list()
+                    .iter()
+                    .map(|cap| {
+                        serde_json::json!({
+                            "name": format!("brain_{}", cap.name()),
+                            "description": cap.description(),
+                            "inputSchema": cap.input_schema()
+                        })
                     })
-                }).collect();
-                
+                    .collect();
+
                 let res = serde_json::json!({
                     "tools": mcp_tools
                 });
-                
+
                 JsonRpcResponse {
                     jsonrpc: "2.0".to_string(),
                     result: Some(res),
@@ -142,7 +149,10 @@ impl McpAdapter {
                         result: None,
                         error: Some(crate::protocol::JsonRpcError {
                             code: -32601, // Method not found
-                            message: format!("Unknown tool name: {}. Must be prefixed with 'brain_'.", tool_name),
+                            message: format!(
+                                "Unknown tool name: {}. Must be prefixed with 'brain_'.",
+                                tool_name
+                            ),
                             data: None,
                         }),
                         id: req_id,
@@ -165,15 +175,18 @@ impl McpAdapter {
                     }
                 };
 
-                let arguments = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
-                
+                let arguments = params
+                    .get("arguments")
+                    .cloned()
+                    .unwrap_or(serde_json::json!({}));
+
                 // Formulate request_token for progress notifications
                 let request_token_str = match req_id.as_str() {
                     Some(s) => s.to_string(),
                     None => match req_id.as_i64() {
                         Some(i) => i.to_string(),
                         None => "mcp-call".to_string(),
-                    }
+                    },
                 };
 
                 // Configure ExecutionContext

@@ -1,20 +1,22 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::alloc::{GlobalAlloc, Layout, System};
+use std::fs;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use std::path::PathBuf;
-use std::fs;
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{MemorySource, MemorySourceResult, SourceMetadata, RetrievalRequest, EmbeddingProvider, DefaultQueryEmbeddingService};
-use brain_domain::{RelationRegistry, Node, NodeId};
-use brain_storage::store::SqliteStorage;
-use brain_services::retrieval::source::{LtmMemorySource, SemanticMemorySource};
-use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, RrfRanking};
+use brain_core::retrieval::{
+    DefaultQueryEmbeddingService, EmbeddingProvider, MemorySource, MemorySourceResult,
+    RetrievalRequest, SourceMetadata,
+};
+use brain_domain::{Node, NodeId, RelationRegistry};
 use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
-
+use brain_services::retrieval::ranking::{Bm25Ranking, EmbeddingRanking, RrfRanking};
+use brain_services::retrieval::source::{LtmMemorySource, SemanticMemorySource};
+use brain_storage::store::SqliteStorage;
 
 // ============================================================================
 // Local Heuristic Matching Implementation for Baseline Benchmarking
@@ -23,18 +25,19 @@ use brain_services::retrieval::pipeline::MemoryPipelineBuilder;
 fn levenshtein_distance(s1: &str, s2: &str) -> usize {
     let len1 = s1.chars().count();
     let len2 = s2.chars().count();
-    if len1 == 0 { return len2; }
-    if len2 == 0 { return len1; }
+    if len1 == 0 {
+        return len2;
+    }
+    if len2 == 0 {
+        return len1;
+    }
 
     let mut row: Vec<usize> = (0..=len2).collect();
     for (i, c1) in s1.chars().enumerate() {
         let mut prev = i + 1;
         for (j, c2) in s2.chars().enumerate() {
             let cost = if c1 == c2 { 0 } else { 1 };
-            let val = std::cmp::min(
-                row[j + 1] + 1,
-                std::cmp::min(prev + 1, row[j] + cost),
-            );
+            let val = std::cmp::min(row[j + 1] + 1, std::cmp::min(prev + 1, row[j] + cost));
             row[j] = prev;
             prev = val;
         }
@@ -170,7 +173,9 @@ impl MemorySource for HeuristicMemorySource {
                     continue;
                 };
 
-                if !candidates.contains_key(&neighbor_id) && !request.exclude_ids.contains(&neighbor_id) {
+                if !candidates.contains_key(&neighbor_id)
+                    && !request.exclude_ids.contains(&neighbor_id)
+                {
                     if let Some((_, parent_score)) = candidates.get(&matched_id) {
                         expansions.push((neighbor_id, parent_score * 0.5));
                     }
@@ -263,7 +268,8 @@ fn get_predefined_centroids() -> &'static [Vec<f32>] {
             let mut v = vec![0.0f32; 384];
             let mut norm_sq = 0.0f32;
             for i in 0..384 {
-                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0).sin() as f32;
+                let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (c + 1) as f64) / 384.0)
+                    .sin() as f32;
                 v[i] = val;
                 norm_sq += val * val;
             }
@@ -302,7 +308,8 @@ fn deterministic_vector(index: usize) -> Vec<f32> {
     let mut v = vec![0.0f32; 384];
     let mut norm_sq = 0.0f32;
     for i in 0..384 {
-        let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (index + 1) as f64) / 384.0).sin() as f32;
+        let val = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * (index + 1) as f64) / 384.0).sin()
+            as f32;
         v[i] = val;
         norm_sq += val * val;
     }
@@ -347,7 +354,11 @@ fn seed_database(storage: &SqliteStorage, count: usize) {
             bytes[8..16].copy_from_slice(&i_bytes);
             let id = uuid::Uuid::from_bytes(bytes).to_string();
             let label = deterministic_label(i);
-            let n_type = if i % 2 == 0 { brain_domain::NodeType::Concept } else { brain_domain::NodeType::Technology };
+            let n_type = if i % 2 == 0 {
+                brain_domain::NodeType::Concept
+            } else {
+                brain_domain::NodeType::Technology
+            };
             let node_type_str = serde_json::to_string(&n_type).unwrap();
             let properties = serde_json::to_string(&serde_json::json!({
                 "index": i,
@@ -355,8 +366,14 @@ fn seed_database(storage: &SqliteStorage, count: usize) {
             }))
             .unwrap();
             let updated_at = 1000 + i as i64;
-            stmt.execute(rusqlite::params![id, label, node_type_str, properties, updated_at])
-                .unwrap();
+            stmt.execute(rusqlite::params![
+                id,
+                label,
+                node_type_str,
+                properties,
+                updated_at
+            ])
+            .unwrap();
 
             // Seed deterministic high-dimensional embedding
             let vector = deterministic_vector(i);
@@ -365,7 +382,8 @@ fn seed_database(storage: &SqliteStorage, count: usize) {
             for &val in &vector {
                 emb_bytes.extend_from_slice(&val.to_le_bytes());
             }
-            stmt_emb.execute(rusqlite::params![id, emb_bytes, 384, centroid_id])
+            stmt_emb
+                .execute(rusqlite::params![id, emb_bytes, 384, centroid_id])
                 .unwrap();
         }
     }
@@ -454,7 +472,10 @@ fn run_scenario_tracing(
 
     let (res_nodes, ivf_bypass, ivf_activation, cosine_comps) = match scenario {
         "heuristic" => {
-            let src = HeuristicMemorySource { storage: Arc::new(storage.clone()), registry: registry.clone() };
+            let src = HeuristicMemorySource {
+                storage: Arc::new(storage.clone()),
+                registry: registry.clone(),
+            };
             ALLOC.reset();
             let start = Instant::now();
             let res = src.retrieve(&request).unwrap().nodes;
@@ -483,11 +504,23 @@ fn run_scenario_tracing(
         }
         "rrf" => {
             let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider.clone()));
-            let src_b = Arc::new(LtmMemorySource::new(Arc::new(storage.clone()), registry.clone()));
-            let src_v = Arc::new(SemanticMemorySource::new(Arc::new(storage.clone()), embed_service.clone()));
+            let src_b = Arc::new(LtmMemorySource::new(
+                Arc::new(storage.clone()),
+                registry.clone(),
+            ));
+            let src_v = Arc::new(SemanticMemorySource::new(
+                Arc::new(storage.clone()),
+                embed_service.clone(),
+            ));
             let strategy_b = Arc::new(Bm25Ranking::default());
-            let strategy_v = Arc::new(EmbeddingRanking::new(embed_service, Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
-            let rrf = Arc::new(RrfRanking::new(vec![(strategy_b, 1.0), (strategy_v, 1.0)], 60.0));
+            let strategy_v = Arc::new(EmbeddingRanking::new(
+                embed_service,
+                Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+            ));
+            let rrf = Arc::new(RrfRanking::new(
+                vec![(strategy_b, 1.0), (strategy_v, 1.0)],
+                60.0,
+            ));
             let pipeline = MemoryPipelineBuilder::new()
                 .register_source(src_b)
                 .register_source(src_v.clone())
@@ -510,7 +543,10 @@ fn run_scenario_tracing(
     let start_time = Instant::now();
     let _ = match scenario {
         "heuristic" => {
-            let src = HeuristicMemorySource { storage: Arc::new(storage.clone()), registry: registry.clone() };
+            let src = HeuristicMemorySource {
+                storage: Arc::new(storage.clone()),
+                registry: registry.clone(),
+            };
             src.retrieve(&request).unwrap().nodes
         }
         "bm25" => {
@@ -524,11 +560,23 @@ fn run_scenario_tracing(
         }
         "rrf" => {
             let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider.clone()));
-            let src_b = Arc::new(LtmMemorySource::new(Arc::new(storage.clone()), registry.clone()));
-            let src_v = Arc::new(SemanticMemorySource::new(Arc::new(storage.clone()), embed_service.clone()));
+            let src_b = Arc::new(LtmMemorySource::new(
+                Arc::new(storage.clone()),
+                registry.clone(),
+            ));
+            let src_v = Arc::new(SemanticMemorySource::new(
+                Arc::new(storage.clone()),
+                embed_service.clone(),
+            ));
             let strategy_b = Arc::new(Bm25Ranking::default());
-            let strategy_v = Arc::new(EmbeddingRanking::new(embed_service, Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
-            let rrf = Arc::new(RrfRanking::new(vec![(strategy_b, 1.0), (strategy_v, 1.0)], 60.0));
+            let strategy_v = Arc::new(EmbeddingRanking::new(
+                embed_service,
+                Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+            ));
+            let rrf = Arc::new(RrfRanking::new(
+                vec![(strategy_b, 1.0), (strategy_v, 1.0)],
+                60.0,
+            ));
             let pipeline = MemoryPipelineBuilder::new()
                 .register_source(src_b)
                 .register_source(src_v)
@@ -583,11 +631,23 @@ fn run_macro_pipeline_tracing(storage: &SqliteStorage, count: usize) -> serde_js
     };
 
     let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider.clone()));
-    let src_b = Arc::new(LtmMemorySource::new(Arc::new(storage.clone()), registry.clone()));
-    let src_v = Arc::new(SemanticMemorySource::new(Arc::new(storage.clone()), embed_service.clone()));
+    let src_b = Arc::new(LtmMemorySource::new(
+        Arc::new(storage.clone()),
+        registry.clone(),
+    ));
+    let src_v = Arc::new(SemanticMemorySource::new(
+        Arc::new(storage.clone()),
+        embed_service.clone(),
+    ));
     let strategy_b = Arc::new(Bm25Ranking::default());
-    let strategy_v = Arc::new(EmbeddingRanking::new(embed_service, Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
-    let rrf = Arc::new(RrfRanking::new(vec![(strategy_b, 1.0), (strategy_v, 1.0)], 60.0));
+    let strategy_v = Arc::new(EmbeddingRanking::new(
+        embed_service,
+        Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+    ));
+    let rrf = Arc::new(RrfRanking::new(
+        vec![(strategy_b, 1.0), (strategy_v, 1.0)],
+        60.0,
+    ));
     let pipeline = MemoryPipelineBuilder::new()
         .register_source(src_b)
         .register_source(src_v)
@@ -623,8 +683,16 @@ fn run_macro_pipeline_tracing(storage: &SqliteStorage, count: usize) -> serde_js
         reserved_completion_tokens: 500,
     };
     let history = vec![
-        brain_domain::Message::new(brain_domain::MessageId::new(), brain_domain::MessageRole::System, "You are a helpful assistant.".to_string()),
-        brain_domain::Message::new(brain_domain::MessageId::new(), brain_domain::MessageRole::User, "Explain compilers.".to_string()),
+        brain_domain::Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::System,
+            "You are a helpful assistant.".to_string(),
+        ),
+        brain_domain::Message::new(
+            brain_domain::MessageId::new(),
+            brain_domain::MessageRole::User,
+            "Explain compilers.".to_string(),
+        ),
     ];
     let summary = Some(brain_services::conversation::ConversationSummary {
         version: 1,
@@ -634,11 +702,7 @@ fn run_macro_pipeline_tracing(storage: &SqliteStorage, count: usize) -> serde_js
         text: "User requested explanation of compilers.".to_string(),
     });
     let _window = brain_services::conversation::ContextBuilder::build(
-        &counter,
-        budget,
-        &history,
-        summary,
-        dtos,
+        &counter, budget, &history, summary, dtos,
     );
     let assembly_duration = start_assembly.elapsed();
 
@@ -696,7 +760,10 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
         };
 
         // Heuristic
-        let src_h = HeuristicMemorySource { storage: Arc::new(storage.clone()), registry: registry.clone() };
+        let src_h = HeuristicMemorySource {
+            storage: Arc::new(storage.clone()),
+            registry: registry.clone(),
+        };
         let mut group = c.benchmark_group("LtmMemorySource_Heuristic");
         group.bench_function(format!("retrieve_heuristic_scale_{}", count), |b| {
             b.iter(|| {
@@ -727,11 +794,23 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
         group.finish();
 
         // RRF Hybrid
-        let src_b_p = Arc::new(LtmMemorySource::new(Arc::new(storage.clone()), registry.clone()));
-        let src_v_p = Arc::new(SemanticMemorySource::new(Arc::new(storage.clone()), embed_service.clone()));
+        let src_b_p = Arc::new(LtmMemorySource::new(
+            Arc::new(storage.clone()),
+            registry.clone(),
+        ));
+        let src_v_p = Arc::new(SemanticMemorySource::new(
+            Arc::new(storage.clone()),
+            embed_service.clone(),
+        ));
         let strategy_b = Arc::new(Bm25Ranking::default());
-        let strategy_v = Arc::new(EmbeddingRanking::new(embed_service.clone(), Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
-        let rrf = Arc::new(RrfRanking::new(vec![(strategy_b, 1.0), (strategy_v, 1.0)], 60.0));
+        let strategy_v = Arc::new(EmbeddingRanking::new(
+            embed_service.clone(),
+            Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+        ));
+        let rrf = Arc::new(RrfRanking::new(
+            vec![(strategy_b, 1.0), (strategy_v, 1.0)],
+            60.0,
+        ));
         let pipeline = MemoryPipelineBuilder::new()
             .register_source(src_b_p)
             .register_source(src_v_p)
@@ -746,11 +825,23 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
         group.finish();
 
         // Macro Pipeline Bench
-        let src_b_m = Arc::new(LtmMemorySource::new(Arc::new(storage.clone()), registry.clone()));
-        let src_v_m = Arc::new(SemanticMemorySource::new(Arc::new(storage.clone()), embed_service.clone()));
+        let src_b_m = Arc::new(LtmMemorySource::new(
+            Arc::new(storage.clone()),
+            registry.clone(),
+        ));
+        let src_v_m = Arc::new(SemanticMemorySource::new(
+            Arc::new(storage.clone()),
+            embed_service.clone(),
+        ));
         let strategy_bm25 = Arc::new(Bm25Ranking::default());
-        let strategy_vector = Arc::new(EmbeddingRanking::new(embed_service.clone(), Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>));
-        let rrf_ranking = Arc::new(RrfRanking::new(vec![(strategy_bm25, 1.0), (strategy_vector, 1.0)], 60.0));
+        let strategy_vector = Arc::new(EmbeddingRanking::new(
+            embed_service.clone(),
+            Arc::new(storage.clone()) as Arc<dyn brain_core::retrieval::EmbeddingLookup>,
+        ));
+        let rrf_ranking = Arc::new(RrfRanking::new(
+            vec![(strategy_bm25, 1.0), (strategy_vector, 1.0)],
+            60.0,
+        ));
         let pipeline_m = MemoryPipelineBuilder::new()
             .register_source(src_b_m)
             .register_source(src_v_m)
@@ -763,8 +854,16 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
             reserved_completion_tokens: 500,
         };
         let history = vec![
-            brain_domain::Message::new(brain_domain::MessageId::new(), brain_domain::MessageRole::System, "You are a helpful assistant.".to_string()),
-            brain_domain::Message::new(brain_domain::MessageId::new(), brain_domain::MessageRole::User, "Explain compilers.".to_string()),
+            brain_domain::Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::System,
+                "You are a helpful assistant.".to_string(),
+            ),
+            brain_domain::Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::User,
+                "Explain compilers.".to_string(),
+            ),
         ];
         let summary = Some(brain_services::conversation::ConversationSummary {
             version: 1,
@@ -799,7 +898,9 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
     }
 
     // Export machine-readable results
-    let artifact_dir = PathBuf::from("/Users/ritikpathania/.gemini/antigravity/brain/34b4c5e5-7d12-4562-abaf-12d79236c9cb");
+    let artifact_dir = PathBuf::from(
+        "/Users/ritikpathania/.gemini/antigravity/brain/34b4c5e5-7d12-4562-abaf-12d79236c9cb",
+    );
     let results_path = artifact_dir.join("baseline_bench_results.json");
 
     let final_report = serde_json::json!({

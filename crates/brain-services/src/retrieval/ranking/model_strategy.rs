@@ -1,12 +1,14 @@
+use crate::retrieval::ranking::feature_provider::{
+    FeatureContext, FeatureExtractor, FeatureProvider, RankingDecay,
+};
+use crate::retrieval::ranking::score_ranker::ScoreRanker;
+use brain_core::errors::BrainError;
+use brain_core::retrieval::{EmbeddingLookup, RankingStrategy, RetrievalRequest};
+use brain_domain::{Node, NodeId};
+use brain_storage::connection::SqliteConnectionManager;
+use r2d2::Pool;
 use std::collections::HashMap;
 use std::sync::Arc;
-use r2d2::Pool;
-use brain_storage::connection::SqliteConnectionManager;
-use brain_core::errors::BrainError;
-use brain_core::retrieval::{RankingStrategy, RetrievalRequest, EmbeddingLookup};
-use brain_domain::{Node, NodeId};
-use crate::retrieval::ranking::feature_provider::{FeatureProvider, FeatureExtractor, FeatureContext, RankingDecay};
-use crate::retrieval::ranking::score_ranker::ScoreRanker;
 
 /// Runtime strategy that uses machine learned rankers.
 /// Combines dynamic similarity score generation and database metadata context
@@ -57,7 +59,10 @@ impl RankingStrategy for ModelRankingStrategy {
 
         // 2. Query FTS (BM25) matching scores dynamically to match FtsRetriever offline output
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to acquire connection for model ranking strategy: {}", e),
+            message: format!(
+                "Failed to acquire connection for model ranking strategy: {}",
+                e
+            ),
             source: Some(Box::new(e)),
         })?;
 
@@ -164,10 +169,7 @@ impl RankingStrategy for ModelRankingStrategy {
 }
 
 fn sanitize_fts_query(query: &str) -> String {
-    let terms: Vec<String> = query
-        .split_whitespace()
-        .map(|s| s.to_string())
-        .collect();
+    let terms: Vec<String> = query.split_whitespace().map(|s| s.to_string()).collect();
 
     terms.join(" OR ")
 }

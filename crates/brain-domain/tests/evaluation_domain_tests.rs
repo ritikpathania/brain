@@ -1,7 +1,7 @@
 use brain_domain::retrieval::evaluation::{
-    NdcgScore, MrrScore, RecallScore, PrecisionScore,
-    RelevanceJudgment, MetricCalculator, NoRegressionPolicy, PublicationPolicy,
-    EvaluationComparison, PublicationRecommendation, EvaluationMetrics
+    EvaluationComparison, EvaluationMetrics, MetricCalculator, MrrScore, NdcgScore,
+    NoRegressionPolicy, PrecisionScore, PublicationPolicy, PublicationRecommendation, RecallScore,
+    RelevanceJudgment,
 };
 use brain_domain::NodeId;
 
@@ -27,9 +27,18 @@ fn test_metric_calculator_precision_recall_mrr_ndcg() {
 
     let ranked = vec![node1, node2, node3];
     let judgments = vec![
-        RelevanceJudgment { node_id: node1, score: 3.0 },
-        RelevanceJudgment { node_id: node2, score: 0.0 },
-        RelevanceJudgment { node_id: node3, score: 1.0 },
+        RelevanceJudgment {
+            node_id: node1,
+            score: 3.0,
+        },
+        RelevanceJudgment {
+            node_id: node2,
+            score: 0.0,
+        },
+        RelevanceJudgment {
+            node_id: node3,
+            score: 1.0,
+        },
     ];
 
     // Total relevant (score > 0.0) is 2 (node1, node3)
@@ -63,21 +72,39 @@ fn test_metric_monotonicity_invariant() {
     let node3 = NodeId::new();
 
     let ranked = vec![node1, node2, node3];
-    
+
     // Baseline judgments
     let judgments_baseline = vec![
-        RelevanceJudgment { node_id: node1, score: 1.0 },
-        RelevanceJudgment { node_id: node2, score: 1.0 },
-        RelevanceJudgment { node_id: node3, score: 1.0 },
+        RelevanceJudgment {
+            node_id: node1,
+            score: 1.0,
+        },
+        RelevanceJudgment {
+            node_id: node2,
+            score: 1.0,
+        },
+        RelevanceJudgment {
+            node_id: node3,
+            score: 1.0,
+        },
     ];
 
     let dcg_baseline = MetricCalculator::dcg(&ranked, &judgments_baseline, 3);
 
     // Increased relevance score for node1 (from 1.0 to 3.0)
     let judgments_increased = vec![
-        RelevanceJudgment { node_id: node1, score: 3.0 },
-        RelevanceJudgment { node_id: node2, score: 1.0 },
-        RelevanceJudgment { node_id: node3, score: 1.0 },
+        RelevanceJudgment {
+            node_id: node1,
+            score: 3.0,
+        },
+        RelevanceJudgment {
+            node_id: node2,
+            score: 1.0,
+        },
+        RelevanceJudgment {
+            node_id: node3,
+            score: 1.0,
+        },
     ];
 
     let dcg_increased = MetricCalculator::dcg(&ranked, &judgments_increased, 3);
@@ -119,7 +146,10 @@ fn test_publication_policy_no_regression() {
         ndcg_improvement: 0.05,
         mrr_improvement: 0.05,
     };
-    assert_eq!(policy.evaluate_recommendation(&comp_better), PublicationRecommendation::Approve);
+    assert_eq!(
+        policy.evaluate_recommendation(&comp_better),
+        PublicationRecommendation::Approve
+    );
 
     // Case 2: Candidate is worse (negative NDCG improvement)
     let comp_worse = EvaluationComparison {

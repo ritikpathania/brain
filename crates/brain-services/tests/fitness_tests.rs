@@ -1,19 +1,18 @@
 #[cfg(test)]
 mod tests {
+    use brain_core::{
+        events::{CorrelationId, EventSource, OperationId, TaskProgress, TaskState},
+        evolution::{Canonicalizer, Observation, Provenance},
+        projection::{ProjectionContext, Projector},
+    };
+    use brain_domain::{EpochId, KnowledgeGraph};
+    use brain_services::{
+        InMemoryCanonicalizer, InMemoryEventDispatcher, MemoryListProjector, MemoryListQuery,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
-    use brain_domain::{EpochId, KnowledgeGraph};
-    use brain_core::{
-        events::{CorrelationId, EventSource, TaskProgress, TaskState, OperationId},
-        evolution::{Observation, Provenance, Canonicalizer},
-        projection::{ProjectionContext, Projector}
-    };
-    use brain_services::{
-        InMemoryCanonicalizer, InMemoryEventDispatcher,
-        MemoryListQuery, MemoryListProjector
-    };
 
     // Helper to get crates directory
     fn get_crates_dir() -> PathBuf {
@@ -32,7 +31,14 @@ mod tests {
         let manifest_content = fs::read_to_string(&domain_manifest_path)
             .unwrap_or_else(|_| panic!("Failed to read {}", domain_manifest_path.display()));
 
-        let forbidden = ["brain-core", "brain-services", "brain-tui", "brain-storage", "brain-acp-adapter", "brain-mcp-adapter"];
+        let forbidden = [
+            "brain-core",
+            "brain-services",
+            "brain-tui",
+            "brain-storage",
+            "brain-acp-adapter",
+            "brain-mcp-adapter",
+        ];
         for crate_name in &forbidden {
             let target = format!("{} =", crate_name);
             let target_quoted = format!("\"{}\"", crate_name);
@@ -80,8 +86,8 @@ mod tests {
     // --- FITNESS TEST 2: Read-Only Projections Invariant Check ---
     #[test]
     fn test_fitness_readonly_projections() {
-        // Rust's compiler guarantees that because Projector::project receives a read-only 
-        // ProjectionContext carrying &'a KnowledgeGraph (shared reference), no mutating methods 
+        // Rust's compiler guarantees that because Projector::project receives a read-only
+        // ProjectionContext carrying &'a KnowledgeGraph (shared reference), no mutating methods
         // (which require &mut self) can be called on the graph within the projector.
         // We verify that the API signatures enforce this compile-time guarantee.
         let graph = KnowledgeGraph::new();
@@ -95,7 +101,7 @@ mod tests {
 
         let projector = MemoryListProjector;
         let projection = projector.project(&context);
-        
+
         // Assert the projection completed and the original graph has not changed (remains empty)
         assert_eq!(projection.items.len(), 0);
         assert_eq!(graph.nodes.len(), 0);
@@ -105,7 +111,7 @@ mod tests {
     #[test]
     fn test_fitness_event_immutability() {
         // Rust's ownership model ensures dispatched events are owned via Arc<dyn RuntimeEvent> or similar.
-        // Arc is thread-safe and only provides read-only references (&T) to the inner values unless wrapped 
+        // Arc is thread-safe and only provides read-only references (&T) to the inner values unless wrapped
         // in cell/mutex mutation wrappers. Here we assert that dispatched event structs contain zero interior mutability.
         let event = Arc::new(TaskProgress {
             operation_id: OperationId::new_v4(),
@@ -128,7 +134,7 @@ mod tests {
         let graph = Arc::new(Mutex::new(KnowledgeGraph::new()));
         let epoch = Arc::new(Mutex::new(EpochId::initial()));
         let dispatcher = Arc::new(InMemoryEventDispatcher::new(10));
-        
+
         let canonicalizer = InMemoryCanonicalizer::new(
             Arc::clone(&graph),
             Arc::clone(&epoch),
@@ -249,4 +255,3 @@ mod tests {
         );
     }
 }
-

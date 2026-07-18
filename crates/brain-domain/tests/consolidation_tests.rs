@@ -1,11 +1,10 @@
-use std::time::Duration;
 use brain_domain::consolidation::{
-    SimilarityScore, PromotionScore, ConfidenceScore, StalenessAge,
-    MetricConstructionError, Consolidator, ConsolidationPolicy,
-    ConsolidationActionType
+    ConfidenceScore, ConsolidationActionType, ConsolidationPolicy, Consolidator,
+    MetricConstructionError, PromotionScore, SimilarityScore, StalenessAge,
 };
-use brain_domain::entities::{KnowledgeGraph, Node, Edge, RelationKind};
-use brain_domain::identifiers::{NodeId, EdgeId};
+use brain_domain::entities::{Edge, KnowledgeGraph, Node, RelationKind};
+use brain_domain::identifiers::{EdgeId, NodeId};
+use std::time::Duration;
 
 #[test]
 fn test_metric_wrappers_range_validation() {
@@ -13,14 +12,22 @@ fn test_metric_wrappers_range_validation() {
     assert!(SimilarityScore::new(0.5).is_ok());
     assert!(SimilarityScore::new(0.0).is_ok());
     assert!(SimilarityScore::new(1.0).is_ok());
-    
+
     assert_eq!(
         SimilarityScore::new(-0.1).unwrap_err(),
-        MetricConstructionError::OutOfRange { val: -0.1, min: 0.0, max: 1.0 }
+        MetricConstructionError::OutOfRange {
+            val: -0.1,
+            min: 0.0,
+            max: 1.0
+        }
     );
     assert_eq!(
         SimilarityScore::new(1.05).unwrap_err(),
-        MetricConstructionError::OutOfRange { val: 1.05, min: 0.0, max: 1.0 }
+        MetricConstructionError::OutOfRange {
+            val: 1.05,
+            min: 0.0,
+            max: 1.0
+        }
     );
     assert_eq!(
         SimilarityScore::new(f64::NAN).unwrap_err(),
@@ -31,14 +38,22 @@ fn test_metric_wrappers_range_validation() {
     assert!(PromotionScore::new(0.9).is_ok());
     assert_eq!(
         PromotionScore::new(-0.2).unwrap_err(),
-        MetricConstructionError::OutOfRange { val: -0.2, min: 0.0, max: 1.0 }
+        MetricConstructionError::OutOfRange {
+            val: -0.2,
+            min: 0.0,
+            max: 1.0
+        }
     );
 
     // ConfidenceScore [0.0, 1.0]
     assert!(ConfidenceScore::new(0.95).is_ok());
     assert_eq!(
         ConfidenceScore::new(1.5).unwrap_err(),
-        MetricConstructionError::OutOfRange { val: 1.5, min: 0.0, max: 1.0 }
+        MetricConstructionError::OutOfRange {
+            val: 1.5,
+            min: 0.0,
+            max: 1.0
+        }
     );
 
     // StalenessAge (always non-negative via Duration wrapper)
@@ -67,11 +82,19 @@ fn test_consolidator_analyze_and_plan_behavior() {
 
     let node_a = NodeId::new();
     let node_b = NodeId::new();
-    
+
     // Create duplicate nodes
-    let n1 = Node::new(node_a, "Duplicate Label".to_string(), brain_domain::entities::NodeKind::Concept);
-    let n2 = Node::new(node_b, "duplicate label  ".to_string(), brain_domain::entities::NodeKind::Concept); // case and trim variance
-    
+    let n1 = Node::new(
+        node_a,
+        "Duplicate Label".to_string(),
+        brain_domain::entities::NodeKind::Concept,
+    );
+    let n2 = Node::new(
+        node_b,
+        "duplicate label  ".to_string(),
+        brain_domain::entities::NodeKind::Concept,
+    ); // case and trim variance
+
     graph.nodes.insert(node_a, n1);
     graph.nodes.insert(node_b, n2);
 
@@ -101,16 +124,25 @@ fn test_consolidator_analyze_and_plan_behavior() {
 
     // 2. Plan
     let actions = consolidator.plan(analysis);
-    
+
     // There should be:
     // - 1 MergeNodes action
     // - 1 PromoteToSemantic action
     // - 1 ArchiveEdge action
     assert_eq!(actions.len(), 3);
 
-    let has_merge = actions.iter().any(|act| matches!(act.action, ConsolidationActionType::MergeNodes { .. }));
-    let has_promote = actions.iter().any(|act| matches!(act.action, ConsolidationActionType::PromoteToSemantic { .. }));
-    let has_archive = actions.iter().any(|act| matches!(act.action, ConsolidationActionType::ArchiveEdge { .. }));
+    let has_merge = actions
+        .iter()
+        .any(|act| matches!(act.action, ConsolidationActionType::MergeNodes { .. }));
+    let has_promote = actions.iter().any(|act| {
+        matches!(
+            act.action,
+            ConsolidationActionType::PromoteToSemantic { .. }
+        )
+    });
+    let has_archive = actions
+        .iter()
+        .any(|act| matches!(act.action, ConsolidationActionType::ArchiveEdge { .. }));
 
     assert!(has_merge);
     assert!(has_promote);
@@ -122,8 +154,16 @@ fn test_idempotence_and_ordering_determinism_invariants() {
     let mut graph = KnowledgeGraph::new();
     let node_a = NodeId::new();
     let node_b = NodeId::new();
-    let n1 = Node::new(node_a, "Duplicate".to_string(), brain_domain::entities::NodeKind::Concept);
-    let n2 = Node::new(node_b, "Duplicate".to_string(), brain_domain::entities::NodeKind::Concept);
+    let n1 = Node::new(
+        node_a,
+        "Duplicate".to_string(),
+        brain_domain::entities::NodeKind::Concept,
+    );
+    let n2 = Node::new(
+        node_b,
+        "Duplicate".to_string(),
+        brain_domain::entities::NodeKind::Concept,
+    );
     graph.nodes.insert(node_a, n1);
     graph.nodes.insert(node_b, n2);
 
@@ -146,7 +186,10 @@ fn test_idempotence_and_ordering_determinism_invariants() {
     for i in 0..actions1.len() {
         assert_eq!(actions1[i].action, actions2[i].action);
         assert_eq!(actions1[i].rationale, actions2[i].rationale);
-        assert_eq!(actions1[i].confidence.value(), actions2[i].confidence.value());
+        assert_eq!(
+            actions1[i].confidence.value(),
+            actions2[i].confidence.value()
+        );
     }
 
     // Invariant: Idempotence
@@ -158,5 +201,9 @@ fn test_idempotence_and_ordering_determinism_invariants() {
 
     let analysis_idemp = consolidator.analyze(&graph_consolidated);
     let actions_idemp = consolidator.plan(analysis_idemp);
-    assert_eq!(actions_idemp.len(), 0, "Idempotency violated: expected zero actions on a consolidated graph");
+    assert_eq!(
+        actions_idemp.len(),
+        0,
+        "Idempotency violated: expected zero actions on a consolidated graph"
+    );
 }

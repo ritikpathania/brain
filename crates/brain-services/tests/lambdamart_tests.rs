@@ -7,17 +7,14 @@ use std::time::Instant;
 
 use brain_domain::NodeId;
 use brain_services::retrieval::eval_harness::{
-    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession,
-    FeatureExtractor, LinearRanker, LogisticTrainer, LogisticTrainingConfig,
-    ScoreRanker,
     models::{
-        LambdaGradientComputer, LambdaMartModel, LambdaMartTrainer, LambdaMartTrainingConfig,
-        RegressionTree, TreeNode, ModelSelector, FeatureImportanceAnalyzer,
+        FeatureImportanceAnalyzer, LambdaGradientComputer, LambdaMartModel, LambdaMartTrainer,
+        LambdaMartTrainingConfig, ModelSelector, RegressionTree, TreeNode,
     },
+    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession,
+    FeatureExtractor, LinearRanker, LogisticTrainer, LogisticTrainingConfig, ScoreRanker,
 };
 use common::production_corpus::ProductionCorpusBuilder;
-
-
 
 fn evaluate_subset_metrics<M: ScoreRanker>(
     session: &EvaluationSession,
@@ -44,10 +41,16 @@ fn evaluate_subset_metrics<M: ScoreRanker>(
             cloned_res.ranking_score = Some(score);
             scored_results.push(cloned_res);
         }
-        brain_services::retrieval::eval_harness::sort_results_deterministically(&mut scored_results);
+        brain_services::retrieval::eval_harness::sort_results_deterministically(
+            &mut scored_results,
+        );
         let retrieved_ids: Vec<NodeId> = scored_results.iter().map(|r| r.node_id).collect();
 
-        sum_recall += brain_services::retrieval::eval_harness::metrics::compute_recall_at_k(&retrieved_ids, &query_cache.expected_node_ids, 5);
+        sum_recall += brain_services::retrieval::eval_harness::metrics::compute_recall_at_k(
+            &retrieved_ids,
+            &query_cache.expected_node_ids,
+            5,
+        );
         sum_mrr += brain_services::retrieval::eval_harness::metrics::compute_mrr(
             &retrieved_ids,
             &query_cache.expected_node_ids,
@@ -81,12 +84,25 @@ fn test_lambda_gradient_computer_invariants() {
 
     let lambdas = computer.compute(&relevance, &scores);
 
-    assert!(lambdas[0] > 0.0, "Relevant candidate must have positive lambda");
-    assert!(lambdas[1] < 0.0, "Irrelevant top candidate must have negative lambda");
-    assert!(lambdas[2] < 0.0, "Irrelevant second candidate must have negative lambda");
+    assert!(
+        lambdas[0] > 0.0,
+        "Relevant candidate must have positive lambda"
+    );
+    assert!(
+        lambdas[1] < 0.0,
+        "Irrelevant top candidate must have negative lambda"
+    );
+    assert!(
+        lambdas[2] < 0.0,
+        "Irrelevant second candidate must have negative lambda"
+    );
 
     let sum_lambda: f64 = lambdas.iter().sum();
-    assert!(sum_lambda.abs() < 1e-9, "Sum of lambdas must be zero, got {}", sum_lambda);
+    assert!(
+        sum_lambda.abs() < 1e-9,
+        "Sum of lambdas must be zero, got {}",
+        sum_lambda
+    );
 }
 
 #[test]
@@ -189,7 +205,8 @@ fn test_production_corpus_lambdamart_comparison() {
     .unwrap();
 
     // Deterministically partition queries (Alphabetical split: 80% train, 20% validation)
-    let mut sorted_queries: Vec<String> = session.cache.iter().map(|c| c.query_id.clone()).collect();
+    let mut sorted_queries: Vec<String> =
+        session.cache.iter().map(|c| c.query_id.clone()).collect();
     sorted_queries.sort();
     let val_count = ((sorted_queries.len() as f64) * 0.20).round() as usize;
     let train_count = sorted_queries.len() - val_count;
@@ -221,11 +238,14 @@ fn test_production_corpus_lambdamart_comparison() {
     let linear_eval = session.evaluate_model(&linear_ranker, baseline_opt.weights);
 
     // Evaluate Linear on train/val
-    let (linear_train_ndcg, linear_train_mrr, linear_train_comp) = evaluate_subset_metrics(&session, &linear_ranker, &train_query_ids);
-    let (linear_val_ndcg, linear_val_mrr, linear_val_comp) = evaluate_subset_metrics(&session, &linear_ranker, &val_query_ids);
+    let (linear_train_ndcg, linear_train_mrr, linear_train_comp) =
+        evaluate_subset_metrics(&session, &linear_ranker, &train_query_ids);
+    let (linear_val_ndcg, linear_val_mrr, linear_val_comp) =
+        evaluate_subset_metrics(&session, &linear_ranker, &val_query_ids);
 
     // 3. Train Logistic Regression model
-    let dataset = brain_services::retrieval::eval_harness::models::TrainingDataset::from_session(&session);
+    let dataset =
+        brain_services::retrieval::eval_harness::models::TrainingDataset::from_session(&session);
     let lr_config = LogisticTrainingConfig {
         learning_rate: 0.5,
         epochs: 1000,
@@ -237,8 +257,10 @@ fn test_production_corpus_lambdamart_comparison() {
     let logistic_score = objective.score(&logistic_eval);
 
     // Evaluate Logistic on train/val
-    let (logistic_train_ndcg, logistic_train_mrr, logistic_train_comp) = evaluate_subset_metrics(&session, &logistic_model, &train_query_ids);
-    let (logistic_val_ndcg, logistic_val_mrr, logistic_val_comp) = evaluate_subset_metrics(&session, &logistic_model, &val_query_ids);
+    let (logistic_train_ndcg, logistic_train_mrr, logistic_train_comp) =
+        evaluate_subset_metrics(&session, &logistic_model, &train_query_ids);
+    let (logistic_val_ndcg, logistic_val_mrr, logistic_val_comp) =
+        evaluate_subset_metrics(&session, &logistic_model, &val_query_ids);
 
     // 4. Train LambdaMART model (R4.2: with training history and model selector)
     let lm_config = LambdaMartTrainingConfig {
@@ -269,12 +291,17 @@ fn test_production_corpus_lambdamart_comparison() {
     let pred_after = deserialized.score(&fv_dummy);
     assert!((pred_before - pred_after).abs() < 1e-9);
 
-    let lambdamart_eval = session.evaluate_model(&lambdamart_model, brain_services::retrieval::eval_harness::RankingWeights::default());
+    let lambdamart_eval = session.evaluate_model(
+        &lambdamart_model,
+        brain_services::retrieval::eval_harness::RankingWeights::default(),
+    );
     let lambdamart_score = objective.score(&lambdamart_eval);
 
     // Evaluate LambdaMART on train/val
-    let (lm_train_ndcg, lm_train_mrr, lm_train_comp) = evaluate_subset_metrics(&session, &lambdamart_model, &train_query_ids);
-    let (lm_val_ndcg, lm_val_mrr, lm_val_comp) = evaluate_subset_metrics(&session, &lambdamart_model, &val_query_ids);
+    let (lm_train_ndcg, lm_train_mrr, lm_train_comp) =
+        evaluate_subset_metrics(&session, &lambdamart_model, &train_query_ids);
+    let (lm_val_ndcg, lm_val_mrr, lm_val_comp) =
+        evaluate_subset_metrics(&session, &lambdamart_model, &val_query_ids);
 
     // Invariant: Verify FeatureImportanceAnalyzer returns values that sum exactly to 1.0
     let importance_report = FeatureImportanceAnalyzer::analyze(&lambdamart_model);
@@ -292,8 +319,6 @@ fn test_production_corpus_lambdamart_comparison() {
     let elapsed = start_latency.elapsed();
     let avg_latency_ns = (elapsed.as_nanos() as f64) / 10000.0;
 
-
-
     // 6. Generate report markdown
     let mut md = String::new();
     md.push_str("# Matured LambdaMART vs Baseline Models: Production Corpus\n\n");
@@ -305,15 +330,24 @@ fn test_production_corpus_lambdamart_comparison() {
     md.push_str("| :--- | ---: | ---: | ---: | ---: |\n");
     md.push_str(&format!(
         "| **Linear Baseline** | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        baseline_score, linear_eval.mean_ndcg_at_5, linear_eval.mean_mrr, linear_eval.mean_recall_at_5
+        baseline_score,
+        linear_eval.mean_ndcg_at_5,
+        linear_eval.mean_mrr,
+        linear_eval.mean_recall_at_5
     ));
     md.push_str(&format!(
         "| **Logistic Regression** | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        logistic_score, logistic_eval.mean_ndcg_at_5, logistic_eval.mean_mrr, logistic_eval.mean_recall_at_5
+        logistic_score,
+        logistic_eval.mean_ndcg_at_5,
+        logistic_eval.mean_mrr,
+        logistic_eval.mean_recall_at_5
     ));
     md.push_str(&format!(
         "| **LambdaMART (Selected)** | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        lambdamart_score, lambdamart_eval.mean_ndcg_at_5, lambdamart_eval.mean_mrr, lambdamart_eval.mean_recall_at_5
+        lambdamart_score,
+        lambdamart_eval.mean_ndcg_at_5,
+        lambdamart_eval.mean_mrr,
+        lambdamart_eval.mean_recall_at_5
     ));
 
     md.push_str("\n## Overfitting Diagnostics: Train vs. Validation Splits\n\n");
@@ -321,11 +355,21 @@ fn test_production_corpus_lambdamart_comparison() {
     md.push_str("| :--- | ---: | ---: | ---: | ---: | ---: | ---: |\n");
     md.push_str(&format!(
         "| **Linear Baseline** | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        linear_train_comp, linear_val_comp, linear_train_ndcg, linear_val_ndcg, linear_train_mrr, linear_val_mrr
+        linear_train_comp,
+        linear_val_comp,
+        linear_train_ndcg,
+        linear_val_ndcg,
+        linear_train_mrr,
+        linear_val_mrr
     ));
     md.push_str(&format!(
         "| **Logistic Regression** | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} |\n",
-        logistic_train_comp, logistic_val_comp, logistic_train_ndcg, logistic_val_ndcg, logistic_train_mrr, logistic_val_mrr
+        logistic_train_comp,
+        logistic_val_comp,
+        logistic_train_ndcg,
+        logistic_val_ndcg,
+        logistic_train_mrr,
+        logistic_val_mrr
     ));
     md.push_str(&format!(
         "| **LambdaMART** | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} | {:.4} |\n",
@@ -335,16 +379,30 @@ fn test_production_corpus_lambdamart_comparison() {
     md.push_str("\n## LambdaMART Training & Selection Diagnostics\n\n");
     md.push_str("| Parameter | Value |\n");
     md.push_str("| :--- | ---: |\n");
-    md.push_str(&format!("| **Best Selection Epoch** | {} |\n", selection.best_epoch));
-    md.push_str(&format!("| **Total Boosting Rounds** | {} |\n", history.epochs().len()));
-    let stopped_str = if selection.reason == brain_services::retrieval::eval_harness::models::SelectionReason::PeakValidationNdcg {
+    md.push_str(&format!(
+        "| **Best Selection Epoch** | {} |\n",
+        selection.best_epoch
+    ));
+    md.push_str(&format!(
+        "| **Total Boosting Rounds** | {} |\n",
+        history.epochs().len()
+    ));
+    let stopped_str = if selection.reason
+        == brain_services::retrieval::eval_harness::models::SelectionReason::PeakValidationNdcg
+    {
         "🟢 Yes (selected peak validation round)"
     } else {
         "🔴 No (max limit reached)"
     };
     md.push_str(&format!("| **Early Stopped** | {} |\n", stopped_str));
-    md.push_str(&format!("| **Validation Query Ratio** | {:.2} |\n", lm_config.validation_fraction));
-    md.push_str(&format!("| **Average Scoring Latency** | {:.2} ns |\n", avg_latency_ns));
+    md.push_str(&format!(
+        "| **Validation Query Ratio** | {:.2} |\n",
+        lm_config.validation_fraction
+    ));
+    md.push_str(&format!(
+        "| **Average Scoring Latency** | {:.2} ns |\n",
+        avg_latency_ns
+    ));
 
     md.push_str("\n## Gain-Based Feature Importance\n\n");
     md.push_str("| Rank | Feature | Normalized Gain Importance |\n");
@@ -352,7 +410,9 @@ fn test_production_corpus_lambdamart_comparison() {
     for (r, entry) in importance_report.entries.iter().enumerate() {
         md.push_str(&format!(
             "| {} | `{:?}` | {:.4} |\n",
-            r + 1, entry.feature, entry.gain
+            r + 1,
+            entry.feature,
+            entry.gain
         ));
     }
 
@@ -370,5 +430,9 @@ fn test_production_corpus_lambdamart_comparison() {
 
     let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
     fs::create_dir_all(&base_path).unwrap();
-    fs::write(base_path.join("production_lambdamart_matured_report.md"), &md).unwrap();
+    fs::write(
+        base_path.join("production_lambdamart_matured_report.md"),
+        &md,
+    )
+    .unwrap();
 }

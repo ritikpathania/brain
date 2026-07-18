@@ -1,8 +1,8 @@
 //! First-class temporal domain models and abstractions for time-aware relational reasoning.
 
-use std::time::Duration;
-use serde::{Serialize, Deserialize};
 use crate::entities::Edge;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 /// A strongly-typed, opaque wrapper around a Unix timestamp in seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -118,12 +118,16 @@ impl TemporalValidity {
 
     /// Checks if the validity ranges cover the given `TimePoint`.
     pub fn is_valid_at(&self, time: TimePoint) -> bool {
-        self.intervals.iter().any(|interval| interval.contains(time))
+        self.intervals
+            .iter()
+            .any(|interval| interval.contains(time))
     }
 
     /// Checks if the validity ranges overlap with a target `TimeInterval`.
     pub fn intersects_interval(&self, target: &TimeInterval) -> bool {
-        self.intervals.iter().any(|interval| interval.overlaps(target))
+        self.intervals
+            .iter()
+            .any(|interval| interval.overlaps(target))
     }
 }
 
@@ -241,7 +245,12 @@ impl std::hash::Hash for RecencyPolicy {
 
 impl RecencyPolicy {
     /// Computes the decayed weight of an element given its base weight, observation time, and a reference query time.
-    pub fn compute_weight(&self, base_weight: f64, observation_time: TimePoint, reference_time: TimePoint) -> f64 {
+    pub fn compute_weight(
+        &self,
+        base_weight: f64,
+        observation_time: TimePoint,
+        reference_time: TimePoint,
+    ) -> f64 {
         if observation_time > reference_time {
             return base_weight;
         }
@@ -324,14 +333,16 @@ impl TemporalSnapshot {
             }
 
             let is_visible = match query.visibility {
-                TemporalVisibility::Current => {
-                    te.validity.is_valid_at(reference)
-                }
-                TemporalVisibility::Historical => {
-                    te.validity.intervals().iter().any(|interval| interval.start() <= reference)
-                }
+                TemporalVisibility::Current => te.validity.is_valid_at(reference),
+                TemporalVisibility::Historical => te
+                    .validity
+                    .intervals()
+                    .iter()
+                    .any(|interval| interval.start() <= reference),
                 TemporalVisibility::Interval(target_interval) => {
-                    if let Ok(ref_limit) = TimeInterval::new(TimePoint::from_unix_seconds(0), Some(reference)) {
+                    if let Ok(ref_limit) =
+                        TimeInterval::new(TimePoint::from_unix_seconds(0), Some(reference))
+                    {
                         if let Some(valid_limit) = target_interval.intersect(&ref_limit) {
                             te.validity.intersects_interval(&valid_limit)
                         } else {
@@ -344,7 +355,11 @@ impl TemporalSnapshot {
             };
 
             if is_visible {
-                let edge_id = crate::identifiers::EdgeId::new(te.edge.source, te.edge.target, te.edge.relation.id());
+                let edge_id = crate::identifiers::EdgeId::new(
+                    te.edge.source,
+                    te.edge.target,
+                    te.edge.relation.id(),
+                );
                 active_edge_ids.insert(edge_id);
             }
         }

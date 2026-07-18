@@ -1,17 +1,15 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::collections::HashMap;
-use tracing::{Event, Id, Metadata};
 use tracing::span::{Attributes, Record};
+use tracing::{Event, Id, Metadata};
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_core::retrieval::{
-    EmbeddingProvider, RetrievalRequest, DefaultQueryEmbeddingService,
-};
-use brain_domain::{Node, NodeId, NodeType, Embedding};
+use brain_core::retrieval::{DefaultQueryEmbeddingService, EmbeddingProvider, RetrievalRequest};
+use brain_domain::{Embedding, Node, NodeId, NodeType};
+use brain_services::conversation::{ContextBudget, ContextBuilder, WordSpaceTokenCounter};
 use brain_services::RetrievalServiceImpl;
-use brain_services::conversation::{ContextBuilder, ContextBudget, WordSpaceTokenCounter};
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
 
@@ -37,7 +35,8 @@ impl tracing::Subscriber for TelemetryCollector {
         struct Visitor<'a>(&'a mut HashMap<String, String>);
         impl<'a> tracing::field::Visit for Visitor<'a> {
             fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-                self.0.insert(field.name().to_string(), format!("{:?}", value));
+                self.0
+                    .insert(field.name().to_string(), format!("{:?}", value));
             }
             fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
                 self.0.insert(field.name().to_string(), value.to_string());
@@ -97,7 +96,9 @@ fn test_retrieval_determinism_validation() {
     let cache_manager = Arc::new(SessionCacheManager::new());
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
-    let provider = Arc::new(MockQueryEmbeddingProvider { fail_on_query: None });
+    let provider = Arc::new(MockQueryEmbeddingProvider {
+        fail_on_query: None,
+    });
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         store.clone(),
@@ -107,17 +108,47 @@ fn test_retrieval_determinism_validation() {
     );
 
     // Seed database with a few nodes
-    let node1 = Node::new(NodeId::new(), "Machine learning compiler optimization".to_string(), NodeType::Concept);
-    let node2 = Node::new(NodeId::new(), "Database storage engine layout".to_string(), NodeType::Concept);
-    let node3 = Node::new(NodeId::new(), "Lexical search vs vector recall".to_string(), NodeType::Concept);
+    let node1 = Node::new(
+        NodeId::new(),
+        "Machine learning compiler optimization".to_string(),
+        NodeType::Concept,
+    );
+    let node2 = Node::new(
+        NodeId::new(),
+        "Database storage engine layout".to_string(),
+        NodeType::Concept,
+    );
+    let node3 = Node::new(
+        NodeId::new(),
+        "Lexical search vs vector recall".to_string(),
+        NodeType::Concept,
+    );
     store.nodes().save(&node1).unwrap();
     store.nodes().save(&node2).unwrap();
     store.nodes().save(&node3).unwrap();
 
     // Save corresponding mock embeddings
-    store.embeddings().save(&Embedding::new(node1.id, vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
-    store.embeddings().save(&Embedding::new(node2.id, vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
-    store.embeddings().save(&Embedding::new(node3.id, vec![0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0])).unwrap();
+    store
+        .embeddings()
+        .save(&Embedding::new(
+            node1.id,
+            vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ))
+        .unwrap();
+    store
+        .embeddings()
+        .save(&Embedding::new(
+            node2.id,
+            vec![0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ))
+        .unwrap();
+    store
+        .embeddings()
+        .save(&Embedding::new(
+            node3.id,
+            vec![0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ))
+        .unwrap();
 
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
@@ -141,13 +172,7 @@ fn test_retrieval_determinism_validation() {
         let connections = store.edges().get_connections(&node.id).unwrap();
         memories1.push(brain_services::mapper::to_memory_dto(&node, &connections).unwrap());
     }
-    let context1 = ContextBuilder::build(
-        &WordSpaceTokenCounter,
-        budget,
-        &[],
-        None,
-        memories1,
-    );
+    let context1 = ContextBuilder::build(&WordSpaceTokenCounter, budget, &[], None, memories1);
 
     // Run query 2
     let response2 = retrieval_service.execute_pipeline(&request).unwrap();
@@ -156,13 +181,7 @@ fn test_retrieval_determinism_validation() {
         let connections = store.edges().get_connections(&node.id).unwrap();
         memories2.push(brain_services::mapper::to_memory_dto(&node, &connections).unwrap());
     }
-    let context2 = ContextBuilder::build(
-        &WordSpaceTokenCounter,
-        budget,
-        &[],
-        None,
-        memories2,
-    );
+    let context2 = ContextBuilder::build(&WordSpaceTokenCounter, budget, &[], None, memories2);
 
     // Assert absolute identical results
     assert_eq!(response1.nodes.len(), response2.nodes.len());
@@ -171,8 +190,15 @@ fn test_retrieval_determinism_validation() {
         assert_eq!(n1.label, n2.label);
     }
     assert_eq!(context1.messages().len(), context2.messages().len());
-    assert_eq!(context1.retrieved_memories().len(), context2.retrieved_memories().len());
-    for (m1, m2) in context1.retrieved_memories().iter().zip(context2.retrieved_memories().iter()) {
+    assert_eq!(
+        context1.retrieved_memories().len(),
+        context2.retrieved_memories().len()
+    );
+    for (m1, m2) in context1
+        .retrieved_memories()
+        .iter()
+        .zip(context2.retrieved_memories().iter())
+    {
         assert_eq!(m1.node.id, m2.node.id);
     }
 }
@@ -184,7 +210,9 @@ fn test_structured_telemetry_emission_contract() {
     let cache_manager = Arc::new(SessionCacheManager::new());
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
-    let provider = Arc::new(MockQueryEmbeddingProvider { fail_on_query: None });
+    let provider = Arc::new(MockQueryEmbeddingProvider {
+        fail_on_query: None,
+    });
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         store.clone(),
@@ -194,9 +222,16 @@ fn test_structured_telemetry_emission_contract() {
     );
 
     // Seed database with a matching node
-    let node = Node::new(NodeId::new(), "telemetry validation query".to_string(), NodeType::Concept);
+    let node = Node::new(
+        NodeId::new(),
+        "telemetry validation query".to_string(),
+        NodeType::Concept,
+    );
     store.nodes().save(&node).unwrap();
-    store.embeddings().save(&Embedding::new(node.id, vec![1.0; 8])).unwrap();
+    store
+        .embeddings()
+        .save(&Embedding::new(node.id, vec![1.0; 8]))
+        .unwrap();
 
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
@@ -221,12 +256,24 @@ fn test_structured_telemetry_emission_contract() {
     // Check that we captured the expected stages
     let stages: Vec<&str> = events.iter().map(|(stage, _)| stage.as_str()).collect();
     println!("Captured stages: {:?}", stages);
-    assert!(stages.contains(&"embedding"), "Missing embedding stage telemetry");
-    assert!(stages.contains(&"candidate_counts"), "Missing candidate counts stage telemetry");
+    assert!(
+        stages.contains(&"embedding"),
+        "Missing embedding stage telemetry"
+    );
+    assert!(
+        stages.contains(&"candidate_counts"),
+        "Missing candidate counts stage telemetry"
+    );
     assert!(stages.contains(&"BM25"), "Missing BM25 stage telemetry");
     assert!(stages.contains(&"vector"), "Missing vector stage telemetry");
-    assert!(stages.contains(&"RRF"), "Missing RRF fusion stage telemetry");
-    assert!(stages.contains(&"pipeline"), "Missing overall pipeline stage telemetry");
+    assert!(
+        stages.contains(&"RRF"),
+        "Missing RRF fusion stage telemetry"
+    );
+    assert!(
+        stages.contains(&"pipeline"),
+        "Missing overall pipeline stage telemetry"
+    );
 }
 
 #[test]
@@ -236,7 +283,9 @@ fn test_retrieval_timeout_graceful_handling() {
     let cache_manager = Arc::new(SessionCacheManager::new());
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
-    let provider = Arc::new(MockQueryEmbeddingProvider { fail_on_query: None });
+    let provider = Arc::new(MockQueryEmbeddingProvider {
+        fail_on_query: None,
+    });
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = RetrievalServiceImpl::new(
         store.clone(),
@@ -316,7 +365,9 @@ fn test_retrieval_concurrency_lock_safety() {
     let cache_manager = Arc::new(SessionCacheManager::new());
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
-    let provider = Arc::new(MockQueryEmbeddingProvider { fail_on_query: None });
+    let provider = Arc::new(MockQueryEmbeddingProvider {
+        fail_on_query: None,
+    });
     let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
     let retrieval_service = Arc::new(RetrievalServiceImpl::new(
         store.clone(),
@@ -326,7 +377,11 @@ fn test_retrieval_concurrency_lock_safety() {
     ));
 
     // Seed database
-    let node = Node::new(NodeId::new(), "shared node content".to_string(), NodeType::Concept);
+    let node = Node::new(
+        NodeId::new(),
+        "shared node content".to_string(),
+        NodeType::Concept,
+    );
     store.nodes().save(&node).unwrap();
 
     let mut handles = Vec::new();

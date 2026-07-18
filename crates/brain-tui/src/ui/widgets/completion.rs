@@ -1,10 +1,10 @@
 //! Floating list suggestions renderer for slash command autocompletion.
 
-use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Borders, List, ListItem, Clear};
-use ratatui::Frame;
+use crate::ui::command::completion::{SlashCompletionEngine, SlashCompletionState};
 use crate::ui::theme::Theme;
-use crate::ui::command::completion::{SlashCompletionState, SlashCompletionEngine};
+use ratatui::layout::Rect;
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem};
+use ratatui::Frame;
 
 /// Renders the floating slash command autocompletion popup list.
 pub fn draw(f: &mut Frame<'_>, area: Rect, state: &SlashCompletionState, theme: &Theme) {
@@ -13,25 +13,28 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &SlashCompletionState, theme: 
         return;
     }
 
-    let items: Vec<ListItem> = matches.iter().enumerate().map(|(idx, cmd)| {
-        let style = if idx == state.selected_index {
-            theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
-        } else {
-            theme.text
-        };
-        let text = format!("  /{} - {}", cmd.aliases.first().unwrap_or(&""), cmd.title);
-        ListItem::new(text).style(style)
-    }).collect();
-
+    let items: Vec<ListItem> = matches
+        .iter()
+        .enumerate()
+        .map(|(idx, cmd)| {
+            let style = if idx == state.selected_index {
+                theme
+                    .primary
+                    .add_modifier(ratatui::style::Modifier::REVERSED)
+            } else {
+                theme.text
+            };
+            let text = format!("  /{} - {}", cmd.aliases.first().unwrap_or(&""), cmd.title);
+            ListItem::new(text).style(style)
+        })
+        .collect();
 
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(theme.border_active)
         .title(" Commands ");
 
-    let list = List::new(items)
-        .block(block)
-        .style(theme.text);
+    let list = List::new(items).block(block).style(theme.text);
 
     // Clear background to prevent overlay bleeding
     f.render_widget(Clear, area);

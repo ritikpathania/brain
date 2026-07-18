@@ -1,10 +1,10 @@
 //! Width-aware layout tree definitions and compilers.
 
-use std::borrow::Cow;
 use crate::ui::interaction::ast::{
-    DocumentBlock, InlineNode, LinkTarget, CitationId, BlockId, ListKind, TableNode
+    BlockId, CitationId, DocumentBlock, InlineNode, LinkTarget, ListKind, TableNode,
 };
-use crate::ui::interaction::lexer::{TokenKind, SyntaxHighlighterRegistry};
+use crate::ui::interaction::lexer::{SyntaxHighlighterRegistry, TokenKind};
+use std::borrow::Cow;
 
 /// Semantic style categories resolved by the presentation theme.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,7 +151,10 @@ impl LayoutEngine {
                     };
                     let spans = compile_inlines(content, style);
                     let wrapped = wrap_spans(spans, max_width);
-                    let lines = wrapped.into_iter().map(|line| VisualLine { spans: line }).collect();
+                    let lines = wrapped
+                        .into_iter()
+                        .map(|line| VisualLine { spans: line })
+                        .collect();
                     layout_blocks.push(LayoutBlock {
                         id,
                         kind: VisualBlockKind::Heading(*level),
@@ -161,25 +164,34 @@ impl LayoutEngine {
                 DocumentBlock::Paragraph(inlines) => {
                     let spans = compile_inlines(inlines, VisualStyle::Normal);
                     let wrapped = wrap_spans(spans, max_width);
-                    let lines = wrapped.into_iter().map(|line| VisualLine { spans: line }).collect();
+                    let lines = wrapped
+                        .into_iter()
+                        .map(|line| VisualLine { spans: line })
+                        .collect();
                     layout_blocks.push(LayoutBlock {
                         id,
                         kind: VisualBlockKind::Paragraph,
                         lines,
                     });
                 }
-                DocumentBlock::CodeBlock { language, lines: code_lines } => {
+                DocumentBlock::CodeBlock {
+                    language,
+                    lines: code_lines,
+                } => {
                     let mut lines = Vec::new();
                     for line in code_lines {
-                        let highlighted: Vec<_> = SyntaxHighlighterRegistry::highlight(*language, line)
-                            .map(|span| VisualSpan::new(
-                                span.text.to_string(),
-                                VisualStyle::Normal,
-                                Some(span.kind),
-                                SpanAction::None,
-                            ))
-                            .collect();
-                        
+                        let highlighted: Vec<_> =
+                            SyntaxHighlighterRegistry::highlight(*language, line)
+                                .map(|span| {
+                                    VisualSpan::new(
+                                        span.text.to_string(),
+                                        VisualStyle::Normal,
+                                        Some(span.kind),
+                                        SpanAction::None,
+                                    )
+                                })
+                                .collect();
+
                         let wrapped = wrap_spans(highlighted, max_width);
                         for line_spans in wrapped {
                             lines.push(VisualLine { spans: line_spans });
@@ -197,9 +209,14 @@ impl LayoutEngine {
                         ListKind::Unordered => "• ".to_string(),
                         ListKind::Ordered => "1. ".to_string(),
                     };
-                    
+
                     for item in items {
-                        let bullet_span = VisualSpan::new(bullet.clone(), VisualStyle::ListBullet, None, SpanAction::None);
+                        let bullet_span = VisualSpan::new(
+                            bullet.clone(),
+                            VisualStyle::ListBullet,
+                            None,
+                            SpanAction::None,
+                        );
                         let mut item_spans = vec![bullet_span];
                         item_spans.extend(compile_inlines(item, VisualStyle::Normal));
 
@@ -209,7 +226,12 @@ impl LayoutEngine {
                             let mut line = Vec::new();
                             if i > 0 {
                                 // Add indentation padding spaces
-                                line.push(VisualSpan::new("  ", VisualStyle::Normal, None, SpanAction::None));
+                                line.push(VisualSpan::new(
+                                    "  ",
+                                    VisualStyle::Normal,
+                                    None,
+                                    SpanAction::None,
+                                ));
                             }
                             line.extend(line_spans);
                             lines.push(VisualLine { spans: line });
@@ -227,9 +249,12 @@ impl LayoutEngine {
                     let mut lines = Vec::new();
                     for b in nested_tree.blocks() {
                         for line in &b.lines {
-                            let mut quoted_line = vec![
-                                VisualSpan::new("│ ", VisualStyle::BlockQuote, None, SpanAction::None)
-                            ];
+                            let mut quoted_line = vec![VisualSpan::new(
+                                "│ ",
+                                VisualStyle::BlockQuote,
+                                None,
+                                SpanAction::None,
+                            )];
                             quoted_line.extend(line.spans.iter().map(|s| VisualSpan {
                                 text: s.text.clone(),
                                 style: s.style,
@@ -248,7 +273,12 @@ impl LayoutEngine {
                 DocumentBlock::HorizontalRule => {
                     let hr_str = "─".repeat(max_width);
                     let line = VisualLine {
-                        spans: vec![VisualSpan::new(hr_str, VisualStyle::HorizontalRule, None, SpanAction::None)],
+                        spans: vec![VisualSpan::new(
+                            hr_str,
+                            VisualStyle::HorizontalRule,
+                            None,
+                            SpanAction::None,
+                        )],
                     };
                     layout_blocks.push(LayoutBlock {
                         id,
@@ -276,10 +306,20 @@ fn compile_inlines(inlines: &[InlineNode], default_style: VisualStyle) -> Vec<Vi
     for node in inlines {
         match node {
             InlineNode::Text(t) => {
-                spans.push(VisualSpan::new(t.clone(), default_style, None, SpanAction::None));
+                spans.push(VisualSpan::new(
+                    t.clone(),
+                    default_style,
+                    None,
+                    SpanAction::None,
+                ));
             }
             InlineNode::Code(t) => {
-                spans.push(VisualSpan::new(t.clone(), VisualStyle::InlineCode, None, SpanAction::None));
+                spans.push(VisualSpan::new(
+                    t.clone(),
+                    VisualStyle::InlineCode,
+                    None,
+                    SpanAction::None,
+                ));
             }
             InlineNode::Strong(children) => {
                 spans.extend(compile_inlines(children, VisualStyle::Bold));
@@ -317,7 +357,7 @@ fn wrap_spans(spans: Vec<VisualSpan>, max_width: usize) -> Vec<Vec<VisualSpan>> 
         let style = span.style;
         let token_kind = span.token_kind;
         let action = span.action.clone();
-        
+
         let words = text.split_inclusive(char::is_whitespace);
 
         for word in words {
@@ -360,7 +400,7 @@ fn wrap_spans(spans: Vec<VisualSpan>, max_width: usize) -> Vec<Vec<VisualSpan>> 
 fn compile_table_layout(table: &TableNode, max_width: usize) -> Vec<VisualLine> {
     let col_count = std::cmp::max(
         table.headers.len(),
-        table.rows.iter().map(|r| r.len()).max().unwrap_or(0)
+        table.rows.iter().map(|r| r.len()).max().unwrap_or(0),
     );
     if col_count == 0 {
         return Vec::new();
@@ -378,31 +418,71 @@ fn compile_table_layout(table: &TableNode, max_width: usize) -> Vec<VisualLine> 
 
     // Table Header line
     let mut header_spans = Vec::new();
-    header_spans.push(VisualSpan::new("│ ", VisualStyle::TableBorder, None, SpanAction::None));
+    header_spans.push(VisualSpan::new(
+        "│ ",
+        VisualStyle::TableBorder,
+        None,
+        SpanAction::None,
+    ));
     for (i, cell) in table.headers.iter().enumerate() {
         let width = col_widths[i];
         let spans = compile_inlines(&cell.content, VisualStyle::TableHeader);
-        let text_repr = spans.iter().map(|s| s.text.to_string()).collect::<Vec<_>>().join("");
-        header_spans.push(VisualSpan::new(truncate_or_pad(&text_repr, width), VisualStyle::TableHeader, None, SpanAction::None));
-        header_spans.push(VisualSpan::new(" │ ", VisualStyle::TableBorder, None, SpanAction::None));
+        let text_repr = spans
+            .iter()
+            .map(|s| s.text.to_string())
+            .collect::<Vec<_>>()
+            .join("");
+        header_spans.push(VisualSpan::new(
+            truncate_or_pad(&text_repr, width),
+            VisualStyle::TableHeader,
+            None,
+            SpanAction::None,
+        ));
+        header_spans.push(VisualSpan::new(
+            " │ ",
+            VisualStyle::TableBorder,
+            None,
+            SpanAction::None,
+        ));
     }
-    lines.push(VisualLine { spans: header_spans });
+    lines.push(VisualLine {
+        spans: header_spans,
+    });
 
     // Table Rows
     for row in &table.rows {
         let mut row_spans = Vec::new();
-        row_spans.push(VisualSpan::new("│ ", VisualStyle::TableBorder, None, SpanAction::None));
+        row_spans.push(VisualSpan::new(
+            "│ ",
+            VisualStyle::TableBorder,
+            None,
+            SpanAction::None,
+        ));
         for i in 0..col_count {
             let width = col_widths[i];
             let cell = row.get(i);
             let cell_text = if let Some(c) = cell {
                 let spans = compile_inlines(&c.content, VisualStyle::TableCell);
-                spans.iter().map(|s| s.text.to_string()).collect::<Vec<_>>().join("")
+                spans
+                    .iter()
+                    .map(|s| s.text.to_string())
+                    .collect::<Vec<_>>()
+                    .join("")
             } else {
                 "".to_string()
             };
-            row_spans.push(VisualSpan::new(truncate_or_pad(&cell_text, width), VisualStyle::TableCell, None, SpanAction::None));
-            row_spans.push(VisualSpan::new(" │ ", VisualStyle::TableBorder, None, SpanAction::None));
+            row_spans.push(VisualSpan::new(
+                truncate_or_pad(&cell_text, width),
+                VisualStyle::TableCell,
+                None,
+                SpanAction::None,
+            ));
+            row_spans.push(VisualSpan::new(
+                " │ ",
+                VisualStyle::TableBorder,
+                None,
+                SpanAction::None,
+            ));
         }
         lines.push(VisualLine { spans: row_spans });
     }

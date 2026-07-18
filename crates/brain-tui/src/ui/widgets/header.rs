@@ -1,8 +1,8 @@
+use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Stylize;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-use ratatui::style::Stylize;
-use crate::ui::theme::Theme;
 
 /// ViewModel carrying immutable presentation data for the Header widget.
 pub struct HeaderView {
@@ -35,12 +35,15 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &HeaderView, theme: &Theme) {
         ratatui::text::Span::styled(format!("  {}", view.connection_status), status_style),
     ];
     if view.enable_reflection_logs {
-        spans.push(ratatui::text::Span::styled("  [Reflection Logs]", theme.accent));
+        spans.push(ratatui::text::Span::styled(
+            "  [Reflection Logs]",
+            theme.accent,
+        ));
     }
     if view.pins_count > 0 {
         spans.push(ratatui::text::Span::styled(
             format!("  📌 Context ({})", view.pins_count),
-            theme.accent.bold()
+            theme.accent.bold(),
         ));
     }
 

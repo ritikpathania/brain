@@ -1,5 +1,5 @@
-use brain_storage::TestStorage;
 use brain_domain::bkf::*;
+use brain_storage::TestStorage;
 use std::collections::HashMap;
 
 #[test]
@@ -66,7 +66,9 @@ fn test_sqlite_projection_delta_application() {
         assert_eq!(nt2, "Database");
 
         // Edge check
-        let mut stmt_edges = conn.prepare("SELECT source, target, relation, weight, lifecycle, version_state FROM edges").unwrap();
+        let mut stmt_edges = conn
+            .prepare("SELECT source, target, relation, weight, lifecycle, version_state FROM edges")
+            .unwrap();
         let mut edge_rows = stmt_edges.query([]).unwrap();
         let edge_row = edge_rows.next().unwrap().unwrap();
         let src: String = edge_row.get(0).unwrap();
@@ -82,7 +84,7 @@ fn test_sqlite_projection_delta_application() {
         assert_eq!(wt, 1.0);
         assert_eq!(elc, "Observed");
         assert_eq!(evs, "Current");
-        
+
         (id1, id2)
     };
 
@@ -107,7 +109,9 @@ fn test_sqlite_projection_delta_application() {
     let compiled_v2 = opt_res_v2.output;
 
     // Calculate delta from compiled to compiled_v2
-    let ops_v2 = sqlite_projection.calculate_delta(Some(&compiled), &compiled_v2).unwrap();
+    let ops_v2 = sqlite_projection
+        .calculate_delta(Some(&compiled), &compiled_v2)
+        .unwrap();
 
     println!("Compiled V1 nodes: {:?}", compiled.nodes);
     println!("Compiled V2 nodes: {:?}", compiled_v2.nodes);
@@ -119,7 +123,9 @@ fn test_sqlite_projection_delta_application() {
     // Verify: node-sqlite should be deleted, node-duckdb inserted, and PostgreSQL remains
     {
         let conn = store.pool().get().unwrap();
-        let mut stmt_v2 = conn.prepare("SELECT label FROM nodes ORDER BY label").unwrap();
+        let mut stmt_v2 = conn
+            .prepare("SELECT label FROM nodes ORDER BY label")
+            .unwrap();
         let mut rows_v2 = stmt_v2.query([]).unwrap();
 
         let mut labels = Vec::new();

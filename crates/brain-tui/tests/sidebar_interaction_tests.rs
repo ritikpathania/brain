@@ -1,6 +1,6 @@
 use brain_domain::SessionId;
 use brain_tui::ui::interaction::sidebar::{
-    SidebarInteraction, SidebarMode, SessionFilter, ParsedQuery, SessionLookup, SidebarEvent
+    ParsedQuery, SessionFilter, SessionLookup, SidebarEvent, SidebarInteraction, SidebarMode,
 };
 
 struct MockLookup;
@@ -28,7 +28,7 @@ fn test_search_and_rename_transitions() {
 fn test_parsed_query_matching() {
     let mut query = ParsedQuery::default();
     assert!(query.is_empty());
-    
+
     // Empty query matches anything
     assert!(query.matches("Brain Architecture RFC"));
 
@@ -68,12 +68,15 @@ fn test_rename_flow_initialization_and_leaving() {
 #[test]
 fn test_search_clearing() {
     let mut interaction = SidebarInteraction::new();
-    
+
     interaction.enter_search();
     interaction.search.editor.insert_char('f');
     interaction.search.editor.insert_char('o');
     interaction.search.editor.insert_char('o');
-    interaction.search.parsed.update(interaction.search.editor.text());
+    interaction
+        .search
+        .parsed
+        .update(interaction.search.editor.text());
 
     assert_eq!(interaction.search.editor.text(), "foo");
     assert!(!interaction.search.parsed.is_empty());
@@ -89,8 +92,11 @@ fn test_search_clearing() {
     interaction.search.editor.insert_char('b');
     interaction.search.editor.insert_char('a');
     interaction.search.editor.insert_char('r');
-    interaction.search.parsed.update(interaction.search.editor.text());
-    
+    interaction
+        .search
+        .parsed
+        .update(interaction.search.editor.text());
+
     interaction.leave_search(false);
     assert!(!interaction.search.active);
     assert_eq!(interaction.search.editor.text(), "bar");
@@ -108,37 +114,37 @@ fn test_mock_lookup() {
 fn test_editor_utf8_interactions() {
     use brain_tui::ui::interaction::editor::Editor;
     let mut editor = Editor::new();
-    
+
     // Insert multi-byte characters
     editor.insert_char('あ');
     editor.insert_char('い');
     editor.insert_char('う');
-    
+
     assert_eq!(editor.text(), "あいう");
     assert_eq!(editor.cursor().visual_col, 3);
     assert_eq!(editor.cursor().byte_index, 9); // 'あ', 'い', 'う' each take 3 bytes
-    
+
     // Move left
     editor.move_cursor_left();
     assert_eq!(editor.cursor().visual_col, 2);
     assert_eq!(editor.cursor().byte_index, 6);
-    
+
     // Move left again
     editor.move_cursor_left();
     assert_eq!(editor.cursor().visual_col, 1);
     assert_eq!(editor.cursor().byte_index, 3);
-    
+
     // Move right
     editor.move_cursor_right();
     assert_eq!(editor.cursor().visual_col, 2);
     assert_eq!(editor.cursor().byte_index, 6);
-    
+
     // Backspace
     editor.backspace();
     assert_eq!(editor.text(), "あう");
     assert_eq!(editor.cursor().visual_col, 1);
     assert_eq!(editor.cursor().byte_index, 3);
-    
+
     // Delete (removes 'う')
     editor.delete();
     assert_eq!(editor.text(), "あ");
@@ -148,7 +154,7 @@ fn test_editor_utf8_interactions() {
 
 #[test]
 fn test_sidebar_key_events_emission() {
-    use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, KeyEventKind, KeyEventState};
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
 
     let mut interaction = SidebarInteraction::new();
     let session_id = SessionId::new();
@@ -157,7 +163,9 @@ fn test_sidebar_key_events_emission() {
 
     struct Lookup;
     impl SessionLookup for Lookup {
-        fn title(&self, _id: SessionId) -> Option<&str> { Some("Test Session") }
+        fn title(&self, _id: SessionId) -> Option<&str> {
+            Some("Test Session")
+        }
     }
     let lookup = Lookup;
 
@@ -175,12 +183,12 @@ fn test_sidebar_key_events_emission() {
 
 #[test]
 fn test_sidebar_rendering_modes() {
+    use brain_tui::state::SessionViewModel;
+    use brain_tui::ui::interaction::sidebar::{SessionFilter, SidebarMode};
+    use brain_tui::ui::theme::Theme;
+    use brain_tui::ui::widgets::sidebar::{self, SidebarView};
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
-    use brain_tui::ui::widgets::sidebar::{self, SidebarView};
-    use brain_tui::ui::interaction::sidebar::{SidebarMode, SessionFilter};
-    use brain_tui::ui::theme::Theme;
-    use brain_tui::state::SessionViewModel;
     use std::time::SystemTime;
 
     let backend = TestBackend::new(40, 20);
@@ -221,10 +229,12 @@ fn test_sidebar_rendering_modes() {
         rename_cursor: 11,
     };
 
-    terminal.draw(|f| {
-        let area = f.size();
-        sidebar::draw(f, area, &view, &theme);
-    }).unwrap();
+    terminal
+        .draw(|f| {
+            let area = f.size();
+            sidebar::draw(f, area, &view, &theme);
+        })
+        .unwrap();
 
     let buffer = terminal.backend().buffer();
     assert!(buffer.area.width > 0);
@@ -255,21 +265,19 @@ fn test_sidebar_cursor_formatting_and_slicing() {
 
 #[tokio::test]
 async fn test_sidebar_event_loop_orchestration() {
+    use brain_tui::ui::application::{Application, ApplicationError, DaemonClient, UiEventSource};
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::interaction::sidebar::{SidebarEvent, SidebarInteraction};
+    use brain_tui::ui::interaction::{ChatState, Editor, ScrollState, UiEvent};
+    use brain_tui::ui::protocol::{BackendCommand, BackendEvent};
+    use brain_tui::ui::router::{ActiveScreen, ScreenRouter};
+    use brain_tui::ui::scheduler::MockRenderScheduler;
+    use brain_tui::ui::state::AppState;
+    use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+    use brain_tui::ui::widgets::ChatScreen;
     use std::sync::Arc;
     use std::sync::Mutex as StdMutex;
     use tokio::sync::mpsc;
-    use brain_tui::ui::interaction::{
-        Editor, ScrollState, ChatState, UiEvent
-    };
-    use brain_tui::ui::focus::{FocusManager, FocusProfile};
-    use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
-    use brain_tui::ui::widgets::ChatScreen;
-    use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
-    use brain_tui::ui::state::AppState;
-    use brain_tui::ui::protocol::{BackendCommand, BackendEvent};
-    use brain_tui::ui::scheduler::MockRenderScheduler;
-    use brain_tui::ui::application::{Application, UiEventSource, DaemonClient, ApplicationError};
-    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
 
     const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
         session_title: "test",
@@ -326,13 +334,17 @@ async fn test_sidebar_event_loop_orchestration() {
     let ui_source = TestUiSource { rx: ui_rx };
 
     let cancellation = app.cancellation().clone();
-    let handle = tokio::spawn(async move {
-        app.run(ui_source).await
-    });
+    let handle = tokio::spawn(async move { app.run(ui_source).await });
 
     // Send a SidebarEvent::Rename via TUI channel
     let test_id = SessionId::new();
-    ui_tx.send(UiEvent::Sidebar(SidebarEvent::Rename(test_id, Some("New Title".to_string())))).await.unwrap();
+    ui_tx
+        .send(UiEvent::Sidebar(SidebarEvent::Rename(
+            test_id,
+            Some("New Title".to_string()),
+        )))
+        .await
+        .unwrap();
 
     // Give it a moment to process
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -340,7 +352,13 @@ async fn test_sidebar_event_loop_orchestration() {
     // Verify command was sent to client
     let cmds = commands.lock().unwrap();
     assert_eq!(cmds.len(), 1);
-    assert_eq!(cmds[0], BackendCommand::RenameSession { session_id: test_id, title: Some("New Title".to_string()) });
+    assert_eq!(
+        cmds[0],
+        BackendCommand::RenameSession {
+            session_id: test_id,
+            title: Some("New Title".to_string())
+        }
+    );
 
     cancellation.cancel();
     let _ = handle.await.unwrap();
@@ -348,21 +366,19 @@ async fn test_sidebar_event_loop_orchestration() {
 
 #[tokio::test]
 async fn test_sidebar_optimistic_state_updates() {
+    use brain_tui::client::SessionSummary;
+    use brain_tui::ui::application::{Application, ApplicationError, DaemonClient};
+    use brain_tui::ui::focus::{FocusManager, FocusProfile};
+    use brain_tui::ui::interaction::sidebar::{SidebarEvent, SidebarInteraction};
+    use brain_tui::ui::interaction::{ChatState, Editor, ScrollState, UiEvent};
+    use brain_tui::ui::protocol::BackendCommand;
+    use brain_tui::ui::router::{ActiveScreen, ScreenRouter};
+    use brain_tui::ui::scheduler::MockRenderScheduler;
+    use brain_tui::ui::state::AppState;
+    use brain_tui::ui::widgets::view_models::{ChatScreenView, ConnectionState, FocusTarget};
+    use brain_tui::ui::widgets::ChatScreen;
     use std::sync::Arc;
     use std::sync::Mutex as StdMutex;
-    use brain_tui::ui::interaction::{
-        Editor, ScrollState, ChatState, UiEvent
-    };
-    use brain_tui::ui::focus::{FocusManager, FocusProfile};
-    use brain_tui::ui::widgets::view_models::{FocusTarget, ChatScreenView, ConnectionState};
-    use brain_tui::ui::widgets::ChatScreen;
-    use brain_tui::ui::router::{ScreenRouter, ActiveScreen};
-    use brain_tui::ui::state::AppState;
-    use brain_tui::ui::protocol::BackendCommand;
-    use brain_tui::ui::scheduler::MockRenderScheduler;
-    use brain_tui::ui::application::{Application, DaemonClient, ApplicationError};
-    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
-    use brain_tui::client::SessionSummary;
 
     const CHAT_VIEW: ChatScreenView<'static> = ChatScreenView {
         session_title: "test",
@@ -425,24 +441,45 @@ async fn test_sidebar_optimistic_state_updates() {
     let mut app = Application::new(state, scheduler, client);
 
     // 1. Test optimistic rename
-    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Rename(test_id1, Some("New Title".to_string())))).await.unwrap();
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Rename(
+        test_id1,
+        Some("New Title".to_string()),
+    )))
+    .await
+    .unwrap();
 
     // 2. Test optimistic toggle pin
-    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::TogglePin(test_id2))).await.unwrap();
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::TogglePin(test_id2)))
+        .await
+        .unwrap();
 
     // 3. Test optimistic archive
-    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Archive(test_id1))).await.unwrap();
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Archive(test_id1)))
+        .await
+        .unwrap();
 
     // 4. Test optimistic delete
-    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Delete(test_id2))).await.unwrap();
+    app.handle_ui_event(UiEvent::Sidebar(SidebarEvent::Delete(test_id2)))
+        .await
+        .unwrap();
 
     // Assert rename and archive was applied optimistically
-    let s1 = app.state().sessions().iter().find(|x| x.id == test_id1).unwrap();
+    let s1 = app
+        .state()
+        .sessions()
+        .iter()
+        .find(|x| x.id == test_id1)
+        .unwrap();
     assert_eq!(s1.title, "New Title");
     assert!(s1.archived);
 
     // Assert delete was applied (s2 should be missing)
-    assert!(app.state().sessions().iter().find(|x| x.id == test_id2).is_none());
+    assert!(app
+        .state()
+        .sessions()
+        .iter()
+        .find(|x| x.id == test_id2)
+        .is_none());
 
     // Verify commands were sent to client
     let cmds = commands.lock().unwrap();
@@ -473,9 +510,9 @@ impl SimpleRng {
 async fn test_selection_stability_property() {
     let mut rng = SimpleRng::new(42);
 
-    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SessionFilter};
-    use brain_tui::ui::interaction::sidebar::SessionLookup;
     use brain_tui::client::SessionSummary;
+    use brain_tui::ui::interaction::sidebar::SessionLookup;
+    use brain_tui::ui::interaction::sidebar::{SessionFilter, SidebarInteraction};
 
     // 1. Generate 50 sessions
     let mut sessions = Vec::new();
@@ -491,7 +528,11 @@ async fn test_selection_stability_property() {
 
     let mut sidebar = SidebarInteraction::new();
     // Initially select the first active session if any
-    let active_ids: Vec<SessionId> = sessions.iter().filter(|x| !x.archived).map(|x| x.id).collect();
+    let active_ids: Vec<SessionId> = sessions
+        .iter()
+        .filter(|x| !x.archived)
+        .map(|x| x.id)
+        .collect();
     sidebar.browse.selected = active_ids.first().copied();
 
     struct MockLookup<'a> {
@@ -499,7 +540,10 @@ async fn test_selection_stability_property() {
     }
     impl<'a> SessionLookup for MockLookup<'a> {
         fn title(&self, id: SessionId) -> Option<&str> {
-            self.sessions.iter().find(|x| x.id == id).map(|x| x.title.as_str())
+            self.sessions
+                .iter()
+                .find(|x| x.id == id)
+                .map(|x| x.title.as_str())
         }
     }
 
@@ -619,11 +663,23 @@ async fn test_selection_stability_property() {
             _ => {
                 // Navigate selection
                 let key = if rng.gen_bool(0.5) {
-                    crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Down, crossterm::event::KeyModifiers::empty())
+                    crossterm::event::KeyEvent::new(
+                        crossterm::event::KeyCode::Down,
+                        crossterm::event::KeyModifiers::empty(),
+                    )
                 } else {
-                    crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Up, crossterm::event::KeyModifiers::empty())
+                    crossterm::event::KeyEvent::new(
+                        crossterm::event::KeyCode::Up,
+                        crossterm::event::KeyModifiers::empty(),
+                    )
                 };
-                sidebar.handle_key(key, &visible_ids, &MockLookup { sessions: &sessions });
+                sidebar.handle_key(
+                    key,
+                    &visible_ids,
+                    &MockLookup {
+                        sessions: &sessions,
+                    },
+                );
             }
         }
 
@@ -642,19 +698,30 @@ async fn test_selection_stability_property() {
 
         // Assert invariant: selected is Some(id) in visible_ids, or None if visible_ids is empty
         if final_visible.is_empty() {
-            assert!(sidebar.browse.selected.is_none(), "Expected selection to be None when visible set is empty");
+            assert!(
+                sidebar.browse.selected.is_none(),
+                "Expected selection to be None when visible set is empty"
+            );
         } else {
-            let sel = sidebar.browse.selected.expect("Expected a selected session when visible set is non-empty");
-            assert!(final_visible.contains(&sel), "Expected selected session {:?} to be in visible set {:?}", sel, final_visible);
+            let sel = sidebar
+                .browse
+                .selected
+                .expect("Expected a selected session when visible set is non-empty");
+            assert!(
+                final_visible.contains(&sel),
+                "Expected selected session {:?} to be in visible set {:?}",
+                sel,
+                final_visible
+            );
         }
     }
 }
 
 #[tokio::test]
 async fn test_rename_non_matching_search_regression() {
-    use brain_tui::ui::interaction::sidebar::{SidebarInteraction, SidebarEvent};
-    use brain_tui::ui::interaction::sidebar::SessionLookup;
     use brain_tui::client::SessionSummary;
+    use brain_tui::ui::interaction::sidebar::SessionLookup;
+    use brain_tui::ui::interaction::sidebar::{SidebarEvent, SidebarInteraction};
 
     // Setup sessions
     let id_rust = SessionId::new();
@@ -687,16 +754,24 @@ async fn test_rename_non_matching_search_regression() {
     }
     impl<'a> SessionLookup for MockLookup<'a> {
         fn title(&self, id: SessionId) -> Option<&str> {
-            self.sessions.iter().find(|x| x.id == id).map(|x| x.title.as_str())
+            self.sessions
+                .iter()
+                .find(|x| x.id == id)
+                .map(|x| x.title.as_str())
         }
     }
-    let lookup = MockLookup { sessions: &sessions };
+    let lookup = MockLookup {
+        sessions: &sessions,
+    };
 
     // Visible set should only contain Rust session
     let visible_ids = vec![id_rust];
 
     // 2. Enter Rename mode
-    let key_rename = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char('e'), crossterm::event::KeyModifiers::empty());
+    let key_rename = crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Char('e'),
+        crossterm::event::KeyModifiers::empty(),
+    );
     let (_, ev) = sidebar.handle_key(key_rename, &visible_ids, &lookup);
     assert!(ev.is_none());
 
@@ -705,12 +780,18 @@ async fn test_rename_non_matching_search_regression() {
 
     // 3. Rename to "Go Lang" (which doesn't match "Rust")
     for c in "Go Lang".chars() {
-        let key_char = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Char(c), crossterm::event::KeyModifiers::empty());
+        let key_char = crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char(c),
+            crossterm::event::KeyModifiers::empty(),
+        );
         sidebar.handle_key(key_char, &visible_ids, &lookup);
     }
 
     // 4. Commit rename
-    let key_enter = crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Enter, crossterm::event::KeyModifiers::empty());
+    let key_enter = crossterm::event::KeyEvent::new(
+        crossterm::event::KeyCode::Enter,
+        crossterm::event::KeyModifiers::empty(),
+    );
     let (_, ev) = sidebar.handle_key(key_enter, &visible_ids, &lookup);
 
     // Assert that SidebarEvent::Rename is emitted
@@ -737,6 +818,8 @@ async fn test_rename_non_matching_search_regression() {
     sidebar.restore_selection_fallback(&new_visible_ids);
 
     // Selected session should be None
-    assert!(sidebar.browse.selected.is_none(), "Expected selection to fall back to None when visible set is empty");
+    assert!(
+        sidebar.browse.selected.is_none(),
+        "Expected selection to fall back to None when visible set is empty"
+    );
 }
-

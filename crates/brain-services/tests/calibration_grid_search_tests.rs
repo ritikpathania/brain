@@ -3,9 +3,9 @@ use brain_core::retrieval::EmbeddingProvider;
 use brain_core::RepositorySet;
 use brain_domain::{Edge, Node, NodeId, NodeType, RelationKind};
 use brain_services::eval_harness::{
-    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession, FtsRetriever,
-    GroundTruthCorpus, HybridRetriever, MarkdownReportWriter, QueryCorpus, RankingDecay,
-    SemanticRetriever, FeatureProvider,
+    CalibrationEngine, CalibrationObjective, CalibrationOptions, EvaluationSession,
+    FeatureProvider, FtsRetriever, GroundTruthCorpus, HybridRetriever, MarkdownReportWriter,
+    QueryCorpus, RankingDecay, SemanticRetriever,
 };
 use brain_storage::TestStorage;
 use std::fs;
@@ -27,9 +27,12 @@ impl EmbeddingProvider for FixtureEmbeddingProvider {
     }
 
     fn embed(&self, text: &str) -> Result<Vec<f32>, BrainError> {
-        let fq = self.text_to_query.get(text).ok_or_else(|| {
-            BrainError::Validation { message: format!("Query text not found in fixture: {}", text) }
-        })?;
+        let fq = self
+            .text_to_query
+            .get(text)
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Query text not found in fixture: {}", text),
+            })?;
         Ok(fq.embedding.clone())
     }
 }
@@ -78,15 +81,25 @@ fn test_calibration_grid_search_and_report_generation() {
         let node_id = NodeId(uuid::Uuid::parse_str(&n.node_id).unwrap());
         let mut node = Node::new(node_id, n.content.clone(), NodeType::Concept);
         node.updated_at = n.properties.updated_at;
-        node.properties.insert("importance".to_string(), serde_json::json!(n.properties.importance));
-        node.properties.insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
-        node.properties.insert("provenance_confidence".to_string(), serde_json::json!(n.properties.provenance_confidence));
+        node.properties.insert(
+            "importance".to_string(),
+            serde_json::json!(n.properties.importance),
+        );
+        node.properties
+            .insert("pinned".to_string(), serde_json::json!(n.properties.pinned));
+        node.properties.insert(
+            "provenance_confidence".to_string(),
+            serde_json::json!(n.properties.provenance_confidence),
+        );
         sqlite.nodes().save(&node).unwrap();
 
         // Save embedding
         sqlite
             .embeddings()
-            .save(&brain_domain::Embedding::new(node_id, n.properties.embedding.clone()))
+            .save(&brain_domain::Embedding::new(
+                node_id,
+                n.properties.embedding.clone(),
+            ))
             .unwrap();
 
         // Save access feedback events
@@ -119,7 +132,9 @@ fn test_calibration_grid_search_and_report_generation() {
             sqlite
                 .save_temporal_edge(&brain_domain::TemporalEdge {
                     edge: Edge::new(node_id, target_id, RelationKind::Uses, 1.0),
-                    observed_at: brain_domain::TimePoint::from_unix_seconds(n.properties.last_observed_at),
+                    observed_at: brain_domain::TimePoint::from_unix_seconds(
+                        n.properties.last_observed_at,
+                    ),
                     validity: brain_domain::temporal::TemporalValidity::new(vec![]),
                 })
                 .unwrap();
@@ -130,9 +145,13 @@ fn test_calibration_grid_search_and_report_generation() {
     let fts = FtsRetriever::new(sqlite.pool().clone());
     let mut text_to_query = std::collections::HashMap::new();
     for q in &queries.queries {
-        let embedding = q.embedding.clone().ok_or_else(|| {
-            BrainError::Validation { message: format!("Embedding not defined for query: {}", q.query_id) }
-        }).unwrap();
+        let embedding = q
+            .embedding
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: format!("Embedding not defined for query: {}", q.query_id),
+            })
+            .unwrap();
         text_to_query.insert(
             q.text.clone(),
             FixtureQuery {
@@ -177,7 +196,10 @@ fn test_calibration_grid_search_and_report_generation() {
     let objective = CalibrationObjective::Composite;
     let results = CalibrationEngine::run_calibration(&session, options, objective);
 
-    assert!(!results.is_empty(), "Calibration should produce at least one result");
+    assert!(
+        !results.is_empty(),
+        "Calibration should produce at least one result"
+    );
 
     // 7. Generate Report using MarkdownReportWriter
     let report_content = MarkdownReportWriter::write_report(&results, objective);
@@ -185,7 +207,11 @@ fn test_calibration_grid_search_and_report_generation() {
     // Save report to tests/evaluation/controlled_calibration_report.md
     let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
     fs::create_dir_all(&base_path).unwrap();
-    fs::write(base_path.join("controlled_calibration_report.md"), &report_content).unwrap();
+    fs::write(
+        base_path.join("controlled_calibration_report.md"),
+        &report_content,
+    )
+    .unwrap();
 
     // Verify ordering by objective score
     for i in 0..(results.len() - 1) {

@@ -1,7 +1,7 @@
 //! Presentation resolvers for capabilities-driven terminal borders and hyperlinks.
 
+use crate::ui::interaction::layout_tree::{SpanAction, VisualSpan};
 use crate::ui::render::context::{EffectiveCapabilities, UnicodeSupport};
-use crate::ui::interaction::layout_tree::{VisualSpan, SpanAction};
 
 /// A complete set of border line symbols for grid formatting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,17 +38,31 @@ impl BorderResolver {
     pub fn resolve(caps: &EffectiveCapabilities) -> BorderGlyphs {
         if caps.unicode == UnicodeSupport::Full {
             BorderGlyphs {
-                top_left: "┌", top_mid: "┬", top_right: "┐",
-                mid_left: "├", mid_mid: "┼", mid_right: "┤",
-                bottom_left: "└", bottom_mid: "┴", bottom_right: "┘",
-                vertical: "│", horizontal: "─",
+                top_left: "┌",
+                top_mid: "┬",
+                top_right: "┐",
+                mid_left: "├",
+                mid_mid: "┼",
+                mid_right: "┤",
+                bottom_left: "└",
+                bottom_mid: "┴",
+                bottom_right: "┘",
+                vertical: "│",
+                horizontal: "─",
             }
         } else {
             BorderGlyphs {
-                top_left: "+", top_mid: "+", top_right: "+",
-                mid_left: "+", mid_mid: "+", mid_right: "+",
-                bottom_left: "+", bottom_mid: "+", bottom_right: "+",
-                vertical: "|", horizontal: "-",
+                top_left: "+",
+                top_mid: "+",
+                top_right: "+",
+                mid_left: "+",
+                mid_mid: "+",
+                mid_right: "+",
+                bottom_left: "+",
+                bottom_mid: "+",
+                bottom_right: "+",
+                vertical: "|",
+                horizontal: "-",
             }
         }
     }
@@ -73,17 +87,12 @@ pub struct LinkRenderer;
 
 impl LinkRenderer {
     /// Computes terminal presentation for visual spans under caps constraints.
-    pub fn render<'a>(
-        span: &'a VisualSpan,
-        caps: &EffectiveCapabilities,
-    ) -> TerminalSpan<'a> {
+    pub fn render<'a>(span: &'a VisualSpan, caps: &EffectiveCapabilities) -> TerminalSpan<'a> {
         match (&span.action, caps.osc8) {
-            (SpanAction::Hyperlink(url), true) => {
-                TerminalSpan::Hyperlink {
-                    text: &span.text,
-                    url: url.as_str(),
-                }
-            }
+            (SpanAction::Hyperlink(url), true) => TerminalSpan::Hyperlink {
+                text: &span.text,
+                url: url.as_str(),
+            },
             (SpanAction::Hyperlink(url), false) => {
                 // If text is same as URL, just print URL
                 if span.text.as_ref() == url.as_str() {

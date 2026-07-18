@@ -1,7 +1,7 @@
 //! Width-agnostic markdown parser implementation.
 
 use crate::ui::interaction::ast::{
-    DocumentBlock, InlineNode, LanguageId, LinkTarget, CitationId, TableCell, TableNode, ListKind
+    CitationId, DocumentBlock, InlineNode, LanguageId, LinkTarget, ListKind, TableCell, TableNode,
 };
 
 /// Width-agnostic markdown document parser.
@@ -33,7 +33,10 @@ impl MarkdownParser {
                 let text_line = lines.next().unwrap();
                 let heading_trimmed = text_line.trim_start_matches('#');
                 let level = (text_line.len() - heading_trimmed.len()) as u8;
-                if level >= 1 && level <= 6 && (heading_trimmed.starts_with(' ') || heading_trimmed.is_empty()) {
+                if level >= 1
+                    && level <= 6
+                    && (heading_trimmed.starts_with(' ') || heading_trimmed.is_empty())
+                {
                     let content = parse_inline(heading_trimmed.trim());
                     blocks.push(DocumentBlock::Heading { level, content });
                     continue;
@@ -100,9 +103,16 @@ impl MarkdownParser {
             }
 
             // 5. Unordered and Ordered Lists Check
-            if trimmed.starts_with("- ") || trimmed.starts_with("* ") || (trimmed.chars().next().unwrap_or(' ').is_numeric() && trimmed.contains(". ")) {
+            if trimmed.starts_with("- ")
+                || trimmed.starts_with("* ")
+                || (trimmed.chars().next().unwrap_or(' ').is_numeric() && trimmed.contains(". "))
+            {
                 let is_ordered = !trimmed.starts_with("- ") && !trimmed.starts_with("* ");
-                let kind = if is_ordered { ListKind::Ordered } else { ListKind::Unordered };
+                let kind = if is_ordered {
+                    ListKind::Ordered
+                } else {
+                    ListKind::Unordered
+                };
                 let mut items = Vec::new();
 
                 while let Some(&list_line) = lines.peek() {
@@ -143,11 +153,20 @@ impl MarkdownParser {
             if trimmed.starts_with('|') && trimmed.ends_with('|') {
                 let header_line = lines.next().unwrap();
                 let raw_headers = parse_table_row(header_line);
-                let headers: Vec<TableCell> = raw_headers.into_iter().map(|h| TableCell { content: parse_inline(&h) }).collect();
+                let headers: Vec<TableCell> = raw_headers
+                    .into_iter()
+                    .map(|h| TableCell {
+                        content: parse_inline(&h),
+                    })
+                    .collect();
 
                 if let Some(&sep_line) = lines.peek() {
                     let sep_trimmed = sep_line.trim();
-                    if sep_trimmed.starts_with('|') && sep_trimmed.chars().all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace()) {
+                    if sep_trimmed.starts_with('|')
+                        && sep_trimmed
+                            .chars()
+                            .all(|c| c == '|' || c == '-' || c == ':' || c.is_whitespace())
+                    {
                         lines.next();
                     }
                 }
@@ -157,7 +176,12 @@ impl MarkdownParser {
                     let row_trimmed = row_line.trim();
                     if row_trimmed.starts_with('|') && row_trimmed.ends_with('|') {
                         let raw_cells = parse_table_row(lines.next().unwrap());
-                        let row_cells: Vec<TableCell> = raw_cells.into_iter().map(|c| TableCell { content: parse_inline(&c) }).collect();
+                        let row_cells: Vec<TableCell> = raw_cells
+                            .into_iter()
+                            .map(|c| TableCell {
+                                content: parse_inline(&c),
+                            })
+                            .collect();
                         rows.push(row_cells);
                     } else {
                         break;
@@ -339,7 +363,9 @@ fn parse_inline_recursive(chars: &[char]) -> Vec<InlineNode> {
                 }
             } else {
                 let label_str: String = label_chars.iter().collect();
-                if closed_bracket && (label_str.chars().all(|c| c.is_numeric()) || label_str.starts_with('^')) {
+                if closed_bracket
+                    && (label_str.chars().all(|c| c.is_numeric()) || label_str.starts_with('^'))
+                {
                     nodes.push(InlineNode::Citation(CitationId(label_str.into_boxed_str())));
                 } else {
                     current_text.push('[');

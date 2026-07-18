@@ -1,6 +1,6 @@
 //! Input translation and event mapping.
 
-use crossterm::event::{KeyEvent, KeyCode, KeyModifiers, MouseEvent, MouseEventKind, MouseButton};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 /// Global or layout actions that can be triggered by terminal input events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +31,6 @@ pub enum Command {
     Escape,
 }
 
-
 /// Character text input components.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextInput {
@@ -59,10 +58,11 @@ impl InputRouter {
         if key.modifiers.contains(KeyModifiers::CONTROL) {
             match key.code {
                 KeyCode::Char('c') | KeyCode::Char('C') => InputAction::Command(Command::Exit),
-                KeyCode::Char('k') | KeyCode::Char('K') => InputAction::Command(Command::ToggleCommandPalette),
+                KeyCode::Char('k') | KeyCode::Char('K') => {
+                    InputAction::Command(Command::ToggleCommandPalette)
+                }
                 _ => InputAction::None,
             }
-
         } else {
             match key.code {
                 KeyCode::Esc => InputAction::Command(Command::Escape),
@@ -160,4 +160,3 @@ impl MouseRouter {
         }
     }
 }
-

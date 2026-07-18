@@ -21,8 +21,8 @@ pub mod ui;
 pub mod clipboard;
 
 use crate::client::ExecutionClient;
-use crate::event::{Event, AppEvent, EventHandler};
-use crate::state::{UiState, Action, UpdateResult};
+use crate::event::{AppEvent, Event, EventHandler};
+use crate::state::{Action, UiState, UpdateResult};
 use crate::terminal::TerminalGuard;
 use crate::ui::renderer::AppRenderer;
 use brain_core::errors::BrainError;
@@ -78,22 +78,26 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
     let mut events = EventHandler::new(Duration::from_millis(10)); // 10ms for smooth ticks
     let renderer = AppRenderer::new();
     let mut state = UiState::new();
-    
+
     // Initialize unified omnibox search
     let search_sink = std::sync::Arc::new(ChannelEventSink {
         sender: events.sender(),
     });
-    state.command_palette_mut().initialize(client.clone(), search_sink);
+    state
+        .command_palette_mut()
+        .initialize(client.clone(), search_sink);
 
     let theme = crate::ui::theme::Theme::default();
-    
+
     let mut active_cancel: Option<tokio_util::sync::CancellationToken> = None;
     let mut tokenizer = crate::state::IncrementalTokenizer::new();
     let mut request_id_counter = 0u64;
 
     // Connection starts as Connecting — transitions to Daemon on first successful
     // stream_start handshake, or Disconnected on socket error.
-    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Connecting));
+    state.update(Action::SetConnectionMode(
+        crate::state::ConnectionMode::Connecting,
+    ));
 
     // 3a. Query initial session list and history — also probes connectivity.
     {
@@ -130,12 +134,14 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         state.recalculate_viewport();
 
         // Render tick cycle
-        terminal.draw(|f| {
-            let area = f.size();
-            renderer.draw(f, area, &state, &theme);
-        }).map_err(|e| BrainError::Validation {
-            message: format!("Failed to draw terminal frame: {}", e),
-        })?;
+        terminal
+            .draw(|f| {
+                let area = f.size();
+                renderer.draw(f, area, &state, &theme);
+            })
+            .map_err(|e| BrainError::Validation {
+                message: format!("Failed to draw terminal frame: {}", e),
+            })?;
 
         // Await next event from multiplexer queue
         if let Some(event) = events.next().await {
@@ -144,58 +150,62 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                     let action = if !state.pending_approvals.is_empty() {
                         let first = state.pending_approvals.first().unwrap().clone();
                         match key.code {
-                            crossterm::event::KeyCode::Char('y') | crossterm::event::KeyCode::Char('Y') | crossterm::event::KeyCode::Enter => {
+                            crossterm::event::KeyCode::Char('y')
+                            | crossterm::event::KeyCode::Char('Y')
+                            | crossterm::event::KeyCode::Enter => {
                                 let client_clone = client.clone();
                                 let call_id = first.call_id.clone();
                                 tokio::spawn(async move {
                                     let _ = client_clone.approve_tool_call(call_id, true).await;
                                 });
-                                Some(Action::ApproveToolCall { call_id: first.call_id, approved: true })
+                                Some(Action::ApproveToolCall {
+                                    call_id: first.call_id,
+                                    approved: true,
+                                })
                             }
-                            crossterm::event::KeyCode::Char('n') | crossterm::event::KeyCode::Char('N') | crossterm::event::KeyCode::Esc => {
+                            crossterm::event::KeyCode::Char('n')
+                            | crossterm::event::KeyCode::Char('N')
+                            | crossterm::event::KeyCode::Esc => {
                                 let client_clone = client.clone();
                                 let call_id = first.call_id.clone();
                                 tokio::spawn(async move {
                                     let _ = client_clone.approve_tool_call(call_id, false).await;
                                 });
-                                Some(Action::ApproveToolCall { call_id: first.call_id, approved: false })
+                                Some(Action::ApproveToolCall {
+                                    call_id: first.call_id,
+                                    approved: false,
+                                })
                             }
                             _ => None,
                         }
                     } else if state.overlay == crate::state::TuiOverlay::PinnedContext {
                         match key.code {
-                            crossterm::event::KeyCode::Esc => {
-                                Some(Action::ClosePinnedOverlay)
-                            }
-                            crossterm::event::KeyCode::Up => {
-                                Some(Action::PinnedOverlayUp)
-                            }
-                            crossterm::event::KeyCode::Down => {
-                                Some(Action::PinnedOverlayDown)
-                            }
+                            crossterm::event::KeyCode::Esc => Some(Action::ClosePinnedOverlay),
+                            crossterm::event::KeyCode::Up => Some(Action::PinnedOverlayUp),
+                            crossterm::event::KeyCode::Down => Some(Action::PinnedOverlayDown),
                             crossterm::event::KeyCode::Enter => {
                                 Some(Action::InspectPinnedNode(state.pinned_overlay_cursor))
                             }
-                            crossterm::event::KeyCode::Char('x') | crossterm::event::KeyCode::Char('X') => {
-                                if !state.pinned_nodes.is_empty() && state.pinned_overlay_cursor < state.pinned_nodes.len() {
-                                    Some(Action::UnpinNode(state.pinned_nodes[state.pinned_overlay_cursor].node_id))
+                            crossterm::event::KeyCode::Char('x')
+                            | crossterm::event::KeyCode::Char('X') => {
+                                if !state.pinned_nodes.is_empty()
+                                    && state.pinned_overlay_cursor < state.pinned_nodes.len()
+                                {
+                                    Some(Action::UnpinNode(
+                                        state.pinned_nodes[state.pinned_overlay_cursor].node_id,
+                                    ))
                                 } else {
                                     None
                                 }
                             }
-                            crossterm::event::KeyCode::Char('c') | crossterm::event::KeyCode::Char('C') => {
-                                Some(Action::ClearAllPins)
-                            }
+                            crossterm::event::KeyCode::Char('c')
+                            | crossterm::event::KeyCode::Char('C') => Some(Action::ClearAllPins),
                             _ => None, // Focus is locked inside overlay
                         }
                     } else if state.mode == crate::state::TuiMode::Exploration {
                         match key.code {
-                            crossterm::event::KeyCode::Esc => {
-                                Some(Action::CloseInspector)
-                            }
-                            crossterm::event::KeyCode::Backspace => {
-                                Some(Action::PopBreadcrumb)
-                            }
+                            crossterm::event::KeyCode::Esc => Some(Action::CloseInspector),
+                            crossterm::event::KeyCode::Backspace => Some(Action::PopBreadcrumb),
                             crossterm::event::KeyCode::Up => {
                                 if state.focus == FocusRegion::Inspector {
                                     Some(Action::PrevInspectorRelation)
@@ -217,59 +227,74 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     None
                                 }
                             }
-                            crossterm::event::KeyCode::Tab => {
-                                Some(Action::ToggleFocus)
-                            }
+                            crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
                             crossterm::event::KeyCode::PageUp => {
                                 if state.focus == FocusRegion::Inspector {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollInspectorUp(page))
                                 } else {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollUp(page))
                                 }
                             }
                             crossterm::event::KeyCode::PageDown => {
                                 if state.focus == FocusRegion::Inspector {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollInspectorDown(page))
                                 } else {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollDown(page))
                                 }
                             }
-                            crossterm::event::KeyCode::Char('u') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('u')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 if state.focus == FocusRegion::Inspector {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollInspectorUp((page / 2).max(1)))
                                 } else {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollUp((page / 2).max(1)))
                                 }
                             }
-                            crossterm::event::KeyCode::Char('d') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('d')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 if state.focus == FocusRegion::Inspector {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollInspectorDown((page / 2).max(1)))
                                 } else {
-                                    let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                    let page =
+                                        (state.terminal_height.saturating_sub(9) as usize).max(1);
                                     Some(Action::ScrollDown((page / 2).max(1)))
                                 }
                             }
-                            crossterm::event::KeyCode::Char('p') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('p')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 Some(Action::OpenPinnedOverlay)
                             }
-                            crossterm::event::KeyCode::Char('p') | crossterm::event::KeyCode::Char('P') => {
-                                Some(Action::PinCurrentNode)
-                            }
-                            crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('p')
+                            | crossterm::event::KeyCode::Char('P') => Some(Action::PinCurrentNode),
+                            crossterm::event::KeyCode::Char('c')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 Some(Action::Quit)
                             }
                             _ => None,
                         }
                     } else {
                         match key.code {
-                            crossterm::event::KeyCode::Char('p') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('p')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 Some(Action::OpenPinnedOverlay)
                             }
                             crossterm::event::KeyCode::Esc => {
@@ -284,7 +309,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     None
                                 }
                             }
-                            crossterm::event::KeyCode::Char('c') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('c')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 if state.is_generating() {
                                     if let Some(token) = active_cancel.take() {
                                         token.cancel();
@@ -292,7 +319,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 }
                                 Some(Action::Quit)
                             }
-                            crossterm::event::KeyCode::Char('q') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('q')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 if state.is_generating() {
                                     if let Some(token) = active_cancel.take() {
                                         token.cancel();
@@ -300,7 +329,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 }
                                 Some(Action::Quit)
                             }
-                            crossterm::event::KeyCode::Char('n') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
+                            crossterm::event::KeyCode::Char('n')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
                                 Some(Action::NewSession)
                             }
                             // Alt+W toggles "Submit with Workspace" mode.
@@ -308,125 +339,164 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             //   - Ctrl+W is intercepted by VS Code (closes editor tab) — CONFLICT
                             //   - Alt+W passes through cleanly in Terminal.app, iTerm2, tmux, Ghostty
                             //   - crossterm reports: KeyCode::Char('w') + ALT modifier
-                            crossterm::event::KeyCode::Char('w') if key.modifiers == crossterm::event::KeyModifiers::ALT => {
+                            crossterm::event::KeyCode::Char('w')
+                                if key.modifiers == crossterm::event::KeyModifiers::ALT =>
+                            {
                                 Some(Action::ToggleSubmitWithWorkspace)
                             }
                             crossterm::event::KeyCode::PageUp => {
-                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                let page =
+                                    (state.terminal_height.saturating_sub(9) as usize).max(1);
                                 Some(Action::ScrollUp(page))
                             }
                             crossterm::event::KeyCode::PageDown => {
-                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                                let page =
+                                    (state.terminal_height.saturating_sub(9) as usize).max(1);
                                 Some(Action::ScrollDown(page))
                             }
-                            crossterm::event::KeyCode::Char('u') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
-                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                            crossterm::event::KeyCode::Char('u')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                let page =
+                                    (state.terminal_height.saturating_sub(9) as usize).max(1);
                                 Some(Action::ScrollUp((page / 2).max(1)))
                             }
-                            crossterm::event::KeyCode::Char('d') if key.modifiers == crossterm::event::KeyModifiers::CONTROL => {
-                                let page = (state.terminal_height.saturating_sub(9) as usize).max(1);
+                            crossterm::event::KeyCode::Char('d')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                let page =
+                                    (state.terminal_height.saturating_sub(9) as usize).max(1);
                                 Some(Action::ScrollDown((page / 2).max(1)))
                             }
-                            crossterm::event::KeyCode::Up if key.modifiers == crossterm::event::KeyModifiers::CONTROL => Some(Action::ScrollUp(1)),
-                            crossterm::event::KeyCode::Down if key.modifiers == crossterm::event::KeyModifiers::CONTROL => Some(Action::ScrollDown(1)),
+                            crossterm::event::KeyCode::Up
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                Some(Action::ScrollUp(1))
+                            }
+                            crossterm::event::KeyCode::Down
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                Some(Action::ScrollDown(1))
+                            }
                             crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
                             crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
                             crossterm::event::KeyCode::Backspace => {
-                            if state.focus == FocusRegion::Sidebar {
-                                if state.selected_session_idx < state.sessions.len() {
-                                    let session_id = state.sessions[state.selected_session_idx].id;
-                                    let client_clone = client.clone();
-                                    tokio::spawn(async move {
-                                        let _ = client_clone.delete_session(session_id).await;
-                                    });
-                                    Some(Action::DeleteSession(session_id))
+                                if state.focus == FocusRegion::Sidebar {
+                                    if state.selected_session_idx < state.sessions.len() {
+                                        let session_id =
+                                            state.sessions[state.selected_session_idx].id;
+                                        let client_clone = client.clone();
+                                        tokio::spawn(async move {
+                                            let _ = client_clone.delete_session(session_id).await;
+                                        });
+                                        Some(Action::DeleteSession(session_id))
+                                    } else {
+                                        None
+                                    }
                                 } else {
-                                    None
+                                    Some(Action::Backspace)
                                 }
-                            } else {
-                                Some(Action::Backspace)
                             }
-                        }
-                        crossterm::event::KeyCode::Delete => {
-                            if state.focus == FocusRegion::Sidebar {
-                                if state.selected_session_idx < state.sessions.len() {
-                                    let session_id = state.sessions[state.selected_session_idx].id;
-                                    let client_clone = client.clone();
-                                    tokio::spawn(async move {
-                                        let _ = client_clone.delete_session(session_id).await;
-                                    });
-                                    Some(Action::DeleteSession(session_id))
+                            crossterm::event::KeyCode::Delete => {
+                                if state.focus == FocusRegion::Sidebar {
+                                    if state.selected_session_idx < state.sessions.len() {
+                                        let session_id =
+                                            state.sessions[state.selected_session_idx].id;
+                                        let client_clone = client.clone();
+                                        tokio::spawn(async move {
+                                            let _ = client_clone.delete_session(session_id).await;
+                                        });
+                                        Some(Action::DeleteSession(session_id))
+                                    } else {
+                                        None
+                                    }
                                 } else {
-                                    None
+                                    Some(Action::Delete)
                                 }
-                            } else {
-                                Some(Action::Delete)
                             }
-                        }
-                        crossterm::event::KeyCode::Left => Some(Action::MoveCursorLeft),
-                        crossterm::event::KeyCode::Right => Some(Action::MoveCursorRight),
-                        crossterm::event::KeyCode::Up => {
-                            if state.focus == FocusRegion::Sidebar {
-                                Some(Action::MoveSidebarCursorUp)
-                            } else {
-                                Some(Action::RecallPrevious)
-                            }
-                        }
-                        crossterm::event::KeyCode::Down => {
-                            if state.focus == FocusRegion::Sidebar {
-                                Some(Action::MoveSidebarCursorDown)
-                            } else {
-                                Some(Action::RecallNext)
-                            }
-                        }
-                        crossterm::event::KeyCode::Enter => {
-                            if state.focus == FocusRegion::Sidebar {
-                                if state.selected_session_idx < state.sessions.len() {
-                                    let session_id = state.sessions[state.selected_session_idx].id;
-                                    request_id_counter += 1;
-                                    let req_id = LoadRequestId(request_id_counter);
-                                    state.update(Action::ActivateSession {
-                                        session_id,
-                                        request_id: req_id,
-                                    });
-                                    trigger_history_load(&client, events.sender(), session_id, req_id).await;
-                                    None
+                            crossterm::event::KeyCode::Left => Some(Action::MoveCursorLeft),
+                            crossterm::event::KeyCode::Right => Some(Action::MoveCursorRight),
+                            crossterm::event::KeyCode::Up => {
+                                if state.focus == FocusRegion::Sidebar {
+                                    Some(Action::MoveSidebarCursorUp)
                                 } else {
-                                    None
+                                    Some(Action::RecallPrevious)
                                 }
-                            } else {
-                                if state.connection_mode == crate::state::ConnectionMode::Disconnected && state.editor.text().trim().is_empty() {
-                                    let client_clone = client.clone();
-                                    let tx = events.sender();
-                                    let initial_session_id = state.session_id;
-                                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Connecting));
-                                    tokio::spawn(async move {
-                                        match client_clone.list_sessions().await {
-                                            Ok(summaries) => {
-                                                let _ = tx.send(Event::App(AppEvent::Connected));
-                                                let _ = tx.send(Event::App(AppEvent::SessionsLoaded(summaries)));
+                            }
+                            crossterm::event::KeyCode::Down => {
+                                if state.focus == FocusRegion::Sidebar {
+                                    Some(Action::MoveSidebarCursorDown)
+                                } else {
+                                    Some(Action::RecallNext)
+                                }
+                            }
+                            crossterm::event::KeyCode::Enter => {
+                                if state.focus == FocusRegion::Sidebar {
+                                    if state.selected_session_idx < state.sessions.len() {
+                                        let session_id =
+                                            state.sessions[state.selected_session_idx].id;
+                                        request_id_counter += 1;
+                                        let req_id = LoadRequestId(request_id_counter);
+                                        state.update(Action::ActivateSession {
+                                            session_id,
+                                            request_id: req_id,
+                                        });
+                                        trigger_history_load(
+                                            &client,
+                                            events.sender(),
+                                            session_id,
+                                            req_id,
+                                        )
+                                        .await;
+                                        None
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    if state.connection_mode
+                                        == crate::state::ConnectionMode::Disconnected
+                                        && state.editor.text().trim().is_empty()
+                                    {
+                                        let client_clone = client.clone();
+                                        let tx = events.sender();
+                                        let initial_session_id = state.session_id;
+                                        state.update(Action::SetConnectionMode(
+                                            crate::state::ConnectionMode::Connecting,
+                                        ));
+                                        tokio::spawn(async move {
+                                            match client_clone.list_sessions().await {
+                                                Ok(summaries) => {
+                                                    let _ =
+                                                        tx.send(Event::App(AppEvent::Connected));
+                                                    let _ = tx.send(Event::App(
+                                                        AppEvent::SessionsLoaded(summaries),
+                                                    ));
+                                                }
+                                                Err(_) => {
+                                                    let _ =
+                                                        tx.send(Event::App(AppEvent::Disconnected));
+                                                }
                                             }
-                                            Err(_) => {
-                                                let _ = tx.send(Event::App(AppEvent::Disconnected));
+                                            if let Ok(messages) =
+                                                client_clone.load_session(initial_session_id).await
+                                            {
+                                                let _ =
+                                                    tx.send(Event::App(AppEvent::HistoryLoaded {
+                                                        session_id: initial_session_id,
+                                                        request_id: LoadRequestId(0),
+                                                        messages,
+                                                    }));
                                             }
-                                        }
-                                        if let Ok(messages) = client_clone.load_session(initial_session_id).await {
-                                            let _ = tx.send(Event::App(AppEvent::HistoryLoaded {
-                                                session_id: initial_session_id,
-                                                request_id: LoadRequestId(0),
-                                                messages,
-                                            }));
-                                        }
-                                    });
-                                    None
-                                } else {
-                                    Some(Action::SubmitPrompt)
+                                        });
+                                        None
+                                    } else {
+                                        Some(Action::SubmitPrompt)
+                                    }
                                 }
                             }
+                            _ => None,
                         }
-                        _ => None,
-                    }
-                };
+                    };
 
                     if let Some(act) = action {
                         let res = state.update(act);
@@ -474,7 +544,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
 
                                     // Only show Connecting if we were previously Disconnected —
                                     // avoids flickering the header on every query when already Daemon.
-                                    if state.connection_mode == crate::state::ConnectionMode::Disconnected {
+                                    if state.connection_mode
+                                        == crate::state::ConnectionMode::Disconnected
+                                    {
                                         state.update(Action::SetConnectionMode(
                                             crate::state::ConnectionMode::Connecting,
                                         ));
@@ -495,12 +567,17 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                                     ) {
                                                         stream_completed = true;
                                                     }
-                                                    if tx.send(Event::App(AppEvent::Stream(event))).is_err() {
+                                                    if tx
+                                                        .send(Event::App(AppEvent::Stream(event)))
+                                                        .is_err()
+                                                    {
                                                         break;
                                                     }
                                                 }
                                                 Err(e) => {
-                                                    let _ = tx.send(Event::App(AppEvent::Error(e.to_string())));
+                                                    let _ = tx.send(Event::App(AppEvent::Error(
+                                                        e.to_string(),
+                                                    )));
                                                     break;
                                                 }
                                             }
@@ -525,7 +602,8 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     session_id,
                                     request_id: req_id,
                                 });
-                                trigger_history_load(&client, events.sender(), session_id, req_id).await;
+                                trigger_history_load(&client, events.sender(), session_id, req_id)
+                                    .await;
                             }
                             UpdateResult::InspectNode(node_id) => {
                                 let client_clone = std::sync::Arc::clone(&client);
@@ -533,10 +611,14 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 tokio::spawn(async move {
                                     match client_clone.inspect_node(node_id).await {
                                         Ok(model) => {
-                                            let _ = tx.send(Event::App(AppEvent::InspectNodeLoaded(model)));
+                                            let _ = tx.send(Event::App(
+                                                AppEvent::InspectNodeLoaded(model),
+                                            ));
                                         }
                                         Err(e) => {
-                                            let _ = tx.send(Event::App(AppEvent::InspectNodeFailed(e.to_string())));
+                                            let _ = tx.send(Event::App(
+                                                AppEvent::InspectNodeFailed(e.to_string()),
+                                            ));
                                         }
                                     }
                                 });
@@ -549,25 +631,27 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                         break;
                     }
                 }
-                Event::Terminal(crate::event::TerminalEvent::Mouse(mouse)) => {
-                    match mouse.kind {
-                        crossterm::event::MouseEventKind::ScrollUp => {
-                            if state.mode == crate::state::TuiMode::Exploration && state.focus == FocusRegion::Inspector {
-                                state.update(Action::ScrollInspectorUp(3));
-                            } else {
-                                state.update(Action::ScrollUp(3));
-                            }
+                Event::Terminal(crate::event::TerminalEvent::Mouse(mouse)) => match mouse.kind {
+                    crossterm::event::MouseEventKind::ScrollUp => {
+                        if state.mode == crate::state::TuiMode::Exploration
+                            && state.focus == FocusRegion::Inspector
+                        {
+                            state.update(Action::ScrollInspectorUp(3));
+                        } else {
+                            state.update(Action::ScrollUp(3));
                         }
-                        crossterm::event::MouseEventKind::ScrollDown => {
-                            if state.mode == crate::state::TuiMode::Exploration && state.focus == FocusRegion::Inspector {
-                                state.update(Action::ScrollInspectorDown(3));
-                            } else {
-                                state.update(Action::ScrollDown(3));
-                            }
-                        }
-                        _ => {}
                     }
-                }
+                    crossterm::event::MouseEventKind::ScrollDown => {
+                        if state.mode == crate::state::TuiMode::Exploration
+                            && state.focus == FocusRegion::Inspector
+                        {
+                            state.update(Action::ScrollInspectorDown(3));
+                        } else {
+                            state.update(Action::ScrollDown(3));
+                        }
+                    }
+                    _ => {}
+                },
                 Event::App(AppEvent::Search(search_event)) => {
                     if let Some(ref mut agg) = state.command_palette_mut().search_aggregator {
                         agg.handle_event(search_event);
@@ -577,11 +661,27 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                 Event::App(AppEvent::SessionsLoaded(summaries)) => {
                     state.update(Action::LoadSessions(summaries));
                 }
-                Event::App(AppEvent::HistoryLoaded { session_id, request_id, messages }) => {
-                    state.update(Action::SessionLoaded { session_id, request_id, messages });
+                Event::App(AppEvent::HistoryLoaded {
+                    session_id,
+                    request_id,
+                    messages,
+                }) => {
+                    state.update(Action::SessionLoaded {
+                        session_id,
+                        request_id,
+                        messages,
+                    });
                 }
-                Event::App(AppEvent::HistoryLoadFailed { session_id, request_id, error }) => {
-                    state.update(Action::SessionLoadFailed { session_id, request_id, error });
+                Event::App(AppEvent::HistoryLoadFailed {
+                    session_id,
+                    request_id,
+                    error,
+                }) => {
+                    state.update(Action::SessionLoadFailed {
+                        session_id,
+                        request_id,
+                        error,
+                    });
                 }
                 Event::App(AppEvent::InspectNodeLoaded(model)) => {
                     state.update(Action::NodeDetailsLoaded(model));
@@ -597,7 +697,9 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 state.update(Action::ReceiveToken(tok));
                             }
                         }
-                        brain_core::events::StreamEventKind::Stage { ref name, active } if name == "Start" && active => {
+                        brain_core::events::StreamEventKind::Stage { ref name, active }
+                            if name == "Start" && active =>
+                        {
                             // Protocol handshake confirmed — connection is live.
                             state.update(Action::SetConnectionMode(
                                 crate::state::ConnectionMode::Daemon,
@@ -615,7 +717,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             state.update(Action::CancelStream);
                             active_cancel = None;
                         }
-                        brain_core::events::StreamEventKind::ToolCallRequest { call_id, tool_id, arguments, requires_approval } => {
+                        brain_core::events::StreamEventKind::ToolCallRequest {
+                            call_id,
+                            tool_id,
+                            arguments,
+                            requires_approval,
+                        } => {
                             state.update(Action::ToolCallRequested {
                                 message: crate::ui::interaction::MessageId(0),
                                 call_id,
@@ -624,7 +731,12 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 requires_approval,
                             });
                         }
-                        brain_core::events::StreamEventKind::ToolProgress { call_id, sequence, detail, message } => {
+                        brain_core::events::StreamEventKind::ToolProgress {
+                            call_id,
+                            sequence,
+                            detail,
+                            message,
+                        } => {
                             state.update(Action::ToolProgressReceived {
                                 message: crate::ui::interaction::MessageId(0),
                                 call_id,
@@ -633,7 +745,11 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 log_message: message,
                             });
                         }
-                        brain_core::events::StreamEventKind::ToolCallResult { call_id, result, is_error } => {
+                        brain_core::events::StreamEventKind::ToolCallResult {
+                            call_id,
+                            result,
+                            is_error,
+                        } => {
                             state.update(Action::ToolResultReceived {
                                 message: crate::ui::interaction::MessageId(0),
                                 call_id,
@@ -694,10 +810,14 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                     break;
                 }
                 Event::App(AppEvent::Connected) => {
-                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Daemon));
+                    state.update(Action::SetConnectionMode(
+                        crate::state::ConnectionMode::Daemon,
+                    ));
                 }
                 Event::App(AppEvent::Disconnected) => {
-                    state.update(Action::SetConnectionMode(crate::state::ConnectionMode::Disconnected));
+                    state.update(Action::SetConnectionMode(
+                        crate::state::ConnectionMode::Disconnected,
+                    ));
                 }
                 _ => {}
             }
@@ -720,15 +840,15 @@ impl crate::ui::search::types::SearchEventSink for ChannelEventSink {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::client::{ExecutionRequest, EventReceiver, SessionSummary};
-    use crate::state::{GenerationState, SessionLoadState, PendingLoad};
-    use crate::ui::theme::Theme;
+    use crate::client::{EventReceiver, ExecutionRequest, SessionSummary};
+    use crate::state::{GenerationState, PendingLoad, SessionLoadState};
     use crate::ui::renderer::AppRenderer;
-    use brain_domain::Message;
+    use crate::ui::theme::Theme;
     use async_trait::async_trait;
+    use brain_domain::Message;
+    use std::time::SystemTime;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio_util::sync::CancellationToken;
-    use std::time::SystemTime;
 
     struct StubClient;
 
@@ -738,12 +858,32 @@ mod integration_tests {
             let (_, rx) = unbounded_channel();
             Ok(EventReceiver::new(rx, CancellationToken::new()))
         }
-        async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> { Ok(vec![]) }
-        async fn load_session(&self, _id: brain_domain::SessionId) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
-        async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> { Ok(()) }
-        async fn approve_tool_call(&self, _call_id: brain_core::events::ToolCallId, _approved: bool) -> Result<(), BrainError> { Ok(()) }
-        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> { Ok(vec![]) }
-        async fn inspect_node(&self, id: brain_domain::NodeId) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
+        async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> {
+            Ok(vec![])
+        }
+        async fn load_session(
+            &self,
+            _id: brain_domain::SessionId,
+        ) -> Result<Vec<Message>, BrainError> {
+            Ok(vec![])
+        }
+        async fn delete_session(&self, _id: brain_domain::SessionId) -> Result<(), BrainError> {
+            Ok(())
+        }
+        async fn approve_tool_call(
+            &self,
+            _call_id: brain_core::events::ToolCallId,
+            _approved: bool,
+        ) -> Result<(), BrainError> {
+            Ok(())
+        }
+        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
+            Ok(vec![])
+        }
+        async fn inspect_node(
+            &self,
+            id: brain_domain::NodeId,
+        ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
             let entity = brain_domain::dtos::NodeDTO::new(
                 id.to_string(),
                 "Mock Node".to_string(),
@@ -789,66 +929,70 @@ mod integration_tests {
         // 1. Test size 80x24 (with sidebar)
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
-        terminal.draw(|f| {
-            let area = f.size();
-            // Verify layout partitions are calculated cleanly
-            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
-            assert_eq!(h.height, 3);
-            assert_eq!(p.height, 3);
-            assert_eq!(s.height, 1);
-            assert!(c.height >= 10);
-            assert!(sb.height >= 10);
-            assert_eq!(sb.width, 25);
-            
-            renderer.draw(f, area, &state, &theme);
-        }).unwrap();
+        terminal
+            .draw(|f| {
+                let area = f.size();
+                // Verify layout partitions are calculated cleanly
+                let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
+                assert_eq!(h.height, 3);
+                assert_eq!(p.height, 3);
+                assert_eq!(s.height, 1);
+                assert!(c.height >= 10);
+                assert!(sb.height >= 10);
+                assert_eq!(sb.width, 25);
+
+                renderer.draw(f, area, &state, &theme);
+            })
+            .unwrap();
 
         // 2. Test size 70x24 (compact - no sidebar)
         let backend = TestBackend::new(70, 24);
         let mut terminal = Terminal::new(backend).unwrap();
-        terminal.draw(|f| {
-            let area = f.size();
-            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
-            assert_eq!(h.height, 3);
-            assert_eq!(p.height, 3);
-            assert_eq!(s.height, 1);
-            assert!(c.height >= 10);
-            assert_eq!(sb.width, 0); // No sidebar area
+        terminal
+            .draw(|f| {
+                let area = f.size();
+                let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
+                assert_eq!(h.height, 3);
+                assert_eq!(p.height, 3);
+                assert_eq!(s.height, 1);
+                assert!(c.height >= 10);
+                assert_eq!(sb.width, 0); // No sidebar area
 
-            renderer.draw(f, area, &state, &theme);
-        }).unwrap();
+                renderer.draw(f, area, &state, &theme);
+            })
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test_loop_key_history_triggers() {
         let _client = StubClient;
         let mut state = UiState::with_history_capacity(10);
-        
+
         // Simulating sequence: 'a', Submit, 'b', Submit, Up Arrow, Down Arrow
         state.update(Action::InsertChar('a'));
         let res = state.update(Action::SubmitPrompt);
         assert!(matches!(res, UpdateResult::PromptSubmitted(_)));
         state.generation_state = GenerationState::Idle;
-        
+
         state.update(Action::InsertChar('b'));
         state.update(Action::SubmitPrompt);
         state.generation_state = GenerationState::Idle;
-        
+
         // Typing uncommitted draft 'c'
         state.update(Action::InsertChar('c'));
-        
+
         // Previous -> gets 'b'
         state.update(Action::RecallPrevious);
         assert_eq!(state.editor.text(), "b");
-        
+
         // Previous again -> gets 'a'
         state.update(Action::RecallPrevious);
         assert_eq!(state.editor.text(), "a");
-        
+
         // Next -> gets 'b'
         state.update(Action::RecallNext);
         assert_eq!(state.editor.text(), "b");
-        
+
         // Next again -> gets draft 'c'
         state.update(Action::RecallNext);
         assert_eq!(state.editor.text(), "c");
@@ -861,9 +1005,15 @@ mod integration_tests {
         assert_eq!(state.generation_state, GenerationState::Starting);
 
         // Receive A, B, C tokens without ticks
-        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("A".to_string())));
-        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("B".to_string())));
-        state.update(Action::ReceiveToken(crate::state::RenderToken::Text("C".to_string())));
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text(
+            "A".to_string(),
+        )));
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text(
+            "B".to_string(),
+        )));
+        state.update(Action::ReceiveToken(crate::state::RenderToken::Text(
+            "C".to_string(),
+        )));
 
         // Nothing visible yet
         assert_eq!(state.active_response, "");
@@ -962,13 +1112,31 @@ mod integration_tests {
 
         // 1. Initiate Load A (request 1)
         let req_1 = LoadRequestId(1);
-        state.update(Action::ActivateSession { session_id: session_a, request_id: req_1 });
-        assert_eq!(state.pending_load, Some(PendingLoad { session_id: session_a, request_id: req_1 }));
+        state.update(Action::ActivateSession {
+            session_id: session_a,
+            request_id: req_1,
+        });
+        assert_eq!(
+            state.pending_load,
+            Some(PendingLoad {
+                session_id: session_a,
+                request_id: req_1
+            })
+        );
 
         // 2. Initiate Load B (request 2) - overrides target
         let req_2 = LoadRequestId(2);
-        state.update(Action::ActivateSession { session_id: session_b, request_id: req_2 });
-        assert_eq!(state.pending_load, Some(PendingLoad { session_id: session_b, request_id: req_2 }));
+        state.update(Action::ActivateSession {
+            session_id: session_b,
+            request_id: req_2,
+        });
+        assert_eq!(
+            state.pending_load,
+            Some(PendingLoad {
+                session_id: session_b,
+                request_id: req_2
+            })
+        );
 
         // 3. Delete Session B mid-load - must invalidate the pending load
         state.update(Action::DeleteSession(session_b));

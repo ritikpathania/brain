@@ -6,6 +6,8 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
+use brain_services::BrainRuntime;
+
 use daemon_bridge::config::{self, BrainPaths};
 use daemon_bridge::plugins::{self, BuiltinPythonExtractor};
 use daemon_bridge::retrieval::{DefaultRanking, FuzzyRetrieval};
@@ -337,7 +339,10 @@ fn find_brain_path() -> std::path::PathBuf {
                     if target_debug.exists() {
                         return target_debug;
                     }
-                    let target_release = great_grandparent.join("target").join("release").join("brain");
+                    let target_release = great_grandparent
+                        .join("target")
+                        .join("release")
+                        .join("brain");
                     if target_release.exists() {
                         return target_release;
                     }
@@ -384,11 +389,17 @@ fn find_cli_adapter_path() -> std::path::PathBuf {
             }
             if let Some(grandparent) = parent.parent() {
                 if let Some(great_grandparent) = grandparent.parent() {
-                    let target_debug = great_grandparent.join("target").join("debug").join("brain-cli-adapter");
+                    let target_debug = great_grandparent
+                        .join("target")
+                        .join("debug")
+                        .join("brain-cli-adapter");
                     if target_debug.exists() {
                         return target_debug;
                     }
-                    let target_release = great_grandparent.join("target").join("release").join("brain-cli-adapter");
+                    let target_release = great_grandparent
+                        .join("target")
+                        .join("release")
+                        .join("brain-cli-adapter");
                     if target_release.exists() {
                         return target_release;
                     }
@@ -482,7 +493,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             print_daemon_help();
                         }
                         _ => {
-                            eprintln!("Unknown daemon subcommand. Use: start, stop, status, run, help");
+                            eprintln!(
+                                "Unknown daemon subcommand. Use: start, stop, status, run, help"
+                            );
                             std::process::exit(1);
                         }
                     }
@@ -554,7 +567,10 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let analytics_db = match AnalyticsDatabase::new(paths.analytics_db_path.to_str().unwrap()) {
         Ok(db) => Arc::new(db),
         Err(e) => {
-            error!(component = "main", "Failed to initialize DuckDB analytics database: {}", e);
+            error!(
+                component = "main",
+                "Failed to initialize DuckDB analytics database: {}", e
+            );
             eprintln!(
                 "Error: Failed to initialize DuckDB database at {}.\n\
                  This usually means another instance of the brain daemon is already running\n\
@@ -583,7 +599,10 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let ltm_db = match LtmDatabase::new(paths.db_path.to_str().unwrap()) {
         Ok(db) => Arc::new(db),
         Err(e) => {
-            error!(component = "main", "Failed to initialize SQLite LTM database: {}", e);
+            error!(
+                component = "main",
+                "Failed to initialize SQLite LTM database: {}", e
+            );
             eprintln!(
                 "Error: Failed to initialize SQLite database at {}.\n\
                  This usually means another instance of the brain daemon is already running\n\
@@ -595,6 +614,32 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         }
     };
     info!(component = "database", db_path = %paths.db_path.display(), "LTM Persistent Graph Database initialized");
+
+    // --- BrainRuntime construction ---
+    //
+    // BrainRuntime uses its own dedicated SQLite file (brain_runtime.db) rather than
+    // memory.db. Both LtmDatabase and SqliteStorage (inside BrainRuntime) create tables
+    // named `nodes`, `edges`, and `event_log` — sharing a file would cause a schema
+    // conflict. This is Sprint 6 Design Finding #1: the two storage layers are not
+    // interchangeable and must not share a database file.
+    let brain_runtime_db_path = paths.config_dir.join("brain_runtime.db");
+    let brain_runtime = match BrainRuntime::new(brain_runtime_db_path.to_str().unwrap()) {
+        Ok(rt) => {
+            info!(
+                component = "runtime",
+                db_path = %brain_runtime_db_path.display(),
+                "BrainRuntime initialized"
+            );
+            Arc::new(rt)
+        }
+        Err(e) => {
+            error!(
+                component = "runtime",
+                "Failed to initialize BrainRuntime: {}", e
+            );
+            std::process::exit(1);
+        }
+    };
 
     // Read or create config
     let config_path = paths.config_dir.join("config.json");
@@ -660,7 +705,8 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     info!(component = "daemon", "Daemon state: {:?}", state);
 
     // Initialize Cleanup Guard
-    let mut cleanup_guard = DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
+    let mut cleanup_guard =
+        DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
 
     if paths.socket_path.exists() {
         // Attempt to connect to check if it's a live listener
@@ -691,7 +737,10 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
                 );
                 if let Err(err) = fs::remove_file(&paths.socket_path) {
                     if err.kind() != std::io::ErrorKind::NotFound {
-                        warn!(component = "socket", "Failed to remove stale UDS file: {}", err);
+                        warn!(
+                            component = "socket",
+                            "Failed to remove stale UDS file: {}", err
+                        );
                     }
                 }
             }
@@ -715,7 +764,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     // Spawn signal listener for graceful shutdown
     let cancel_token = tokio_util::sync::CancellationToken::new();
     let cancel_trigger = cancel_token.clone();
-    
+
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
     tokio::spawn(async move {
@@ -741,6 +790,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
 
     // Run uds listener under select
     let listener_metrics = metrics.clone();
+    let listener_runtime = Arc::clone(&brain_runtime);
     tokio::select! {
         _ = start_uds_listener(
             listener,
@@ -748,6 +798,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
             plugin_registry,
             listener_metrics,
             analytics_tx,
+            listener_runtime,
         ) => {}
         _ = cancel_token.cancelled() => {
             state = DaemonState::Draining;
@@ -759,19 +810,61 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
 
     // Draining active workers
     let start_drain = std::time::Instant::now();
-    let mut active = metrics.active_workers.load(std::sync::atomic::Ordering::Relaxed);
+    let mut active = metrics
+        .active_workers
+        .load(std::sync::atomic::Ordering::Relaxed);
     while active > 0 {
-        info!(component = "shutdown", "Waiting for workers ({} active)", active);
+        info!(
+            component = "shutdown",
+            "Waiting for workers ({} active)", active
+        );
         if start_drain.elapsed() >= std::time::Duration::from_secs(5) {
-            warn!(component = "shutdown", "Draining timed out after 5s. Forcing exit.");
+            warn!(
+                component = "shutdown",
+                "Draining timed out after 5s. Forcing exit."
+            );
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        active = metrics.active_workers.load(std::sync::atomic::Ordering::Relaxed);
+        active = metrics
+            .active_workers
+            .load(std::sync::atomic::Ordering::Relaxed);
     }
 
     if active == 0 {
         info!(component = "shutdown", "Workers drained");
+    }
+
+    // --- BrainRuntime shutdown ---
+    //
+    // Shutdown invariant: Arc::try_unwrap() succeeds only when every clone of
+    // Arc<BrainRuntime> has been dropped. This includes all handler tasks spawned
+    // by start_uds_listener. After the worker drain above, all handler tasks have
+    // completed and released their clones. Any background task that also clones
+    // Arc<BrainRuntime> must be drained here too.
+    //
+    // If try_unwrap() fails, a task leaked its Arc reference. Log a warning rather
+    // than panic — the process is already exiting.
+    match Arc::try_unwrap(brain_runtime) {
+        Ok(runtime) => match runtime.shutdown() {
+            Ok(summary) => {
+                info!(
+                    component = "runtime",
+                    shutdown_ms = summary.duration.as_millis(),
+                    "BrainRuntime shutdown complete"
+                );
+            }
+            Err(e) => {
+                error!(component = "runtime", error = %e, "BrainRuntime shutdown error");
+            }
+        },
+        Err(_) => {
+            warn!(
+                component = "runtime",
+                "BrainRuntime Arc had outstanding references at shutdown — \
+                 check for background tasks that clone Arc<BrainRuntime>"
+            );
+        }
     }
 
     state = DaemonState::Stopped;
@@ -781,7 +874,10 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     if let Some(path) = cleanup_guard.socket_path.take() {
         if let Err(e) = fs::remove_file(&path) {
             if e.kind() != std::io::ErrorKind::NotFound {
-                warn!(component = "shutdown", "Failed to remove UDS socket file: {}", e);
+                warn!(
+                    component = "shutdown",
+                    "Failed to remove UDS socket file: {}", e
+                );
             }
         }
     }

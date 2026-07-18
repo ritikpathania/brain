@@ -1,24 +1,24 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
 use brain_core::repositories::SessionRepository;
-use brain_domain::{SessionId, SessionTitle, SessionTimestamp};
-use brain_events::{EventEnvelope, DomainEvent, SequenceNumber, EventLog};
-use brain_storage::{
-    TestStorage, SqliteJobReadModelRepository, SqliteSessionReadModelRepository,
-    SqliteSearchRepository, SqliteEventLog, SqliteProjectionCheckpointRepository
+use brain_domain::{SessionId, SessionTimestamp, SessionTitle};
+use brain_events::{DomainEvent, EventEnvelope, EventLog, SequenceNumber};
+use brain_services::projections::{
+    ProjectionId, ProjectionNotification, ProjectionNotificationBus, ProjectionRunner,
+    SessionProjectionReducer,
+};
+use brain_services::query::{
+    JobQueryService, QueryResponse, QuerySubscriptionRegistry, SearchQueryService, SessionQuery,
+    SessionQueryService, SqliteJobQueryService, SqliteSearchQueryService,
+    SqliteSessionQueryService, SubscriptionKey,
 };
 use brain_services::SystemEventLog;
-use brain_services::query::{
-    SessionQuery, SessionQueryService, JobQueryService, SearchQueryService,
-    SqliteJobQueryService, SqliteSessionQueryService, SqliteSearchQueryService,
-    SubscriptionKey, QueryResponse, QuerySubscriptionRegistry
-};
-use brain_services::projections::{
-    ProjectionRunner, SessionProjectionReducer,
-    ProjectionId, ProjectionNotification, ProjectionNotificationBus
+use brain_storage::{
+    SqliteEventLog, SqliteJobReadModelRepository, SqliteProjectionCheckpointRepository,
+    SqliteSearchRepository, SqliteSessionReadModelRepository, TestStorage,
 };
 
 // A wrapping wrapper around SessionQueryService to count executions
@@ -34,12 +34,20 @@ impl CountingSessionQueryService {
 }
 
 impl SessionQueryService for CountingSessionQueryService {
-    fn list_sessions(&self, query: SessionQuery) -> Result<Vec<brain_services::query::dto::SessionSummary>, brain_core::errors::BrainError> {
+    fn list_sessions(
+        &self,
+        query: SessionQuery,
+    ) -> Result<Vec<brain_services::query::dto::SessionSummary>, brain_core::errors::BrainError>
+    {
         self.counter.fetch_add(1, Ordering::SeqCst);
         self.inner.list_sessions(query)
     }
 
-    fn get_session(&self, id: &SessionId) -> Result<Option<brain_services::query::dto::SessionDetails>, brain_core::errors::BrainError> {
+    fn get_session(
+        &self,
+        id: &SessionId,
+    ) -> Result<Option<brain_services::query::dto::SessionDetails>, brain_core::errors::BrainError>
+    {
         self.inner.get_session(id)
     }
 }
@@ -51,11 +59,15 @@ async fn test_notification_broadcast() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
-    
+
     let notification_bus = Arc::new(ProjectionNotificationBus::new());
     let mut rx = notification_bus.subscribe();
 
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo, Arc::clone(&notification_bus));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo,
+        Arc::clone(&notification_bus),
+    );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
     let reducer = SessionProjectionReducer::new(session_proj_repo);
     runner.register(Box::new(reducer)).unwrap();
@@ -67,7 +79,9 @@ async fn test_notification_broadcast() {
         title: SessionTitle("Initial Title".to_string()),
         created_at: SessionTimestamp(100),
     });
-    event_log.append(&EventEnvelope::new("session_service".to_string(), ev)).unwrap(); // Seq 1
+    event_log
+        .append(&EventEnvelope::new("session_service".to_string(), ev))
+        .unwrap(); // Seq 1
 
     // Catch up
     runner.catch_up().unwrap();
@@ -87,7 +101,11 @@ async fn test_coalesced_invalidation_and_deduplication() {
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
     let notification_bus = Arc::new(ProjectionNotificationBus::new());
 
-    let runner = ProjectionRunner::new(event_log.clone(), checkpoint_repo.clone(), Arc::clone(&notification_bus));
+    let runner = ProjectionRunner::new(
+        event_log.clone(),
+        checkpoint_repo.clone(),
+        Arc::clone(&notification_bus),
+    );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
     runner.register(Box::new(reducer)).unwrap();
@@ -96,10 +114,17 @@ async fn test_coalesced_invalidation_and_deduplication() {
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
     let execution_counter = Arc::new(AtomicUsize::new(0));
-    let counting_service = Arc::new(CountingSessionQueryService::new(inner_service, Arc::clone(&execution_counter)));
+    let counting_service = Arc::new(CountingSessionQueryService::new(
+        inner_service,
+        Arc::clone(&execution_counter),
+    ));
 
-    let job_service = Arc::new(SqliteJobQueryService::new(Arc::new(SqliteJobReadModelRepository::new(pool.clone()))));
-    let search_service = Arc::new(SqliteSearchQueryService::new(Arc::new(SqliteSearchRepository::new(pool))));
+    let job_service = Arc::new(SqliteJobQueryService::new(Arc::new(
+        SqliteJobReadModelRepository::new(pool.clone()),
+    )));
+    let search_service = Arc::new(SqliteSearchQueryService::new(Arc::new(
+        SqliteSearchRepository::new(pool),
+    )));
 
     let registry = QuerySubscriptionRegistry::new(
         counting_service,
@@ -157,9 +182,16 @@ async fn test_graceful_shutdown_and_restart_recovery() {
 
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
-    let session_service = Arc::new(SqliteSessionQueryService::new(session_proj_repo, session_repo));
-    let job_service = Arc::new(SqliteJobQueryService::new(Arc::new(SqliteJobReadModelRepository::new(pool.clone()))));
-    let search_service = Arc::new(SqliteSearchQueryService::new(Arc::new(SqliteSearchRepository::new(pool.clone()))));
+    let session_service = Arc::new(SqliteSessionQueryService::new(
+        session_proj_repo,
+        session_repo,
+    ));
+    let job_service = Arc::new(SqliteJobQueryService::new(Arc::new(
+        SqliteJobReadModelRepository::new(pool.clone()),
+    )));
+    let search_service = Arc::new(SqliteSearchQueryService::new(Arc::new(
+        SqliteSearchRepository::new(pool.clone()),
+    )));
 
     // Simulate 3 events and advance projection checkpoint to 3
     checkpoint_repo.save_checkpoint("sessions", 3).unwrap();

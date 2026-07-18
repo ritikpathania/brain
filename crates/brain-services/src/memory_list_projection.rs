@@ -1,4 +1,4 @@
-use brain_core::projection::{ProjectionQuery, Projector, ProjectionContext};
+use brain_core::projection::{ProjectionContext, ProjectionQuery, Projector};
 use brain_domain::Node;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +25,7 @@ impl Projector<MemoryListProjection, MemoryListQuery> for MemoryListProjector {
         let mut nodes: Vec<Node> = context.graph.nodes.values().cloned().collect();
         // Sort deterministically to satisfy the Projection Determinism invariant
         nodes.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string()));
-        
+
         let limit = context.query.limit;
         if nodes.len() > limit {
             nodes.truncate(limit);

@@ -1,9 +1,9 @@
-use ratatui::layout::{Rect, Layout, Constraint, Direction};
+use crate::state::SessionViewModel;
+use crate::ui::interaction::sidebar::{SessionFilter, SidebarMode};
+use crate::ui::theme::Theme;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
-use crate::ui::theme::Theme;
-use crate::state::SessionViewModel;
-use crate::ui::interaction::sidebar::{SidebarMode, SessionFilter};
 use std::sync::OnceLock;
 
 /// ViewModel carrying session list, selection, filters, and editor states.
@@ -46,7 +46,7 @@ fn use_unicode() -> bool {
 pub fn format_with_cursor(text: &str, cursor_idx: usize, cursor_char: &str) -> String {
     let char_count = text.chars().count();
     let safe_cursor = cursor_idx.min(char_count);
-    
+
     let mut result = String::new();
     for (i, c) in text.chars().enumerate() {
         if i == safe_cursor {
@@ -64,11 +64,11 @@ pub fn format_with_cursor(text: &str, cursor_idx: usize, cursor_char: &str) -> S
 pub fn slice_text_viewport(text: &str, cursor_idx: usize, max_width: usize) -> (String, usize) {
     let chars: Vec<char> = text.chars().collect();
     let cursor = cursor_idx.min(chars.len());
-    
+
     if chars.len() <= max_width {
         return (text.to_string(), cursor);
     }
-    
+
     let start = if cursor >= max_width {
         cursor - max_width + 1
     } else {
@@ -112,16 +112,17 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
     let list_area = if view.search_active {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Min(0),
-            ])
+            .constraints([Constraint::Length(1), Constraint::Min(0)])
             .split(inner_area);
 
         let cursor_char = if unicode_mode { "▋" } else { "|" };
         let max_search_width = inner_area.width.saturating_sub(9) as usize;
-        let (sliced_query, new_cursor) = slice_text_viewport(view.search_query, view.search_cursor, max_search_width);
-        let search_text = format!("Search: {}", format_with_cursor(&sliced_query, new_cursor, cursor_char));
+        let (sliced_query, new_cursor) =
+            slice_text_viewport(view.search_query, view.search_cursor, max_search_width);
+        let search_text = format!(
+            "Search: {}",
+            format_with_cursor(&sliced_query, new_cursor, cursor_char)
+        );
         let search_p = Paragraph::new(search_text).style(theme.text);
         f.render_widget(search_p, chunks[0]);
 
@@ -130,7 +131,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
         inner_area
     };
 
-    let items: Vec<ListItem> = view.sessions
+    let items: Vec<ListItem> = view
+        .sessions
         .iter()
         .enumerate()
         .map(|(idx, s)| {
@@ -139,11 +141,19 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
             let text = if is_selected && view.mode == SidebarMode::Rename {
                 let cursor_char = if unicode_mode { "▋" } else { "|" };
                 let max_rename_width = inner_area.width.saturating_sub(6) as usize;
-                let (sliced_rename, new_cursor) = slice_text_viewport(view.rename_query, view.rename_cursor, max_rename_width);
-                format!("▶ [{}]", format_with_cursor(&sliced_rename, new_cursor, cursor_char))
+                let (sliced_rename, new_cursor) =
+                    slice_text_viewport(view.rename_query, view.rename_cursor, max_rename_width);
+                format!(
+                    "▶ [{}]",
+                    format_with_cursor(&sliced_rename, new_cursor, cursor_char)
+                )
             } else {
                 let pin_prefix = if s.pinned && view.filter == SessionFilter::Active {
-                    if unicode_mode { "📌 " } else { "[P] " }
+                    if unicode_mode {
+                        "📌 "
+                    } else {
+                        "[P] "
+                    }
                 } else {
                     ""
                 };
@@ -153,9 +163,13 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
 
             let style = if is_selected {
                 if view.has_focus {
-                    theme.primary.add_modifier(ratatui::style::Modifier::REVERSED)
+                    theme
+                        .primary
+                        .add_modifier(ratatui::style::Modifier::REVERSED)
                 } else {
-                    theme.inactive.add_modifier(ratatui::style::Modifier::REVERSED)
+                    theme
+                        .inactive
+                        .add_modifier(ratatui::style::Modifier::REVERSED)
                 }
             } else if s.active {
                 theme.primary.add_modifier(ratatui::style::Modifier::BOLD)

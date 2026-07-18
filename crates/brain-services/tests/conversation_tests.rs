@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::repositories::{EdgeRepository, NodeRepository};
-use brain_core::services::{MemoryExtractor, ExtractionRequest, ExtractionResult};
+use brain_core::services::{ExtractionRequest, ExtractionResult, MemoryExtractor};
 use brain_domain::{
-    Session, ConversationId, Edge, Message, MessageId, MessageRole, Node, NodeId, NodeType,
-    SessionId, RelationKind
+    ConversationId, Edge, Message, MessageId, MessageRole, Node, NodeId, NodeType, RelationKind,
+    Session, SessionId,
 };
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
@@ -14,7 +14,7 @@ use brain_storage::TestStorage;
 use brain_services::conversation::{
     CheckpointStore, ContextBudget, ContextBuilder, ConversationManager, ConversationManagerImpl,
     CountThresholdPromotionPolicy, CountThresholdSummaryPolicy, IngestionPolicy,
-    SqliteCheckpointStore, WordSpaceTokenCounter, PromotionEngineImpl,
+    PromotionEngineImpl, SqliteCheckpointStore, WordSpaceTokenCounter,
 };
 
 // --- Mock Implementations ---
@@ -169,7 +169,9 @@ async fn test_promotion_idempotency_and_transactional_rollback() {
         should_fail: should_fail.clone(),
     });
 
-    let promotion_engine = Arc::new(PromotionEngineImpl::new(CountThresholdPromotionPolicy::new(2)));
+    let promotion_engine = Arc::new(PromotionEngineImpl::new(
+        CountThresholdPromotionPolicy::new(2),
+    ));
     let summary_policy = Arc::new(CountThresholdSummaryPolicy::new(10));
     let checkpoint_store = Arc::new(SqliteCheckpointStore::new(storage.clone()));
     let retrieval_service = Arc::new(MockRetrieval { nodes: vec![] });
@@ -247,7 +249,9 @@ async fn test_summarization_versioning() {
         Arc::new(MockMemoryExtractor {
             should_fail: Arc::new(AtomicBool::new(false)),
         }),
-        Arc::new(PromotionEngineImpl::new(CountThresholdPromotionPolicy::new(10))),
+        Arc::new(PromotionEngineImpl::new(
+            CountThresholdPromotionPolicy::new(10),
+        )),
         Arc::new(CountThresholdSummaryPolicy::new(2)), // Summarize every 2 messages
         Arc::new(SqliteCheckpointStore::new(storage.clone())),
         Arc::new(MockRetrieval { nodes: vec![] }),
@@ -297,7 +301,9 @@ async fn test_pruning_pinned_memories_safety() {
         Arc::new(MockMemoryExtractor {
             should_fail: Arc::new(AtomicBool::new(false)),
         }),
-        Arc::new(PromotionEngineImpl::new(CountThresholdPromotionPolicy::new(10))),
+        Arc::new(PromotionEngineImpl::new(
+            CountThresholdPromotionPolicy::new(10),
+        )),
         Arc::new(CountThresholdSummaryPolicy::new(10)),
         Arc::new(SqliteCheckpointStore::new(storage.clone())),
         Arc::new(MockRetrieval { nodes: vec![] }),
@@ -322,8 +328,18 @@ async fn test_pruning_pinned_memories_safety() {
     NodeRepository::save(repos.as_ref(), &node_pinned).unwrap();
 
     // Edges with low weights (decayed below 0.1)
-    let edge_unpinned = Edge::new(node_unpinned.id, node_pinned.id, RelationKind::AssociatedWith, 0.05);
-    let edge_pinned = Edge::new(node_pinned.id, node_unpinned.id, RelationKind::AssociatedWith, 0.05);
+    let edge_unpinned = Edge::new(
+        node_unpinned.id,
+        node_pinned.id,
+        RelationKind::AssociatedWith,
+        0.05,
+    );
+    let edge_pinned = Edge::new(
+        node_pinned.id,
+        node_unpinned.id,
+        RelationKind::AssociatedWith,
+        0.05,
+    );
 
     EdgeRepository::save(repos.as_ref(), &edge_unpinned).unwrap();
     EdgeRepository::save(repos.as_ref(), &edge_pinned).unwrap();
@@ -353,7 +369,7 @@ fn test_archive_conversation_and_event_publishing() {
     let storage = test_store.store();
     let repos = test_store.store();
     let cache_manager = Arc::new(SessionCacheManager::new());
-    
+
     let published_events = Arc::new(std::sync::Mutex::new(Vec::new()));
     let publisher = Arc::new(MockEventPublisher {
         published: published_events.clone(),
@@ -367,7 +383,9 @@ fn test_archive_conversation_and_event_publishing() {
         Arc::new(MockMemoryExtractor {
             should_fail: Arc::new(AtomicBool::new(false)),
         }),
-        Arc::new(PromotionEngineImpl::new(CountThresholdPromotionPolicy::new(10))),
+        Arc::new(PromotionEngineImpl::new(
+            CountThresholdPromotionPolicy::new(10),
+        )),
         Arc::new(CountThresholdSummaryPolicy::new(10)),
         Arc::new(SqliteCheckpointStore::new(storage.clone())),
         Arc::new(MockRetrieval { nodes: vec![] }),
@@ -382,7 +400,9 @@ fn test_archive_conversation_and_event_publishing() {
     let policy = IngestionPolicy { stm_only: false };
 
     // Ingest works when conversation is active
-    assert!(manager.ingest_interaction(&session_id, "hello", "hi", policy).is_ok());
+    assert!(manager
+        .ingest_interaction(&session_id, "hello", "hi", policy)
+        .is_ok());
 
     // Archive the conversation
     assert!(manager.archive_conversation(&session_id).is_ok());
@@ -398,8 +418,8 @@ fn test_archive_conversation_and_event_publishing() {
     let envelope = &events[3];
     assert_eq!(envelope.source, "conversation_service");
     match &envelope.payload {
-        brain_events::DomainEvent::Session(brain_events::SessionEvent::ConversationArchived(_)) => {}
+        brain_events::DomainEvent::Session(brain_events::SessionEvent::ConversationArchived(_)) => {
+        }
         _ => panic!("Expected SessionEvent::ConversationArchived variant"),
     }
 }
-

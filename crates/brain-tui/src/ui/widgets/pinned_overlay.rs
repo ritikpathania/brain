@@ -1,10 +1,10 @@
 //! Modal context overlay listing pinned nodes.
 
-use ratatui::layout::{Alignment, Rect};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
-use ratatui::style::{Stylize};
-use crate::ui::theme::Theme;
 use crate::state::PinnedNode;
+use crate::ui::theme::Theme;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Stylize;
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
 
 /// Renders the Pinned Context list as a modal overlay centered in the area.
 pub fn draw(
@@ -16,7 +16,7 @@ pub fn draw(
 ) {
     let popup_width = 80.min(area.width);
     let popup_height = 16.min(area.height);
-    
+
     let popup_area = Rect::new(
         area.x + (area.width.saturating_sub(popup_width) / 2),
         area.y + (area.height.saturating_sub(popup_height) / 2),
@@ -57,11 +57,11 @@ pub fn draw(
             ratatui::text::Line::from(""),
             ratatui::text::Line::from(ratatui::text::Span::styled(
                 "No nodes pinned in the working context yet.",
-                theme.inactive
+                theme.inactive,
             )),
             ratatui::text::Line::from(ratatui::text::Span::styled(
                 "To pin a node, inspect it (Enter) from a link, then press 'p'.",
-                theme.inactive
+                theme.inactive,
             )),
         ])
         .alignment(Alignment::Center);
@@ -72,12 +72,8 @@ pub fn draw(
             .enumerate()
             .map(|(idx, node)| {
                 let is_selected = idx == selected_idx;
-                
-                let prefix = if is_selected {
-                    " 👉 "
-                } else {
-                    "    "
-                };
+
+                let prefix = if is_selected { " 👉 " } else { "    " };
 
                 let node_kind_str = format!("[{}]", node.node_type);
                 let line = ratatui::text::Line::from(vec![
@@ -106,11 +102,16 @@ pub fn draw(
 
     // 5. Render footer controls guide
     let helper_text = " Esc: Close  |  Enter: Inspect  |  x: Unpin  |  c: Clear All ";
-    let helper_p = Paragraph::new(ratatui::text::Line::from(
-        ratatui::text::Span::styled(helper_text, theme.status)
-    ))
+    let helper_p = Paragraph::new(ratatui::text::Line::from(ratatui::text::Span::styled(
+        helper_text,
+        theme.status,
+    )))
     .alignment(Alignment::Center)
-    .block(Block::default().borders(Borders::TOP).border_style(theme.border));
+    .block(
+        Block::default()
+            .borders(Borders::TOP)
+            .border_style(theme.border),
+    );
 
     f.render_widget(helper_p, footer_area);
 }

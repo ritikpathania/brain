@@ -1,7 +1,7 @@
 //! StatusBar geometry configurations.
 
-use ratatui::layout::Rect;
 use crate::ui::layout::cell_width::CellWidth;
+use ratatui::layout::Rect;
 
 /// Pure numeric sizing parameters for the StatusBar layout.
 pub struct StatusBarMeasure {

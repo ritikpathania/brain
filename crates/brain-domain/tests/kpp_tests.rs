@@ -24,7 +24,7 @@ fn test_heuristic_parser_and_compilation_pipeline() {
     let compile_res = compiler.compile(&obs_ir).unwrap();
 
     let ir = compile_res.output;
-    
+
     // Check nodes before optimization (duplicate postgres and PostgreSQL should exist)
     assert_eq!(ir.nodes.len(), 3);
     assert!(ir.nodes.iter().any(|n| n.label == "SQLite"));
@@ -35,7 +35,10 @@ fn test_heuristic_parser_and_compilation_pipeline() {
     // relation 1: sqlite -> postgres
     // relation 2: postgres -> postgresql
     // inferred relation: sqlite -> postgresql
-    assert!(ir.edges.iter().any(|e| e.relation == "depends_on" && e.id.contains("inferred")));
+    assert!(ir
+        .edges
+        .iter()
+        .any(|e| e.relation == "depends_on" && e.id.contains("inferred")));
     assert_eq!(ir.edges.len(), 3); // 2 raw edges + 1 inferred transitive edge
 
     // Now run Optimizer
@@ -113,7 +116,9 @@ fn test_validation_pass_missing_references() {
 
     // Check validation diagnostics
     let diagnostics = compile_res.diagnostics;
-    assert!(diagnostics.iter().any(|d| d.code == "VAL-002" && d.message.contains("node-postgresql")));
+    assert!(diagnostics
+        .iter()
+        .any(|d| d.code == "VAL-002" && d.message.contains("node-postgresql")));
 }
 
 #[test]
@@ -139,12 +144,16 @@ fn test_architecture_audit_replay_determinism() {
     // Run 1
     let res_1 = compiler.compile(&obs_ir).unwrap();
     let opt_1 = optimizer.optimize(res_1.output.clone()).unwrap();
-    let deltas_1 = sqlite_projection.calculate_delta(None, &opt_1.output).unwrap();
+    let deltas_1 = sqlite_projection
+        .calculate_delta(None, &opt_1.output)
+        .unwrap();
 
     // Run 2
     let res_2 = compiler.compile(&obs_ir).unwrap();
     let opt_2 = optimizer.optimize(res_2.output.clone()).unwrap();
-    let deltas_2 = sqlite_projection.calculate_delta(None, &opt_2.output).unwrap();
+    let deltas_2 = sqlite_projection
+        .calculate_delta(None, &opt_2.output)
+        .unwrap();
 
     // Verify 100% equality
     assert_eq!(res_1.output, res_2.output); // parsed & compiled IR identical
@@ -168,7 +177,7 @@ fn test_architecture_audit_projection_purity() {
         validity: KnowledgeValidity::Unverified,
         version_state: KnowledgeVersionState::Current,
     };
-    
+
     // There are no: `rowid`, `database_id`, `is_persisted`, `created_at_db` fields in the domain representation.
     // This serves as an in-code assertion of the purity invariant.
     assert_eq!(node.id, "node-test");
@@ -181,7 +190,7 @@ fn test_architecture_audit_compiler_purity() {
     // We instantiate them and assert their sizes are zero (meaning they are completely stateless pure functions).
     let val_pass = KppValidationPass;
     let inf_pass = KppInferencePass;
-    
+
     assert_eq!(std::mem::size_of_val(&val_pass), 0);
     assert_eq!(std::mem::size_of_val(&inf_pass), 0);
 }
@@ -209,28 +218,37 @@ fn test_architecture_audit_optimizer_correctness() {
     let optimizer = KnowledgeOptimizer::new_default();
 
     let compile_res = compiler.compile(&obs_ir).unwrap().output;
-    
+
     // Before optimization: both nodes Postgres and POSTGRES exist.
     assert_eq!(compile_res.nodes.len(), 3);
-    
+
     // Optimize
     let opt_res = optimizer.optimize(compile_res).unwrap().output;
-    
+
     // After optimization: folded to 2 nodes
     assert_eq!(opt_res.nodes.len(), 2);
-    
+
     // Check that edges were updated to redirect to the correct folded canonical node.
     // Both Postgres and POSTGRES lowercase ID is "node-postgres".
     // So SQLite -> Postgres (node-sqlite -> node-postgres)
     // and POSTGRES -> SQLite (node-postgres -> node-sqlite)
     // Both edges must exist in the canonical graph pointing to the SAME node ID "node-postgres".
-    assert!(opt_res.edges.iter().any(|e| e.source == "node-sqlite" && e.target == "node-postgres"));
-    assert!(opt_res.edges.iter().any(|e| e.source == "node-postgres" && e.target == "node-sqlite"));
+    assert!(opt_res
+        .edges
+        .iter()
+        .any(|e| e.source == "node-sqlite" && e.target == "node-postgres"));
+    assert!(opt_res
+        .edges
+        .iter()
+        .any(|e| e.source == "node-postgres" && e.target == "node-sqlite"));
 }
 
 #[test]
 fn test_reflection_engine_and_planner() {
-    use brain_domain::bkf::{IRNode, IREdge, KnowledgeLifecycle, KnowledgeValidity, KnowledgeVersionState, CompiledKnowledge, ReflectionEngine, Planner, FindingItem, RewriteOperation};
+    use brain_domain::bkf::{
+        CompiledKnowledge, FindingItem, IREdge, IRNode, KnowledgeLifecycle, KnowledgeValidity,
+        KnowledgeVersionState, Planner, ReflectionEngine, RewriteOperation,
+    };
 
     // 1. Create a CompiledKnowledge that has:
     // - Redundant nodes (different casing)
@@ -265,18 +283,16 @@ fn test_reflection_engine_and_planner() {
                 version_state: KnowledgeVersionState::Current,
             },
         ],
-        edges: vec![
-            IREdge {
-                id: "edge-1".to_string(),
-                source: "node-sqlite".to_string(),
-                target: "node-postgres".to_string(),
-                relation: "depends_on".to_string(),
-                weight: 0.1, // weak connection
-                lifecycle: KnowledgeLifecycle::Compiled,
-                validity: KnowledgeValidity::Unverified,
-                version_state: KnowledgeVersionState::Current,
-            }
-        ],
+        edges: vec![IREdge {
+            id: "edge-1".to_string(),
+            source: "node-sqlite".to_string(),
+            target: "node-postgres".to_string(),
+            relation: "depends_on".to_string(),
+            weight: 0.1, // weak connection
+            lifecycle: KnowledgeLifecycle::Compiled,
+            validity: KnowledgeValidity::Unverified,
+            version_state: KnowledgeVersionState::Current,
+        }],
     };
 
     let engine = ReflectionEngine::new();
@@ -284,13 +300,18 @@ fn test_reflection_engine_and_planner() {
 
     // Verify findings version and contents
     assert_eq!(findings.findings_version, "1.0.0");
-    
+
     let has_redundant = findings.items.iter().any(|f| match f {
-        FindingItem::RedundantNodes { nodes, .. } => nodes.contains(&"node-sqlite".to_string()) && nodes.contains(&"node-sqlite-dup".to_string()),
+        FindingItem::RedundantNodes { nodes, .. } => {
+            nodes.contains(&"node-sqlite".to_string())
+                && nodes.contains(&"node-sqlite-dup".to_string())
+        }
         _ => false,
     });
     let has_weak = findings.items.iter().any(|f| match f {
-        FindingItem::WeakConnection { source, target, .. } => source == "node-sqlite" && target == "node-postgres",
+        FindingItem::WeakConnection { source, target, .. } => {
+            source == "node-sqlite" && target == "node-postgres"
+        }
         _ => false,
     });
 
@@ -306,18 +327,19 @@ fn test_reflection_engine_and_planner() {
 
     let has_merge_op = plan.operations.iter().any(|op| match op {
         RewriteOperation::MergeNodes { source, target } => {
-            (source == "node-sqlite" && target == "node-sqlite-dup") ||
-            (source == "node-sqlite-dup" && target == "node-sqlite")
+            (source == "node-sqlite" && target == "node-sqlite-dup")
+                || (source == "node-sqlite-dup" && target == "node-sqlite")
         }
         _ => false,
     });
 
     let has_weaken_op = plan.operations.iter().any(|op| match op {
-        RewriteOperation::WeakenEdge { source, target, .. } => source == "node-sqlite" && target == "node-postgres",
+        RewriteOperation::WeakenEdge { source, target, .. } => {
+            source == "node-sqlite" && target == "node-postgres"
+        }
         _ => false,
     });
 
     assert!(has_merge_op, "Expected merge operation in plan");
     assert!(has_weaken_op, "Expected weaken edge operation in plan");
 }
-

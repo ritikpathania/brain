@@ -1,7 +1,6 @@
 use brain_domain::retrieval::models::{
-    FeatureId, SplitThreshold, LeafScore, DecisionTreeNode,
-    DecisionTreeDefinition, DecisionTreeRankingModel,
-    RankingSignals, NormalizedSignal
+    DecisionTreeDefinition, DecisionTreeNode, DecisionTreeRankingModel, FeatureId, LeafScore,
+    NormalizedSignal, RankingSignals, SplitThreshold,
 };
 
 fn make_signals(sem: f64, graph: f64, rec: f64, temp: f64) -> RankingSignals {
@@ -30,8 +29,12 @@ fn test_decision_tree_serialization_round_trip() {
     let tree_node = DecisionTreeNode::Split {
         feature: FeatureId::Semantic,
         threshold: SplitThreshold::new(0.5).unwrap(),
-        left: Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.2).unwrap() }),
-        right: Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.8).unwrap() }),
+        left: Box::new(DecisionTreeNode::Leaf {
+            score: LeafScore::new(0.2).unwrap(),
+        }),
+        right: Box::new(DecisionTreeNode::Leaf {
+            score: LeafScore::new(0.8).unwrap(),
+        }),
     };
     let definition = DecisionTreeDefinition { root: tree_node };
 
@@ -43,9 +46,13 @@ fn test_decision_tree_serialization_round_trip() {
 
 #[test]
 fn test_decision_path_determinism_and_immutability() {
-    let left_leaf = Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.1).unwrap() });
-    let right_leaf = Box::new(DecisionTreeNode::Leaf { score: LeafScore::new(0.9).unwrap() });
-    
+    let left_leaf = Box::new(DecisionTreeNode::Leaf {
+        score: LeafScore::new(0.1).unwrap(),
+    });
+    let right_leaf = Box::new(DecisionTreeNode::Leaf {
+        score: LeafScore::new(0.9).unwrap(),
+    });
+
     let root = DecisionTreeNode::Split {
         feature: FeatureId::GraphCentrality,
         threshold: SplitThreshold::new(0.7).unwrap(),

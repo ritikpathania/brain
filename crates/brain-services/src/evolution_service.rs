@@ -1,15 +1,20 @@
+use crate::event_dispatcher::InMemoryEventDispatcher;
+use brain_core::{
+    events::{
+        EventSource, OperationId, ProjectionInstanceInvalidatedEvent, RuntimeEventDispatcher,
+        SemanticStage, TaskProgress, TaskState,
+    },
+    evolution::{
+        CanonicalizationResult, Canonicalizer, DomainEventDescriptor, IngestionValidator,
+        Observation, ProjectionInstanceId, SemanticValidationError, StructuralValidationError,
+    },
+};
+use brain_domain::{
+    EpochId, GraphProvenance, KnowledgeGraph, Node, NodeId, NodeKind, ProvenanceSource,
+};
+use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
-use std::hash::{Hash, Hasher};
-use brain_core::{
-    events::{EventSource, OperationId, TaskProgress, TaskState, SemanticStage, ProjectionInstanceInvalidatedEvent, RuntimeEventDispatcher},
-    evolution::{
-        Observation, IngestionValidator, StructuralValidationError, SemanticValidationError,
-        Canonicalizer, CanonicalizationResult, DomainEventDescriptor, ProjectionInstanceId
-    }
-};
-use brain_domain::{EpochId, KnowledgeGraph, Node, NodeId, NodeKind, GraphProvenance, ProvenanceSource};
-use crate::event_dispatcher::InMemoryEventDispatcher;
 
 /// Concrete persistence-agnostic validator that performs basic structural and semantic safety checks.
 pub struct StandardIngestionValidator;
@@ -80,11 +85,14 @@ impl Canonicalizer for InMemoryCanonicalizer {
         dispatch_progress(TaskState::Started, 2);
 
         // 2. Stage: Observation / Validation
-        dispatch_progress(TaskState::Progressing {
-            stage: SemanticStage::Observation,
-            completed_items: None,
-            total_items: None,
-        }, 3);
+        dispatch_progress(
+            TaskState::Progressing {
+                stage: SemanticStage::Observation,
+                completed_items: None,
+                total_items: None,
+            },
+            3,
+        );
 
         if let Err(errs) = self.validator.validate_structure(&obs) {
             let err_msg = format!("Structural validation failed: {:?}", errs);
@@ -99,11 +107,14 @@ impl Canonicalizer for InMemoryCanonicalizer {
         }
 
         // 3. Stage: Extraction / Synthesis
-        dispatch_progress(TaskState::Progressing {
-            stage: SemanticStage::Extraction,
-            completed_items: None,
-            total_items: None,
-        }, 6);
+        dispatch_progress(
+            TaskState::Progressing {
+                stage: SemanticStage::Extraction,
+                completed_items: None,
+                total_items: None,
+            },
+            6,
+        );
 
         // Generate deterministic NodeId based on payload hash using standard DefaultHasher (for deterministic replay test)
         let payload_str = String::from_utf8_lossy(&obs.payload);
@@ -121,7 +132,12 @@ impl Canonicalizer for InMemoryCanonicalizer {
         node.provenance = GraphProvenance {
             source_conversation: None,
             source_message: None,
-            extracted_at: obs.provenance.timestamp.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+            extracted_at: obs
+                .provenance
+                .timestamp
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
             extractor_version: "v1.0.0".to_string(),
             confidence: 1.0,
             text_span: None,
@@ -138,11 +154,14 @@ impl Canonicalizer for InMemoryCanonicalizer {
 
         let current_epoch = *epoch_lock;
 
-        dispatch_progress(TaskState::Progressing {
-            stage: SemanticStage::Synthesis,
-            completed_items: Some(1),
-            total_items: Some(1),
-        }, 7);
+        dispatch_progress(
+            TaskState::Progressing {
+                stage: SemanticStage::Synthesis,
+                completed_items: Some(1),
+                total_items: Some(1),
+            },
+            7,
+        );
 
         // 5. Build results & events
         let domain_event = DomainEventDescriptor {
@@ -155,22 +174,27 @@ impl Canonicalizer for InMemoryCanonicalizer {
             domain_events: vec![domain_event],
             affected_entities: vec![node_id],
             invalidated_projections: vec![ProjectionInstanceId("MemoryListProjection".to_string())],
+            stage_timings: Default::default(),
         };
 
         // 6. Stage: Projection Invalidation
-        dispatch_progress(TaskState::Progressing {
-            stage: SemanticStage::Projection,
-            completed_items: None,
-            total_items: None,
-        }, 8);
+        dispatch_progress(
+            TaskState::Progressing {
+                stage: SemanticStage::Projection,
+                completed_items: None,
+                total_items: None,
+            },
+            8,
+        );
 
         // Invalidate Projection Instances synchronously
-        self.event_dispatcher.dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
-            projection_type: "MemoryListProjection".to_string(),
-            epoch: current_epoch,
-            source: EventSource::Ingestion,
-            correlation_id: corr_id,
-        }));
+        self.event_dispatcher
+            .dispatch(Arc::new(ProjectionInstanceInvalidatedEvent {
+                projection_type: "MemoryListProjection".to_string(),
+                epoch: current_epoch,
+                source: EventSource::Ingestion,
+                correlation_id: corr_id,
+            }));
 
         dispatch_progress(TaskState::Completed, 9);
 
