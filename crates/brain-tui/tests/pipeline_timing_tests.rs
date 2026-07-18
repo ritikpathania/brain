@@ -1,9 +1,7 @@
 //! Pipeline timing benchmark: measures wall-clock latency for the full
 //! token → typewriter → drain → layout → render cycle with realistic data.
 
-use brain_tui::state::{
-    GenerationState, TypewriterQueue, UiState,
-};
+use brain_tui::state::{GenerationState, TypewriterQueue, UiState};
 use brain_tui::ui::renderer::AppRenderer;
 use brain_tui::ui::theme::Theme;
 use ratatui::backend::TestBackend;

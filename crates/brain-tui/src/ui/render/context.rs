@@ -131,7 +131,6 @@ pub struct CapabilityPolicy {
     pub disable_motion: bool,
 }
 
-
 /// Immutable, resolved capability configuration utilized by the renderer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EffectiveCapabilities {

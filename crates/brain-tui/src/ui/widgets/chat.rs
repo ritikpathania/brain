@@ -37,7 +37,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
     let mut items = Vec::new();
     for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {
         let is_sel = view.selection.is_selected(line_idx);
-        
+
         if let Some(ref sender) = visible.sender_header {
             let sender_style = if is_sel {
                 Style::default().bg(Color::LightBlue).fg(Color::Black)

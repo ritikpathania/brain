@@ -255,7 +255,6 @@ impl SqliteSearchRepository {
         Ok(docs)
     }
 
-
     /// Clears all entries in the search projection.
     pub fn clear_all(&self) -> Result<(), BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {

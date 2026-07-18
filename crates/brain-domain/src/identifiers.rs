@@ -72,8 +72,6 @@ impl Default for SessionTitle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct SessionTimestamp(pub u64);
 
-
-
 /// Strongly-typed identifier for an agent execution run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct RunId(pub Ulid);

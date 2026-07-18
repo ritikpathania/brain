@@ -17,7 +17,6 @@ impl RuntimeObserver for LogObserver {
 // Additional implementations (e.g. EmbeddedClient) can be added in the future
 // if an in-process runtime mode is introduced.
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();

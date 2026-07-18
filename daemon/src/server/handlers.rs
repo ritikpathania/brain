@@ -932,7 +932,8 @@ pub async fn handle_connection(
                                 metadata.insert("id".to_string(), node.id.clone());
 
                                 let mut relationships = Vec::new();
-                                match active_storage.get_connections(std::slice::from_ref(&node.id)) {
+                                match active_storage.get_connections(std::slice::from_ref(&node.id))
+                                {
                                     Ok(connections) => {
                                         for edge in connections {
                                             let is_outgoing = edge.source == node.id;
@@ -941,9 +942,9 @@ pub async fn handle_connection(
                                             } else {
                                                 edge.source.clone()
                                             };
-                                            if let Ok(neighbors) = active_storage
-                                                    .get_nodes_by_ids(std::slice::from_ref(&neighbor_id))
-                                            {
+                                            if let Ok(neighbors) = active_storage.get_nodes_by_ids(
+                                                std::slice::from_ref(&neighbor_id),
+                                            ) {
                                                 if !neighbors.is_empty() {
                                                     let neighbor = &neighbors[0];
                                                     relationships.push(brain_domain::query::inspector::RelationshipDTO {
@@ -970,13 +971,13 @@ pub async fn handle_connection(
                                     extra_info: std::collections::HashMap::new(),
                                 };
 
-                                let recent_activity = vec![
-                                    brain_domain::query::inspector::ActivityLogEntry {
+                                let recent_activity =
+                                    vec![brain_domain::query::inspector::ActivityLogEntry {
                                         timestamp: 0,
                                         action: "Ingested".to_string(),
-                                        details: "Entity extracted from source location by system.".to_string(),
-                                    },
-                                ];
+                                        details: "Entity extracted from source location by system."
+                                            .to_string(),
+                                    }];
 
                                 let model = brain_domain::query::inspector::InspectorModel {
                                     entity,

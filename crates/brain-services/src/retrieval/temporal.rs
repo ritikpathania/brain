@@ -436,8 +436,7 @@ impl RankingStrategy for LearnedTemporalScorer {
             ProjectedRepositoryView::new(self.storage.clone() as Arc<dyn RepositorySet>, snapshot);
 
         // 2. Extract raw features using FeatureExtractor
-        let extractor =
-            DefaultFeatureExtractor::new(self.reference_time, self.recency_policy);
+        let extractor = DefaultFeatureExtractor::new(self.reference_time, self.recency_policy);
         let raw_features = extractor.extract(request, &nodes, &temp_edges, &projected_repos)?;
 
         // 3. Normalize features using FeatureNormalizer & NormalizationContext

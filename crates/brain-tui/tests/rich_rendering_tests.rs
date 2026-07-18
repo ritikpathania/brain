@@ -1,8 +1,8 @@
 mod common;
 
 use brain_tui::ui::interaction::markdown::{
-    KeywordSyntaxHighlighter, MarkdownBlock, MarkdownLayout,
-    MarkdownParser, SelectionState, VisualLine, VisualLineKind, VisualSpan, VisualStyle,
+    KeywordSyntaxHighlighter, MarkdownBlock, MarkdownLayout, MarkdownParser, SelectionState,
+    VisualLine, VisualLineKind, VisualSpan, VisualStyle,
 };
 use brain_tui::ui::render::{IconSet, RenderContext};
 use brain_tui::ui::theme::dark_theme;

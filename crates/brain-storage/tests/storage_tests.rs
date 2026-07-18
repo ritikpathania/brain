@@ -510,10 +510,8 @@ fn test_ivf_vector_indexing() {
     let mut vec1 = vec![0.0f32; 384];
     let mut vec2 = vec![0.0f32; 384];
     for i in 0..384 {
-        vec1[i] =
-            ((2.0 * std::f64::consts::PI * (i + 1) as f64 * 1.0) / 384.0).sin() as f32;
-        vec2[i] =
-            ((2.0 * std::f64::consts::PI * (i + 1) as f64 * 5.0) / 384.0).sin() as f32;
+        vec1[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * 1.0) / 384.0).sin() as f32;
+        vec2[i] = ((2.0 * std::f64::consts::PI * (i + 1) as f64 * 5.0) / 384.0).sin() as f32;
     }
 
     let emb1 = Embedding::new(node1_id, vec1);

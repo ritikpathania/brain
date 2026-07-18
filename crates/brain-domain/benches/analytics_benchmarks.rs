@@ -13,11 +13,7 @@ fn generate_cyclic_ring_graph(num_nodes: usize) -> (KnowledgeGraph, Vec<NodeId>)
     let mut graph = KnowledgeGraph::new();
     let node_ids: Vec<NodeId> = (0..num_nodes).map(|_| NodeId::new()).collect();
     for (i, &id) in node_ids.iter().enumerate() {
-        graph.add_node(Node::new(
-            id,
-            format!("Node{}", i),
-            NodeType::Concept,
-        ));
+        graph.add_node(Node::new(id, format!("Node{}", i), NodeType::Concept));
     }
     for i in 0..num_nodes {
         let target_idx = (i + 1) % num_nodes;

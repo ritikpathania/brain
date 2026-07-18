@@ -97,7 +97,11 @@ impl ObservationParser for DefaultObservationParser {
         for line in text.lines() {
             let line = line.trim();
             if line.starts_with("entity:") {
-                let parts: Vec<&str> = line.strip_prefix("entity:").unwrap_or("").split('[').collect();
+                let parts: Vec<&str> = line
+                    .strip_prefix("entity:")
+                    .unwrap_or("")
+                    .split('[')
+                    .collect();
                 if !parts.is_empty() {
                     let name = parts[0].trim().to_string();
                     let entity_type = if parts.len() > 1 {

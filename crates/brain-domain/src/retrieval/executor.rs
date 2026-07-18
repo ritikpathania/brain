@@ -462,28 +462,30 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             // Spawn speculative expansion step if applicable
             if runs_speculation {
-                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) = dependent_step {
+                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) =
+                    dependent_step
+                {
                     let policy = policy.clone();
-                        let seeds = speculative_seeds.clone();
-                        let handle_spec = s.spawn(move || {
-                            let mut candidates = Vec::new();
-                            let mut expansions_performed = 0;
-                            let mut candidates_produced = 0;
-                            if !seeds.is_empty() {
-                                let source = GraphExpansionSource::new(seeds, policy);
-                                candidates = source.retrieve(self.context);
-                                expansions_performed = candidates.len();
-                                candidates_produced = candidates.len();
-                            }
-                            StepExecutionResult {
-                                step_index: dep_idx,
-                                candidates,
-                                expansions_performed,
-                                candidates_produced,
-                                seed_nodes: vec![],
-                            }
-                        });
-                        handles.push(handle_spec);
+                    let seeds = speculative_seeds.clone();
+                    let handle_spec = s.spawn(move || {
+                        let mut candidates = Vec::new();
+                        let mut expansions_performed = 0;
+                        let mut candidates_produced = 0;
+                        if !seeds.is_empty() {
+                            let source = GraphExpansionSource::new(seeds, policy);
+                            candidates = source.retrieve(self.context);
+                            expansions_performed = candidates.len();
+                            candidates_produced = candidates.len();
+                        }
+                        StepExecutionResult {
+                            step_index: dep_idx,
+                            candidates,
+                            expansions_performed,
+                            candidates_produced,
+                            seed_nodes: vec![],
+                        }
+                    });
+                    handles.push(handle_spec);
                 }
             }
 
@@ -930,28 +932,30 @@ impl<'a, 'b, F: CandidateFusionStrategy + Send + Sync, R: RankingStrategy + Send
 
             // Spawn speculative expansion step if applicable
             if runs_speculation {
-                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) = dependent_step {
+                if let Some((dep_idx, PhysicalStep::ExpandNeighbors { policy, .. })) =
+                    dependent_step
+                {
                     let policy = policy.clone();
-                        let seeds = speculative_seeds.clone();
-                        let handle_spec = s.spawn(move || {
-                            let mut candidates = Vec::new();
-                            let mut expansions_performed = 0;
-                            let mut candidates_produced = 0;
-                            if !seeds.is_empty() {
-                                let source = GraphExpansionSource::new(seeds, policy);
-                                candidates = source.retrieve(self.context);
-                                expansions_performed = candidates.len();
-                                candidates_produced = candidates.len();
-                            }
-                            StepExecutionResult {
-                                step_index: dep_idx,
-                                candidates,
-                                expansions_performed,
-                                candidates_produced,
-                                seed_nodes: vec![],
-                            }
-                        });
-                        handles.push(handle_spec);
+                    let seeds = speculative_seeds.clone();
+                    let handle_spec = s.spawn(move || {
+                        let mut candidates = Vec::new();
+                        let mut expansions_performed = 0;
+                        let mut candidates_produced = 0;
+                        if !seeds.is_empty() {
+                            let source = GraphExpansionSource::new(seeds, policy);
+                            candidates = source.retrieve(self.context);
+                            expansions_performed = candidates.len();
+                            candidates_produced = candidates.len();
+                        }
+                        StepExecutionResult {
+                            step_index: dep_idx,
+                            candidates,
+                            expansions_performed,
+                            candidates_produced,
+                            seed_nodes: vec![],
+                        }
+                    });
+                    handles.push(handle_spec);
                 }
             }
 

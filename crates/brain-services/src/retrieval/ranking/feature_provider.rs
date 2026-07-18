@@ -249,14 +249,8 @@ impl FeatureProvider for SqliteFeatureProvider {
                 source: Some(Box::new(e)),
             })?;
 
-        for (
-            id_str,
-            updated_at,
-            properties_json,
-            graph_degree,
-            access_count,
-            last_observed_at,
-        ) in rows.flatten()
+        for (id_str, updated_at, properties_json, graph_degree, access_count, last_observed_at) in
+            rows.flatten()
         {
             if let Ok(uuid) = uuid::Uuid::parse_str(&id_str) {
                 let node_id = NodeId(uuid);
