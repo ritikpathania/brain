@@ -13,12 +13,17 @@ pub struct BrainPaths {
 }
 
 pub fn resolve_paths() -> BrainPaths {
-    let mut config_dir = if let Ok(home) = std::env::var("HOME") {
-        PathBuf::from(home)
+    let config_dir = if let Ok(dir) = std::env::var("BRAIN_CONFIG_DIR") {
+        PathBuf::from(dir)
     } else {
-        PathBuf::from("/tmp")
+        let mut path = if let Ok(home) = std::env::var("HOME") {
+            PathBuf::from(home)
+        } else {
+            PathBuf::from("/tmp")
+        };
+        path.push(".brain");
+        path
     };
-    config_dir.push(".brain");
     let _ = fs::create_dir_all(&config_dir);
 
     let socket_path = std::env::var("BRAIN_SOCKET_PATH")

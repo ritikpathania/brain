@@ -43,3 +43,7 @@ reqwest = { version = "0.12", features = ["json"] }
 toml = "0.8"
 semver = "1.0"
 specta = { version = "1.0.5", features = ["serde", "typescript"] }
+
+[profile.dev]
+debug = 1
+

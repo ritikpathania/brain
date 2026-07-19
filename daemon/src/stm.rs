@@ -7,6 +7,13 @@ use crate::retrieval::pipeline::run_retrieval_pipeline;
 use crate::retrieval::reranker::DefaultRanking;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+pub struct CompatibilityNode {
+    pub id: String,
+    pub epoch: u64,
+    pub content: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct TempNode {
     pub id: String,
     pub epoch: u64,
@@ -81,6 +88,29 @@ impl SessionContext {
 
         self.interaction_sliding_window.push_back(node.clone());
         self.index.add(id, &content);
+
+        node
+    }
+
+    /// Ingest authoritative node data from the runtime into the compatibility STM cache.
+    pub fn ingest_compatibility(&mut self, comp_node: CompatibilityNode) -> TempNode {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let node = TempNode {
+            id: comp_node.id.clone(),
+            epoch: comp_node.epoch,
+            content: comp_node.content.clone(),
+            timestamp,
+        };
+
+        self.interaction_sliding_window.push_back(node.clone());
+        self.index.add(comp_node.id, &comp_node.content);
+
+        // Synchronize volatile epoch with runtime authoritative epoch
+        self.current_epoch = comp_node.epoch;
 
         node
     }

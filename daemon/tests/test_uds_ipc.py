@@ -141,3 +141,61 @@ def test_uds_ingest_and_query_stream():
     assert "Found" in reconstructed_content
     assert "result" in reconstructed_content
     assert "rust" in reconstructed_content.lower()
+
+
+def test_uds_compatibility_parity():
+    # Resolve daemon executable path relative to the test runner's directory
+    daemon_exe = (
+        "../brain-daemon" if os.path.exists("../brain-daemon") else "./brain-daemon"
+    )
+
+    # Restart the daemon with BRAIN_DEBUG=1 to expose raw identifiers
+    import subprocess
+
+    subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+    env = os.environ.copy()
+    env["BRAIN_DEBUG"] = "1"
+    subprocess.run([daemon_exe, "daemon", "start"], env=env, capture_output=True)
+    time.sleep(1)
+
+    try:
+        # 1. Ingest a sentence with a unique keyword to isolate results
+        unique_keyword = "antigravityparitytest"
+        ingest_payload = (
+            f"The unique target for {unique_keyword} has been successfully validated."
+        )
+        ingest_responses = run_uds_query("ingest", ingest_payload)
+
+        assert len(ingest_responses) > 0
+        assert ingest_responses[0]["status"] in ("ok", "success")
+        msg = ingest_responses[0]["message"]
+        assert "Ingested node" in msg
+
+        # Parse node ID (UUID) from success message
+        # Format: "Ingested node '{id}' (Epoch {epoch}) successfully"
+        import re
+
+        match = re.search(r"Ingested node '([^']+)' \(Epoch (\d+)\) successfully", msg)
+        assert match is not None, f"Failed to match UUID pattern in message: {msg}"
+        node_id = match.group(1)
+
+        # 2. Query immediately (hits STM Cache compatibility layer)
+        query_responses = run_uds_query("query", unique_keyword)
+        assert len(query_responses) > 0
+
+        reconstructed_content = ""
+        for r in query_responses:
+            if r.get("type") == "stream_chunk":
+                reconstructed_content += r.get("content", "")
+
+        # Assert compatibility matching
+        assert "Found" in reconstructed_content
+        # The output rendered contains details of matching nodes.
+        # Check that the UUID and content are present in the response
+        assert node_id in reconstructed_content
+        assert unique_keyword in reconstructed_content
+    finally:
+        # Restore daemon to standard state
+        subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+        subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
+        time.sleep(1)

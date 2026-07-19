@@ -38,6 +38,7 @@ async fn test_daemon_lifecycle_graceful_shutdown() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -93,6 +94,7 @@ async fn test_daemon_lifecycle_repeated_signals() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .expect("Failed to start daemon process");
@@ -144,6 +146,7 @@ async fn test_daemon_lifecycle_stale_socket_recovery() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .expect("Failed to start daemon process");
@@ -183,6 +186,7 @@ async fn test_daemon_lifecycle_double_start_prevention() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .unwrap();
@@ -205,6 +209,7 @@ async fn test_daemon_lifecycle_double_start_prevention() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .output()
         .unwrap();
@@ -240,6 +245,7 @@ async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .unwrap();
@@ -276,6 +282,7 @@ async fn test_daemon_lifecycle_crash_during_worker_execution() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .unwrap();

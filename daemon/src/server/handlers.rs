@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use brain_core::events::CorrelationId;
 use brain_core::evolution::{Observation, Provenance};
@@ -85,123 +85,139 @@ pub async fn handle_connection(
                 metrics.total_ingests.fetch_add(1, Ordering::Relaxed);
                 let ingest_start = Instant::now();
 
-                let mut state_guard = state.write().await;
-                let session = state_guard.get_mut(&session_id).unwrap();
+                // 1. Run BrainRuntime Ingestion first (authoritative writer)
+                let obs = Observation {
+                    payload: payload.as_bytes().to_vec(),
+                    media_type: "text/plain".to_string(),
+                    provenance: Provenance {
+                        source_adapter: "daemon-uds".to_string(),
+                        timestamp: std::time::SystemTime::now(),
+                        correlation_id: CorrelationId::new_v4(),
+                    },
+                };
 
-                let node = session.ingest(payload.clone());
-                let ingest_elapsed = ingest_start.elapsed().as_micros() as u64;
                 metrics
-                    .sum_ingest_latency_us
-                    .fetch_add(ingest_elapsed, Ordering::Relaxed);
+                    .runtime_ingest_attempts
+                    .fetch_add(1, Ordering::Relaxed);
 
-                info!(
-                    node_id = %node.id,
-                    epoch = node.epoch,
-                    correlation_id = correlation_id,
-                    "Node successfully ingested to STM cache"
-                );
+                let rt_start = Instant::now();
+                match brain_runtime.ingest(obs) {
+                    Ok(result) => {
+                        let rt_elapsed = rt_start.elapsed().as_micros() as u64;
+                        metrics
+                            .runtime_ingest_successes
+                            .fetch_add(1, Ordering::Relaxed);
+                        metrics
+                            .runtime_ingest_latency_us
+                            .fetch_add(rt_elapsed, Ordering::Relaxed);
 
-                let _ = analytics_tx.send(AnalyticsEvent::Ingest {
-                    correlation_id,
-                    node_id: node.id.clone(),
-                    content_length: payload.len() as u64,
-                });
+                        metrics.runtime_canonicalization_latency_us.fetch_add(
+                            result.stage_timings.canonicalization.as_micros() as u64,
+                            Ordering::Relaxed,
+                        );
+                        metrics.runtime_reflection_latency_us.fetch_add(
+                            result.stage_timings.reflection.as_micros() as u64,
+                            Ordering::Relaxed,
+                        );
+                        metrics.runtime_dispatch_latency_us.fetch_add(
+                            result.stage_timings.dispatch.as_micros() as u64,
+                            Ordering::Relaxed,
+                        );
 
-                // --- BrainRuntime ingestion (alongside existing path) ---
-                //
-                // The runtime receives every ingest observation and runs it through
-                // the full canonicalize → reflect → event-dispatch pipeline.
-                //
-                // This call is non-fatal: if it fails, the existing STM/LTM path
-                // has already succeeded and the client response is unaffected.
-                //
-                // Counters are sampled from independent atomics; a scrape that
-                // observes attempts > successes + failures indicates an in-flight
-                // request. Use long-term rates, not single samples.
-                {
-                    let obs = Observation {
-                        payload: payload.as_bytes().to_vec(),
-                        media_type: "text/plain".to_string(),
-                        provenance: Provenance {
-                            source_adapter: "daemon-uds".to_string(),
-                            timestamp: std::time::SystemTime::now(),
-                            correlation_id: CorrelationId::new_v4(),
-                        },
-                    };
-                    // runtime.ingest() is synchronous (runs on the current thread).
-                    // It is safe to call from async context — it completes quickly
-                    // and does not block the executor for a meaningful duration.
-                    let rt_start = Instant::now();
-                    metrics
-                        .runtime_ingest_attempts
-                        .fetch_add(1, Ordering::Relaxed);
-
-                    match brain_runtime.ingest(obs) {
-                        Ok(result) => {
-                            let rt_elapsed = rt_start.elapsed().as_micros() as u64;
-                            metrics
-                                .runtime_ingest_successes
-                                .fetch_add(1, Ordering::Relaxed);
-                            metrics
-                                .runtime_ingest_latency_us
-                                .fetch_add(rt_elapsed, Ordering::Relaxed);
-
-                            metrics.runtime_canonicalization_latency_us.fetch_add(
-                                result.stage_timings.canonicalization.as_micros() as u64,
-                                Ordering::Relaxed,
-                            );
-                            metrics.runtime_reflection_latency_us.fetch_add(
-                                result.stage_timings.reflection.as_micros() as u64,
-                                Ordering::Relaxed,
-                            );
-                            metrics.runtime_dispatch_latency_us.fetch_add(
-                                result.stage_timings.dispatch.as_micros() as u64,
-                                Ordering::Relaxed,
-                            );
-
-                            if let Ok(mut reservoir) = metrics.runtime_latency_reservoir.lock() {
-                                reservoir.observe(rt_elapsed);
-                            }
-
-                            info!(
-                                component = "runtime",
-                                epoch = result.epoch.0,
-                                entities = result.affected_entities.len(),
-                                latency_us = rt_elapsed,
-                                "BrainRuntime ingestion succeeded"
-                            );
+                        if let Ok(mut reservoir) = metrics.runtime_latency_reservoir.lock() {
+                            reservoir.observe(rt_elapsed);
                         }
-                        Err(e) => {
-                            metrics
-                                .runtime_ingest_failures
-                                .fetch_add(1, Ordering::Relaxed);
-                            warn!(
-                                component = "runtime",
-                                error = %e,
-                                "BrainRuntime ingestion failed (non-fatal — STM path succeeded)"
-                            );
+
+                        info!(
+                            component = "runtime",
+                            epoch = result.epoch.0,
+                            entities = result.affected_entities.len(),
+                            latency_us = rt_elapsed,
+                            "BrainRuntime ingestion succeeded"
+                        );
+
+                        // 2. Extract runtime outcomes and update compatibility STM cache (read-only consumer)
+                        let node_id_str = result
+                            .affected_entities
+                            .first()
+                            .map(|nid| nid.0.to_string())
+                            .unwrap_or_else(|| "".to_string());
+                        let target_epoch = result.epoch.0;
+
+                        let comp_node = stm::CompatibilityNode {
+                            id: node_id_str.clone(),
+                            epoch: target_epoch,
+                            content: payload.clone(),
+                        };
+
+                        let mut state_guard = state.write().await;
+                        let session = state_guard.get_mut(&session_id).unwrap();
+                        let stm_node = session.ingest_compatibility(comp_node);
+
+                        let ingest_elapsed = ingest_start.elapsed().as_micros() as u64;
+                        metrics
+                            .sum_ingest_latency_us
+                            .fetch_add(ingest_elapsed, Ordering::Relaxed);
+
+                        info!(
+                            node_id = %stm_node.id,
+                            epoch = stm_node.epoch,
+                            correlation_id = correlation_id,
+                            "Node successfully synchronized to compatibility STM cache"
+                        );
+
+                        let _ = analytics_tx.send(AnalyticsEvent::Ingest {
+                            correlation_id,
+                            node_id: stm_node.id.clone(),
+                            content_length: payload.len() as u64,
+                        });
+
+                        let msg = format!(
+                            "Ingested node '{}' (Epoch {}) successfully",
+                            stm_node.id, stm_node.epoch
+                        );
+
+                        if is_versioned {
+                            Some(ServerResponse::Response(VersionedResponse {
+                                version: "1.0".to_string(),
+                                msg_type: "Response".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "success".to_string(),
+                                body: msg,
+                            }))
+                        } else {
+                            Some(ServerResponse::Legacy(LegacyResponse {
+                                status: "ok".to_string(),
+                                message: msg,
+                            }))
                         }
                     }
-                }
+                    Err(e) => {
+                        metrics
+                            .runtime_ingest_failures
+                            .fetch_add(1, Ordering::Relaxed);
+                        error!(
+                            component = "runtime",
+                            error = %e,
+                            "Authoritative BrainRuntime ingestion failed (propagating error to client)"
+                        );
 
-                let msg = format!(
-                    "Ingested node '{}' (Epoch {}) successfully",
-                    node.id, node.epoch
-                );
-
-                if is_versioned {
-                    Some(ServerResponse::Response(VersionedResponse {
-                        version: "1.0".to_string(),
-                        msg_type: "Response".to_string(),
-                        id: req_id.unwrap_or(0),
-                        status: "success".to_string(),
-                        body: msg,
-                    }))
-                } else {
-                    Some(ServerResponse::Legacy(LegacyResponse {
-                        status: "ok".to_string(),
-                        message: msg,
-                    }))
+                        let err_msg = format!("Ingestion failed: {:?}", e);
+                        if is_versioned {
+                            Some(ServerResponse::Error(VersionedError {
+                                version: "1.0".to_string(),
+                                msg_type: "Error".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "error".to_string(),
+                                body: err_msg,
+                            }))
+                        } else {
+                            Some(ServerResponse::Legacy(LegacyResponse {
+                                status: "error".to_string(),
+                                message: err_msg,
+                            }))
+                        }
+                    }
                 }
             }
             "query" => {

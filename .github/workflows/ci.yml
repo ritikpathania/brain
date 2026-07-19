@@ -86,6 +86,8 @@ jobs:
     name: Tests & Benchmark Compiles (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: lint-and-format
+    env:
+      PYO3_PYTHON: python3
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -122,7 +124,7 @@ jobs:
 
       - name: Run Rust Test Suite
         run: |
-          PYO3_PYTHON=python3 cargo test --workspace
+          cargo test --workspace
 
       - name: Run Python Test Suite
         run: |
@@ -131,4 +133,4 @@ jobs:
 
       - name: Verify Benchmark Compilation
         run: |
-          PYO3_PYTHON=python3 cargo bench --workspace --no-run
+          cargo bench --workspace --no-run
