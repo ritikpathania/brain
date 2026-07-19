@@ -186,5 +186,3 @@ def test_uds_ingest_and_query_stream():
     assert "Found" in reconstructed_content
     assert "result" in reconstructed_content
     assert "rust" in reconstructed_content.lower()
-
-
