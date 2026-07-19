@@ -69,8 +69,15 @@ pub fn init_pool(
 ) -> Result<r2d2::Pool<SqliteConnectionManager>, BrainError> {
     let manager = SqliteConnectionManager::new(path);
 
+    let timeout_ms = std::env::var("BRAIN_DATABASE_TIMEOUT_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(1000);
+    let timeout = std::time::Duration::from_millis(timeout_ms);
+
     r2d2::Pool::builder()
         .max_size(pool_size)
+        .connection_timeout(timeout)
         .connection_customizer(Box::new(SqliteConnectionCustomizer { enable_wal }))
         .build(manager)
         .map_err(|e| BrainError::Storage {

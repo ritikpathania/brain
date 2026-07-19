@@ -1,21 +1,13 @@
-use pyo3::prelude::PyAnyMethods;
-use std::collections::HashMap;
 use std::fs;
 use std::sync::Arc;
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 use brain_services::BrainRuntime;
 
 use daemon_bridge::config::{self, BrainPaths};
-use daemon_bridge::plugins::{self, BuiltinPythonExtractor};
-use daemon_bridge::retrieval::{DefaultRanking, FuzzyRetrieval};
 use daemon_bridge::server::{start_health_server, start_uds_listener};
-use daemon_bridge::storage::duckdb::AnalyticsDatabase;
-use daemon_bridge::storage::sqlite::LtmDatabase;
-use daemon_bridge::workers::{start_analytics_worker, start_cleanup_worker};
-use daemon_bridge::{DaemonMetrics, GlobalState};
+use daemon_bridge::DaemonMetrics;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DaemonState {
@@ -99,56 +91,50 @@ fn daemonize_start() -> Result<(), Box<dyn std::error::Error>> {
         .stderr(std::process::Stdio::from(log_file))
         .spawn()?;
 
-    let pid = child.id();
+    let pid = child.id() as i32;
     fs::write(&paths.pid_path, pid.to_string())?;
     println!("Daemon started successfully (PID: {}).", pid);
+
     Ok(())
 }
 
 fn daemonize_stop() -> Result<(), Box<dyn std::error::Error>> {
     let paths = config::resolve_paths();
     if !paths.pid_path.exists() {
-        println!("Daemon is not running.");
+        println!("Daemon is not running (no PID file found).");
         return Ok(());
     }
 
     let pid_str = fs::read_to_string(&paths.pid_path)?;
     let pid = pid_str.trim().parse::<i32>()?;
 
-    if is_pid_running(pid) {
-        println!("Stopping daemon (PID: {})...", pid);
-        unsafe {
-            libc::kill(pid, libc::SIGTERM);
-        }
-
-        for _ in 0..50 {
-            if !is_pid_running(pid) {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-
-        if is_pid_running(pid) {
-            println!("Daemon did not exit. Force killing...");
-            unsafe {
-                libc::kill(pid, libc::SIGKILL);
-            }
-        } else {
-            println!("Daemon stopped.");
-        }
-    } else {
-        println!("Daemon was not running, cleaning up stale PID file.");
+    println!("Stopping daemon (PID: {})...", pid);
+    unsafe {
+        libc::kill(pid, libc::SIGTERM);
     }
 
+    // Wait for the process to stop
+    for _ in 0..50 {
+        if !is_pid_running(pid) {
+            println!("Daemon stopped.");
+            let _ = fs::remove_file(&paths.pid_path);
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    println!("Daemon did not stop gracefully. Forcing exit...");
+    unsafe {
+        libc::kill(pid, libc::SIGKILL);
+    }
     let _ = fs::remove_file(&paths.pid_path);
-    let _ = fs::remove_file(&paths.socket_path);
     Ok(())
 }
 
 fn daemonize_status() -> Result<(), Box<dyn std::error::Error>> {
     let paths = config::resolve_paths();
     if !paths.pid_path.exists() {
-        println!("Daemon Status: Stopped");
+        println!("Status: Stopped");
         return Ok(());
     }
 
@@ -156,173 +142,60 @@ fn daemonize_status() -> Result<(), Box<dyn std::error::Error>> {
     let pid = pid_str.trim().parse::<i32>()?;
 
     if is_pid_running(pid) {
-        println!("Daemon Status: Running (PID: {})", pid);
+        println!("Status: Running (PID: {})", pid);
     } else {
-        println!("Daemon Status: Stopped (Stale PID file exists)");
+        println!("Status: Stale PID file (Process not running)");
     }
     Ok(())
 }
 
 async fn query_http_endpoint(path: &str) -> Result<String, Box<dyn std::error::Error>> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = tokio::net::TcpStream::connect("127.0.0.1:8080").await?;
-    let request = format!(
-        "GET {} HTTP/1.1\r\nHost: 127.0.0.1:8080\r\nConnection: close\r\n\r\n",
-        path
-    );
-    stream.write_all(request.as_bytes()).await?;
-    let mut response = String::new();
-    stream.read_to_string(&mut response).await?;
-
-    if let Some(body_start) = response.find("\r\n\r\n") {
-        Ok(response[body_start + 4..].to_string())
-    } else {
-        Ok(response)
-    }
+    let port = std::env::var("BRAIN_HEALTH_PORT").unwrap_or_else(|_| "8080".to_string());
+    let url = format!("http://127.0.0.1:{}{}", port, path);
+    let resp = reqwest::get(&url).await?.text().await?;
+    Ok(resp)
 }
 
 async fn check_health() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Checking brain daemon health...");
     match query_http_endpoint("/health").await {
-        Ok(health) => {
-            println!("Daemon /health: {}", health.trim());
-            match query_http_endpoint("/ready").await {
-                Ok(ready) => {
-                    println!("Daemon /ready: {}", ready.trim());
-                }
-                Err(e) => {
-                    println!("Daemon /ready failed: {}", e);
-                }
+        Ok(body) => {
+            if body.contains("ok") {
+                println!("Daemon health status: OK");
+            } else {
+                println!("Daemon health status: UNHEALTHY ({})", body);
             }
         }
         Err(e) => {
-            println!("Daemon is unreachable: {}. Is it running?", e);
+            println!("Daemon health status: UNREACHABLE ({})", e);
         }
     }
     Ok(())
 }
 
 async fn run_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
-    let paths = config::resolve_paths();
-    println!("=== brain Diagnostics ===");
-    println!("OS: {} {}", std::env::consts::OS, std::env::consts::ARCH);
-    println!("Config/Data Directory: {}", paths.config_dir.display());
-    println!("SQLite DB Path: {}", paths.db_path.display());
-    println!("DuckDB Path: {}", paths.analytics_db_path.display());
-    println!("UDS Socket Path: {}", paths.socket_path.display());
-
-    let python_version = pyo3::Python::with_gil(|py| -> pyo3::PyResult<String> {
-        let sys = py.import_bound("sys")?;
-        let version: String = sys.getattr("version")?.extract()?;
-        Ok(version)
-    });
-    match python_version {
-        Ok(ver) => println!("Python Version (embedded): {}", ver.replace('\n', " ")),
-        Err(e) => println!("Python Check Failed: {}", e),
-    }
-
-    if paths.pid_path.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&paths.pid_path) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                if is_pid_running(pid) {
-                    println!("Daemon Status: Running (PID: {})", pid);
-
-                    match query_http_endpoint("/metrics").await {
-                        Ok(metrics) => {
-                            println!("\nDaemon Telemetry Metrics:");
-                            println!("{}", metrics.trim());
-                        }
-                        Err(e) => {
-                            println!("Daemon Metrics Unreachable: {}", e);
-                        }
-                    }
-                } else {
-                    println!("Daemon Status: Stopped (Stale PID file)");
-                }
-            }
+    println!("=== Daemon Diagnostics ===");
+    match query_http_endpoint("/metrics/runtime").await {
+        Ok(body) => {
+            println!("{}", body);
         }
-    } else {
-        println!("Daemon Status: Stopped");
+        Err(e) => {
+            println!("Diagnostics unavailable: {}", e);
+        }
     }
-
     Ok(())
-}
-
-fn load_cli_registry() -> Result<plugins::PluginRegistry, Box<dyn std::error::Error>> {
-    let paths = config::resolve_paths();
-    let config_path = paths.config_dir.join("config.json");
-    let plugin_config = if config_path.exists() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            serde_json::from_str::<config::PluginConfig>(&content).unwrap_or_default()
-        } else {
-            config::PluginConfig::default()
-        }
-    } else {
-        config::PluginConfig::default()
-    };
-    let mut registry = plugins::PluginRegistry::new(plugin_config);
-
-    // Register built-in defaults
-    registry
-        .embedding_providers
-        .insert("noop".to_string(), Arc::new(plugins::NoopEmbeddingProvider));
-    registry
-        .llm_providers
-        .insert("noop".to_string(), Arc::new(plugins::NoopLlmProvider));
-    registry
-        .retrieval_algorithms
-        .insert("fuzzy".to_string(), Arc::new(FuzzyRetrieval));
-    registry
-        .ranking_strategies
-        .insert("default".to_string(), Arc::new(DefaultRanking));
-
-    // Load python plugins
-    let plugins_dir = paths.config_dir.join("plugins");
-    let _ = plugins::load_python_plugins(&mut registry, &plugins_dir);
-    Ok(registry)
 }
 
 fn print_config() -> Result<(), Box<dyn std::error::Error>> {
     let paths = config::resolve_paths();
     println!("=== brain Configurations ===");
     println!("data_dir = \"{}\"", paths.config_dir.display());
-    println!("sqlite_db = \"{}\"", paths.db_path.display());
-    println!("duckdb = \"{}\"", paths.analytics_db_path.display());
+    println!(
+        "sqlite_runtime_db = \"{}\"",
+        paths.config_dir.join("brain_runtime.db").display()
+    );
     println!("socket_path = \"{}\"", paths.socket_path.display());
     println!("http_port = 8080");
     println!("uds_timeout_ms = 30000");
-
-    if let Ok(registry) = load_cli_registry() {
-        println!("\nActive Plugins:");
-        println!(
-            "  embedding_provider  = \"{}\"",
-            registry.config.active_embedding_provider
-        );
-        println!(
-            "  llm_provider        = \"{}\"",
-            registry.config.active_llm_provider
-        );
-        println!(
-            "  retrieval_algorithm = \"{}\"",
-            registry.config.active_retrieval_algorithm
-        );
-        println!(
-            "  ranking_strategy    = \"{}\"",
-            registry.config.active_ranking_strategy
-        );
-        println!(
-            "  storage_backend     = \"{}\"",
-            registry.config.active_storage_backend
-        );
-        println!(
-            "  memory_extractor    = \"{}\"",
-            registry.config.active_memory_extractor
-        );
-        println!(
-            "  exporter            = \"{}\"",
-            registry.config.active_exporter
-        );
-    }
     Ok(())
 }
 
@@ -333,51 +206,21 @@ fn find_brain_path() -> std::path::PathBuf {
             if sibling.exists() {
                 return sibling;
             }
-            if let Some(grandparent) = parent.parent() {
-                if let Some(great_grandparent) = grandparent.parent() {
-                    let target_debug = great_grandparent.join("target").join("debug").join("brain");
-                    if target_debug.exists() {
-                        return target_debug;
-                    }
-                    let target_release = great_grandparent
-                        .join("target")
-                        .join("release")
-                        .join("brain");
-                    if target_release.exists() {
-                        return target_release;
-                    }
-                }
-                let sibling_debug = grandparent.join("debug").join("brain");
-                if sibling_debug.exists() {
-                    return sibling_debug;
-                }
-            }
         }
     }
-    if let Ok(cwd) = std::env::current_dir() {
-        let cwd_debug = cwd.join("target").join("debug").join("brain");
-        if cwd_debug.exists() {
-            return cwd_debug;
-        }
-        let cwd_release = cwd.join("target").join("release").join("brain");
-        if cwd_release.exists() {
-            return cwd_release;
-        }
+    let cargo_target = std::path::PathBuf::from("./target/debug/brain");
+    if cargo_target.exists() {
+        cargo_target
+    } else {
+        std::path::PathBuf::from("brain")
     }
-    std::path::PathBuf::from("brain")
 }
 
 fn launch_embedded_tui() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Launching native Ratatui TUI client...");
-    let paths = config::resolve_paths();
     let brain_path = find_brain_path();
-
-    let mut child = std::process::Command::new(brain_path)
-        .env("BRAIN_SOCKET_PATH", &paths.socket_path)
-        .spawn()?;
-
-    let _ = child.wait();
-    Ok(())
+    let mut child = std::process::Command::new(brain_path).arg("tui").spawn()?;
+    let status = child.wait()?;
+    std::process::exit(status.code().unwrap_or(0));
 }
 
 fn find_cli_adapter_path() -> std::path::PathBuf {
@@ -387,115 +230,50 @@ fn find_cli_adapter_path() -> std::path::PathBuf {
             if sibling.exists() {
                 return sibling;
             }
-            if let Some(grandparent) = parent.parent() {
-                if let Some(great_grandparent) = grandparent.parent() {
-                    let target_debug = great_grandparent
-                        .join("target")
-                        .join("debug")
-                        .join("brain-cli-adapter");
-                    if target_debug.exists() {
-                        return target_debug;
-                    }
-                    let target_release = great_grandparent
-                        .join("target")
-                        .join("release")
-                        .join("brain-cli-adapter");
-                    if target_release.exists() {
-                        return target_release;
-                    }
-                }
-                let sibling_debug = grandparent.join("debug").join("brain-cli-adapter");
-                if sibling_debug.exists() {
-                    return sibling_debug;
-                }
-            }
-        }
-    }
-    if let Ok(cwd) = std::env::current_dir() {
-        let cwd_debug = cwd.join("target").join("debug").join("brain-cli-adapter");
-        if cwd_debug.exists() {
-            return cwd_debug;
-        }
-        let cwd_release = cwd.join("target").join("release").join("brain-cli-adapter");
-        if cwd_release.exists() {
-            return cwd_release;
         }
     }
     std::path::PathBuf::from("brain-cli-adapter")
 }
 
 fn print_daemon_help() {
-    println!(
-        r#"brain daemon - Background Relational Memory Engine Daemon Manager
-
-Usage:
-  brain daemon [subcommand]
-
-Subcommands:
-  start     Start the memory engine daemon in the background
-  stop      Stop the running background daemon
-  status    Check if the daemon is currently running
-  run       Run the daemon in the foreground (useful for logs/diagnostics)
-  help      Show this help message
-"#
-    );
+    println!("brain daemon management commands:");
+    println!("  start       Start daemon process in the background");
+    println!("  stop        Stop running background daemon process");
+    println!("  status      Check if daemon process is currently running");
+    println!("  run         Run daemon process in the foreground");
 }
 
 fn print_help() {
-    println!(
-        r#"brain - Standalone Relational Memory Engine Developer Tool
-
-Usage:
-  brain [command]
-
-Available Commands:
-  daemon start    Start the memory engine daemon in the background
-  daemon stop     Stop the background memory engine daemon
-  daemon status   Check the current status of the daemon
-  version         Print the version information
-  health          Check health and readiness of the running daemon
-  diagnostics     Output system diagnostics and runtime metrics
-  config          Show data paths and configurations
-  ui              Launch the interactive React/Ink terminal interface (default)
-  adapter         Run the Brain CLI Integration Adapter Reference Client (e.g. send events, ping, replay)
-  help, --help    Show this help message
-
-Default:
-  Running 'brain' without arguments is equivalent to 'brain ui'.
-"#
-    );
+    println!("brain: AI coding companion engine");
+    println!("Usage: brain-daemon <command> [args]");
+    println!("\nCommands:");
+    println!("  daemon      Manage background daemon process (start, stop, status, run)");
+    println!("  ui          Launch interactive console TUI");
+    println!("  health      Check if local daemon is running and healthy");
+    println!("  diagnostics Retrieve runtime statistics and performance logs");
+    println!("  config      Print path resolutions and active configuration");
+    println!("  version     Print engine build version");
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-
     if args.len() > 1 {
         let cmd = args[1].as_str();
         match cmd {
             "daemon" => {
                 if args.len() > 2 {
-                    match args[2].as_str() {
-                        "start" => {
-                            daemonize_start()?;
-                        }
-                        "stop" => {
-                            daemonize_stop()?;
-                        }
-                        "status" => {
-                            daemonize_status()?;
-                        }
+                    let sub = args[2].as_str();
+                    match sub {
+                        "start" => daemonize_start()?,
+                        "stop" => daemonize_stop()?,
+                        "status" => daemonize_status()?,
                         "run" => {
                             let paths = config::resolve_paths();
                             run_daemon_server(paths).await?;
                         }
-                        "help" | "--help" | "-h" => {
-                            print_daemon_help();
-                        }
                         _ => {
-                            eprintln!(
-                                "Unknown daemon subcommand. Use: start, stop, status, run, help"
-                            );
+                            print_daemon_help();
                             std::process::exit(1);
                         }
                     }
@@ -532,16 +310,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 print_help();
             }
             _ => {
-                if let Ok(registry) = load_cli_registry() {
-                    if let Some(plugin) = registry.cli_plugins.get(cmd) {
-                        let sub_args: Vec<String> = args.iter().skip(2).cloned().collect();
-                        if let Err(e) = plugin.handle_command(&sub_args) {
-                            eprintln!("CLI Plugin '{}' failed: {}", cmd, e);
-                            std::process::exit(1);
-                        }
-                        std::process::exit(0);
-                    }
-                }
                 eprintln!("Unknown command: {}", cmd);
                 print_help();
                 std::process::exit(1);
@@ -563,71 +331,18 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     info!(component = "main", "Starting brain Daemon...");
 
     let metrics = Arc::new(DaemonMetrics::new());
-    let compatibility_config = daemon_bridge::config::CompatibilityConfig::resolve();
-    info!(
-        component = "main",
-        "Compatibility mode enabled: {}", compatibility_config.legacy_enabled
-    );
-
-    let analytics_db = match AnalyticsDatabase::new(paths.analytics_db_path.to_str().unwrap()) {
-        Ok(db) => Arc::new(db),
-        Err(e) => {
-            error!(
-                component = "main",
-                "Failed to initialize DuckDB analytics database: {}", e
-            );
-            eprintln!(
-                "Error: Failed to initialize DuckDB database at {}.\n\
-                 This usually means another instance of the brain daemon is already running\n\
-                 or holds a lock on the database file. Details: {}",
-                paths.analytics_db_path.display(),
-                e
-            );
-            std::process::exit(1);
-        }
-    };
-    let (analytics_tx, analytics_rx) =
-        tokio::sync::mpsc::unbounded_channel::<daemon_bridge::storage::duckdb::AnalyticsEvent>();
-
-    let worker_analytics_db = Arc::clone(&analytics_db);
-    tokio::spawn(async move {
-        start_analytics_worker(analytics_rx, worker_analytics_db).await;
-    });
 
     let health_metrics = Arc::clone(&metrics);
-    let health_analytics_db = Arc::clone(&analytics_db);
-    tokio::spawn(async move {
-        start_health_server(health_metrics, health_analytics_db).await;
-    });
+    // Initialize Cleanup Guard
+    let mut cleanup_guard =
+        DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
 
-    let global_state: GlobalState = Arc::new(RwLock::new(HashMap::new()));
-    let ltm_db = match LtmDatabase::new(paths.db_path.to_str().unwrap()) {
-        Ok(db) => Arc::new(db),
-        Err(e) => {
-            error!(
-                component = "main",
-                "Failed to initialize SQLite LTM database: {}", e
-            );
-            eprintln!(
-                "Error: Failed to initialize SQLite database at {}.\n\
-                 This usually means another instance of the brain daemon is already running\n\
-                 or holds a lock on the database file. Details: {}",
-                paths.db_path.display(),
-                e
-            );
-            std::process::exit(1);
-        }
-    };
-    info!(component = "database", db_path = %paths.db_path.display(), "LTM Persistent Graph Database initialized");
+    if std::env::var("BRAIN_TEST_PANIC_STARTUP").is_ok() {
+        panic!("Simulating panic during startup");
+    }
 
-    // --- BrainRuntime construction ---
-    //
-    // BrainRuntime uses its own dedicated SQLite file (brain_runtime.db) rather than
-    // memory.db. Both LtmDatabase and SqliteStorage (inside BrainRuntime) create tables
-    // named `nodes`, `edges`, and `event_log` — sharing a file would cause a schema
-    // conflict. This is Sprint 6 Design Finding #1: the two storage layers are not
-    // interchangeable and must not share a database file.
     let brain_runtime_db_path = paths.config_dir.join("brain_runtime.db");
+
     let brain_runtime = match BrainRuntime::new(brain_runtime_db_path.to_str().unwrap()) {
         Ok(rt) => {
             info!(
@@ -642,79 +357,19 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
                 component = "runtime",
                 "Failed to initialize BrainRuntime: {}", e
             );
-            std::process::exit(1);
+            return Err(e.into());
         }
     };
 
-    // Read or create config
-    let config_path = paths.config_dir.join("config.json");
-    let plugin_config = if config_path.exists() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            serde_json::from_str::<config::PluginConfig>(&content).unwrap_or_default()
-        } else {
-            config::PluginConfig::default()
-        }
-    } else {
-        let default_config = config::PluginConfig::default();
-        if let Ok(content) = serde_json::to_string_pretty(&default_config) {
-            let _ = fs::write(&config_path, content);
-        }
-        default_config
-    };
-
-    let mut plugin_registry = plugins::PluginRegistry::new(plugin_config);
-
-    // Register built-ins
-    plugin_registry
-        .embedding_providers
-        .insert("noop".to_string(), Arc::new(plugins::NoopEmbeddingProvider));
-    plugin_registry
-        .llm_providers
-        .insert("noop".to_string(), Arc::new(plugins::NoopLlmProvider));
-    plugin_registry
-        .retrieval_algorithms
-        .insert("fuzzy".to_string(), Arc::new(FuzzyRetrieval));
-    plugin_registry
-        .ranking_strategies
-        .insert("default".to_string(), Arc::new(DefaultRanking));
-    plugin_registry
-        .storage_backends
-        .insert("sqlite".to_string(), ltm_db.clone());
-    plugin_registry
-        .exporters
-        .insert("duckdb".to_string(), analytics_db.clone());
-
-    let extractor_code = include_str!("../brain/extraction/heuristics.py");
-    plugin_registry.memory_extractors.insert(
-        "python-default".to_string(),
-        Arc::new(BuiltinPythonExtractor::new(extractor_code.to_string())),
-    );
-
-    // Load Python dynamic plugins from ~/.brain/plugins/
-    let plugins_dir = paths.config_dir.join("plugins");
-    if let Err(e) = plugins::load_python_plugins(&mut plugin_registry, &plugins_dir) {
-        error!(
-            component = "plugins",
-            "Failed to load Python dynamic plugins: {}", e
-        );
-    } else {
-        info!(
-            component = "plugins",
-            "Python dynamic plugins loaded successfully"
-        );
-    }
-
-    let plugin_registry = Arc::new(plugin_registry);
+    let rt_metrics_ref = Arc::clone(&brain_runtime);
+    tokio::spawn(async move {
+        start_health_server(health_metrics, rt_metrics_ref).await;
+    });
 
     let mut state = DaemonState::Starting;
     info!(component = "daemon", "Daemon state: {:?}", state);
 
-    // Initialize Cleanup Guard
-    let mut cleanup_guard =
-        DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
-
     if paths.socket_path.exists() {
-        // Attempt to connect to check if it's a live listener
         match UnixStream::connect(&paths.socket_path).await {
             Ok(_) => {
                 error!(
@@ -755,23 +410,12 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let listener = UnixListener::bind(&paths.socket_path)?;
     info!(component = "socket", socket_path = %paths.socket_path.display(), "Socket bound successfully");
 
+    if std::env::var("BRAIN_TEST_PANIC_BEFORE_SERVING").is_ok() {
+        panic!("Simulating panic after socket creation but before serving");
+    }
+
     state = DaemonState::Running;
     info!(component = "daemon", "Daemon state: {:?}", state);
-
-    let consolidation_state = Arc::clone(&global_state);
-    let worker_metrics = Arc::clone(&metrics);
-    let consolidation_registry = Arc::clone(&plugin_registry);
-    let cleanup_compat_config = compatibility_config.clone();
-
-    tokio::spawn(async move {
-        start_cleanup_worker(
-            consolidation_state,
-            worker_metrics,
-            consolidation_registry,
-            cleanup_compat_config,
-        )
-        .await;
-    });
 
     // Spawn signal listener for graceful shutdown
     let cancel_token = tokio_util::sync::CancellationToken::new();
@@ -787,7 +431,6 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         info!(component = "shutdown", "Shutdown initiated ({})", reason);
         cancel_trigger.cancel();
 
-        // Absorb repeated signals without panic or exit
         loop {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -800,18 +443,13 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         }
     });
 
-    // Run uds listener under select
     let listener_metrics = metrics.clone();
     let listener_runtime = Arc::clone(&brain_runtime);
     tokio::select! {
         _ = start_uds_listener(
             listener,
-            global_state,
-            plugin_registry,
             listener_metrics,
-            analytics_tx,
             listener_runtime,
-            compatibility_config,
         ) => {}
         _ = cancel_token.cancelled() => {
             state = DaemonState::Draining;
@@ -821,7 +459,6 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
 
     info!(component = "shutdown", "Stopping accept loop");
 
-    // Draining active workers
     let start_drain = std::time::Instant::now();
     let mut active = metrics
         .active_workers
@@ -848,16 +485,6 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         info!(component = "shutdown", "Workers drained");
     }
 
-    // --- BrainRuntime shutdown ---
-    //
-    // Shutdown invariant: Arc::try_unwrap() succeeds only when every clone of
-    // Arc<BrainRuntime> has been dropped. This includes all handler tasks spawned
-    // by start_uds_listener. After the worker drain above, all handler tasks have
-    // completed and released their clones. Any background task that also clones
-    // Arc<BrainRuntime> must be drained here too.
-    //
-    // If try_unwrap() fails, a task leaked its Arc reference. Log a warning rather
-    // than panic — the process is already exiting.
     match Arc::try_unwrap(brain_runtime) {
         Ok(runtime) => match runtime.shutdown() {
             Ok(summary) => {
@@ -874,8 +501,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         Err(_) => {
             warn!(
                 component = "runtime",
-                "BrainRuntime Arc had outstanding references at shutdown — \
-                 check for background tasks that clone Arc<BrainRuntime>"
+                "BrainRuntime Arc had outstanding references at shutdown"
             );
         }
     }
@@ -904,9 +530,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         }
     }
 
-    // Disarm guard since we performed cleanup explicitly and cleanly
     cleanup_guard.disarm();
-
     info!(component = "shutdown", "Shutdown complete");
 
     Ok(())

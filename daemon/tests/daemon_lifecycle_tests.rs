@@ -245,7 +245,7 @@ async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
         .env("BRAIN_PID_PATH", &pid_path)
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
-        .env("BRAIN_CONFIG_DIR", &test_dir)
+        .env("BRAIN_CONFIG_DIR", "/nonexistent/directory")
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .unwrap();
@@ -318,6 +318,68 @@ async fn test_daemon_lifecycle_crash_during_worker_execution() {
         !pid_path.exists(),
         "PID file was not cleaned up on worker connection close"
     );
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[tokio::test]
+async fn test_daemon_lifecycle_panic_during_startup() {
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
+    let test_dir = get_temp_dir();
+    let socket_path = test_dir.join("brain.sock");
+    let pid_path = test_dir.join("brain.pid");
+    let db_path = test_dir.join("brain.db");
+    let analytics_db_path = test_dir.join("analytics.db");
+
+    let mut child = Command::new(bin_path)
+        .arg("daemon")
+        .arg("run")
+        .env("BRAIN_SOCKET_PATH", &socket_path)
+        .env("BRAIN_PID_PATH", &pid_path)
+        .env("BRAIN_DB_PATH", &db_path)
+        .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
+        .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
+        .env("BRAIN_TEST_PANIC_STARTUP", "1")
+        .spawn()
+        .unwrap();
+
+    let status = child.wait().unwrap();
+    assert!(!status.success(), "Daemon should have failed (panicked)");
+
+    assert!(!socket_path.exists(), "Socket file was not cleaned up on startup panic");
+    assert!(!pid_path.exists(), "PID file was not cleaned up on startup panic");
+
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[tokio::test]
+async fn test_daemon_lifecycle_panic_after_socket_creation() {
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
+    let test_dir = get_temp_dir();
+    let socket_path = test_dir.join("brain.sock");
+    let pid_path = test_dir.join("brain.pid");
+    let db_path = test_dir.join("brain.db");
+    let analytics_db_path = test_dir.join("analytics.db");
+
+    let mut child = Command::new(bin_path)
+        .arg("daemon")
+        .arg("run")
+        .env("BRAIN_SOCKET_PATH", &socket_path)
+        .env("BRAIN_PID_PATH", &pid_path)
+        .env("BRAIN_DB_PATH", &db_path)
+        .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
+        .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
+        .env("BRAIN_TEST_PANIC_BEFORE_SERVING", "1")
+        .spawn()
+        .unwrap();
+
+    let status = child.wait().unwrap();
+    assert!(!status.success(), "Daemon should have failed (panicked)");
+
+    assert!(!socket_path.exists(), "Socket file was not cleaned up on post-bind panic");
+    assert!(!pid_path.exists(), "PID file was not cleaned up on post-bind panic");
 
     let _ = fs::remove_dir_all(&test_dir);
 }

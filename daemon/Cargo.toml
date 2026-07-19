@@ -17,11 +17,8 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-fuzzy-matcher = "0.3.7"
-rusqlite = { version = "0.31.0", features = ["bundled"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
-duckdb = { version = "1.1", features = ["bundled"] }
 libc = "0.2"
 chrono = "0.4"
 uuid = { version = "1.8", features = ["v4", "serde"] }
@@ -29,10 +26,7 @@ brain-domain = { path = "../crates/brain-domain" }
 brain-integrations = { path = "../crates/brain-integrations" }
 brain-core = { path = "../crates/brain-core" }
 brain-services = { path = "../crates/brain-services" }
-
-[[bench]]
-name = "memory_benchmarks"
-harness = false
+reqwest = { workspace = true }
 
 [dev-dependencies]
 proptest = "1.5"

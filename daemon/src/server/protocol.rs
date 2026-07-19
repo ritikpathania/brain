@@ -68,6 +68,25 @@ pub struct VersionedNotification {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ExtractedEdge {
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct QueryResultNode {
+    pub id: String,
+    pub label: String,
+    pub node_type: String,
+    pub content: String,
+    pub attributes: serde_json::Value,
+    pub score: i64,
+    pub source: String,
+    pub connections: Vec<ExtractedEdge>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LegacyResponse {
     pub status: String,
     pub message: String,

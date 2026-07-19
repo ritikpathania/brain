@@ -5,44 +5,26 @@ use tracing::error;
 
 use brain_services::BrainRuntime;
 
-use crate::plugins::PluginRegistry;
 use crate::server::handlers::handle_connection;
-use crate::storage::duckdb::AnalyticsEvent;
-use crate::{DaemonMetrics, GlobalState};
+use crate::DaemonMetrics;
 
 pub async fn start_uds_listener(
     listener: UnixListener,
-    global_state: GlobalState,
-    plugin_registry: Arc<PluginRegistry>,
     metrics: Arc<DaemonMetrics>,
-    analytics_tx: tokio::sync::mpsc::UnboundedSender<AnalyticsEvent>,
     brain_runtime: Arc<BrainRuntime>,
-    compatibility_config: crate::config::CompatibilityConfig,
 ) {
     loop {
         match listener.accept().await {
             Ok((stream, _addr)) => {
-                let state_ref = Arc::clone(&global_state);
-                let registry_ref = Arc::clone(&plugin_registry);
                 let connection_metrics = Arc::clone(&metrics);
-                let connection_analytics_tx = analytics_tx.clone();
                 let runtime_ref = Arc::clone(&brain_runtime);
-                let connection_compat_config = compatibility_config.clone();
 
                 tokio::spawn(async move {
                     connection_metrics
                         .active_workers
                         .fetch_add(1, Ordering::Relaxed);
-                    if let Err(e) = handle_connection(
-                        stream,
-                        state_ref,
-                        registry_ref,
-                        connection_metrics.clone(),
-                        connection_analytics_tx,
-                        runtime_ref,
-                        connection_compat_config,
-                    )
-                    .await
+                    if let Err(e) =
+                        handle_connection(stream, connection_metrics.clone(), runtime_ref).await
                     {
                         error!("Connection handler encountered error: {}", e);
                     }
