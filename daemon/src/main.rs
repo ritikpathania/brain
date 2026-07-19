@@ -413,6 +413,9 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let listener = UnixListener::bind(&paths.socket_path)?;
     info!(component = "socket", socket_path = %paths.socket_path.display(), "Socket bound successfully");
 
+    // Test-only: Simulates a panic after UDS socket bind to verify stack unwinding RAII cleanup.
+    // Ignored entirely in release builds via #[cfg(debug_assertions)].
+    #[cfg(debug_assertions)]
     if std::env::var("BRAIN_TEST_PANIC_BEFORE_SERVING").is_ok() {
         panic!("Simulating panic after socket creation but before serving");
     }
