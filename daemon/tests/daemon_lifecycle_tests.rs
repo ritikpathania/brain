@@ -79,6 +79,66 @@ async fn test_daemon_lifecycle_graceful_shutdown() {
 }
 
 #[tokio::test]
+async fn test_daemon_lifecycle_sigint_graceful_shutdown() {
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
+    let test_dir = get_temp_dir();
+    let socket_path = test_dir.join("brain.sock");
+    let pid_path = test_dir.join("brain.pid");
+    let db_path = test_dir.join("brain.db");
+    let analytics_db_path = test_dir.join("analytics.db");
+
+    // Start daemon in foreground using "run"
+    let mut child = Command::new(bin_path)
+        .arg("daemon")
+        .arg("run")
+        .env("BRAIN_SOCKET_PATH", &socket_path)
+        .env("BRAIN_PID_PATH", &pid_path)
+        .env("BRAIN_DB_PATH", &db_path)
+        .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
+        .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Failed to start daemon process");
+
+    // Wait for the socket to be bound
+    let mut ready = false;
+    for _ in 0..50 {
+        if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
+            ready = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(ready, "Daemon did not bind socket in time");
+
+    // Send SIGINT to the daemon
+    let pid = child.id() as i32;
+    unsafe {
+        libc::kill(pid, libc::SIGINT);
+    }
+
+    // Wait for the daemon to exit
+    let status = tokio::time::timeout(Duration::from_secs(5), async { child.wait() })
+        .await
+        .expect("Daemon shutdown timed out")
+        .expect("Failed to wait on daemon");
+
+    assert!(status.success(), "Daemon did not exit cleanly on SIGINT");
+
+    // Verify socket and pid files were cleaned up
+    assert!(
+        !socket_path.exists(),
+        "Socket file was not cleaned up on SIGINT"
+    );
+    assert!(!pid_path.exists(), "PID file was not cleaned up on SIGINT");
+
+    // Cleanup temp dir
+    let _ = fs::remove_dir_all(&test_dir);
+}
+
+#[tokio::test]
 async fn test_daemon_lifecycle_repeated_signals() {
     let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
@@ -347,8 +407,14 @@ async fn test_daemon_lifecycle_panic_during_startup() {
     let status = child.wait().unwrap();
     assert!(!status.success(), "Daemon should have failed (panicked)");
 
-    assert!(!socket_path.exists(), "Socket file was not cleaned up on startup panic");
-    assert!(!pid_path.exists(), "PID file was not cleaned up on startup panic");
+    assert!(
+        !socket_path.exists(),
+        "Socket file was not cleaned up on startup panic"
+    );
+    assert!(
+        !pid_path.exists(),
+        "PID file was not cleaned up on startup panic"
+    );
 
     let _ = fs::remove_dir_all(&test_dir);
 }
@@ -378,8 +444,14 @@ async fn test_daemon_lifecycle_panic_after_socket_creation() {
     let status = child.wait().unwrap();
     assert!(!status.success(), "Daemon should have failed (panicked)");
 
-    assert!(!socket_path.exists(), "Socket file was not cleaned up on post-bind panic");
-    assert!(!pid_path.exists(), "PID file was not cleaned up on post-bind panic");
+    assert!(
+        !socket_path.exists(),
+        "Socket file was not cleaned up on post-bind panic"
+    );
+    assert!(
+        !pid_path.exists(),
+        "PID file was not cleaned up on post-bind panic"
+    );
 
     let _ = fs::remove_dir_all(&test_dir);
 }

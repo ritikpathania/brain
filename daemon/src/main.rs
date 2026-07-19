@@ -337,6 +337,9 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let mut cleanup_guard =
         DaemonCleanupGuard::new(paths.pid_path.clone(), paths.socket_path.clone());
 
+    // Test-only: Simulates a startup panic to verify stack unwinding RAII cleanup.
+    // Ignored entirely in release builds via #[cfg(debug_assertions)].
+    #[cfg(debug_assertions)]
     if std::env::var("BRAIN_TEST_PANIC_STARTUP").is_ok() {
         panic!("Simulating panic during startup");
     }
