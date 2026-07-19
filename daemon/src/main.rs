@@ -563,6 +563,11 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     info!(component = "main", "Starting brain Daemon...");
 
     let metrics = Arc::new(DaemonMetrics::new());
+    let compatibility_config = daemon_bridge::config::CompatibilityConfig::resolve();
+    info!(
+        component = "main",
+        "Compatibility mode enabled: {}", compatibility_config.legacy_enabled
+    );
 
     let analytics_db = match AnalyticsDatabase::new(paths.analytics_db_path.to_str().unwrap()) {
         Ok(db) => Arc::new(db),
@@ -756,9 +761,16 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     let consolidation_state = Arc::clone(&global_state);
     let worker_metrics = Arc::clone(&metrics);
     let consolidation_registry = Arc::clone(&plugin_registry);
+    let cleanup_compat_config = compatibility_config.clone();
 
     tokio::spawn(async move {
-        start_cleanup_worker(consolidation_state, worker_metrics, consolidation_registry).await;
+        start_cleanup_worker(
+            consolidation_state,
+            worker_metrics,
+            consolidation_registry,
+            cleanup_compat_config,
+        )
+        .await;
     });
 
     // Spawn signal listener for graceful shutdown
@@ -799,6 +811,7 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
             listener_metrics,
             analytics_tx,
             listener_runtime,
+            compatibility_config,
         ) => {}
         _ = cancel_token.cancelled() => {
             state = DaemonState::Draining;

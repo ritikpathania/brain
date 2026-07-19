@@ -357,3 +357,64 @@ def test_uds_query_fallback_on_request():
         clean_stop_daemon(daemon_exe)
         subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
         time.sleep(1)
+
+
+def test_uds_query_compatibility_disabled():
+    daemon_exe = (
+        "../target/debug/brain-daemon"
+        if os.path.exists("../target/debug/brain-daemon")
+        else "./target/debug/brain-daemon"
+    )
+    import subprocess
+
+    subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+    clean_stop_daemon(daemon_exe)
+
+    log_path = os.path.expanduser("~/.brain/daemon.log")
+    if os.path.exists(log_path):
+        try:
+            open(log_path, "w").close()
+        except Exception:
+            pass
+
+    # Start daemon with BRAIN_DISABLE_LEGACY_COMPAT=1
+    env = os.environ.copy()
+    env["BRAIN_DISABLE_LEGACY_COMPAT"] = "1"
+    subprocess.run([daemon_exe, "daemon", "start"], env=env, capture_output=True)
+    time.sleep(1)
+
+    try:
+        # Ingest a node
+        unique_keyword = "disabledcompatquery"
+        ingest_payload = (
+            f"The target node for {unique_keyword} has been successfully validated."
+        )
+        ingest_responses = run_uds_query("ingest", ingest_payload)
+        assert len(ingest_responses) > 0
+
+        # Query with force_fallback - should NOT trigger fallback because
+        # BRAIN_DISABLE_LEGACY_COMPAT=1
+        query_responses = run_uds_query("query", f"force_fallback {unique_keyword}")
+        assert len(query_responses) > 0
+
+        reconstructed = ""
+        for r in query_responses:
+            if r.get("type") == "stream_chunk":
+                reconstructed += r.get("content", "")
+
+        # Even though "force_fallback" prefix was used, it gets routed
+        # through runtime, which succeeds
+        assert "Found" in reconstructed
+        assert unique_keyword in reconstructed
+
+        # Assert that the legacy query path fallback was NOT executed
+        clean_stop_daemon(daemon_exe)
+        if os.path.exists(log_path):
+            with open(log_path) as f:
+                logs = f.read()
+            assert "Executing query via legacy fallback path" not in logs
+            assert "Compatibility STM cache update bypassed" in logs
+    finally:
+        clean_stop_daemon(daemon_exe)
+        subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
+        time.sleep(1)

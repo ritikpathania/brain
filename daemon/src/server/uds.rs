@@ -17,6 +17,7 @@ pub async fn start_uds_listener(
     metrics: Arc<DaemonMetrics>,
     analytics_tx: tokio::sync::mpsc::UnboundedSender<AnalyticsEvent>,
     brain_runtime: Arc<BrainRuntime>,
+    compatibility_config: crate::config::CompatibilityConfig,
 ) {
     loop {
         match listener.accept().await {
@@ -26,6 +27,7 @@ pub async fn start_uds_listener(
                 let connection_metrics = Arc::clone(&metrics);
                 let connection_analytics_tx = analytics_tx.clone();
                 let runtime_ref = Arc::clone(&brain_runtime);
+                let connection_compat_config = compatibility_config.clone();
 
                 tokio::spawn(async move {
                     connection_metrics
@@ -38,6 +40,7 @@ pub async fn start_uds_listener(
                         connection_metrics.clone(),
                         connection_analytics_tx,
                         runtime_ref,
+                        connection_compat_config,
                     )
                     .await
                     {

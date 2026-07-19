@@ -90,3 +90,17 @@ impl Default for PluginConfig {
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct CompatibilityConfig {
+    pub legacy_enabled: bool,
+}
+
+impl CompatibilityConfig {
+    pub fn resolve() -> Self {
+        let legacy_enabled = std::env::var("BRAIN_DISABLE_LEGACY_COMPAT")
+            .map(|val| val != "1")
+            .unwrap_or(true);
+        Self { legacy_enabled }
+    }
+}

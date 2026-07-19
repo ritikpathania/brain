@@ -723,6 +723,7 @@ dependencies = [
  "brain-tools",
  "chrono",
  "criterion",
+ "fuzzy-matcher",
  "parking_lot",
  "pyo3",
  "r2d2",

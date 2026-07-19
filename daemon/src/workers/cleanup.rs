@@ -127,9 +127,14 @@ pub async fn start_cleanup_worker(
     global_state: GlobalState,
     metrics: Arc<DaemonMetrics>,
     plugin_registry: Arc<PluginRegistry>,
+    compatibility_config: crate::config::CompatibilityConfig,
 ) {
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+
+        if !compatibility_config.legacy_enabled {
+            continue;
+        }
 
         let mut batches_to_consolidate = HashMap::new();
         {

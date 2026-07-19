@@ -25,6 +25,7 @@ pub async fn handle_connection(
     metrics: Arc<DaemonMetrics>,
     analytics_tx: tokio::sync::mpsc::UnboundedSender<AnalyticsEvent>,
     brain_runtime: Arc<BrainRuntime>,
+    compatibility_config: crate::config::CompatibilityConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (reader, mut writer) = stream.split();
     let mut buf_reader = BufReader::new(reader);
@@ -136,7 +137,7 @@ pub async fn handle_connection(
                             "BrainRuntime ingestion succeeded"
                         );
 
-                        // 2. Extract runtime outcomes and update compatibility STM cache (read-only consumer)
+                        // 2. Extract runtime outcomes and update compatibility STM cache if enabled
                         let node_id_str = result
                             .affected_entities
                             .first()
@@ -144,37 +145,46 @@ pub async fn handle_connection(
                             .unwrap_or_else(|| "".to_string());
                         let target_epoch = result.epoch.0;
 
-                        let comp_node = stm::CompatibilityNode {
-                            id: node_id_str.clone(),
-                            epoch: target_epoch,
-                            content: payload.clone(),
-                        };
+                        if compatibility_config.legacy_enabled {
+                            let comp_node = stm::CompatibilityNode {
+                                id: node_id_str.clone(),
+                                epoch: target_epoch,
+                                content: payload.clone(),
+                            };
 
-                        let mut state_guard = state.write().await;
-                        let session = state_guard.get_mut(&session_id).unwrap();
-                        let stm_node = session.ingest_compatibility(comp_node);
+                            let mut state_guard = state.write().await;
+                            let session = state_guard.get_mut(&session_id).unwrap();
+                            let stm_node = session.ingest_compatibility(comp_node);
+
+                            info!(
+                                node_id = %stm_node.id,
+                                epoch = stm_node.epoch,
+                                correlation_id = correlation_id,
+                                "Node successfully synchronized to compatibility STM cache"
+                            );
+                        } else {
+                            info!(
+                                node_id = %node_id_str,
+                                epoch = target_epoch,
+                                correlation_id = correlation_id,
+                                "Compatibility STM cache update bypassed (legacy decommissioned)"
+                            );
+                        }
 
                         let ingest_elapsed = ingest_start.elapsed().as_micros() as u64;
                         metrics
                             .sum_ingest_latency_us
                             .fetch_add(ingest_elapsed, Ordering::Relaxed);
 
-                        info!(
-                            node_id = %stm_node.id,
-                            epoch = stm_node.epoch,
-                            correlation_id = correlation_id,
-                            "Node successfully synchronized to compatibility STM cache"
-                        );
-
                         let _ = analytics_tx.send(AnalyticsEvent::Ingest {
                             correlation_id,
-                            node_id: stm_node.id.clone(),
+                            node_id: node_id_str.clone(),
                             content_length: payload.len() as u64,
                         });
 
                         let msg = format!(
                             "Ingested node '{}' (Epoch {}) successfully",
-                            stm_node.id, stm_node.epoch
+                            node_id_str, target_epoch
                         );
 
                         if is_versioned {
@@ -266,14 +276,15 @@ pub async fn handle_connection(
 
                 // 2. Run query through BrainRuntime projection (authoritative query path)
                 let rt_corr_id = CorrelationId::new_v4();
-                let search_query = crate::retrieval::projector::SearchProjectionQuery {
+                let search_query = brain_services::SearchProjectionQuery {
                     query: query_payload.clone(),
                     limit,
                 };
-                let search_projector = crate::retrieval::projector::SearchProjector;
+                let search_projector = brain_services::SearchProjector;
 
-                let use_fallback = query_payload.starts_with("force_fallback")
-                    || brain_runtime.status().health != brain_services::RuntimeHealth::Healthy;
+                let use_fallback = compatibility_config.legacy_enabled
+                    && (query_payload.starts_with("force_fallback")
+                        || brain_runtime.status().health != brain_services::RuntimeHealth::Healthy);
 
                 let mut matches = Vec::new();
                 let mut resp_msg = String::new();
@@ -392,60 +403,65 @@ pub async fn handle_connection(
                             }
                         }
                         Err(_) => {
-                            error!("BrainRuntime query projection panicked, executing legacy fallback path.");
-                            let (window_clone, index_clone) = {
-                                let state_guard = state.read().await;
-                                if let Some(session) = state_guard.get(&session_id) {
-                                    (
-                                        session
-                                            .interaction_sliding_window
-                                            .iter()
-                                            .cloned()
-                                            .collect::<Vec<_>>(),
-                                        session.index.clone(),
+                            if compatibility_config.legacy_enabled {
+                                error!("BrainRuntime query projection panicked, executing legacy fallback path.");
+                                let (window_clone, index_clone) = {
+                                    let state_guard = state.read().await;
+                                    if let Some(session) = state_guard.get(&session_id) {
+                                        (
+                                            session
+                                                .interaction_sliding_window
+                                                .iter()
+                                                .cloned()
+                                                .collect::<Vec<_>>(),
+                                            session.index.clone(),
+                                        )
+                                    } else {
+                                        (Vec::new(), stm::STMIndex::new())
+                                    }
+                                };
+                                let registry_clone = Arc::clone(&plugin_registry);
+                                let query_payload_fallback = query_payload.clone();
+                                let retrieve_res = tokio::task::spawn_blocking(move || {
+                                    let active_retrieval = registry_clone.get_retrieval()?;
+                                    let active_ranking = registry_clone.get_ranking()?;
+                                    let active_storage = registry_clone.get_storage().ok();
+                                    let active_embedding = registry_clone.get_embedding().ok();
+
+                                    run_retrieval_pipeline(
+                                        &query_payload_fallback,
+                                        &index_clone,
+                                        &window_clone,
+                                        &*active_retrieval,
+                                        &*active_ranking,
+                                        active_storage.as_deref(),
+                                        active_embedding.as_deref(),
                                     )
-                                } else {
-                                    (Vec::new(), stm::STMIndex::new())
-                                }
-                            };
-                            let registry_clone = Arc::clone(&plugin_registry);
-                            let query_payload_fallback = query_payload.clone();
-                            let retrieve_res = tokio::task::spawn_blocking(move || {
-                                let active_retrieval = registry_clone.get_retrieval()?;
-                                let active_ranking = registry_clone.get_ranking()?;
-                                let active_storage = registry_clone.get_storage().ok();
-                                let active_embedding = registry_clone.get_embedding().ok();
+                                })
+                                .await;
 
-                                run_retrieval_pipeline(
-                                    &query_payload_fallback,
-                                    &index_clone,
-                                    &window_clone,
-                                    &*active_retrieval,
-                                    &*active_ranking,
-                                    active_storage.as_deref(),
-                                    active_embedding.as_deref(),
-                                )
-                            })
-                            .await;
-
-                            match retrieve_res {
-                                Ok(Ok(candidates)) => {
-                                    matches = candidates;
+                                match retrieve_res {
+                                    Ok(Ok(candidates)) => {
+                                        matches = candidates;
+                                    }
+                                    Ok(Err(e)) => {
+                                        error!(
+                                            "Legacy query fallback retrieval failed after panic: {}",
+                                            e
+                                        );
+                                        resp_msg = format!("Query retrieval failed: {}", e);
+                                    }
+                                    Err(join_err) => {
+                                        error!(
+                                            "Join error during legacy query fallback after panic: {}",
+                                            join_err
+                                        );
+                                        resp_msg = format!("Query retrieval failed: {}", join_err);
+                                    }
                                 }
-                                Ok(Err(e)) => {
-                                    error!(
-                                        "Legacy query fallback retrieval failed after panic: {}",
-                                        e
-                                    );
-                                    resp_msg = format!("Query retrieval failed: {}", e);
-                                }
-                                Err(join_err) => {
-                                    error!(
-                                        "Join error during legacy query fallback after panic: {}",
-                                        join_err
-                                    );
-                                    resp_msg = format!("Query retrieval failed: {}", join_err);
-                                }
+                            } else {
+                                error!("BrainRuntime query projection panicked (fallback disabled)");
+                                resp_msg = "Query projection execution panicked".to_string();
                             }
                         }
                     }

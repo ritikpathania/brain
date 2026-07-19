@@ -68,7 +68,10 @@ pub mod sqlite_reflection;
 
 pub use event_dispatcher::InMemoryEventDispatcher;
 pub use evolution_service::{InMemoryCanonicalizer, StandardIngestionValidator};
-pub use memory_list_projection::{MemoryListProjection, MemoryListProjector, MemoryListQuery};
+pub use memory_list_projection::{
+    MemoryListProjection, MemoryListProjector, MemoryListQuery, SearchProjectionQuery,
+    SearchProjectionResult, SearchProjector,
+};
 pub use projection_manager::ProjectionManager;
 pub use reflection_engine::InMemoryReflectionEngine;
 pub use sqlite_evolution::SqliteCanonicalizer;
