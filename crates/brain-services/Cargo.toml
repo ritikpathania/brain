@@ -17,6 +17,7 @@ brain-tools = { path = "../brain-tools" }
 brain-events = { path = "../brain-events" }
 brain-observability = { path = "../brain-observability" }
 parking_lot = "0.12"
+fuzzy-matcher = "0.3.7"
 pyo3 = { workspace = true }
 r2d2.workspace = true
 tokio = { workspace = true }
