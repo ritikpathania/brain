@@ -42,7 +42,7 @@ jobs:
 
       - name: Run Clippy
         run: |
-          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo clippy --workspace --all-targets -- -D warnings
+          PYO3_PYTHON=python3 cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Check Python Format (Ruff)
         run: |
@@ -122,7 +122,7 @@ jobs:
 
       - name: Run Rust Test Suite
         run: |
-          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test --workspace
+          PYO3_PYTHON=python3 cargo test --workspace
 
       - name: Run Python Test Suite
         run: |
@@ -131,4 +131,4 @@ jobs:
 
       - name: Verify Benchmark Compilation
         run: |
-          PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo bench --workspace --no-run
+          PYO3_PYTHON=python3 cargo bench --workspace --no-run
