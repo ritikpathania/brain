@@ -25,6 +25,51 @@ RESPONSE_VALIDATOR = Draft7Validator(_schema["$defs"]["Response"], resolver=_res
 STREAM_VALIDATOR = Draft7Validator(_schema["$defs"]["StreamEvent"], resolver=_resolver)
 
 
+def clean_stop_daemon(daemon_exe):
+    import signal
+    import subprocess
+
+    pid_path = os.path.expanduser("~/.brain/daemon.pid")
+    socket_path = os.path.expanduser("~/.brain/daemon.sock")
+    pid = None
+    if os.path.exists(pid_path):
+        try:
+            with open(pid_path) as f:
+                pid = int(f.read().strip())
+        except Exception:
+            pass
+
+    subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+    time.sleep(0.3)
+
+    if pid:
+        for _ in range(20):
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                break
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+            time.sleep(0.1)
+
+    if os.path.exists(pid_path):
+        try:
+            os.remove(pid_path)
+        except Exception:
+            pass
+    if os.path.exists(socket_path):
+        try:
+            os.remove(socket_path)
+        except Exception:
+            pass
+
+    # Clean any other lingering brain-daemon processes to avoid socket lock conflicts
+    subprocess.run(["pkill", "-9", "brain-daemon"], capture_output=True)
+    time.sleep(0.3)
+
+
 def validate_message(msg):
     """
     Validates a received message against the JSON Schema wire protocol contract.
@@ -146,13 +191,15 @@ def test_uds_ingest_and_query_stream():
 def test_uds_compatibility_parity():
     # Resolve daemon executable path relative to the test runner's directory
     daemon_exe = (
-        "../brain-daemon" if os.path.exists("../brain-daemon") else "./brain-daemon"
+        "../target/debug/brain-daemon"
+        if os.path.exists("../target/debug/brain-daemon")
+        else "./target/debug/brain-daemon"
     )
 
     # Restart the daemon with BRAIN_DEBUG=1 to expose raw identifiers
     import subprocess
 
-    subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+    clean_stop_daemon(daemon_exe)
     env = os.environ.copy()
     env["BRAIN_DEBUG"] = "1"
     subprocess.run([daemon_exe, "daemon", "start"], env=env, capture_output=True)
@@ -196,6 +243,117 @@ def test_uds_compatibility_parity():
         assert unique_keyword in reconstructed_content
     finally:
         # Restore daemon to standard state
-        subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+        clean_stop_daemon(daemon_exe)
+        subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
+        time.sleep(1)
+
+
+def test_uds_query_runtime_first():
+    daemon_exe = (
+        "../target/debug/brain-daemon"
+        if os.path.exists("../target/debug/brain-daemon")
+        else "./target/debug/brain-daemon"
+    )
+    import subprocess
+
+    # Restart the daemon normally, clearing any custom environment
+    clean_stop_daemon(daemon_exe)
+    log_path = os.path.expanduser("~/.brain/daemon.log")
+    if os.path.exists(log_path):
+        try:
+            open(log_path, "w").close()
+        except Exception:
+            pass
+
+    # Start with BRAIN_DEBUG=1 to output ID for query validation
+    env = os.environ.copy()
+    env["BRAIN_DEBUG"] = "1"
+    subprocess.run([daemon_exe, "daemon", "start"], env=env, capture_output=True)
+    time.sleep(1)
+
+    try:
+        # Ingest a node
+        unique_keyword = "runtimefirsttestquery"
+        ingest_payload = (
+            f"The target node for {unique_keyword} has been successfully validated."
+        )
+        ingest_responses = run_uds_query("ingest", ingest_payload)
+        assert len(ingest_responses) > 0
+        assert ingest_responses[0]["status"] in ("ok", "success")
+
+        # Query it
+        query_responses = run_uds_query("query", unique_keyword)
+        assert len(query_responses) > 0
+
+        reconstructed = ""
+        for r in query_responses:
+            if r.get("type") == "stream_chunk":
+                reconstructed += r.get("content", "")
+
+        assert "Found" in reconstructed
+        assert unique_keyword in reconstructed
+
+        # Assert that the legacy query path fallback was NOT executed
+        clean_stop_daemon(daemon_exe)
+        if os.path.exists(log_path):
+            with open(log_path) as f:
+                logs = f.read()
+            assert "Executing query via legacy fallback path" not in logs
+    finally:
+        clean_stop_daemon(daemon_exe)
+        subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
+        time.sleep(1)
+
+
+def test_uds_query_fallback_on_request():
+    daemon_exe = (
+        "../target/debug/brain-daemon"
+        if os.path.exists("../target/debug/brain-daemon")
+        else "./target/debug/brain-daemon"
+    )
+    import subprocess
+
+    subprocess.run([daemon_exe, "daemon", "stop"], capture_output=True)
+    clean_stop_daemon(daemon_exe)
+
+    log_path = os.path.expanduser("~/.brain/daemon.log")
+    if os.path.exists(log_path):
+        try:
+            open(log_path, "w").close()
+        except Exception:
+            pass
+
+    subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
+    time.sleep(1)
+
+    try:
+        # Ingest a node
+        unique_keyword = "fallbacktestquery"
+        ingest_payload = (
+            f"The target node for {unique_keyword} has been successfully validated."
+        )
+        ingest_responses = run_uds_query("ingest", ingest_payload)
+        assert len(ingest_responses) > 0
+
+        # Query with "force_fallback" prefix to trigger the fallback logic explicitly
+        query_responses = run_uds_query("query", f"force_fallback {unique_keyword}")
+        assert len(query_responses) > 0
+
+        reconstructed = ""
+        for r in query_responses:
+            if r.get("type") == "stream_chunk":
+                reconstructed += r.get("content", "")
+
+        assert "Found" in reconstructed
+        assert unique_keyword in reconstructed
+
+        # Assert that the legacy query path fallback was indeed executed and logged
+        clean_stop_daemon(daemon_exe)
+        if os.path.exists(log_path):
+            with open(log_path) as f:
+                logs = f.read()
+            assert "Executing query via legacy fallback path" in logs
+    finally:
+        clean_stop_daemon(daemon_exe)
         subprocess.run([daemon_exe, "daemon", "start"], capture_output=True)
         time.sleep(1)

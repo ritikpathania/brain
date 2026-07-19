@@ -261,77 +261,193 @@ pub async fn handle_connection(
                     tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
                 }
 
-                // Read from volatile STM cache first
-                let (window_clone, index_clone) = {
-                    let state_guard = state.read().await;
-                    if let Some(session) = state_guard.get(&session_id) {
-                        (
-                            session
-                                .interaction_sliding_window
-                                .iter()
-                                .cloned()
-                                .collect::<Vec<_>>(),
-                            session.index.clone(),
-                        )
-                    } else {
-                        (Vec::new(), stm::STMIndex::new())
-                    }
-                };
-
-                // Send progress update 2
-                seq += 1;
-                let progress_ev2 =
-                    ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
-                        stream_id: stream_id.clone(),
-                        sequence: seq,
-                        progress: 0.5,
-                        message: "Running hybrid retrieval...".to_string(),
-                        metadata: serde_json::json!({}),
-                    });
-                let mut progress_json2 = serde_json::to_string(&progress_ev2)?;
-                progress_json2.push('\n');
-                writer.write_all(progress_json2.as_bytes()).await?;
-                writer.flush().await?;
-                if pacing_ms > 0 {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
-                }
-
                 let query_payload = payload.clone();
-                let registry_clone = Arc::clone(&plugin_registry);
+                let limit = 20;
 
-                let retrieve_res = tokio::task::spawn_blocking(move || {
-                    let active_retrieval = registry_clone.get_retrieval()?;
-                    let active_ranking = registry_clone.get_ranking()?;
+                // 2. Run query through BrainRuntime projection (authoritative query path)
+                let rt_corr_id = CorrelationId::new_v4();
+                let search_query = crate::retrieval::projector::SearchProjectionQuery {
+                    query: query_payload.clone(),
+                    limit,
+                };
+                let search_projector = crate::retrieval::projector::SearchProjector;
 
-                    let active_storage = registry_clone.get_storage().ok();
-                    let active_embedding = registry_clone.get_embedding().ok();
-
-                    run_retrieval_pipeline(
-                        &query_payload,
-                        &index_clone,
-                        &window_clone,
-                        &*active_retrieval,
-                        &*active_ranking,
-                        active_storage.as_deref(),
-                        active_embedding.as_deref(),
-                    )
-                })
-                .await;
+                let use_fallback = query_payload.starts_with("force_fallback")
+                    || brain_runtime.status().health != brain_services::RuntimeHealth::Healthy;
 
                 let mut matches = Vec::new();
                 let mut resp_msg = String::new();
-                match retrieve_res {
-                    Ok(Ok(candidates)) => {
-                        matches = candidates;
+
+                if use_fallback {
+                    info!(
+                        component = "query",
+                        "Executing query via legacy fallback path (force_fallback or runtime not healthy)"
+                    );
+                    let (window_clone, index_clone) = {
+                        let state_guard = state.read().await;
+                        if let Some(session) = state_guard.get(&session_id) {
+                            (
+                                session
+                                    .interaction_sliding_window
+                                    .iter()
+                                    .cloned()
+                                    .collect::<Vec<_>>(),
+                                session.index.clone(),
+                            )
+                        } else {
+                            (Vec::new(), stm::STMIndex::new())
+                        }
+                    };
+                    let registry_clone = Arc::clone(&plugin_registry);
+                    let retrieve_res = tokio::task::spawn_blocking(move || {
+                        let active_retrieval = registry_clone.get_retrieval()?;
+                        let active_ranking = registry_clone.get_ranking()?;
+                        let active_storage = registry_clone.get_storage().ok();
+                        let active_embedding = registry_clone.get_embedding().ok();
+
+                        run_retrieval_pipeline(
+                            &query_payload,
+                            &index_clone,
+                            &window_clone,
+                            &*active_retrieval,
+                            &*active_ranking,
+                            active_storage.as_deref(),
+                            active_embedding.as_deref(),
+                        )
+                    })
+                    .await;
+
+                    match retrieve_res {
+                        Ok(Ok(candidates)) => {
+                            matches = candidates;
+                        }
+                        Ok(Err(e)) => {
+                            error!("Legacy query fallback retrieval failed: {}", e);
+                            resp_msg = format!("Query retrieval/ranking failed: {}", e);
+                        }
+                        Err(join_err) => {
+                            error!(
+                                "Blocking join error during legacy query fallback: {}",
+                                join_err
+                            );
+                            resp_msg =
+                                format!("Blocking join error during query retrieval: {}", join_err);
+                        }
                     }
-                    Ok(Err(e)) => {
-                        error!("Query retrieval/ranking failed: {}", e);
-                        resp_msg = format!("Query retrieval/ranking failed: {}", e);
+                } else {
+                    // Send progress update 2
+                    seq += 1;
+                    let progress_ev2 =
+                        ServerResponse::Stream(crate::server::protocol::StreamEvent::Progress {
+                            stream_id: stream_id.clone(),
+                            sequence: seq,
+                            progress: 0.5,
+                            message: "Running hybrid retrieval...".to_string(),
+                            metadata: serde_json::json!({}),
+                        });
+                    let mut progress_json2 = serde_json::to_string(&progress_ev2)?;
+                    progress_json2.push('\n');
+                    writer.write_all(progress_json2.as_bytes()).await?;
+                    writer.flush().await?;
+                    if pacing_ms > 0 {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(pacing_ms)).await;
                     }
-                    Err(join_err) => {
-                        error!("Blocking join error during query retrieval: {}", join_err);
-                        resp_msg =
-                            format!("Blocking join error during query retrieval: {}", join_err);
+
+                    let runtime_res =
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            brain_runtime.query_projection(
+                                &search_projector,
+                                &search_query,
+                                rt_corr_id,
+                            )
+                        }));
+
+                    match runtime_res {
+                        Ok(projection_result) => {
+                            for (node, score) in projection_result.items {
+                                let node_edges: Vec<_> = projection_result
+                                    .edges
+                                    .iter()
+                                    .filter(|e| e.source == node.id || e.target == node.id)
+                                    .map(|e| crate::storage::ExtractedEdge {
+                                        source: e.source.to_string(),
+                                        target: e.target.to_string(),
+                                        relation: e.relation.to_string(),
+                                    })
+                                    .collect();
+
+                                matches.push(crate::retrieval::pipeline::QueryResultNode {
+                                    id: node.id.to_string(),
+                                    label: node.label.clone(),
+                                    node_type: "session_context".to_string(),
+                                    content: node.label.clone(),
+                                    attributes: serde_json::json!({
+                                        "epoch": node.provenance.extracted_at,
+                                        "timestamp": node.provenance.extracted_at,
+                                    }),
+                                    score,
+                                    source: "STM".to_string(),
+                                    connections: node_edges,
+                                });
+                            }
+                        }
+                        Err(_) => {
+                            error!("BrainRuntime query projection panicked, executing legacy fallback path.");
+                            let (window_clone, index_clone) = {
+                                let state_guard = state.read().await;
+                                if let Some(session) = state_guard.get(&session_id) {
+                                    (
+                                        session
+                                            .interaction_sliding_window
+                                            .iter()
+                                            .cloned()
+                                            .collect::<Vec<_>>(),
+                                        session.index.clone(),
+                                    )
+                                } else {
+                                    (Vec::new(), stm::STMIndex::new())
+                                }
+                            };
+                            let registry_clone = Arc::clone(&plugin_registry);
+                            let query_payload_fallback = query_payload.clone();
+                            let retrieve_res = tokio::task::spawn_blocking(move || {
+                                let active_retrieval = registry_clone.get_retrieval()?;
+                                let active_ranking = registry_clone.get_ranking()?;
+                                let active_storage = registry_clone.get_storage().ok();
+                                let active_embedding = registry_clone.get_embedding().ok();
+
+                                run_retrieval_pipeline(
+                                    &query_payload_fallback,
+                                    &index_clone,
+                                    &window_clone,
+                                    &*active_retrieval,
+                                    &*active_ranking,
+                                    active_storage.as_deref(),
+                                    active_embedding.as_deref(),
+                                )
+                            })
+                            .await;
+
+                            match retrieve_res {
+                                Ok(Ok(candidates)) => {
+                                    matches = candidates;
+                                }
+                                Ok(Err(e)) => {
+                                    error!(
+                                        "Legacy query fallback retrieval failed after panic: {}",
+                                        e
+                                    );
+                                    resp_msg = format!("Query retrieval failed: {}", e);
+                                }
+                                Err(join_err) => {
+                                    error!(
+                                        "Join error during legacy query fallback after panic: {}",
+                                        join_err
+                                    );
+                                    resp_msg = format!("Query retrieval failed: {}", join_err);
+                                }
+                            }
+                        }
                     }
                 }
 

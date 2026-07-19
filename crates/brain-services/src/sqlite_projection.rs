@@ -98,6 +98,12 @@ impl SqliteProjectionManager {
                     graph.nodes.insert(n.id, n);
                 }
             }
+            if let Ok(edges) = tx.repositories().edges().list_all() {
+                for e in edges {
+                    let edge_id = brain_domain::EdgeId::new(e.source, e.target, e.relation.id());
+                    graph.edges.insert(edge_id, e);
+                }
+            }
             Ok(())
         });
 

@@ -25,6 +25,30 @@ members = [
     "xtask",
     "daemon",
 ]
+default-members = [
+    "crates/brain-domain",
+    "crates/brain-core",
+    "crates/brain-events",
+    "crates/brain-storage",
+    "crates/brain-config",
+    "crates/brain-session",
+    "crates/brain-tools",
+    "crates/brain-plugins",
+    "crates/brain-python",
+    "crates/brain-tui",
+    "crates/brain-services",
+    "crates/brain-observability",
+    "crates/brain-integrations",
+    "crates/brain-sdk-rs",
+    "crates/brain-cli-adapter",
+    "crates/brain-application",
+    "crates/brain-mcp-adapter",
+    "crates/brain-acp-adapter",
+    "crates/brain-adapter-core",
+    "crates/brain-a2a-adapter",
+    "apps/brain",
+    "daemon",
+]
 
 
 
@@ -45,5 +69,9 @@ semver = "1.0"
 specta = { version = "1.0.5", features = ["serde", "typescript"] }
 
 [profile.dev]
-debug = 1
+debug = 0
+
+[profile.test]
+debug = 0
+
 
