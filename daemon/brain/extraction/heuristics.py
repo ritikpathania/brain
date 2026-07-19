@@ -90,8 +90,9 @@ def normalize_entity(text: str):
 
 def _split_overlapping_proper_nouns(raw_entities, content, stop_words):
     """
-    Splits proper noun (concept) matches that contain/overlap with specific entity matches
-    (like synonyms, files, literals) to prevent lists of separate items from being grouped.
+    Splits proper noun (concept) matches that contain/overlap with specific
+    entity matches (like synonyms, files, literals) to prevent lists of
+    separate items from being grouped.
     """
     concept_entities = [e for e in raw_entities if e["type"] == "concept"]
     specific_entities = [e for e in raw_entities if e["type"] != "concept"]
@@ -223,21 +224,24 @@ def extract_semantic_nodes(json_input: str) -> str:
         (
             "stored_in",
             re.compile(
-                r"\b(stored in|store in|stored_in|kept in|saved in|writes to|write to)\b",
+                r"\b(stored in|store in|stored_in|kept in|"
+                r"saved in|writes to|write to)\b",
                 re.IGNORECASE,
             ),
         ),
         (
             "runs_on",
             re.compile(
-                r"\b(runs on|run on|running on|runs_on|hosted on|hosts on|executes on|execute on)\b",
+                r"\b(runs on|run on|running on|runs_on|hosted on|"
+                r"hosts on|executes on|execute on)\b",
                 re.IGNORECASE,
             ),
         ),
         (
             "depends_on",
             re.compile(
-                r"\b(depends on|depend on|depending on|depends_on|requires|require|requiring|dependency|dependencies)\b",
+                r"\b(depends on|depend on|depending on|depends_on|"
+                r"requires|require|requiring|dependency|dependencies)\b",
                 re.IGNORECASE,
             ),
         ),
@@ -357,7 +361,8 @@ def extract_semantic_nodes(json_input: str) -> str:
                 }
             )
 
-            # Explicit classification relation (e.g. Brain is an AI agent engine -> Brain associated_with AI agent engine)
+            # Explicit classification relation (e.g. Brain is an AI agent
+            # engine -> Brain associated_with AI agent engine)
             extracted_edges.append(
                 {"source": subj_id, "target": class_id, "relation": "associated_with"}
             )
@@ -450,7 +455,8 @@ def extract_semantic_nodes(json_input: str) -> str:
 
         # Resolve overlapping entities
         resolved_entities = []
-        # Sort by length descending, then by precedence (lower is more specific/preferred)
+        # Sort by length descending, then by precedence (lower is more
+        # specific/preferred)
         sorted_entities = sorted(
             raw_entities,
             key=lambda x: (
@@ -473,7 +479,8 @@ def extract_semantic_nodes(json_input: str) -> str:
         # Sort resolved entities chronologically in the text
         resolved_entities = sorted(resolved_entities, key=lambda x: x["match_start"])
 
-        # Insert resolved entities into the batch of extracted nodes (merging duplicate nodes)
+        # Insert resolved entities into the batch of extracted nodes (merging
+        # duplicate nodes)
         nodes_in_text = []
         for ent in resolved_entities:
             ent_id = ent["id"]
@@ -567,7 +574,8 @@ def extract_semantic_nodes(json_input: str) -> str:
 
             sent_start_idx = sent_end_idx + 1
 
-        # 7. Add specific conceptual rule-based extraction to preserve prior deterministic paths
+        # 7. Add specific conceptual rule-based extraction to preserve prior
+        # deterministic paths
         # Database configs connecting to target engines
         if "db-config" in nodes_in_text:
             for tech in ["sqlite", "postgres", "mysql", "redis", "postgresql"]:

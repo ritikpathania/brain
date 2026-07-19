@@ -154,7 +154,9 @@ def test_classification_and_property_extraction():
             {
                 "id": "node-3",
                 "epoch": 0,
-                "content": "Brain is an AI agent engine. DuckDB is a SQL database engine.",
+                "content": (
+                    "Brain is an AI agent engine. DuckDB is a SQL database engine."
+                ),
                 "timestamp": 1002,
             }
         ]
@@ -188,7 +190,10 @@ def test_relation_sentence_parsing():
             {
                 "id": "node-4",
                 "epoch": 0,
-                "content": "ritikpathania develops Brain. SQLite is stored in config.toml. Brain runs on Docker. Brain depends on Python.",
+                "content": (
+                    "ritikpathania develops Brain. SQLite is stored in config.toml. "
+                    "Brain runs on Docker. Brain depends on Python."
+                ),
                 "timestamp": 1003,
             }
         ]
@@ -217,7 +222,10 @@ def test_synonym_normalization_and_merging():
             {
                 "id": "node-5",
                 "epoch": 0,
-                "content": "We are using Postgres on the server. John was configuring PostgreSQL for the app.",
+                "content": (
+                    "We are using Postgres on the server. "
+                    "John was configuring PostgreSQL for the app."
+                ),
                 "timestamp": 1004,
             }
         ]
@@ -314,7 +322,9 @@ def test_predefined_relation_precedence():
             {
                 "id": "node-reprod-5",
                 "epoch": 0,
-                "content": "The Rust application communicates via a Unix Domain Socket.",
+                "content": (
+                    "The Rust application communicates via a Unix Domain Socket."
+                ),
                 "timestamp": 1009,
             }
         ]
@@ -376,7 +386,10 @@ def test_predefined_relation_dominance_suppresses_fallback():
             {
                 "id": "node-reprod-8",
                 "epoch": 0,
-                "content": "The Rust application communicates via a Unix Domain Socket. The Unix Domain Socket Rust is fast.",
+                "content": (
+                    "The Rust application communicates via a Unix Domain Socket. "
+                    "The Unix Domain Socket Rust is fast."
+                ),
                 "timestamp": 1012,
             }
         ]
@@ -386,7 +399,8 @@ def test_predefined_relation_dominance_suppresses_fallback():
 
     # We should have the predefined communicates_via edge
     assert ("rust", "uds", "communicates_via") in edges
-    # We should NOT have a redundant fallback associated_with edge in the opposite direction
+    # We should NOT have a redundant fallback associated_with edge in the
+    # opposite direction
     assert ("uds", "rust", "associated_with") not in edges
     # Exactly one edge should be present between this pair
     assert len(edges) == 1
