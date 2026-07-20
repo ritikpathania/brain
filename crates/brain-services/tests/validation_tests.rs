@@ -84,12 +84,21 @@ impl tracing::Subscriber for TelemetryCollector {
 /// re-registration using the currently active (thread-local) subscriber,
 /// making telemetry capture deterministic regardless of test execution order.
 ///
-/// # Extraction note
+/// # Extraction policy
 ///
-/// This helper lives here because it is only used by this test file.  If a
-/// second integration-test file needs the same pattern, move `TelemetryCollector`
-/// and `with_test_collector` into `tests/common/telemetry.rs` and expose them
-/// via `mod common; use common::telemetry::with_test_collector;`.
+/// This helper intentionally lives in this file because it currently has a
+/// single consumer.  Avoid creating shared test infrastructure for a single
+/// use site; extract only when there are multiple consumers so the abstraction
+/// is driven by demonstrated reuse rather than anticipated reuse.
+///
+/// If a second integration test needs the same pattern, extract
+/// `TelemetryCollector` and `with_test_collector` into
+/// `tests/common/telemetry.rs` and expose them via:
+///
+/// ```text
+/// mod common;
+/// use common::telemetry::with_test_collector;
+/// ```
 fn with_test_collector<F, R>(f: F) -> (Arc<TelemetryCollector>, R)
 where
     F: FnOnce() -> R,
