@@ -129,6 +129,9 @@ pub(crate) struct RuntimeServiceLocator {
 /// Unified composition root and lifecycle owner of the Brain Relational Engine.
 pub struct ApplicationRuntime {
     config: BrainSettings,
+    /// Working directory captured at the application boundary and supplied to tool execution
+    /// contexts. Set by the binary at startup; never queried from process state by the library.
+    working_dir: PathBuf,
     state: RwLock<RuntimeState>,
     service_locator: RwLock<RuntimeServiceLocator>,
     observers: RwLock<Vec<Arc<dyn RuntimeObserver>>>,
@@ -162,6 +165,9 @@ impl HostContext for ApplicationRuntime {
             limit,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
         let response = retrieval_service.execute_pipeline(&request)?;
         Ok(response.nodes)
@@ -202,7 +208,9 @@ impl HostContext for ApplicationRuntime {
 
         let context = ExecutionContext {
             session_id: *session_id,
-            working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            // working_dir is supplied by the application boundary, not sampled here.
+            // See RuntimeBuilder::with_working_dir.
+            working_dir: self.working_dir.clone(),
             cancellation: Arc::new(CancellationTokenImpl::new()),
             deadline: None,
         };
@@ -536,6 +544,9 @@ impl ApplicationRuntime {
 /// Builder helper to construct an ApplicationRuntime instance.
 pub struct RuntimeBuilder {
     config: Option<BrainSettings>,
+    /// Working directory to supply to tool execution contexts. Binaries should populate this
+    /// via `with_working_dir` at startup. Defaults to `"."` for test compatibility.
+    working_dir: Option<PathBuf>,
     storage: Option<Arc<SqliteStorage>>,
     session_manager: Option<Arc<SessionCacheManager>>,
     query_embedding_service: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
@@ -556,6 +567,7 @@ impl RuntimeBuilder {
     pub fn new() -> Self {
         Self {
             config: None,
+            working_dir: None,
             storage: None,
             session_manager: None,
             query_embedding_service: None,
@@ -564,6 +576,15 @@ impl RuntimeBuilder {
             plugin_manager: None,
             observers: Vec::new(),
         }
+    }
+
+    /// Sets the working directory supplied to tool execution contexts.
+    ///
+    /// Binaries should call this with `std::env::current_dir()` captured once at startup.
+    /// If not supplied, defaults to `"."` to preserve backward compatibility for tests.
+    pub fn with_working_dir(mut self, dir: PathBuf) -> Self {
+        self.working_dir = Some(dir);
+        self
     }
 
     /// Configures the settings for the runtime.
@@ -642,8 +663,11 @@ impl RuntimeBuilder {
             streaming_runtime: None,
         };
 
+        let working_dir = self.working_dir.unwrap_or_else(|| PathBuf::from("."));
+
         Ok(ApplicationRuntime {
             config,
+            working_dir,
             state: RwLock::new(RuntimeState::Created),
             service_locator: RwLock::new(service_locator),
             observers: RwLock::new(self.observers),

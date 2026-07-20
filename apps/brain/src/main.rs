@@ -1,4 +1,5 @@
 use brain_services::runtime::{ApplicationRuntime, RuntimeObserver};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 struct LogObserver;
@@ -31,10 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let defaults_src = brain_config::loader::DefaultsSource;
         let config = brain_config::loader::resolve(&[Box::new(defaults_src)])?;
 
-        // 2. Build the application runtime
+        // 2. Build the application runtime.
+        // Process state (working directory) is sampled once here at the application boundary
+        // and passed explicitly into the library — never queried by the library itself.
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let runtime = Arc::new(
             ApplicationRuntime::builder()
                 .with_config(config)
+                .with_working_dir(working_dir)
                 .register_observer(Arc::new(LogObserver))
                 .build()?,
         );
