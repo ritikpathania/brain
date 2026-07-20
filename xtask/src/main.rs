@@ -50,8 +50,15 @@ fn verify() -> Result<(), Box<dyn std::error::Error>> {
 
     struct Step {
         label: &'static str,
-        args: &'static [&'static str],
         cmd: &'static str,
+        args: &'static [&'static str],
+    }
+
+    #[derive(Clone)]
+    enum Outcome {
+        Pass,
+        Fail,
+        Skip,
     }
 
     let steps = [
@@ -85,7 +92,9 @@ fn verify() -> Result<(), Box<dyn std::error::Error>> {
     println!("\ncargo xtask verify — Rust quality gate");
     println!("{}", "─".repeat(56));
 
+    let mut outcomes: Vec<(&'static str, Outcome)> = Vec::new();
     let mut any_failed = false;
+    let mut stopped_early = false;
     let total_start = Instant::now();
 
     for step in &steps {
@@ -96,12 +105,23 @@ fn verify() -> Result<(), Box<dyn std::error::Error>> {
 
         if status.success() {
             println!("[ PASS ] ({:.1}s)", elapsed.as_secs_f32());
+            outcomes.push((step.label, Outcome::Pass));
         } else {
             println!("[ FAIL ] ({:.1}s)", elapsed.as_secs_f32());
+            outcomes.push((step.label, Outcome::Fail));
             any_failed = true;
             if !keep_going {
+                stopped_early = true;
                 break;
             }
+        }
+    }
+
+    // Steps skipped due to early exit.
+    if stopped_early {
+        let ran = outcomes.len();
+        for step in steps.iter().skip(ran) {
+            outcomes.push((step.label, Outcome::Skip));
         }
     }
 
@@ -112,34 +132,64 @@ fn verify() -> Result<(), Box<dyn std::error::Error>> {
         .map(|o| o.status.success())
         .unwrap_or(false);
 
-    if nextest_available {
-        let start = Instant::now();
-        print!("  {:30} … ", "nextest run");
-        let status = Command::new("cargo")
-            .args(["nextest", "run", "--all"])
-            .status()?;
-        let elapsed = start.elapsed();
-        if status.success() {
-            println!("[ PASS ] ({:.1}s)", elapsed.as_secs_f32());
+    if !stopped_early {
+        if nextest_available {
+            let start = Instant::now();
+            print!("  {:30} … ", "nextest run");
+            let status = Command::new("cargo")
+                .args(["nextest", "run", "--all"])
+                .status()?;
+            let elapsed = start.elapsed();
+            if status.success() {
+                println!("[ PASS ] ({:.1}s)", elapsed.as_secs_f32());
+                outcomes.push(("nextest run", Outcome::Pass));
+            } else {
+                println!("[ FAIL ] ({:.1}s)", elapsed.as_secs_f32());
+                outcomes.push(("nextest run", Outcome::Fail));
+                any_failed = true;
+            }
         } else {
-            println!("[ FAIL ] ({:.1}s)", elapsed.as_secs_f32());
-            any_failed = true;
+            println!(
+                "  {:30} … [ SKIP ] (cargo-nextest not installed)",
+                "nextest run"
+            );
+            outcomes.push(("nextest run", Outcome::Skip));
         }
     } else {
-        println!(
-            "  {:30} … [ SKIP ] (cargo-nextest not installed)",
-            "nextest run"
-        );
+        outcomes.push(("nextest run", Outcome::Skip));
     }
 
+    let total_elapsed = total_start.elapsed();
+
+    // ── Summary ──────────────────────────────────────────────────────────────
+    println!("\n{}", "─".repeat(56));
+    println!("  Verification Summary\n");
+
+    let mut skipped_labels: Vec<&str> = Vec::new();
+    for (label, outcome) in &outcomes {
+        match outcome {
+            Outcome::Pass => println!("  ✓ {}", label),
+            Outcome::Fail => println!("  ✗ {}", label),
+            Outcome::Skip => skipped_labels.push(label),
+        }
+    }
+
+    if !skipped_labels.is_empty() {
+        println!("\n  Skipped:");
+        for label in &skipped_labels {
+            println!("    - {}", label);
+        }
+    }
+
+    let result_label = if any_failed { "FAIL" } else { "PASS" };
+    println!("\n  Result:  {}", result_label);
+    println!("  Elapsed: {:.1}s", total_elapsed.as_secs_f32());
     println!("{}", "─".repeat(56));
-    println!("  Total: {:.1}s\n", total_start.elapsed().as_secs_f32());
 
     if any_failed {
         return Err("One or more quality gate steps failed.".into());
     }
 
-    println!("All quality gate steps passed.");
     Ok(())
 }
 
