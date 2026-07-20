@@ -13,7 +13,7 @@ use brain_services::RetrievalServiceImpl;
 use brain_session::SessionCacheManager;
 use brain_storage::TestStorage;
 
-// A custom thread-safe tracing subscriber to capture structured telemetry events
+// A custom thread-safe tracing subscriber to capture structured telemetry events.
 struct TelemetryCollector {
     events: Mutex<Vec<(String, HashMap<String, String>)>>,
 }
@@ -23,12 +23,10 @@ impl tracing::Subscriber for TelemetryCollector {
         metadata.target() == "brain::telemetry::retrieval"
     }
 
-    // Override register_callsite to prevent the global NoSubscriber from permanently
-    // caching these callsites as Interest::never(). Without this override, when tests
-    // run in parallel and a callsite is first reached while the global subscriber is
-    // NoSubscriber (before any with_default scope is entered), the callsite interest
-    // is cached as never() and events are silently dropped even for thread-local
-    // TelemetryCollector subscribers installed via with_default.
+    // Return Interest::always() for our target so that this subscriber, when active
+    // as the thread-local default, registers matching callsites with a permissive
+    // interest level instead of letting the global NoSubscriber cache them as
+    // Interest::never().
     fn register_callsite(
         &self,
         metadata: &'static Metadata<'static>,
@@ -68,6 +66,35 @@ impl tracing::Subscriber for TelemetryCollector {
 
     fn enter(&self, _span: &Id) {}
     fn exit(&self, _span: &Id) {}
+}
+
+/// Install a fresh `TelemetryCollector` as the thread-local tracing subscriber,
+/// run `f`, then return the collector so callers can inspect captured events.
+///
+/// # Why rebuild the interest cache?
+///
+/// `tracing` caches each callsite's `Interest` globally the first time it is
+/// reached.  If a callsite fires while the global default is `NoSubscriber`
+/// (e.g. during another test that does not install a subscriber), it gets
+/// permanently cached as `Interest::never()`.  The hot-path in the `tracing!`
+/// macro then short-circuits *before* consulting the thread-local dispatcher,
+/// so events are silently dropped even when our `TelemetryCollector` is active.
+///
+/// `rebuild_interest_cache` resets all cached interests and forces
+/// re-registration using the currently active (thread-local) subscriber,
+/// making telemetry capture deterministic regardless of test execution order.
+fn with_test_collector<F, R>(f: F) -> (Arc<TelemetryCollector>, R)
+where
+    F: FnOnce() -> R,
+{
+    let collector = Arc::new(TelemetryCollector {
+        events: Mutex::new(Vec::new()),
+    });
+    let result = tracing::subscriber::with_default(collector.clone(), || {
+        tracing::callsite::rebuild_interest_cache();
+        f()
+    });
+    (collector, result)
 }
 
 // A mock embedding provider that yields deterministic vectors
@@ -259,13 +286,8 @@ fn test_structured_telemetry_emission_contract() {
         deadline: None,
     };
 
-    let collector = Arc::new(TelemetryCollector {
-        events: Mutex::new(Vec::new()),
-    });
-
-    tracing::subscriber::with_default(collector.clone(), || {
-        tracing::callsite::rebuild_interest_cache();
-        let _ = retrieval_service.execute_pipeline(&request).unwrap();
+    let (collector, _) = with_test_collector(|| {
+        retrieval_service.execute_pipeline(&request).unwrap();
     });
 
     let events = collector.events.lock().unwrap();
@@ -359,14 +381,7 @@ fn test_embedding_failure_propagation() {
         deadline: None,
     };
 
-    let collector = Arc::new(TelemetryCollector {
-        events: Mutex::new(Vec::new()),
-    });
-
-    let result = tracing::subscriber::with_default(collector.clone(), || {
-        tracing::callsite::rebuild_interest_cache();
-        retrieval_service.execute_pipeline(&request)
-    });
+    let (collector, result) = with_test_collector(|| retrieval_service.execute_pipeline(&request));
 
     assert!(result.is_err());
 
