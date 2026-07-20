@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -9,17 +10,170 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "generate-contracts" => generate_contracts()?,
             "verify-contracts" => verify_contracts()?,
             "regenerate-retrieval-baselines" => regenerate_retrieval_baselines()?,
+            "architecture-check" => architecture_check()?,
+            "verify" => verify()?,
             _ => {
-                eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts | regenerate-retrieval-baselines]");
+                eprintln!(
+                    "Usage: cargo xtask [generate-contracts | verify-contracts \
+                     | regenerate-retrieval-baselines | architecture-check | verify]"
+                );
                 std::process::exit(1);
             }
         }
     } else {
-        eprintln!("Usage: cargo xtask [generate-contracts | verify-contracts | regenerate-retrieval-baselines]");
+        eprintln!(
+            "Usage: cargo xtask [generate-contracts | verify-contracts \
+             | regenerate-retrieval-baselines | architecture-check | verify]"
+        );
         std::process::exit(1);
     }
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// verify — unified Rust quality gate
+// ---------------------------------------------------------------------------
+
+/// Runs all deterministic, offline Rust checks in order.
+///
+/// Stops at the first failure unless the `XTASK_KEEP_GOING` environment
+/// variable is set to `1`.
+///
+/// Python checks (ruff, ty) are intentionally excluded: they require a
+/// virtual environment and are orthogonal to the Rust toolchain.  Run them
+/// via `make verify` in CI or locally.
+///
+/// `cargo deny check advisories` is intentionally excluded: it requires
+/// network access to refresh the advisory DB.  It runs as a dedicated CI job.
+fn verify() -> Result<(), Box<dyn std::error::Error>> {
+    let keep_going = std::env::var("XTASK_KEEP_GOING").as_deref() == Ok("1");
+
+    struct Step {
+        label: &'static str,
+        args: &'static [&'static str],
+        cmd: &'static str,
+    }
+
+    let steps = [
+        Step {
+            label: "fmt --check",
+            cmd: "cargo",
+            args: &["fmt", "--all", "--", "--check"],
+        },
+        Step {
+            label: "clippy",
+            cmd: "cargo",
+            args: &["clippy", "--all-targets", "--", "-D", "warnings"],
+        },
+        Step {
+            label: "test --all",
+            cmd: "cargo",
+            args: &["test", "--all"],
+        },
+        Step {
+            label: "verify-contracts",
+            cmd: "cargo",
+            args: &["xtask", "verify-contracts"],
+        },
+        Step {
+            label: "architecture-check",
+            cmd: "cargo",
+            args: &["xtask", "architecture-check"],
+        },
+    ];
+
+    println!("\ncargo xtask verify — Rust quality gate");
+    println!("{}", "─".repeat(56));
+
+    let mut any_failed = false;
+    let total_start = Instant::now();
+
+    for step in &steps {
+        let start = Instant::now();
+        print!("  {:30} … ", step.label);
+        let status = Command::new(step.cmd).args(step.args).status()?;
+        let elapsed = start.elapsed();
+
+        if status.success() {
+            println!("[ PASS ] ({:.1}s)", elapsed.as_secs_f32());
+        } else {
+            println!("[ FAIL ] ({:.1}s)", elapsed.as_secs_f32());
+            any_failed = true;
+            if !keep_going {
+                break;
+            }
+        }
+    }
+
+    // Nextest: optional, run only if cargo-nextest is on PATH.
+    let nextest_available = Command::new("cargo")
+        .args(["nextest", "--version"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if nextest_available {
+        let start = Instant::now();
+        print!("  {:30} … ", "nextest run");
+        let status = Command::new("cargo")
+            .args(["nextest", "run", "--all"])
+            .status()?;
+        let elapsed = start.elapsed();
+        if status.success() {
+            println!("[ PASS ] ({:.1}s)", elapsed.as_secs_f32());
+        } else {
+            println!("[ FAIL ] ({:.1}s)", elapsed.as_secs_f32());
+            any_failed = true;
+        }
+    } else {
+        println!(
+            "  {:30} … [ SKIP ] (cargo-nextest not installed)",
+            "nextest run"
+        );
+    }
+
+    println!("{}", "─".repeat(56));
+    println!("  Total: {:.1}s\n", total_start.elapsed().as_secs_f32());
+
+    if any_failed {
+        return Err("One or more quality gate steps failed.".into());
+    }
+
+    println!("All quality gate steps passed.");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// architecture-check
+// ---------------------------------------------------------------------------
+
+/// Delegates to the `brain-arch-tests` integration-test crate.
+///
+/// Both `cargo xtask architecture-check` and `cargo test --all` run the same
+/// tests — there is a single implementation.
+fn architecture_check() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Running architecture boundary tests (brain-arch-tests)…");
+    let status = Command::new("cargo")
+        .args([
+            "test",
+            "-p",
+            "brain-arch-tests",
+            "--test",
+            "dependency_boundaries",
+            "--",
+            "--nocapture",
+        ])
+        .status()?;
+    if !status.success() {
+        return Err("Architecture boundary tests failed.".into());
+    }
+    println!("Architecture boundary tests: PASSED");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// regenerate-retrieval-baselines
+// ---------------------------------------------------------------------------
 
 fn regenerate_retrieval_baselines() -> Result<(), Box<dyn std::error::Error>> {
     println!("Regenerating retrieval baselines via cargo test...");
@@ -45,6 +199,10 @@ fn regenerate_retrieval_baselines() -> Result<(), Box<dyn std::error::Error>> {
     println!("Retrieval baselines successfully regenerated!");
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// generate-contracts / verify-contracts
+// ---------------------------------------------------------------------------
 
 fn generate_contracts_to_string() -> Result<String, Box<dyn std::error::Error>> {
     // Version metadata
@@ -141,7 +299,9 @@ fn generate_contracts() -> Result<(), Box<dyn std::error::Error>> {
     fs::remove_file(&temp_file_path)?;
     fs::remove_dir(temp_dir)?;
 
-    println!("Contracts successfully generated at: \n  - generated/typescript/types.ts\n  - sdks/typescript/src/generated/types.ts");
+    println!(
+        "Contracts successfully generated at: \n  - generated/typescript/types.ts\n  - sdks/typescript/src/generated/types.ts"
+    );
     Ok(())
 }
 

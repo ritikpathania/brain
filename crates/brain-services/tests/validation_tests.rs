@@ -217,6 +217,7 @@ fn test_retrieval_determinism_validation() {
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
     };
 
     let budget = ContextBudget {
@@ -300,6 +301,7 @@ fn test_structured_telemetry_emission_contract() {
         limit: 5,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
     };
 
     let (collector, _) = with_test_collector(|| {
@@ -360,6 +362,7 @@ fn test_retrieval_timeout_graceful_handling() {
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: Some(deadline),
+        explain: false,
     };
 
     let result = retrieval_service.execute_pipeline(&request);
@@ -395,6 +398,7 @@ fn test_embedding_failure_propagation() {
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
     };
 
     let (collector, result) = with_test_collector(|| retrieval_service.execute_pipeline(&request));
@@ -445,6 +449,7 @@ fn test_retrieval_concurrency_lock_safety() {
                 limit: 10,
                 exclude_ids: std::collections::HashSet::new(),
                 deadline: None,
+                explain: false,
             };
             let response = retrieval_service.execute_pipeline(&request).unwrap();
             assert!(response.nodes.len() <= 1);
@@ -455,4 +460,71 @@ fn test_retrieval_concurrency_lock_safety() {
     for handle in handles {
         handle.join().unwrap();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Regression lock: tracing callsite interest cache
+//
+// This test reproduces the exact failure mode that was fixed by the
+// rebuild_interest_cache call inside with_test_collector.
+//
+// Scenario: two independent with_test_collector scopes execute sequentially
+// in the same test process.  Between them, the global dispatcher reverts to
+// NoSubscriber.  If rebuild_interest_cache were removed, the second scope
+// would see Interest::never() cached from the first scope's teardown and
+// silently drop all events.
+//
+// If you are reading this because it just failed, the likely cause is that
+// `tracing::callsite::rebuild_interest_cache()` was removed from
+// `with_test_collector` in this file.  Do not remove it.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_collector_is_reusable_across_independent_scopes() {
+    let test_store = TestStorage::new();
+    let store = Arc::new(test_store.storage().clone());
+    let cache_manager = Arc::new(SessionCacheManager::new());
+    let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
+    let provider = Arc::new(MockQueryEmbeddingProvider {
+        fail_on_query: None,
+    });
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let retrieval_service = RetrievalServiceImpl::new(
+        store.clone(),
+        cache_manager.clone(),
+        registry.clone(),
+        query_embedding_service.clone(),
+    );
+
+    let request = RetrievalRequest {
+        query: "scope reuse probe".to_string(),
+        session_id: brain_domain::SessionId::new(),
+        limit: 5,
+        exclude_ids: std::collections::HashSet::new(),
+        deadline: None,
+        explain: false,
+    };
+
+    // First scope
+    let (c1, _) = with_test_collector(|| {
+        retrieval_service.execute_pipeline(&request).unwrap();
+    });
+
+    // Second scope — the canary.  If rebuild_interest_cache is missing,
+    // callsites are re-cached as Interest::never() between the two scopes and
+    // this collector captures nothing.
+    let (c2, _) = with_test_collector(|| {
+        retrieval_service.execute_pipeline(&request).unwrap();
+    });
+
+    assert!(
+        !c1.events.lock().unwrap().is_empty(),
+        "First collector captured no telemetry events — pipeline may not emit any"
+    );
+    assert!(
+        !c2.events.lock().unwrap().is_empty(),
+        "Second collector captured no telemetry events. \
+         This is the tracing callsite interest cache regression: \
+         rebuild_interest_cache() has likely been removed from with_test_collector."
+    );
 }

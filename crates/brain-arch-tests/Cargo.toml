@@ -1,0 +1,9 @@
+[package]
+name = "brain-arch-tests"
+version = "0.1.0"
+edition = "2021"
+# This crate contains only integration tests; it has no library target.
+# `cargo test -p brain-arch-tests` or `cargo test --all` will run them.
+
+[dev-dependencies]
+cargo_metadata = "0.18"
