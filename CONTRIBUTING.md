@@ -49,6 +49,60 @@ We follow a structured Git and review workflow to ensure code health and prevent
 
 ---
 
+## 🔒 Engineering Philosophy
+
+### Every defect should leave the system harder to break than before.
+
+When fixing a defect, strengthen the project's executable guardrails where
+practical. Depending on the nature of the defect, this may be a regression
+test, an architectural invariant, a contract validation, a performance
+baseline, or another automated check that prevents the same class of failure
+from silently returning.
+
+This is not a mandate to add a new test for every one-line fix. It is a
+commitment to ask the question — and to act on it when the answer is clear.
+
+### Guardrail taxonomy
+
+The project classifies invariants by the kind of promise they protect, not by
+the tool used to protect them. This answers the question *"where does this
+guardrail belong?"* rather than just *"should I add one?"*
+
+| Invariant violated | Preferred guardrail |
+|---|---|
+| Runtime behavior regressed | Regression or integration test |
+| Architectural boundary crossed | `ArchitectureRule` in `crates/brain-arch-tests/` |
+| Public API or schema drifted | `cargo xtask verify-contracts` |
+| Performance characteristic regressed | Benchmark baseline |
+| Documentation promise broken | Documentation check *(add when the pain is real, not before)* |
+
+### Checklist for defect fixes
+
+When closing a bug, work through this list before marking the PR ready:
+
+```
+□ Did runtime behavior regress?
+  → Add or strengthen a regression test.
+
+□ Did an architectural boundary fail?
+  → Add or update an ArchitectureRule in crates/brain-arch-tests/.
+
+□ Did a public contract drift?
+  → Update and re-run: cargo xtask verify-contracts
+
+□ Did performance regress?
+  → Add or update a benchmark baseline.
+
+□ Did documentation describe an invariant that was violated?
+  → Update the documentation and add an executable check if feasible.
+```
+
+The left-hand side describes the *kind of promise that was broken*. The
+right-hand side describes *where to encode the protection*. If tool names
+change in future, the left-hand side still reads correctly.
+
+---
+
 ## 🏛️ RFC & ADR Process
 
 For significant architectural changes, we use a two-stage design alignment process:
