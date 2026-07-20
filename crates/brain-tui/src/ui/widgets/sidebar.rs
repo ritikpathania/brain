@@ -1,10 +1,10 @@
 use crate::state::SessionViewModel;
 use crate::ui::interaction::sidebar::{SessionFilter, SidebarMode};
+use crate::ui::render::UnicodeSupport;
 use crate::ui::theme::Theme;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::Frame;
-use std::sync::OnceLock;
 
 /// ViewModel carrying session list, selection, filters, and editor states.
 pub struct SidebarView<'a> {
@@ -28,18 +28,6 @@ pub struct SidebarView<'a> {
     pub rename_query: &'a str,
     /// Visual cursor position in characters for rename input.
     pub rename_cursor: usize,
-}
-
-fn use_unicode() -> bool {
-    static CACHE: OnceLock<bool> = OnceLock::new();
-    *CACHE.get_or_init(|| {
-        std::env::var("LANG")
-            .or_else(|_| std::env::var("LC_ALL"))
-            .or_else(|_| std::env::var("LC_CTYPE"))
-            .map(|s| s.to_uppercase().contains("UTF-8"))
-            .unwrap_or(false)
-            && std::env::var("ASCII").is_err()
-    })
 }
 
 /// Formats text by inserting a cursor character at the specified index.
@@ -80,8 +68,17 @@ pub fn slice_text_viewport(text: &str, cursor_idx: usize, max_width: usize) -> (
     (sliced, new_cursor)
 }
 
-/// Renders the sidebar session browser panel.
-pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme) {
+/// Renders the sidebar panel.
+///
+/// `unicode` is supplied by the renderer from `RenderCapabilities::detect()` and must
+/// not be read directly from the environment here.
+pub fn draw(
+    f: &mut Frame<'_>,
+    area: Rect,
+    view: &SidebarView<'_>,
+    theme: &Theme,
+    unicode: UnicodeSupport,
+) {
     let border_style = if view.has_focus {
         theme.border_active
     } else {
@@ -107,7 +104,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &SidebarView<'_>, theme: &Theme
         return;
     }
 
-    let unicode_mode = use_unicode();
+    let unicode_mode = unicode == UnicodeSupport::Full;
 
     let list_area = if view.search_active {
         let chunks = Layout::default()

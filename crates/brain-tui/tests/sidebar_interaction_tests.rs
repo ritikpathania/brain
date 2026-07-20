@@ -232,7 +232,13 @@ fn test_sidebar_rendering_modes() {
     terminal
         .draw(|f| {
             let area = f.size();
-            sidebar::draw(f, area, &view, &theme);
+            sidebar::draw(
+                f,
+                area,
+                &view,
+                &theme,
+                brain_tui::ui::render::UnicodeSupport::AsciiOnly,
+            );
         })
         .unwrap();
 

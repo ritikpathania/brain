@@ -59,22 +59,26 @@ pub struct RenderCapabilities {
 }
 
 impl RenderCapabilities {
-    /// Observes the terminal environment to detect capability support levels.
+    /// Observes the terminal environment and applies explicit user overrides to produce
+    /// a coherent view of rendering capabilities.
+    ///
+    /// Structured as three phases:
+    ///   1. **Detect** — infer capabilities from terminal environment variables.
+    ///   2. **Override** — apply explicit user/CI overrides (`ASCII`, etc.).
+    ///   3. **Return** — assemble the final `RenderCapabilities`.
+    ///
+    /// Widgets and rendering helpers should never read terminal environment variables
+    /// directly; this function is the single source of truth for capability resolution.
     pub fn detect() -> Self {
-        let has_utf8 = std::env::var("LANG")
+        // ── Phase 1: Detect ──────────────────────────────────────────────────
+        let locale_utf8 = std::env::var("LANG")
             .or_else(|_| std::env::var("LC_ALL"))
             .or_else(|_| std::env::var("LC_CTYPE"))
             .map(|s| s.to_uppercase().contains("UTF-8"))
             .unwrap_or(false);
 
-        let unicode = if has_utf8 {
-            UnicodeSupport::Full
-        } else {
-            UnicodeSupport::AsciiOnly
-        };
-
         let colorterm = std::env::var("COLORTERM").unwrap_or_default();
-        let colors = if colorterm == "truecolor" || colorterm == "24bit" {
+        let detected_colors = if colorterm == "truecolor" || colorterm == "24bit" {
             ColorSupport::TrueColor
         } else {
             ColorSupport::Ansi256
@@ -83,25 +87,44 @@ impl RenderCapabilities {
         let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default();
         let term = std::env::var("TERM").unwrap_or_default();
 
-        let nerd_fonts = if std::env::var("NERD_FONTS")
+        let detected_nerd_fonts = std::env::var("NERD_FONTS")
             .map(|s| s == "1" || s.to_uppercase() == "TRUE")
-            .unwrap_or(term_program == "WezTerm" || term_program == "ghostty")
-        {
-            NerdFontsSupport::Full
-        } else {
-            NerdFontsSupport::None
-        };
+            .unwrap_or(term_program == "WezTerm" || term_program == "ghostty");
 
-        let osc8 = term_program == "iTerm.app"
+        let detected_osc8 = term_program == "iTerm.app"
             || term_program == "WezTerm"
             || term_program == "ghostty"
             || term_program == "vscode"
             || term.contains("kitty");
 
-        let motion = if std::env::var("REDUCED_MOTION")
+        let detected_motion = std::env::var("REDUCED_MOTION")
             .map(|s| s == "1" || s.to_uppercase() == "TRUE")
-            .unwrap_or(false)
-        {
+            .unwrap_or(false);
+
+        // ── Phase 2: Apply explicit user overrides ───────────────────────────
+        // `ASCII=1` is an explicit override, not a detection failure.
+        // It is useful for CI, snapshot tests, and broken UTF-8 terminals.
+        // Keep it separate from locale detection so both are independently clear.
+        let ascii_override = std::env::var("ASCII")
+            .map(|s| s == "1" || s.to_uppercase() == "TRUE")
+            .unwrap_or(false);
+
+        // ── Phase 3: Assemble ─────────────────────────────────────────────────
+        let unicode = if locale_utf8 && !ascii_override {
+            UnicodeSupport::Full
+        } else {
+            UnicodeSupport::AsciiOnly
+        };
+
+        let colors = detected_colors;
+
+        let nerd_fonts = if detected_nerd_fonts && !ascii_override {
+            NerdFontsSupport::Full
+        } else {
+            NerdFontsSupport::None
+        };
+
+        let motion = if detected_motion {
             MotionPreference::Reduced
         } else {
             MotionPreference::Full
@@ -112,7 +135,7 @@ impl RenderCapabilities {
             colors,
             nerd_fonts,
             mouse: true,
-            osc8,
+            osc8: detected_osc8,
             motion,
         }
     }

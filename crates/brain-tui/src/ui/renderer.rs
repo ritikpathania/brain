@@ -118,6 +118,12 @@ impl AppRenderer {
 
     /// Derives lightweight ViewModels from state and draws all TUI components.
     pub fn draw(&self, f: &mut Frame<'_>, area: Rect, state: &UiState, theme: &Theme) {
+        // Terminal capabilities are observed once per frame here and threaded
+        // explicitly into widgets. Widgets must not read environment variables directly.
+        let caps = crate::ui::render::RenderCapabilities::detect();
+        let policy = crate::ui::render::CapabilityPolicy::default();
+        let capabilities = crate::ui::render::CapabilityResolver::resolve(&caps, &policy);
+
         let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, status_area) =
             self.compute_layout(area, state);
 
@@ -160,7 +166,7 @@ impl AppRenderer {
                 rename_query: state.sidebar.rename.editor.buffer(),
                 rename_cursor: state.sidebar.rename.editor.cursor().visual_col as usize,
             };
-            sidebar::draw(f, sidebar_area, &sidebar_view, theme);
+            sidebar::draw(f, sidebar_area, &sidebar_view, theme, caps.unicode);
         }
 
         // 3. Build Chat View with Virtualization & Cache checks if visible
@@ -394,9 +400,7 @@ impl AppRenderer {
                 .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
             ratatui::widgets::Widget::render(block, dialog_area, buf);
 
-            let caps = crate::ui::render::RenderCapabilities::detect();
-            let policy = crate::ui::render::CapabilityPolicy::default();
-            let capabilities = crate::ui::render::CapabilityResolver::resolve(&caps, &policy);
+            // Use the capabilities already built at the top of draw() — not a second detect().
             let icons = crate::ui::render::IconSet::new(
                 capabilities.nerd_fonts != crate::ui::render::NerdFontsSupport::None,
             );
