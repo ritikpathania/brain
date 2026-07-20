@@ -23,6 +23,23 @@ impl tracing::Subscriber for TelemetryCollector {
         metadata.target() == "brain::telemetry::retrieval"
     }
 
+    // Override register_callsite to prevent the global NoSubscriber from permanently
+    // caching these callsites as Interest::never(). Without this override, when tests
+    // run in parallel and a callsite is first reached while the global subscriber is
+    // NoSubscriber (before any with_default scope is entered), the callsite interest
+    // is cached as never() and events are silently dropped even for thread-local
+    // TelemetryCollector subscribers installed via with_default.
+    fn register_callsite(
+        &self,
+        metadata: &'static Metadata<'static>,
+    ) -> tracing::subscriber::Interest {
+        if metadata.target() == "brain::telemetry::retrieval" {
+            tracing::subscriber::Interest::always()
+        } else {
+            tracing::subscriber::Interest::never()
+        }
+    }
+
     fn new_span(&self, _span: &Attributes<'_>) -> Id {
         Id::from_u64(1)
     }
@@ -247,6 +264,7 @@ fn test_structured_telemetry_emission_contract() {
     });
 
     tracing::subscriber::with_default(collector.clone(), || {
+        tracing::callsite::rebuild_interest_cache();
         let _ = retrieval_service.execute_pipeline(&request).unwrap();
     });
 
@@ -346,6 +364,7 @@ fn test_embedding_failure_propagation() {
     });
 
     let result = tracing::subscriber::with_default(collector.clone(), || {
+        tracing::callsite::rebuild_interest_cache();
         retrieval_service.execute_pipeline(&request)
     });
 
