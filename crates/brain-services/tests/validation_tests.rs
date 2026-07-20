@@ -83,6 +83,13 @@ impl tracing::Subscriber for TelemetryCollector {
 /// `rebuild_interest_cache` resets all cached interests and forces
 /// re-registration using the currently active (thread-local) subscriber,
 /// making telemetry capture deterministic regardless of test execution order.
+///
+/// # Extraction note
+///
+/// This helper lives here because it is only used by this test file.  If a
+/// second integration-test file needs the same pattern, move `TelemetryCollector`
+/// and `with_test_collector` into `tests/common/telemetry.rs` and expose them
+/// via `mod common; use common::telemetry::with_test_collector;`.
 fn with_test_collector<F, R>(f: F) -> (Arc<TelemetryCollector>, R)
 where
     F: FnOnce() -> R,
