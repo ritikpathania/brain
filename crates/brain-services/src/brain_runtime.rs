@@ -1,17 +1,26 @@
 use crate::query::SearchQuery;
 use crate::{
     InMemoryEventDispatcher, SqliteCanonicalizer, SqliteProjectionManager, SqliteReflectionEngine,
+    projections::{
+        scheduler, JobProjectionReducer, ProjectionConfig, ProjectionScheduler, ReducerRegistry,
+        SearchProjectionReducer, SessionProjectionReducer,
+    },
 };
 use brain_core::{
     errors::BrainError,
     events::{CorrelationId, RuntimeEvent, RuntimeEventDispatcher},
     evolution::{Canonicalizer, Observation, StageTimings},
     projection::{ProjectionQuery, Projector},
-    repositories::Storage,
+    repositories::{EdgeRepository, NodeRepository, Storage},
+};
+use brain_domain::dtos::NodeDTO;
+use brain_domain::query::inspector::{
+    ActivityLogEntry, InspectorModel, ProvenanceDTO, RelationshipDTO,
 };
 use brain_domain::{EpochId, NodeId, SearchDocument};
+use brain_integrations::IngestionEnvelope;
 use brain_observability::{timeline::OperationSpan, CorrelationIndex, ObservabilitySubscriber};
-use brain_storage::{SqliteSearchRepository, SqliteStorage};
+use brain_storage::{EventLogRepository, SqliteSearchRepository, SqliteStorage};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
@@ -120,6 +129,10 @@ pub struct IngestionResult {
     pub affected_entities: Vec<NodeId>,
     /// Detailed stage execution timings.
     pub stage_timings: StageTimings,
+    /// The database sequence number in the event log.
+    pub sequence: u64,
+    /// The unique event ID.
+    pub event_id: brain_domain::EventId,
 }
 
 /// Quantitative operational metrics and completed execution timings.
@@ -212,11 +225,14 @@ pub(crate) struct InternalDiagnostics {
 /// Unified composition root and lifecycle owner of the Brain Relational Engine.
 pub struct BrainRuntime {
     storage: Arc<dyn Storage>,
+    sqlite_storage: Arc<SqliteStorage>,
     dispatcher: Arc<InMemoryEventDispatcher>,
     canonicalizer: Arc<dyn Canonicalizer<Error = BrainError>>,
     projection_manager: SqliteProjectionManager,
     correlation_index: Arc<Mutex<CorrelationIndex>>,
     subscriber: Option<ObservabilitySubscriber>,
+    reflection_engine: Arc<crate::reflection::ReflectionEngine>,
+    config: brain_config::schema::BrainSettings,
 
     created_at: Instant,
     health: Arc<AtomicU8>,
@@ -233,6 +249,8 @@ pub struct BrainRuntime {
     // is the authoritative description of the current design; the sprint doc is the
     // historical record of why this decision was made.
     search_repository: Arc<SqliteSearchRepository>,
+    projection_scheduler: Arc<dyn ProjectionScheduler>,
+    scheduler_runtime: Arc<scheduler::SchedulerRuntime>,
 }
 
 impl BrainRuntime {
@@ -253,6 +271,17 @@ impl BrainRuntime {
     pub fn new(db_path: &str) -> Result<Self, BrainError> {
         let created_at = Instant::now();
         let health = Arc::new(AtomicU8::new(RuntimeHealth::Initializing as u8));
+        let defaults_src = brain_config::loader::DefaultsSource;
+        let env_src = brain_config::loader::EnvironmentSource;
+        let brain_settings = brain_config::loader::resolve(&[
+            Box::new(defaults_src),
+            Box::new(env_src),
+        ]).unwrap_or_else(|_| {
+            use brain_config::loader::ConfigSource;
+            use std::convert::TryFrom;
+            let partial = brain_config::loader::DefaultsSource.load().unwrap();
+            brain_config::schema::BrainSettings::try_from(partial).unwrap()
+        });
         let metrics = Arc::new(InternalMetrics {
             observations_ingested: AtomicU64::new(0),
             canonicalization_successes: AtomicU64::new(0),
@@ -346,31 +375,112 @@ impl BrainRuntime {
             Arc::clone(&dispatcher_trait),
         );
 
+        // 7. Register projections and set up SequentialScheduler & SchedulerRuntime
+        let registry = ReducerRegistry::new();
+        
+        let jobs_repo = Arc::new(brain_storage::SqliteJobReadModelRepository::new(sqlite_storage.pool().clone()));
+        registry.register(Arc::new(JobProjectionReducer::new(jobs_repo)))?;
+
+        let sessions_repo = Arc::new(brain_storage::SqliteSessionReadModelRepository::new(sqlite_storage.pool().clone()));
+        registry.register(Arc::new(SessionProjectionReducer::new(sessions_repo)))?;
+
+        registry.register(Arc::new(SearchProjectionReducer::new(search_repository.clone())))?;
+
+        let metadata_repo = Arc::new(brain_storage::SqliteProjectionMetadataRepository::new());
+        let event_log_inner = Arc::new(brain_storage::SqliteEventLog::new(sqlite_storage.pool().clone()));
+        let event_log = Arc::new(crate::jobs::publisher::SystemEventLog::new(event_log_inner));
+        
+        let config = ProjectionConfig {
+            batch_size: 100,
+            max_batch_duration_ms: 500,
+            queue_capacity: 64,
+        };
+
+        let projection_scheduler = Arc::new(scheduler::SequentialScheduler::new(
+            registry,
+            metadata_repo,
+            event_log,
+            config,
+            sqlite_storage.pool().clone(),
+        ));
+
+        let scheduler_runtime = Arc::new(scheduler::SchedulerRuntime::new(Arc::clone(&projection_scheduler) as Arc<dyn ProjectionScheduler>));
+
+        let mut reflection_registry = crate::reflection::ReflectionRegistry::new();
+        reflection_registry.register(Box::new(crate::reflection::passes::duplicate::DuplicateDetectionPass::new()));
+        reflection_registry.register(Box::new(crate::reflection::passes::contradiction::ContradictionPass::new()));
+        reflection_registry.register(Box::new(crate::reflection::passes::link_suggestion::LinkSuggestionPass::new()));
+        reflection_registry.register(Box::new(crate::reflection::passes::synthesis::SynthesisPass::new()));
+        let reflection_engine = Arc::new(crate::reflection::ReflectionEngine::new(
+            Arc::new(reflection_registry),
+            Arc::clone(&storage),
+        ));
+
+        // Start background sequential processing
+        scheduler_runtime.start()?;
+
         health.store(RuntimeHealth::Healthy as u8, Ordering::Release);
 
         Ok(Self {
             storage,
+            sqlite_storage,
             dispatcher,
             canonicalizer,
             projection_manager,
             correlation_index,
             subscriber: Some(subscriber),
+            reflection_engine,
+            config: brain_settings,
             created_at,
             health,
             metrics,
             diagnostics,
             capabilities,
             search_repository,
+            projection_scheduler,
+            scheduler_runtime,
         })
     }
 
+    /// Returns a reference to the loaded configuration.
+    pub fn config(&self) -> &brain_config::schema::BrainSettings {
+        &self.config
+    }
+
+    /// Returns a reference to the v1.0 Reflection Engine.
+    pub fn reflection_engine(&self) -> &Arc<crate::reflection::ReflectionEngine> {
+        &self.reflection_engine
+    }
+
     /// Primary Ingestion boundary. Coordinates validation, canonicalization, and reflection.
-    pub fn ingest(&self, obs: Observation) -> Result<IngestionResult, BrainError> {
+    pub fn ingest(&self, envelope: IngestionEnvelope) -> Result<IngestionResult, BrainError> {
         let start = Instant::now();
         self.metrics
             .observations_ingested
             .fetch_add(1, Ordering::Relaxed);
 
+        // 1. Insert/Deduplicate in the WAL
+        let sequence = self.sqlite_storage.insert_event(&envelope)?;
+        let event_id = envelope.identity.event_id.clone();
+
+        // 2. Translate envelope DTO into internal Observation
+        let payload = serde_json::to_vec(&envelope.event).map_err(|e| BrainError::Storage {
+            message: format!("Failed to serialize event: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let media_type = "application/json".to_string();
+        let provenance = brain_core::evolution::Provenance {
+            source_adapter: envelope.identity.adapter_id.to_string(),
+            timestamp: SystemTime::from(envelope.identity.timestamp),
+            correlation_id: envelope.identity.event_id.0,
+        };
+        let obs = Observation {
+            payload,
+            media_type,
+            provenance,
+        };
+
+        // 3. Execute canonicalization & reflections
         match self.canonicalizer.canonicalize(obs) {
             Ok(result) => {
                 let duration = start.elapsed();
@@ -399,6 +509,8 @@ impl BrainRuntime {
                     epoch: result.epoch,
                     affected_entities: result.affected_entities,
                     stage_timings: result.stage_timings,
+                    sequence,
+                    event_id,
                 })
             }
             Err(err) => {
@@ -449,6 +561,11 @@ impl BrainRuntime {
         self.dispatcher.subscribe()
     }
 
+    /// Returns a reference to the projection scheduler.
+    pub fn projection_scheduler(&self) -> Arc<dyn ProjectionScheduler> {
+        Arc::clone(&self.projection_scheduler)
+    }
+
     /// Exposes read-only facade query for correlation index spans.
     pub fn spans_for(&self, corr_id: CorrelationId) -> Option<Vec<OperationSpan>> {
         let index = self.correlation_index.lock().unwrap();
@@ -459,6 +576,11 @@ impl BrainRuntime {
     pub fn is_complete(&self, corr_id: CorrelationId) -> bool {
         let index = self.correlation_index.lock().unwrap();
         index.is_complete(corr_id)
+    }
+
+    /// Exposes the SQLite storage backend.
+    pub fn sqlite_storage(&self) -> Arc<SqliteStorage> {
+        Arc::clone(&self.sqlite_storage)
     }
 
     /// Exposes read-only storage reference.
@@ -583,6 +705,88 @@ impl BrainRuntime {
         self.search_repository.search(&storage_query)
     }
 
+    /// Replays events starting after the given sequence number.
+    pub fn replay(&self, after_sequence: u64) -> Result<Vec<IngestionEnvelope>, BrainError> {
+        self.sqlite_storage.get_events_after(after_sequence)
+    }
+
+    /// Inspects a node by its ID and maps all its connections to the domain-level InspectorModel.
+    pub fn inspect_node(&self, id_str: &str) -> Result<InspectorModel, BrainError> {
+        let node_uuid =
+            uuid::Uuid::parse_str(id_str).map_err(|e| BrainError::InvalidTransition {
+                message: format!("Invalid UUID string format: {}", e),
+            })?;
+        let node_id = NodeId(node_uuid);
+
+        let node = NodeRepository::find_by_id(self.sqlite_storage.as_ref(), &node_id)?.ok_or_else(
+            || BrainError::Storage {
+                message: format!("Node not found: {}", id_str),
+                source: None,
+            },
+        )?;
+
+        let entity = NodeDTO::new(
+            node.id.to_string(),
+            node.label.clone(),
+            node.node_type.to_string(),
+            serde_json::to_value(&node.properties).unwrap_or_default(),
+        );
+
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("node_type".to_string(), node.node_type.to_string());
+        metadata.insert("id".to_string(), node.id.to_string());
+
+        let mut relationships = Vec::new();
+        let connections = self.sqlite_storage.get_connections(&node_id)?;
+        for edge in connections {
+            let is_outgoing = edge.source == node_id;
+            let neighbor_id = if is_outgoing {
+                edge.target.clone()
+            } else {
+                edge.source.clone()
+            };
+            if let Some(neighbor) =
+                NodeRepository::find_by_id(self.sqlite_storage.as_ref(), &neighbor_id)?
+            {
+                relationships.push(RelationshipDTO {
+                    target_id: neighbor.id.to_string(),
+                    target_label: neighbor.label.clone(),
+                    target_type: neighbor.node_type.to_string(),
+                    relation: edge.relation.to_string(),
+                    direction: if is_outgoing {
+                        "outgoing".to_string()
+                    } else {
+                        "incoming".to_string()
+                    },
+                    weight: 1.0,
+                });
+            }
+        }
+
+        let provenance = ProvenanceDTO {
+            source: "System Ingest".to_string(),
+            location: "System Ingest".to_string(),
+            timestamp: 0,
+            extra_info: std::collections::HashMap::new(),
+        };
+
+        let mut recent_activity = Vec::new();
+        recent_activity.push(ActivityLogEntry {
+            timestamp: 0,
+            action: "Ingested".to_string(),
+            details: "Entity extracted from source location by system.".to_string(),
+        });
+
+        Ok(InspectorModel {
+            entity,
+            metadata,
+            relationships,
+            provenance,
+            retrieval_explanation: None,
+            recent_activity,
+        })
+    }
+
     /// Lifecycle boundary: stops workers, flushes event queues, and closes storage connections.
     /// Consumes `self` to statically guarantee no further actions can be invoked after shutdown.
     ///
@@ -595,6 +799,11 @@ impl BrainRuntime {
         let start = Instant::now();
         self.health
             .store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
+
+        // 0. Shutdown the scheduler runtime first
+        if let Err(e) = self.scheduler_runtime.shutdown() {
+            tracing::error!("Failed to shutdown scheduler runtime: {:?}", e);
+        }
 
         // 1. Close all event channels — thread unblocks from recv(), sees Disconnected, exits
         self.dispatcher.shutdown();

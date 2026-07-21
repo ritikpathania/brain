@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 
 use crate::{BackpressurePolicy, ClientCommand};
 use brain_domain::{AdapterId, ClientId, ConversationId, EventId, SessionId, WorkspaceId};
-use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent};
+use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent, dto::v1};
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum BrainSdkError {
@@ -188,7 +188,11 @@ pub struct BrainClient {
     config: Arc<ClientConfig>,
     state: Arc<std::sync::Mutex<RuntimeState>>,
     last_sequence: Arc<std::sync::atomic::AtomicU64>,
+    last_sequence_received: Arc<std::sync::atomic::AtomicU64>,
     replay_strategy: Arc<dyn ReplayStrategy>,
+    subscribers: Arc<
+        std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
+    >,
 }
 
 impl BrainClient {
@@ -197,14 +201,18 @@ impl BrainClient {
         let config_arc = Arc::new(config);
         let state = Arc::new(std::sync::Mutex::new(RuntimeState::Disconnected));
         let last_sequence = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let last_sequence_received = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let replay_strategy = Arc::new(InMemoryReplayStrategy::new());
+        let subscribers = Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let runtime = ClientRuntime::new(
             Arc::clone(&config_arc),
             rx,
             Arc::clone(&state),
             Arc::clone(&last_sequence),
+            Arc::clone(&last_sequence_received),
             Arc::clone(&replay_strategy) as Arc<dyn ReplayStrategy>,
+            Arc::clone(&subscribers),
         );
         tokio::spawn(async move {
             runtime.run().await;
@@ -215,7 +223,9 @@ impl BrainClient {
             config: config_arc,
             state,
             last_sequence,
+            last_sequence_received,
             replay_strategy,
+            subscribers,
         })
     }
 
@@ -225,6 +235,11 @@ impl BrainClient {
 
     pub fn last_sequence(&self) -> u64 {
         self.last_sequence
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn last_sequence_received(&self) -> u64 {
+        self.last_sequence_received
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
@@ -303,6 +318,105 @@ impl BrainClient {
         reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)?
     }
 
+    pub async fn status(&self) -> Result<v1::Status, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/status".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+     }
+
+    pub async fn metrics(&self) -> Result<v1::Metrics, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/metrics".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn diagnostics(
+        &self,
+    ) -> Result<v1::Diagnostics, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/diagnostics".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn capabilities(
+        &self,
+    ) -> Result<Vec<v1::Capability>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/capabilities".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn search(
+        &self,
+        query: v1::SearchQuery,
+    ) -> Result<Vec<v1::SearchSummary>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        let query_str = serde_json::to_string(&query)
+            .map_err(|e| BrainSdkError::Serialization(e.to_string()))?;
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/search".to_string(),
+                body: query_str,
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn reflect(&self) -> Result<v1::ReflectionReport, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/reflect".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub fn subscribe(&self) -> mpsc::UnboundedReceiver<v1::StreamMessage> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.subscribers.lock().unwrap().push(tx);
+        rx
+    }
+
     pub async fn shutdown(&self) {
         let (tx, rx) = oneshot::channel();
         let _ = self.tx.send(ClientCommand::Shutdown { tx }).await;
@@ -315,10 +429,16 @@ struct ClientRuntime {
     rx: mpsc::Receiver<ClientCommand>,
     state: Arc<std::sync::Mutex<RuntimeState>>,
     last_sequence: Arc<std::sync::atomic::AtomicU64>,
+    last_sequence_received: Arc<std::sync::atomic::AtomicU64>,
     replay_strategy: Arc<dyn ReplayStrategy>,
     batch_strategy: Box<dyn BatchStrategy>,
     pending_acks: BTreeMap<EventId, oneshot::Sender<Result<IngestAck, BrainSdkError>>>,
     pending_replay_tx: Option<oneshot::Sender<Result<Vec<IngestionEnvelope>, BrainSdkError>>>,
+    pending_requests: BTreeMap<u64, oneshot::Sender<Result<String, BrainSdkError>>>,
+    request_id_counter: u64,
+    subscribers: Arc<
+        std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
+    >,
 }
 
 impl ClientRuntime {
@@ -327,7 +447,11 @@ impl ClientRuntime {
         rx: mpsc::Receiver<ClientCommand>,
         state: Arc<std::sync::Mutex<RuntimeState>>,
         last_sequence: Arc<std::sync::atomic::AtomicU64>,
+        last_sequence_received: Arc<std::sync::atomic::AtomicU64>,
         replay_strategy: Arc<dyn ReplayStrategy>,
+        subscribers: Arc<
+            std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
+        >,
     ) -> Self {
         let batch_strategy = Box::new(DefaultBatchStrategy::new(
             config.max_batch_size,
@@ -338,10 +462,14 @@ impl ClientRuntime {
             rx,
             state,
             last_sequence,
+            last_sequence_received,
             replay_strategy,
             batch_strategy,
             pending_acks: BTreeMap::new(),
             pending_replay_tx: None,
+            pending_requests: BTreeMap::new(),
+            request_id_counter: 0,
+            subscribers,
         }
     }
 
@@ -368,6 +496,14 @@ impl ClientRuntime {
             let _ = tx.send(Err(BrainSdkError::ConnectionFailed(
                 "Disconnected".to_string(),
             )));
+        }
+        let req_keys: Vec<u64> = self.pending_requests.keys().cloned().collect();
+        for key in req_keys {
+            if let Some(tx) = self.pending_requests.remove(&key) {
+                let _ = tx.send(Err(BrainSdkError::ConnectionFailed(
+                    "Disconnected".to_string(),
+                )));
+            }
         }
     }
 
@@ -474,6 +610,28 @@ impl ClientRuntime {
                                 self.handle_disconnect();
                             } else {
                                 self.transition_to(RuntimeState::Ready);
+                                if let Some(w_ref) = write_half.as_mut() {
+                                    let last_seq = self.last_sequence_received.load(std::sync::atomic::Ordering::Relaxed);
+                                    let sub_req = if last_seq > 0 {
+                                        serde_json::json!({
+                                            "after_sequence": last_seq
+                                        })
+                                    } else {
+                                        serde_json::json!({})
+                                    };
+                                    let request = serde_json::json!({
+                                        "version": "1.0",
+                                        "type": "Request",
+                                        "id": 0,
+                                        "action": "v1/subscribe",
+                                        "body": serde_json::to_string(&sub_req).unwrap()
+                                    });
+                                    if let Ok(mut wire_str) = serde_json::to_string(&request) {
+                                        wire_str.push('\n');
+                                        let _ = w_ref.write_all(wire_str.as_bytes()).await;
+                                        let _ = w_ref.flush().await;
+                                    }
+                                }
                             }
                         }
                         Err(e) => {
@@ -560,6 +718,35 @@ impl ClientRuntime {
                                     } else {
                                         let _ = w_ref.flush().await;
                                         self.pending_replay_tx = Some(tx);
+                                    }
+                                } else {
+                                    let _ = tx.send(Err(BrainSdkError::SendError("Serialization failed".to_string())));
+                                }
+                            } else {
+                                let _ = tx.send(Err(BrainSdkError::ConnectionFailed("Not connected".to_string())));
+                            }
+                        }
+                        Some(ClientCommand::Rpc { action, body, tx }) => {
+                            if let Some(w_ref) = write_half.as_mut() {
+                                self.request_id_counter += 1;
+                                let req_id = self.request_id_counter;
+                                let request = serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Request",
+                                    "id": req_id,
+                                    "action": action,
+                                    "body": body
+                                });
+                                if let Ok(mut wire_str) = serde_json::to_string(&request) {
+                                    wire_str.push('\n');
+                                    if let Err(e) = w_ref.write_all(wire_str.as_bytes()).await {
+                                        let _ = tx.send(Err(BrainSdkError::ConnectionFailed(e.to_string())));
+                                        write_half = None;
+                                        buf_reader = None;
+                                        self.handle_disconnect();
+                                    } else {
+                                        let _ = w_ref.flush().await;
+                                        self.pending_requests.insert(req_id, tx);
                                     }
                                 } else {
                                     let _ = tx.send(Err(BrainSdkError::SendError("Serialization failed".to_string())));
@@ -679,6 +866,39 @@ impl ClientRuntime {
                             if !resp_str.is_empty() {
                                 if let Ok(resp_json) = serde_json::from_str::<serde_json::Value>(resp_str) {
                                     println!("[SDK UDS] Parsed JSON: {:?}", resp_json);
+
+                                    if resp_json.get("type").and_then(|t| t.as_str()).is_some_and(|t| t == "Event") {
+                                        let payload = resp_json.get("payload").cloned().unwrap_or(serde_json::Value::Null);
+                                        if let Ok(msg) = serde_json::from_value::<v1::StreamMessage>(payload) {
+                                            if let v1::StreamMessage::Event { sequence, .. } = &msg {
+                                                self.last_sequence_received.store(*sequence, std::sync::atomic::Ordering::Relaxed);
+                                            }
+                                            let mut subs = self.subscribers.lock().unwrap();
+                                            subs.retain(|sub| {
+                                                sub.send(msg.clone()).is_ok()
+                                            });
+                                        }
+                                        line.clear();
+                                        continue;
+                                    }
+
+                                    if let Some(req_id) = resp_json.get("id").and_then(|id| id.as_u64()) {
+                                        if let Some(tx) = self.pending_requests.remove(&req_id) {
+                                            let is_error = resp_json.get("type").and_then(|t| t.as_str()).is_some_and(|t| t == "Error")
+                                                || resp_json.get("status").and_then(|s| s.as_str()).is_some_and(|s| s == "error");
+                                            let body_str = resp_json.get("body")
+                                                .and_then(|b| b.as_str())
+                                                .unwrap_or("");
+                                            if is_error {
+                                                let _ = tx.send(Err(BrainSdkError::DaemonError(body_str.to_string())));
+                                            } else {
+                                                let _ = tx.send(Ok(body_str.to_string()));
+                                            }
+                                            line.clear();
+                                            continue;
+                                        }
+                                    }
+
                                     let body_str = resp_json.get("body")
                                         .and_then(|b| b.as_str())
                                         .or_else(|| resp_json.get("message").and_then(|m| m.as_str()));

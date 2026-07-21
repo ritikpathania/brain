@@ -70,7 +70,7 @@ async fn test_notification_broadcast() {
     );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
     let reducer = SessionProjectionReducer::new(session_proj_repo);
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     // Publish a SessionCreated event
     let session_id = SessionId::new();
@@ -108,7 +108,7 @@ async fn test_coalesced_invalidation_and_deduplication() {
     );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     // Create counting wrapper
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();

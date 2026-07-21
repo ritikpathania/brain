@@ -1,7 +1,8 @@
 use crate::schema::{
     BrainSettings, DatabaseSettings, EmbeddingProvider, LlmProvider, Merge, ModelSettings,
     PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialRetrievalSettings,
-    PartialSessionSettings, RankingPolicy, RetrievalSettings, SessionSettings,
+    PartialSessionSettings, RankingPolicy, RetrievalSettings, SessionSettings, PartialTemporalRankingSettings,
+    PartialReflectionSettings, ReflectionSettings,
 };
 use brain_core::BrainError;
 use std::convert::TryFrom;
@@ -39,6 +40,17 @@ impl ConfigSource for DefaultsSource {
             retrieval: Some(PartialRetrievalSettings {
                 ranking_policy: Some(RankingPolicy::DefaultRrf),
                 model_path: None,
+                temporal_ranking: Some(PartialTemporalRankingSettings {
+                    enabled: Some(false),
+                    model: Some(brain_core::retrieval::DecayModel::Uniform),
+                    half_life_seconds: Some(86400),
+                    scaling_factor: Some(1.0),
+                }),
+            }),
+            reflection: Some(PartialReflectionSettings {
+                duplicate_confidence_threshold: Some(0.92),
+                link_suggestion_confidence_threshold: Some(0.85),
+                auto_approve_merges: Some(false),
             }),
         })
     }
@@ -159,6 +171,27 @@ impl ConfigSource for EnvironmentSource {
                     s.sessions = Some(ss);
                 }
             }),
+            ("BRAIN_REFLECTION_DUPLICATE_THRESHOLD", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.duplicate_confidence_threshold = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_LINK_THRESHOLD", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.link_suggestion_confidence_threshold = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_AUTO_APPROVE", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.auto_approve_merges = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
         ];
 
         for &(key, apply_fn) in mappings {
@@ -259,6 +292,13 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
         let ret = partial.retrieval.ok_or_else(|| BrainError::Configuration {
             message: "retrieval section is missing".to_string(),
         })?;
+        let temp_opt = ret.temporal_ranking.unwrap_or_default();
+        let temporal_ranking = brain_core::retrieval::TemporalRankingSettings {
+            enabled: temp_opt.enabled.unwrap_or(false),
+            model: temp_opt.model.unwrap_or(brain_core::retrieval::DecayModel::Uniform),
+            half_life_seconds: temp_opt.half_life_seconds.unwrap_or(86400),
+            scaling_factor: temp_opt.scaling_factor.unwrap_or(1.0),
+        };
         let retrieval = RetrievalSettings {
             ranking_policy: ret
                 .ranking_policy
@@ -266,6 +306,14 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
                     message: "retrieval.ranking_policy is missing".to_string(),
                 })?,
             model_path: ret.model_path,
+            temporal_ranking,
+        };
+
+        let ref_partial = partial.reflection.unwrap_or_default();
+        let reflection = ReflectionSettings {
+            duplicate_confidence_threshold: ref_partial.duplicate_confidence_threshold.unwrap_or(0.92),
+            link_suggestion_confidence_threshold: ref_partial.link_suggestion_confidence_threshold.unwrap_or(0.85),
+            auto_approve_merges: ref_partial.auto_approve_merges.unwrap_or(false),
         };
 
         Ok(BrainSettings {
@@ -274,6 +322,7 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
             models,
             sessions,
             retrieval,
+            reflection,
             plugins_directory,
         })
     }

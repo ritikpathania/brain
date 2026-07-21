@@ -238,7 +238,9 @@ fn test_validation_semantic_rules() {
         retrieval: Some(PartialRetrievalSettings {
             ranking_policy: Some(RankingPolicy::DefaultRrf),
             model_path: None,
+            temporal_ranking: None,
         }),
+        reflection: None,
     };
 
     let settings = BrainSettings::try_from(bad_db).unwrap();
@@ -267,7 +269,9 @@ fn test_validation_semantic_rules() {
         retrieval: Some(PartialRetrievalSettings {
             ranking_policy: Some(RankingPolicy::DefaultRrf),
             model_path: None,
+            temporal_ranking: None,
         }),
+        reflection: None,
     };
 
     let settings = BrainSettings::try_from(bad_ttl).unwrap();

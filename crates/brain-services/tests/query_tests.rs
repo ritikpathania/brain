@@ -174,7 +174,7 @@ fn test_session_query_service() {
 fn test_search_query_service() {
     let test_storage = TestStorage::new();
     let pool = test_storage.store().pool().clone();
-    let search_repo = Arc::new(SqliteSearchRepository::new(pool));
+    let search_repo = Arc::new(SqliteSearchRepository::new(pool.clone()));
     let service = SqliteSearchQueryService::new(search_repo.clone());
 
     let doc_id = SearchDocumentId::new("session:1".to_string());
@@ -219,7 +219,7 @@ fn test_cross_projection_consistency() {
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
 
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
-    let search_repo = Arc::new(SqliteSearchRepository::new(pool));
+    let search_repo = Arc::new(SqliteSearchRepository::new(pool.clone()));
 
     let runner = ProjectionRunner::new(
         event_log.clone(),
@@ -230,8 +230,8 @@ fn test_cross_projection_consistency() {
     let session_reducer = SessionProjectionReducer::new(session_proj_repo.clone());
     let search_reducer = SearchProjectionReducer::new(search_repo.clone());
 
-    runner.register(Box::new(session_reducer)).unwrap();
-    runner.register(Box::new(search_reducer)).unwrap();
+    runner.register(Arc::new(session_reducer)).unwrap();
+    runner.register(Arc::new(search_reducer)).unwrap();
 
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
     let session_query_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);

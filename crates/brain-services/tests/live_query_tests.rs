@@ -66,7 +66,7 @@ async fn test_live_subscription_stream_and_fan_out() {
     );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
@@ -147,7 +147,7 @@ async fn test_deregistration_on_drop_cancellation() {
     );
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     let session_repo: Arc<dyn SessionRepository> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);

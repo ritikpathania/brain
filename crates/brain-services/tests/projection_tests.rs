@@ -35,7 +35,11 @@ impl StateReducer for TestReducer {
         self.id
     }
 
-    fn reduce(&mut self, envelope: &EventEnvelope) -> Result<(), BrainError> {
+    fn version(&self) -> u32 {
+        1
+    }
+
+    fn reduce(&self, _conn: &rusqlite::Connection, envelope: &EventEnvelope) -> Result<(), BrainError> {
         let seq = envelope.sequence.unwrap();
         if let Some(fail_seq) = *self.fail_on_seq.lock() {
             if seq == fail_seq {
@@ -49,7 +53,7 @@ impl StateReducer for TestReducer {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), BrainError> {
+    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
         *self.reset_called.lock() = true;
         self.processed.lock().clear();
         Ok(())
@@ -77,11 +81,11 @@ fn test_duplicate_registration_rejection() {
         Arc::new(ProjectionNotificationBus::new()),
     );
 
-    let reducer1 = Box::new(TestReducer::new(ProjectionId::TestA));
-    let reducer2 = Box::new(TestReducer::new(ProjectionId::TestA));
+    let reducer1 = Arc::new(TestReducer::new(ProjectionId::TestA));
+    let reducer2 = Arc::new(TestReducer::new(ProjectionId::TestA));
 
-    assert!(runner.register(reducer1).is_ok());
-    assert!(runner.register(reducer2).is_err());
+    assert!(runner.register(reducer1.clone()).is_ok());
+    assert!(runner.register(reducer2.clone()).is_err());
 }
 
 #[test]
@@ -99,7 +103,7 @@ fn test_idempotency_and_catch_up() {
 
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     // 1. Append 3 events
     event_log.append(&create_envelope("test", 1)).unwrap();
@@ -132,7 +136,7 @@ fn test_reducer_failure_resumption() {
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
     let fail_on_seq = reducer.fail_on_seq.clone();
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     // Append 3 events
     event_log.append(&create_envelope("test", 1)).unwrap();
@@ -177,8 +181,8 @@ fn test_independent_checkpoints() {
     let reducer_b = TestReducer::new(ProjectionId::TestB);
     let fail_on_seq_b = reducer_b.fail_on_seq.clone();
 
-    runner.register(Box::new(reducer_a)).unwrap();
-    runner.register(Box::new(reducer_b)).unwrap();
+    runner.register(Arc::new(reducer_a)).unwrap();
+    runner.register(Arc::new(reducer_b)).unwrap();
 
     // Append 3 events
     event_log.append(&create_envelope("test", 1)).unwrap();
@@ -213,7 +217,7 @@ fn test_deterministic_rebuild() {
     let reducer = TestReducer::new(ProjectionId::TestA);
     let processed = reducer.processed.clone();
     let reset_called = reducer.reset_called.clone();
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     // Append 10 events
     for i in 1..=10 {
@@ -246,7 +250,7 @@ fn test_empty_log_rebuild() {
     );
 
     let reducer = TestReducer::new(ProjectionId::TestA);
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     assert!(runner.rebuild_projection(ProjectionId::TestA).is_ok());
     assert_eq!(checkpoint_repo.get_checkpoint("test_a").unwrap(), 0);
@@ -267,9 +271,9 @@ fn test_job_projection_parity_rebuild_and_interruption() {
         Arc::new(ProjectionNotificationBus::new()),
     );
 
-    let job_repo = Arc::new(SqliteJobReadModelRepository::new(pool));
+    let job_repo = Arc::new(SqliteJobReadModelRepository::new(pool.clone()));
     let reducer = JobProjectionReducer::new(job_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     let job_id = brain_domain::jobs::JobId(Uuid::new_v4());
 
@@ -347,9 +351,10 @@ fn test_job_projection_parity_rebuild_and_interruption() {
     let raw_events = event_log.read_from(1, 10).unwrap();
     assert_eq!(raw_events.len(), 4);
 
-    let mut reducer = JobProjectionReducer::new(job_repo.clone());
-    reducer.reduce(&raw_events[0]).unwrap();
-    reducer.reduce(&raw_events[1]).unwrap();
+    let conn = pool.get().unwrap();
+    let reducer = JobProjectionReducer::new(job_repo.clone());
+    reducer.reduce(&conn, &raw_events[0]).unwrap();
+    reducer.reduce(&conn, &raw_events[1]).unwrap();
     checkpoint_repo.save_checkpoint("jobs", 2).unwrap(); // Checkpoint is at 2
 
     let intermediate_model = job_repo.find_by_id(&job_id.0).unwrap().unwrap();
@@ -377,9 +382,9 @@ fn test_session_projection_parity_rebuild_and_interruption() {
         Arc::new(ProjectionNotificationBus::new()),
     );
 
-    let session_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
+    let session_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
     let reducer = SessionProjectionReducer::new(session_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     let session_id = brain_domain::SessionId::new();
 
@@ -447,9 +452,10 @@ fn test_session_projection_parity_rebuild_and_interruption() {
     let raw_events = event_log.read_from(1, 10).unwrap();
     assert_eq!(raw_events.len(), 4);
 
-    let mut reducer = SessionProjectionReducer::new(session_repo.clone());
-    reducer.reduce(&raw_events[0]).unwrap();
-    reducer.reduce(&raw_events[1]).unwrap();
+    let conn = pool.get().unwrap();
+    let reducer = SessionProjectionReducer::new(session_repo.clone());
+    reducer.reduce(&conn, &raw_events[0]).unwrap();
+    reducer.reduce(&conn, &raw_events[1]).unwrap();
     checkpoint_repo.save_checkpoint("sessions", 2).unwrap();
 
     let intermediate_model = session_repo.find_by_id(&session_id).unwrap().unwrap();
@@ -502,7 +508,7 @@ fn test_search_projection() {
     let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
     let event_log = Arc::new(SystemEventLog::new(raw_log));
     let checkpoint_repo = Arc::new(SqliteProjectionCheckpointRepository::new(pool.clone()));
-    let search_repo = Arc::new(SqliteSearchRepository::new(pool));
+    let search_repo = Arc::new(SqliteSearchRepository::new(pool.clone()));
 
     let runner = ProjectionRunner::new(
         event_log.clone(),
@@ -510,7 +516,7 @@ fn test_search_projection() {
         Arc::new(ProjectionNotificationBus::new()),
     );
     let reducer = SearchProjectionReducer::new(search_repo.clone());
-    runner.register(Box::new(reducer)).unwrap();
+    runner.register(Arc::new(reducer)).unwrap();
 
     let session_id = brain_domain::SessionId::new();
     let title = brain_domain::SessionTitle("Initial Session Title".to_string());
@@ -609,9 +615,10 @@ fn test_search_projection() {
 
     // Invariant: Idempotency (reducing same event doesn't duplicate)
     let raw_events = event_log.read_from(1, 10).unwrap();
-    let mut manual_reducer = SearchProjectionReducer::new(search_repo.clone());
+    let conn = pool.get().unwrap();
+    let manual_reducer = SearchProjectionReducer::new(search_repo.clone());
     // Re-apply Seq 4
-    manual_reducer.reduce(&raw_events[3]).unwrap();
+    manual_reducer.reduce(&conn, &raw_events[3]).unwrap();
     let res2_idempotent = search_repo.search(&q2).unwrap();
     assert_eq!(res2_idempotent.len(), 1);
 

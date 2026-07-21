@@ -38,6 +38,21 @@ enum Commands {
     Ping,
     /// Display system and event versioning info
     Version,
+    /// Get daemon status DTO
+    Status,
+    /// Get daemon metrics DTO
+    Metrics,
+    /// Get daemon diagnostics DTO
+    Diagnostics,
+    /// Get daemon capabilities DTO
+    Capabilities,
+    /// Execute a search query on the daemon
+    Search {
+        /// The query text
+        query: String,
+    },
+    /// Trigger manual reflection consolidation cycle
+    Reflect,
 }
 
 #[derive(Subcommand)]
@@ -198,6 +213,125 @@ async fn main() {
             println!("SDK version: 0.1.0");
             println!("Event Model version: 1.0");
             println!("Supported serializations: json");
+        }
+        Commands::Status => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match client.status().await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
+        }
+        Commands::Metrics => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match client.metrics().await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
+        }
+        Commands::Diagnostics => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match client.diagnostics().await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
+        }
+        Commands::Capabilities => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match client.capabilities().await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
+        }
+        Commands::Search { query } => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            let search_query = brain_integrations::dto::v1::SearchQuery {
+                text: query,
+                kinds: None,
+                pagination: None,
+            };
+            match client.search(search_query).await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
+        }
+        Commands::Reflect => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match client.reflect().await {
+                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
+                Err(e) => eprintln!("Error: {:?}", e),
+            }
+            client.shutdown().await;
         }
         Commands::Replay { after } => {
             let client = match BrainClient::connect(config).await {

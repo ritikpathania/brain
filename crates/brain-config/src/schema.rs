@@ -203,14 +203,21 @@ pub struct RetrievalSettings {
     pub(crate) ranking_policy: RankingPolicy,
     /// Path to the serialized model file.
     pub(crate) model_path: Option<String>,
+    /// Settings for temporal reranking.
+    pub(crate) temporal_ranking: brain_core::retrieval::TemporalRankingSettings,
 }
 
 impl RetrievalSettings {
     /// Creates a new RetrievalSettings.
-    pub fn new(ranking_policy: RankingPolicy, model_path: Option<String>) -> Self {
+    pub fn new(
+        ranking_policy: RankingPolicy,
+        model_path: Option<String>,
+        temporal_ranking: brain_core::retrieval::TemporalRankingSettings,
+    ) -> Self {
         Self {
             ranking_policy,
             model_path,
+            temporal_ranking,
         }
     }
 
@@ -223,15 +230,52 @@ impl RetrievalSettings {
     pub fn model_path(&self) -> Option<&str> {
         self.model_path.as_deref()
     }
+
+    /// Returns the active temporal ranking settings.
+    pub fn temporal_ranking(&self) -> &brain_core::retrieval::TemporalRankingSettings {
+        &self.temporal_ranking
+    }
+}
+
+/// Partial settings for temporal ranking.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct PartialTemporalRankingSettings {
+    /// Flag indicating if temporal reranking is active.
+    pub enabled: Option<bool>,
+    /// The decay model function to apply.
+    pub model: Option<brain_core::retrieval::DecayModel>,
+    /// Parameter half-life duration in seconds.
+    pub half_life_seconds: Option<u64>,
+    /// General scaling factor applied to decay scores.
+    pub scaling_factor: Option<f64>,
+}
+
+impl Merge for PartialTemporalRankingSettings {
+    fn merge(&mut self, other: Self) {
+        if let Some(enabled) = other.enabled {
+            self.enabled = Some(enabled);
+        }
+        if let Some(model) = other.model {
+            self.model = Some(model);
+        }
+        if let Some(half_life) = other.half_life_seconds {
+            self.half_life_seconds = Some(half_life);
+        }
+        if let Some(scaling_factor) = other.scaling_factor {
+            self.scaling_factor = Some(scaling_factor);
+        }
+    }
 }
 
 /// Partial retrieval settings.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PartialRetrievalSettings {
     /// Optional ranking policy.
     pub ranking_policy: Option<RankingPolicy>,
     /// Optional model path.
     pub model_path: Option<String>,
+    /// Optional settings for temporal ranking.
+    pub temporal_ranking: Option<PartialTemporalRankingSettings>,
 }
 
 impl Merge for PartialRetrievalSettings {
@@ -241,6 +285,11 @@ impl Merge for PartialRetrievalSettings {
         }
         if let Some(path) = other.model_path {
             self.model_path = Some(path);
+        }
+        if let Some(other_temporal) = other.temporal_ranking {
+            let mut temp = self.temporal_ranking.take().unwrap_or_default();
+            temp.merge(other_temporal);
+            self.temporal_ranking = Some(temp);
         }
     }
 }
@@ -258,6 +307,8 @@ pub struct BrainSettings {
     pub(crate) sessions: SessionSettings,
     /// Nested retrieval settings.
     pub(crate) retrieval: RetrievalSettings,
+    /// Nested reflection settings.
+    pub(crate) reflection: ReflectionSettings,
     /// Plugins installation directory path.
     pub(crate) plugins_directory: String,
 }
@@ -288,6 +339,11 @@ impl BrainSettings {
         &self.retrieval
     }
 
+    /// Returns the nested reflection settings.
+    pub fn reflection(&self) -> &ReflectionSettings {
+        &self.reflection
+    }
+
     /// Returns the plugins installation directory path.
     pub fn plugins_directory(&self) -> &str {
         &self.plugins_directory
@@ -301,7 +357,7 @@ impl BrainSettings {
 }
 
 /// Partial root settings where all nested modules and fields are optional.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct PartialBrainSettings {
     /// Optional schema format version.
     pub version: Option<u32>,
@@ -313,6 +369,8 @@ pub struct PartialBrainSettings {
     pub sessions: Option<PartialSessionSettings>,
     /// Optional retrieval settings block.
     pub retrieval: Option<PartialRetrievalSettings>,
+    /// Optional reflection settings block.
+    pub reflection: Option<PartialReflectionSettings>,
     /// Optional plugins directory path.
     pub plugins_directory: Option<String>,
 }
@@ -352,6 +410,66 @@ impl Merge for PartialBrainSettings {
             let mut retrieval = self.retrieval.take().unwrap_or_default();
             retrieval.merge(other_retrieval);
             self.retrieval = Some(retrieval);
+        }
+
+        // Merge reflection
+        if let Some(other_reflection) = other.reflection {
+            let mut reflection = self.reflection.take().unwrap_or_default();
+            reflection.merge(other_reflection);
+            self.reflection = Some(reflection);
+        }
+    }
+}
+
+/// Reflection settings configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReflectionSettings {
+    /// Threshold confidence score for merging duplicate concept nodes.
+    pub(crate) duplicate_confidence_threshold: f64,
+    /// Threshold confidence score for suggesting inferred transitive links.
+    pub(crate) link_suggestion_confidence_threshold: f64,
+    /// Enable auto-approval and automatic execution of reflection merge commands.
+    pub(crate) auto_approve_merges: bool,
+}
+
+impl ReflectionSettings {
+    /// Returns the duplicate merge confidence threshold.
+    pub fn duplicate_confidence_threshold(&self) -> f64 {
+        self.duplicate_confidence_threshold
+    }
+
+    /// Returns the link suggestion confidence threshold.
+    pub fn link_suggestion_confidence_threshold(&self) -> f64 {
+        self.link_suggestion_confidence_threshold
+    }
+
+    /// Returns whether auto-approve merges is enabled.
+    pub fn auto_approve_merges(&self) -> bool {
+        self.auto_approve_merges
+    }
+}
+
+/// Partial reflection settings where all fields are optional.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct PartialReflectionSettings {
+    /// Optional duplicate merge confidence threshold.
+    pub duplicate_confidence_threshold: Option<f64>,
+    /// Optional link suggestion confidence threshold.
+    pub link_suggestion_confidence_threshold: Option<f64>,
+    /// Optional auto-approve merges toggle.
+    pub auto_approve_merges: Option<bool>,
+}
+
+impl Merge for PartialReflectionSettings {
+    fn merge(&mut self, other: Self) {
+        if let Some(t) = other.duplicate_confidence_threshold {
+            self.duplicate_confidence_threshold = Some(t);
+        }
+        if let Some(t) = other.link_suggestion_confidence_threshold {
+            self.link_suggestion_confidence_threshold = Some(t);
+        }
+        if let Some(a) = other.auto_approve_merges {
+            self.auto_approve_merges = Some(a);
         }
     }
 }

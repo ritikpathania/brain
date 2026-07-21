@@ -1,35 +1,15 @@
 use crate::context::ExecutionContext;
 use crate::dto::v1;
+use crate::dto::v1::{ControlMessage, StreamMessage};
 use crate::errors::ApplicationError;
+use crate::subscription::{EventStream, SubscriptionManager};
 use brain_core::events::{
     ProjectionInstanceInvalidatedEvent, RuntimeEvent, RuntimeRelationshipEvent, TaskProgress,
 };
-use brain_core::evolution::{Observation, Provenance};
 use brain_integrations::IngestionEnvelope;
 use brain_services::BrainRuntime;
 use std::sync::Arc;
 use std::time::SystemTime;
-
-/// Translates transport ingestion envelope structures to internal domain observations.
-pub struct ObservationTranslator;
-
-impl ObservationTranslator {
-    /// Translates an `IngestionEnvelope` DTO into the internal `Observation` entity model.
-    pub fn translate(envelope: IngestionEnvelope) -> Result<Observation, serde_json::Error> {
-        let payload = serde_json::to_vec(&envelope.event)?;
-        let media_type = "application/json".to_string();
-        let provenance = Provenance {
-            source_adapter: envelope.identity.adapter_id.to_string(),
-            timestamp: SystemTime::from(envelope.identity.timestamp),
-            correlation_id: envelope.identity.event_id.0,
-        };
-        Ok(Observation {
-            payload,
-            media_type,
-            provenance,
-        })
-    }
-}
 
 /// Translates dynamic, extensible runtime events into stable serializable DTOs.
 pub struct EventTranslator;
@@ -67,11 +47,26 @@ impl EventTranslator {
             }
         }
     }
+
+    /// Translates a persisted event envelope from the event log to a versioned Event DTO.
+    pub fn translate_envelope(envelope: &brain_events::EventEnvelope) -> v1::Event {
+        match &envelope.payload {
+            brain_events::DomainEvent::Core(core_ev) => v1::Event::RelationshipEvent {
+                event_name: format!("{:?}", core_ev),
+                epoch: 0,
+                correlation_id: envelope.correlation_id.to_string(),
+            },
+            _ => v1::Event::Unknown {
+                debug_repr: format!("{:?}", envelope.payload),
+            },
+        }
+    }
 }
 
 /// Capability-oriented orchestrator presenting the unified public API of the Brain engine.
 pub struct BrainApplication {
     runtime: Arc<BrainRuntime>,
+    subscription_manager: Arc<SubscriptionManager>,
 }
 
 impl BrainApplication {
@@ -80,7 +75,29 @@ impl BrainApplication {
 
     /// Create a new BrainApplication wrapping the services composition root runtime.
     pub fn new(runtime: Arc<BrainRuntime>) -> Self {
-        Self { runtime }
+        let max_seq = if let Ok(conn) = runtime.sqlite_storage().pool().get() {
+            conn.query_row("SELECT MAX(sequence) FROM system_event_log", [], |row| {
+                row.get::<_, Option<i64>>(0)
+            })
+            .unwrap_or(None)
+            .unwrap_or(0) as u64
+        } else {
+            0
+        };
+
+        let subscription_manager = Arc::new(SubscriptionManager::new(max_seq));
+        let sub_manager_clone = Arc::clone(&subscription_manager);
+        let mut runtime_rx = runtime.subscribe();
+        tokio::spawn(async move {
+            while let Some(event) = runtime_rx.recv().await {
+                let dto = EventTranslator::translate(event);
+                sub_manager_clone.broadcast(dto);
+            }
+        });
+        Self {
+            runtime,
+            subscription_manager,
+        }
     }
 
     /// Ingestion capability coordinates event validation and processing.
@@ -104,24 +121,39 @@ impl BrainApplication {
 
         context.emit_progress(2, Some(3), "Ingesting event payload into storage");
 
-        let obs = ObservationTranslator::translate(envelope)
-            .map_err(|e| ApplicationError::Validation(format!("Invalid envelope: {}", e)))?;
-
         // Dispatch ingestion via BrainRuntime
-        self.runtime.ingest(obs)?;
+        let res = self.runtime.ingest(envelope)?;
 
         context.emit_progress(3, Some(3), "Ingestion completed successfully");
 
         Ok(IngestionResponse {
             status: "success".to_string(),
             processed: true,
+            sequence: Some(res.sequence),
+            event_id: Some(res.event_id.to_string()),
         })
+    }
+
+    /// Replay historical ingestion events after a sequence number.
+    pub async fn replay(
+        &self,
+        after_sequence: u64,
+    ) -> Result<Vec<IngestionEnvelope>, ApplicationError> {
+        Ok(self.runtime.replay(after_sequence)?)
+    }
+
+    /// Inspect a node and retrieve its full relation context.
+    pub async fn inspect_node(
+        &self,
+        id_str: &str,
+    ) -> Result<brain_domain::query::inspector::InspectorModel, ApplicationError> {
+        Ok(self.runtime.inspect_node(id_str)?)
     }
 
     /// Search capability dispatches search queries to retrieval services.
     pub async fn search(
         &self,
-        query: brain_services::query::SearchQuery,
+        query: v1::SearchQuery,
         context: &ExecutionContext,
     ) -> Result<Vec<v1::SearchSummary>, ApplicationError> {
         if context.is_cancelled() {
@@ -130,8 +162,33 @@ impl BrainApplication {
 
         context.emit_progress(1, Some(2), "Preparing search terms");
 
+        let mapped_kinds: Option<Vec<brain_domain::SearchDocumentKind>> = query.kinds.map(|kinds| {
+            kinds
+                .into_iter()
+                .filter_map(|k| match k.as_str() {
+                    "session" => Some(brain_domain::SearchDocumentKind::Session),
+                    "message" => Some(brain_domain::SearchDocumentKind::Message),
+                    "goal" => Some(brain_domain::SearchDocumentKind::Goal),
+                    "job" => Some(brain_domain::SearchDocumentKind::Job),
+                    "retrieval" => Some(brain_domain::SearchDocumentKind::Retrieval),
+                    _ => None,
+                })
+                .collect()
+        });
+
+        let mapped_pagination = query.pagination.map(|p| brain_services::query::PaginationSpec {
+            limit: p.limit,
+            offset: p.offset,
+        });
+
+        let service_query = brain_services::query::SearchQuery {
+            text: query.text,
+            kinds: mapped_kinds,
+            pagination: mapped_pagination,
+        };
+
         // Execute search on runtime returning SearchDocument
-        let results = self.runtime.search(query)?;
+        let results = self.runtime.search(service_query)?;
 
         context.emit_progress(2, Some(2), "Search query completed");
 
@@ -170,20 +227,102 @@ impl BrainApplication {
     }
 
     /// Subscribes to the runtime event stream, yielding mapped, stable DTO events.
-    pub fn subscribe(&self) -> tokio::sync::mpsc::Receiver<v1::Event> {
-        let mut rx = self.runtime.subscribe();
-        let (tx, client_rx) = tokio::sync::mpsc::channel(100);
+    pub fn subscribe(&self, after_sequence: Option<u64>) -> EventStream {
+        let (tx, rx) = tokio::sync::mpsc::channel(1000);
+        let subscription_manager = Arc::clone(&self.subscription_manager);
+        let runtime = Arc::clone(&self.runtime);
 
         tokio::spawn(async move {
-            while let Some(event) = rx.recv().await {
-                let dto = EventTranslator::translate(event);
-                if tx.send(dto).await.is_err() {
-                    break;
+            if let Some(start_seq) = after_sequence {
+                let db_log =
+                    brain_storage::SqliteEventLog::new(runtime.sqlite_storage().pool().clone());
+
+                let max_seq = if let Ok(conn) = runtime.sqlite_storage().pool().get() {
+                    conn.query_row("SELECT MAX(sequence) FROM system_event_log", [], |row| {
+                        row.get::<_, Option<i64>>(0)
+                    })
+                    .unwrap_or(None)
+                    .unwrap_or(0) as u64
+                } else {
+                    0
+                };
+
+                let mut actual_start = start_seq;
+                const MAX_REPLAY: u64 = 10000;
+
+                if max_seq > start_seq && (max_seq - start_seq) > MAX_REPLAY {
+                    actual_start = max_seq - MAX_REPLAY;
+                    let _ = tx
+                        .send(StreamMessage::Control {
+                            payload: ControlMessage::ReplayTruncated {
+                                requested_start: start_seq,
+                                replayed_start: actual_start,
+                            },
+                        })
+                        .await;
+                }
+
+                let mut current_seq = actual_start;
+                loop {
+                    match db_log.read_from(current_seq, 500) {
+                        Ok(stored_events) => {
+                            if stored_events.is_empty() {
+                                break;
+                            }
+                            for event in stored_events {
+                                if let Ok(domain_event) =
+                                    serde_json::from_str::<brain_events::DomainEvent>(
+                                        &event.payload_json,
+                                    )
+                                {
+                                    let envelope = brain_events::EventEnvelope {
+                                        sequence: Some(event.sequence),
+                                        event_id: event.event_id,
+                                        correlation_id: event.correlation_id,
+                                        timestamp_ms: event.timestamp_ms,
+                                        version: event.version,
+                                        source: event.source,
+                                        payload: domain_event,
+                                    };
+                                    let dto = EventTranslator::translate_envelope(&envelope);
+                                    if tx
+                                        .send(StreamMessage::Event {
+                                            sequence: event.sequence,
+                                            event: dto,
+                                        })
+                                        .await
+                                        .is_err()
+                                    {
+                                        return;
+                                    }
+                                }
+                                current_seq = event.sequence + 1;
+                            }
+                        }
+                        Err(_) => break,
+                    }
                 }
             }
+
+            if tx
+                .send(StreamMessage::Control {
+                    payload: ControlMessage::CatchUpCompleted,
+                })
+                .await
+                .is_err()
+            {
+                return;
+            }
+
+            subscription_manager.register(tx);
         });
 
-        client_rx
+        EventStream::new(rx)
+    }
+
+    /// Returns a reference to the active `SubscriptionManager`.
+    pub fn subscription_manager(&self) -> &Arc<SubscriptionManager> {
+        &self.subscription_manager
     }
 
     /// Query the current status DTO of the runtime.
@@ -198,7 +337,7 @@ impl BrainApplication {
         v1::Status {
             uptime_secs: status.uptime.as_secs(),
             storage_backend: status.storage_backend,
-            active_event_subscribers: status.active_event_subscribers,
+            active_event_subscribers: self.subscription_manager.active_count(),
             health: health_str.to_string(),
         }
     }
@@ -309,6 +448,123 @@ impl BrainApplication {
 
         Ok("Administration action completed successfully".to_string())
     }
+
+    /// Retrieves status metadata for all registered projections.
+    pub async fn list_projections(&self) -> Result<Vec<v1::ProjectionStatus>, ApplicationError> {
+        let scheduler = self.runtime.projection_scheduler();
+        let metadata = scheduler.list_metadata().map_err(|e| {
+            ApplicationError::Internal(format!("Failed to list projections status: {:?}", e))
+        })?;
+
+        Ok(metadata
+            .into_iter()
+            .map(|m| {
+                let status_str = match m.status {
+                    brain_storage::ProjectionStatus::Idle => "idle",
+                    brain_storage::ProjectionStatus::Active => "active",
+                    brain_storage::ProjectionStatus::Rebuilding => "rebuilding",
+                    brain_storage::ProjectionStatus::Failed => "failed",
+                };
+                v1::ProjectionStatus {
+                    name: m.name,
+                    version: m.version,
+                    last_sequence: m.last_sequence,
+                    status: status_str.to_string(),
+                    last_error: m.last_error,
+                    updated_at: m.updated_at,
+                }
+            })
+            .collect())
+    }
+
+    /// Triggers manual rebuild of a specific projection.
+    pub async fn rebuild_projection(&self, name: &str) -> Result<(), ApplicationError> {
+        let scheduler = self.runtime.projection_scheduler();
+        let projection_id = match name {
+            "jobs" => brain_services::projections::ProjectionId::Jobs,
+            "sessions" => brain_services::projections::ProjectionId::Sessions,
+            "search" => brain_services::projections::ProjectionId::Search,
+            "retrieval" => brain_services::projections::ProjectionId::Retrieval,
+            "test_a" => brain_services::projections::ProjectionId::TestA,
+            "test_b" => brain_services::projections::ProjectionId::TestB,
+            "test_c" => brain_services::projections::ProjectionId::TestC,
+            _ => {
+                return Err(ApplicationError::Validation(format!(
+                    "Invalid projection type: {}",
+                    name
+                )))
+            }
+        };
+
+        scheduler
+            .rebuild_projection(projection_id)
+            .map_err(|e| {
+                ApplicationError::Internal(format!("Failed to rebuild projection {}: {:?}", name, e))
+            })?;
+
+        Ok(())
+    }
+
+    /// Trigger a manual reflection consolidation cycle on the active session.
+    pub async fn reflect(&self) -> Result<v1::ReflectionReport, ApplicationError> {
+        let context = brain_services::reflection::ReflectionContext {
+            execution_id: uuid::Uuid::new_v4(),
+            session_id: brain_domain::SessionId(ulid::Ulid::new()),
+            cutoff_epoch: u64::MAX,
+            max_nodes: 1000,
+            time_budget_ms: 30000,
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+        };
+
+        // 1. Run read-only reflection passes
+        let findings = self.runtime.reflection_engine().reflect(&context).map_err(|e| {
+            ApplicationError::Internal(format!("Reflection engine failed: {:?}", e))
+        })?;
+
+        // 2. Formulate decision plan via the planner
+        let config = self.runtime.config();
+        let planner = brain_services::reflection::ReflectionPlanner::with_thresholds(
+            config.reflection().duplicate_confidence_threshold(),
+            config.reflection().link_suggestion_confidence_threshold(),
+        );
+        let plan = planner.plan(findings);
+
+        // 3. Execute planned commands
+        let commands = plan.commands;
+        let mut events = Vec::new();
+
+        if !commands.is_empty() {
+            fn execute_commands(
+                tx: &dyn brain_core::repositories::StorageTransaction,
+                commands: &[brain_domain::ReflectionDomainCommand],
+                events: &mut Vec<brain_domain::ReflectionDomainEvent>,
+            ) -> Result<(), brain_core::errors::BrainError> {
+                let handler = brain_services::reflection::ReflectionCommandHandler::new();
+                for cmd in commands {
+                    let ev = handler.handle(tx, cmd.clone())?;
+                    events.push(ev);
+                }
+                Ok(())
+            }
+
+            let mut run_tx = |tx: &dyn brain_core::repositories::StorageTransaction| {
+                execute_commands(tx, &commands, &mut events)
+            };
+
+            self.runtime.storage_ref().run_transaction(&mut run_tx).map_err(|e| {
+                ApplicationError::Internal(format!("Failed to execute reflection write transaction: {:?}", e))
+            })?;
+        }
+
+        let commands_executed = events.len();
+        let details = events.into_iter().map(|ev| format!("{:?}", ev)).collect();
+
+        Ok(v1::ReflectionReport {
+            findings_processed: plan.findings_processed,
+            commands_executed,
+            details,
+        })
+    }
 }
 
 /// Normalized DTO wrapper for successful ingestion response.
@@ -318,4 +574,10 @@ pub struct IngestionResponse {
     pub status: String,
     /// Indicates whether event was successfully processed.
     pub processed: bool,
+    /// The chronological database sequence number.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<u64>,
+    /// The unique event ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub event_id: Option<String>,
 }
