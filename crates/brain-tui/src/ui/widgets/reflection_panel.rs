@@ -1,6 +1,6 @@
-//! Reflection Subsystem inspection and visualization widget.
-
-use brain_integrations::dto::v1::{ReflectionFindingDto, ReflectionReport, ReflectionStatusReport};
+use brain_integrations::dto::v1::{
+    ReflectionFindingDto, ReflectionReport, ReflectionStatusReport, SkippedFindingDto,
+};
 use crate::ui::theme::Theme;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -78,7 +78,7 @@ pub fn draw(
         (
             "Unknown".to_string(),
             Style::default().fg(Color::Gray),
-        );
+        )
     };
 
     let mut status_lines = vec![Line::from(vec![
