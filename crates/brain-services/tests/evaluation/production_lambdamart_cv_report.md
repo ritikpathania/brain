@@ -36,18 +36,18 @@
 | :--- | :--- | ---: | ---: | ---: | ---: |
 | **Composite** | Linear Baseline | 0.9372 | 0.0591 | 0.8393 | 1.0000 |
 | | Logistic Regression | 0.9051 | 0.0233 | 0.8929 | 0.9464 |
-| | LambdaMART | 0.8897 | 0.1031 | 0.7803 | 1.0000 |
+| | LambdaMART | 0.9228 | 0.1075 | 0.7801 | 1.0000 |
 | **nDCG@5** | Linear Baseline | 0.9268 | 0.0676 | 0.8155 | 1.0000 |
 | | Logistic Regression | 0.8899 | 0.0272 | 0.8770 | 0.9385 |
-| | LambdaMART | 0.8877 | 0.1055 | 0.7718 | 1.0000 |
+| | LambdaMART | 0.9210 | 0.1103 | 0.7718 | 1.0000 |
 | **MRR** | Linear Baseline | 0.9167 | 0.1021 | 0.7500 | 1.0000 |
 | | Logistic Regression | 0.8667 | 0.0456 | 0.8333 | 0.9167 |
-| | LambdaMART | 0.8852 | 0.1103 | 0.7526 | 1.0000 |
+| | LambdaMART | 0.9174 | 0.1169 | 0.7518 | 1.0000 |
 | **Recall@5** | Linear Baseline | 0.9889 | 0.0248 | 0.9444 | 1.0000 |
 | | Logistic Regression | 0.9889 | 0.0248 | 0.9444 | 1.0000 |
-| | LambdaMART | 0.9000 | 0.0913 | 0.8333 | 1.0000 |
+| | LambdaMART | 0.9333 | 0.0913 | 0.8333 | 1.0000 |
 
 ## Research Conclusion
 
 > [NOTE]
-> Under 5-Fold Cross-Validation, LambdaMART achieved a mean Composite score of **0.8897**, while the Linear Baseline maintained **0.9372** (Delta: **-0.0476**). This demonstrates that while LambdaMART learns complex local non-linear interactions, the linear model calibrated over multiple folds remains a very strong competitor for this corpus scale.
+> Under 5-Fold Cross-Validation, LambdaMART achieved a mean Composite score of **0.9228**, while the Linear Baseline maintained **0.9372** (Delta: **-0.0145**). This demonstrates that while LambdaMART learns complex local non-linear interactions, the linear model calibrated over multiple folds remains a very strong competitor for this corpus scale.

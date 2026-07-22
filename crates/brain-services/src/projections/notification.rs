@@ -21,6 +21,23 @@ pub enum ProjectionId {
     TestC,
 }
 
+impl std::str::FromStr for ProjectionId {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "jobs" | "Jobs" => Ok(Self::Jobs),
+            "sessions" | "Sessions" => Ok(Self::Sessions),
+            "search" | "Search" => Ok(Self::Search),
+            "retrieval" | "Retrieval" => Ok(Self::Retrieval),
+            "test_a" | "TestA" => Ok(Self::TestA),
+            "test_b" | "TestB" => Ok(Self::TestB),
+            "test_c" | "TestC" => Ok(Self::TestC),
+            _ => Err(format!("Unknown projection ID: {}", s)),
+        }
+    }
+}
+
 /// A lightweight, best-effort notification indicating that a projection has advanced.
 ///
 /// **Invariants & Safety Rules**:

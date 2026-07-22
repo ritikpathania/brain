@@ -211,13 +211,108 @@ pub struct ProjectionStatus {
     pub updated_at: u64,
 }
 
+/// Version 1 DTO for a detected reflection finding.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReflectionFindingDto {
+    /// Finding category ("duplicate", "contradiction", "link_suggestion").
+    pub kind: String,
+    /// Confidence score between 0.0 and 1.0.
+    pub confidence: f64,
+    /// Primary target node IDs involved in the finding.
+    pub target_ids: Vec<String>,
+    /// Narrative description of why the finding was raised.
+    pub details: String,
+}
+
+/// Version 1 DTO for a planner recommendation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReflectionRecommendationDto {
+    /// Originating pass ID ("duplicate_detection", "contradiction", "link_suggestion", "synthesis").
+    pub pass_id: String,
+    /// Finding category ("duplicate", "contradiction", "link_suggestion").
+    pub finding_kind: String,
+    /// Confidence score between 0.0 and 1.0.
+    pub confidence: f64,
+    /// Target node IDs involved.
+    pub target_ids: Vec<String>,
+    /// Narrative rationale explaining why the action is recommended.
+    pub rationale: String,
+    /// Summary description of the proposed command.
+    pub command: String,
+}
+
+/// Version 1 DTO for a skipped finding.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SkippedFindingDto {
+    /// Finding category.
+    pub finding_kind: String,
+    /// Confidence score.
+    pub confidence: f64,
+    /// Rationale why the finding was skipped (e.g. below confidence threshold).
+    pub reasoning: String,
+}
+
 /// Version 1 DTO for reflection execution results.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ReflectionReport {
+    /// Execution ID (UUID string).
+    pub execution_id: String,
+    /// Wall-clock timestamp of execution in milliseconds.
+    pub timestamp_ms: u64,
+    /// Total duration of the reflection run in milliseconds.
+    pub duration_ms: u64,
     /// Number of findings evaluated.
     pub findings_processed: usize,
     /// Number of commands successfully executed.
     pub commands_executed: usize,
-    /// Detailed log messages of operations performed.
+    /// Detected findings list.
+    pub findings: Vec<ReflectionFindingDto>,
+    /// Planned recommendations list.
+    pub recommendations: Vec<ReflectionRecommendationDto>,
+    /// Formatted log of executed commands.
+    pub executed_commands: Vec<String>,
+    /// List of skipped findings with reasons.
+    pub skipped_findings: Vec<SkippedFindingDto>,
+    /// Log messages of operations performed.
     pub details: Vec<String>,
+}
+
+/// Version 1 DTO for background reflection scheduler status.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectionStatusReport {
+    /// Whether the background reflection scheduler is enabled.
+    pub background_enabled: bool,
+    /// Interval in seconds between background reflection ticks.
+    pub interval_secs: u64,
+    /// Minimum new WAL events required before triggering a cycle.
+    pub min_events_trigger: u64,
+    /// Maximum concept nodes evaluated per reflection cycle.
+    pub max_nodes_per_cycle: usize,
+    /// Time budget in milliseconds per cycle.
+    pub cycle_time_budget_ms: u64,
+    /// Total reflection cycles executed.
+    pub reflections_executed: u64,
+    /// Total findings detected across cycles.
+    pub reflection_findings_count: u64,
+    /// Total commands executed across cycles.
+    pub reflection_commands_executed: u64,
+    /// Total findings skipped across cycles.
+    pub reflection_commands_skipped: u64,
+    /// Duration of the last reflection run in milliseconds.
+    pub last_reflection_duration_ms: Option<u64>,
+}
+
+/// Version 1 lightweight DTO for reflection status summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectionSummaryDto {
+    /// Timestamp of last execution in ms, if any.
+    pub last_execution_ms: Option<u64>,
+    /// Total findings detected.
+    pub total_findings: u64,
+    /// Total commands executed.
+    pub total_commands_executed: u64,
+    /// Duration of last reflection run in ms.
+    pub last_duration_ms: Option<u64>,
+    /// Scheduler status ("running", "idle", "disabled").
+    pub scheduler_state: String,
 }

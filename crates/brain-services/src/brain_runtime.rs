@@ -210,8 +210,9 @@ pub struct RuntimeStatus {
     pub health: RuntimeHealth,
 }
 
-#[derive(Debug)]
-pub(crate) struct InternalMetrics {
+/// Internal atomic performance and telemetry metrics.
+#[derive(Debug, Default)]
+pub struct InternalMetrics {
     pub(crate) observations_ingested: AtomicU64,
     pub(crate) canonicalization_successes: AtomicU64,
     pub(crate) canonicalization_failures: AtomicU64,
@@ -246,6 +247,7 @@ pub struct BrainRuntime {
     subscriber: Option<ObservabilitySubscriber>,
     reflection_engine: Arc<crate::reflection::ReflectionEngine>,
     reflection_scheduler: Arc<crate::reflection::BackgroundReflectionScheduler>,
+    runtime_orchestrator: Arc<crate::orchestrator::RuntimeOrchestrator>,
     config: brain_config::schema::BrainSettings,
 
     created_at: Instant,
@@ -460,9 +462,25 @@ impl BrainRuntime {
             Arc::clone(&metrics),
         ));
 
-        // Start background sequential processing
+        let maintenance_engine = Arc::new(crate::orchestrator::MaintenanceEngine::new(Arc::new(
+            sqlite_storage.pool().clone(),
+        )));
+        let subsystem_executor = Arc::new(crate::orchestrator::DefaultSubsystemExecutor::new(
+            Arc::clone(&projection_scheduler) as Arc<dyn ProjectionScheduler>,
+            Arc::clone(&reflection_scheduler),
+            maintenance_engine,
+        ));
+        let runtime_orchestrator =
+            Arc::new(crate::orchestrator::RuntimeOrchestrator::with_metrics(
+                subsystem_executor,
+                Arc::clone(&metrics),
+                256,
+            ));
+
+        // Start background sequential processing & orchestrator
         scheduler_runtime.start()?;
         let _ = reflection_scheduler.start();
+        let _ = runtime_orchestrator.start();
 
         health.store(RuntimeHealth::Healthy as u8, Ordering::Release);
 
@@ -476,6 +494,7 @@ impl BrainRuntime {
             subscriber: Some(subscriber),
             reflection_engine,
             reflection_scheduler,
+            runtime_orchestrator,
             config: brain_settings,
             created_at,
             health,
@@ -615,6 +634,11 @@ impl BrainRuntime {
     /// Returns a reference to the background reflection scheduler.
     pub fn reflection_scheduler(&self) -> Arc<crate::reflection::BackgroundReflectionScheduler> {
         Arc::clone(&self.reflection_scheduler)
+    }
+
+    /// Returns a reference to the background runtime orchestrator.
+    pub fn orchestrator(&self) -> Arc<crate::orchestrator::RuntimeOrchestrator> {
+        Arc::clone(&self.runtime_orchestrator)
     }
 
     /// Exposes read-only facade query for correlation index spans.
@@ -877,12 +901,15 @@ impl BrainRuntime {
         self.health
             .store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
 
-        // 0. Shutdown the scheduler runtime and reflection scheduler first
+        // 0. Shutdown the scheduler runtime, reflection scheduler, and orchestrator first
         if let Err(e) = self.scheduler_runtime.shutdown() {
             tracing::error!("Failed to shutdown scheduler runtime: {:?}", e);
         }
         if let Err(e) = self.reflection_scheduler.shutdown() {
             tracing::error!("Failed to shutdown reflection scheduler: {:?}", e);
+        }
+        if let Err(e) = self.runtime_orchestrator.shutdown() {
+            tracing::error!("Failed to shutdown runtime orchestrator: {:?}", e);
         }
 
         // 1. Close all event channels — thread unblocks from recv(), sees Disconnected, exits

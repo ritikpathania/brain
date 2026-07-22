@@ -90,3 +90,6 @@ pub use brain_runtime::{
 
 /// Self-reflection and memory consolidation engine.
 pub mod reflection;
+
+/// Background orchestrator and runtime task automation.
+pub mod orchestrator;
