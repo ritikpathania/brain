@@ -430,6 +430,16 @@ pub struct ReflectionSettings {
     pub(crate) link_suggestion_confidence_threshold: f64,
     /// Enable auto-approval and automatic execution of reflection merge commands.
     pub(crate) auto_approve_merges: bool,
+    /// Enable periodic background reflection scheduler thread.
+    pub(crate) background_enabled: bool,
+    /// Interval in seconds between background reflection ticks.
+    pub(crate) interval_secs: u64,
+    /// Minimum new WAL events required before triggering a background cycle.
+    pub(crate) min_events_trigger: u64,
+    /// Maximum concept nodes evaluated per reflection cycle.
+    pub(crate) max_nodes_per_cycle: usize,
+    /// Time budget in milliseconds per reflection cycle before cancelling.
+    pub(crate) cycle_time_budget_ms: u64,
 }
 
 impl ReflectionSettings {
@@ -447,6 +457,31 @@ impl ReflectionSettings {
     pub fn auto_approve_merges(&self) -> bool {
         self.auto_approve_merges
     }
+
+    /// Returns whether background reflection scheduling is enabled.
+    pub fn background_enabled(&self) -> bool {
+        self.background_enabled
+    }
+
+    /// Returns interval in seconds between background ticks.
+    pub fn interval_secs(&self) -> u64 {
+        self.interval_secs
+    }
+
+    /// Returns minimum WAL event delta required to trigger a cycle.
+    pub fn min_events_trigger(&self) -> u64 {
+        self.min_events_trigger
+    }
+
+    /// Returns maximum node evaluation limit per cycle.
+    pub fn max_nodes_per_cycle(&self) -> usize {
+        self.max_nodes_per_cycle
+    }
+
+    /// Returns time budget in milliseconds per cycle.
+    pub fn cycle_time_budget_ms(&self) -> u64 {
+        self.cycle_time_budget_ms
+    }
 }
 
 /// Partial reflection settings where all fields are optional.
@@ -458,6 +493,16 @@ pub struct PartialReflectionSettings {
     pub link_suggestion_confidence_threshold: Option<f64>,
     /// Optional auto-approve merges toggle.
     pub auto_approve_merges: Option<bool>,
+    /// Optional background scheduler toggle.
+    pub background_enabled: Option<bool>,
+    /// Optional interval in seconds between background ticks.
+    pub interval_secs: Option<u64>,
+    /// Optional minimum WAL event delta trigger.
+    pub min_events_trigger: Option<u64>,
+    /// Optional maximum nodes cap per cycle.
+    pub max_nodes_per_cycle: Option<usize>,
+    /// Optional time budget in ms per cycle.
+    pub cycle_time_budget_ms: Option<u64>,
 }
 
 impl Merge for PartialReflectionSettings {
@@ -470,6 +515,21 @@ impl Merge for PartialReflectionSettings {
         }
         if let Some(a) = other.auto_approve_merges {
             self.auto_approve_merges = Some(a);
+        }
+        if let Some(bg) = other.background_enabled {
+            self.background_enabled = Some(bg);
+        }
+        if let Some(inv) = other.interval_secs {
+            self.interval_secs = Some(inv);
+        }
+        if let Some(min_ev) = other.min_events_trigger {
+            self.min_events_trigger = Some(min_ev);
+        }
+        if let Some(max_n) = other.max_nodes_per_cycle {
+            self.max_nodes_per_cycle = Some(max_n);
+        }
+        if let Some(budget) = other.cycle_time_budget_ms {
+            self.cycle_time_budget_ms = Some(budget);
         }
     }
 }

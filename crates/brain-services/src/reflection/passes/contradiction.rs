@@ -1,7 +1,6 @@
-use crate::reflection::ReflectionContext;
+use crate::reflection::{ReflectionContext, ReflectionPass, ReflectionSnapshot};
 use brain_core::errors::BrainError;
-use brain_core::repositories::RepositorySet;
-use brain_domain::{FindingEvidence, ReflectionFinding};
+use brain_domain::{FindingEvidence, ReflectionFinding, ReflectionPassId};
 
 /// Pass scanning node properties for logical or scalar contradictions.
 pub struct ContradictionPass;
@@ -19,13 +18,22 @@ impl Default for ContradictionPass {
     }
 }
 
-impl crate::reflection::ReflectionPass for ContradictionPass {
+impl ReflectionPass for ContradictionPass {
+    fn id(&self) -> ReflectionPassId {
+        ReflectionPassId::Contradiction
+    }
+
+    fn version(&self) -> u32 {
+        1
+    }
+
     fn run(
         &self,
-        snapshot: &dyn RepositorySet,
+        snapshot: &ReflectionSnapshot,
         _context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError> {
-        let nodes = snapshot.nodes().list_all()?;
+        let repos = snapshot.repositories();
+        let nodes = repos.nodes().list_all()?;
         let mut findings = Vec::new();
 
         // Compare all node pairs for conflicting property assertions

@@ -1,9 +1,13 @@
 use brain_core::errors::BrainError;
-use brain_core::repositories::{RepositorySet, Storage};
-use brain_domain::{ReflectionFinding, SessionId};
+use brain_core::repositories::Storage;
+use brain_domain::{ReflectionFinding, ReflectionPassId, SessionId};
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+
+/// Read-only snapshot context for reflection passes.
+pub mod snapshot;
+pub use snapshot::ReflectionSnapshot;
 
 /// Execution context and constraints for a reflection run.
 #[derive(Debug, Clone)]
@@ -24,10 +28,16 @@ pub struct ReflectionContext {
 
 /// Trait defining a single self-reflection analysis pass.
 pub trait ReflectionPass: Send + Sync {
+    /// Returns the stable pass identifier.
+    fn id(&self) -> ReflectionPassId;
+
+    /// Returns the logical version of the pass.
+    fn version(&self) -> u32;
+
     /// Runs the pass on an immutable graph snapshot.
     fn run(
         &self,
-        snapshot: &dyn RepositorySet,
+        snapshot: &ReflectionSnapshot,
         context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError>;
 }
@@ -78,14 +88,15 @@ impl ReflectionEngine {
         let mut findings = Vec::new();
 
         self.storage.run_transaction(&mut |tx| {
-            let snapshot = tx.repositories();
+            let repositories = tx.repositories();
+            let snapshot = ReflectionSnapshot::new(repositories);
             for pass in self.registry.passes() {
                 if context.cancellation_token.is_cancelled() {
                     return Err(BrainError::Validation {
                         message: "Reflection aborted by cancellation token".to_string(),
                     });
                 }
-                let pass_findings = pass.run(snapshot, context)?;
+                let pass_findings = pass.run(&snapshot, context)?;
                 findings.extend(pass_findings);
             }
             Ok(())
@@ -105,3 +116,7 @@ pub use handler::ReflectionCommandHandler;
 
 /// Analysis passes for graph inspection.
 pub mod passes;
+
+/// Background scheduler and execution task.
+pub mod scheduler;
+pub use scheduler::BackgroundReflectionScheduler;

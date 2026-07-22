@@ -18,6 +18,7 @@ use brain_domain::query::inspector::{
     ActivityLogEntry, InspectorModel, ProvenanceDTO, RelationshipDTO,
 };
 use brain_domain::{EpochId, NodeId, SearchDocument};
+use brain_events::EventLog;
 use brain_integrations::IngestionEnvelope;
 use brain_observability::{timeline::OperationSpan, CorrelationIndex, ObservabilitySubscriber};
 use brain_storage::{EventLogRepository, SqliteSearchRepository, SqliteStorage};
@@ -146,6 +147,14 @@ pub struct RuntimeMetrics {
     pub canonicalization_failures: u64,
     /// The total number of relationship reflection processes executed.
     pub reflections_executed: u64,
+    /// Total findings detected by reflection passes.
+    pub reflection_findings_count: u64,
+    /// Total consolidation commands executed by reflection.
+    pub reflection_commands_executed: u64,
+    /// Total reflection findings skipped due to threshold/policy.
+    pub reflection_commands_skipped: u64,
+    /// Duration of the most recently completed background/manual reflection run.
+    pub last_reflection_duration: Option<Duration>,
     /// The total number of projection generation runs executed.
     pub projections_executed: u64,
     /// The total number of retrieval/search queries executed.
@@ -207,10 +216,14 @@ pub(crate) struct InternalMetrics {
     pub(crate) canonicalization_successes: AtomicU64,
     pub(crate) canonicalization_failures: AtomicU64,
     pub(crate) reflections_executed: AtomicU64,
+    pub(crate) reflection_findings_count: AtomicU64,
+    pub(crate) reflection_commands_executed: AtomicU64,
+    pub(crate) reflection_commands_skipped: AtomicU64,
     pub(crate) projections_executed: AtomicU64,
     pub(crate) retrieval_queries: AtomicU64,
     pub(crate) last_ingest_duration_ns: AtomicU64,
     pub(crate) last_projection_duration_ns: AtomicU64,
+    pub(crate) last_reflection_duration_ns: AtomicU64,
     // Sprint 8 stage durations
     pub(crate) canonicalization_duration_ns: AtomicU64,
     pub(crate) reflection_duration_ns: AtomicU64,
@@ -232,6 +245,7 @@ pub struct BrainRuntime {
     correlation_index: Arc<Mutex<CorrelationIndex>>,
     subscriber: Option<ObservabilitySubscriber>,
     reflection_engine: Arc<crate::reflection::ReflectionEngine>,
+    reflection_scheduler: Arc<crate::reflection::BackgroundReflectionScheduler>,
     config: brain_config::schema::BrainSettings,
 
     created_at: Instant,
@@ -286,10 +300,14 @@ impl BrainRuntime {
             canonicalization_successes: AtomicU64::new(0),
             canonicalization_failures: AtomicU64::new(0),
             reflections_executed: AtomicU64::new(0),
+            reflection_findings_count: AtomicU64::new(0),
+            reflection_commands_executed: AtomicU64::new(0),
+            reflection_commands_skipped: AtomicU64::new(0),
             projections_executed: AtomicU64::new(0),
             retrieval_queries: AtomicU64::new(0),
             last_ingest_duration_ns: AtomicU64::new(0),
             last_projection_duration_ns: AtomicU64::new(0),
+            last_reflection_duration_ns: AtomicU64::new(0),
             canonicalization_duration_ns: AtomicU64::new(0),
             reflection_duration_ns: AtomicU64::new(0),
             dispatch_duration_ns: AtomicU64::new(0),
@@ -406,7 +424,7 @@ impl BrainRuntime {
         let projection_scheduler = Arc::new(scheduler::SequentialScheduler::new(
             registry,
             metadata_repo,
-            event_log,
+            Arc::clone(&event_log) as Arc<dyn EventLog>,
             config,
             sqlite_storage.pool().clone(),
         ));
@@ -434,8 +452,17 @@ impl BrainRuntime {
             Arc::clone(&storage),
         ));
 
+        let reflection_scheduler = Arc::new(crate::reflection::BackgroundReflectionScheduler::new(
+            Arc::clone(&reflection_engine),
+            Arc::clone(&storage),
+            Arc::clone(&event_log) as Arc<dyn EventLog>,
+            brain_settings.reflection().clone(),
+            Arc::clone(&metrics),
+        ));
+
         // Start background sequential processing
         scheduler_runtime.start()?;
+        let _ = reflection_scheduler.start();
 
         health.store(RuntimeHealth::Healthy as u8, Ordering::Release);
 
@@ -448,6 +475,7 @@ impl BrainRuntime {
             correlation_index,
             subscriber: Some(subscriber),
             reflection_engine,
+            reflection_scheduler,
             config: brain_settings,
             created_at,
             health,
@@ -584,6 +612,11 @@ impl BrainRuntime {
         Arc::clone(&self.projection_scheduler)
     }
 
+    /// Returns a reference to the background reflection scheduler.
+    pub fn reflection_scheduler(&self) -> Arc<crate::reflection::BackgroundReflectionScheduler> {
+        Arc::clone(&self.reflection_scheduler)
+    }
+
     /// Exposes read-only facade query for correlation index spans.
     pub fn spans_for(&self, corr_id: CorrelationId) -> Option<Vec<OperationSpan>> {
         let index = self.correlation_index.lock().unwrap();
@@ -677,11 +710,38 @@ impl BrainRuntime {
             .checked_div(canonicalization_successes)
             .map(Duration::from_nanos);
 
+        let reflection_findings_count = self
+            .metrics
+            .reflection_findings_count
+            .load(Ordering::Acquire);
+        let reflection_commands_executed = self
+            .metrics
+            .reflection_commands_executed
+            .load(Ordering::Acquire);
+        let reflection_commands_skipped = self
+            .metrics
+            .reflection_commands_skipped
+            .load(Ordering::Acquire);
+
+        let reflection_ns = self
+            .metrics
+            .last_reflection_duration_ns
+            .load(Ordering::Acquire);
+        let last_reflection_duration = if reflection_ns > 0 {
+            Some(Duration::from_nanos(reflection_ns))
+        } else {
+            None
+        };
+
         RuntimeMetrics {
             observations_ingested,
             canonicalization_successes,
             canonicalization_failures,
             reflections_executed,
+            reflection_findings_count,
+            reflection_commands_executed,
+            reflection_commands_skipped,
+            last_reflection_duration,
             projections_executed,
             retrieval_queries,
             last_ingest_duration,
@@ -817,9 +877,12 @@ impl BrainRuntime {
         self.health
             .store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
 
-        // 0. Shutdown the scheduler runtime first
+        // 0. Shutdown the scheduler runtime and reflection scheduler first
         if let Err(e) = self.scheduler_runtime.shutdown() {
             tracing::error!("Failed to shutdown scheduler runtime: {:?}", e);
+        }
+        if let Err(e) = self.reflection_scheduler.shutdown() {
+            tracing::error!("Failed to shutdown reflection scheduler: {:?}", e);
         }
 
         // 1. Close all event channels — thread unblocks from recv(), sees Disconnected, exits

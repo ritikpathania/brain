@@ -51,6 +51,11 @@ impl ConfigSource for DefaultsSource {
                 duplicate_confidence_threshold: Some(0.92),
                 link_suggestion_confidence_threshold: Some(0.85),
                 auto_approve_merges: Some(false),
+                background_enabled: Some(false),
+                interval_secs: Some(60),
+                min_events_trigger: Some(5),
+                max_nodes_per_cycle: Some(1000),
+                cycle_time_budget_ms: Some(5000),
             }),
         })
     }
@@ -192,6 +197,41 @@ impl ConfigSource for EnvironmentSource {
                     s.reflection = Some(rf);
                 }
             }),
+            ("BRAIN_REFLECTION_BG_ENABLED", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.background_enabled = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_INTERVAL_SECS", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.interval_secs = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_MIN_EVENTS", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.min_events_trigger = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_MAX_NODES", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.max_nodes_per_cycle = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
+            ("BRAIN_REFLECTION_TIME_BUDGET", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut rf = s.reflection.take().unwrap_or_default();
+                    rf.cycle_time_budget_ms = Some(val);
+                    s.reflection = Some(rf);
+                }
+            }),
         ];
 
         for &(key, apply_fn) in mappings {
@@ -320,6 +360,11 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
                 .link_suggestion_confidence_threshold
                 .unwrap_or(0.85),
             auto_approve_merges: ref_partial.auto_approve_merges.unwrap_or(false),
+            background_enabled: ref_partial.background_enabled.unwrap_or(false),
+            interval_secs: ref_partial.interval_secs.unwrap_or(60),
+            min_events_trigger: ref_partial.min_events_trigger.unwrap_or(5),
+            max_nodes_per_cycle: ref_partial.max_nodes_per_cycle.unwrap_or(1000),
+            cycle_time_budget_ms: ref_partial.cycle_time_budget_ms.unwrap_or(5000),
         };
 
         Ok(BrainSettings {

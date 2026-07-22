@@ -1,7 +1,6 @@
-use crate::reflection::{ReflectionContext, ReflectionPass};
+use crate::reflection::{ReflectionContext, ReflectionPass, ReflectionSnapshot};
 use brain_core::errors::BrainError;
-use brain_core::repositories::RepositorySet;
-use brain_domain::{FindingEvidence, Normalizer, ReflectionFinding};
+use brain_domain::{FindingEvidence, Normalizer, ReflectionFinding, ReflectionPassId};
 
 /// Analysis pass to identify potential duplicate concept nodes in the graph.
 #[derive(Default)]
@@ -15,12 +14,21 @@ impl DuplicateDetectionPass {
 }
 
 impl ReflectionPass for DuplicateDetectionPass {
+    fn id(&self) -> ReflectionPassId {
+        ReflectionPassId::DuplicateDetection
+    }
+
+    fn version(&self) -> u32 {
+        1
+    }
+
     fn run(
         &self,
-        snapshot: &dyn RepositorySet,
+        snapshot: &ReflectionSnapshot,
         context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError> {
-        let mut nodes = snapshot.nodes().list_all()?;
+        let repos = snapshot.repositories();
+        let mut nodes = repos.nodes().list_all()?;
 
         // Truncate to obey maximum node capacity limits in the context
         if nodes.len() > context.max_nodes {
@@ -69,8 +77,8 @@ impl ReflectionPass for DuplicateDetectionPass {
                 }
 
                 // 2. Fetch embeddings for semantic similarity comparison
-                let emb_a = snapshot.embeddings().find_by_node_id(&node_a.id)?;
-                let emb_b = snapshot.embeddings().find_by_node_id(&node_b.id)?;
+                let emb_a = repos.embeddings().find_by_node_id(&node_a.id)?;
+                let emb_b = repos.embeddings().find_by_node_id(&node_b.id)?;
 
                 let (semantic_sim, confidence) = match (emb_a, emb_b) {
                     (Some(e_a), Some(e_b)) => {

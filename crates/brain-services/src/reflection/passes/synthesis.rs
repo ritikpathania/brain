@@ -1,7 +1,6 @@
-use crate::reflection::ReflectionContext;
+use crate::reflection::{ReflectionContext, ReflectionPass, ReflectionSnapshot};
 use brain_core::errors::BrainError;
-use brain_core::repositories::RepositorySet;
-use brain_domain::{FindingEvidence, ReflectionFinding, RelationKind};
+use brain_domain::{FindingEvidence, ReflectionFinding, ReflectionPassId, RelationKind};
 use std::collections::HashSet;
 
 /// Pass consolidating highly-connected clusters by closing triangles of generic associations.
@@ -20,13 +19,22 @@ impl Default for SynthesisPass {
     }
 }
 
-impl crate::reflection::ReflectionPass for SynthesisPass {
+impl ReflectionPass for SynthesisPass {
+    fn id(&self) -> ReflectionPassId {
+        ReflectionPassId::Synthesis
+    }
+
+    fn version(&self) -> u32 {
+        1
+    }
+
     fn run(
         &self,
-        snapshot: &dyn RepositorySet,
+        snapshot: &ReflectionSnapshot,
         _context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError> {
-        let edges = snapshot.edges().list_all()?;
+        let repos = snapshot.repositories();
+        let edges = repos.edges().list_all()?;
         let mut findings = Vec::new();
 
         // 1. Gather all direct AssociatedWith links

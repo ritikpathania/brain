@@ -6,7 +6,7 @@ use brain_domain::{
 };
 use brain_services::reflection::{
     handler::ReflectionCommandHandler, passes::DuplicateDetectionPass, ReflectionContext,
-    ReflectionEngine, ReflectionPass, ReflectionPlanner, ReflectionRegistry,
+    ReflectionEngine, ReflectionPass, ReflectionPlanner, ReflectionRegistry, ReflectionSnapshot,
 };
 use brain_storage::TestStorage;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 #[test]
 fn test_planner_determinism_and_filtering() {
-    let planner = ReflectionPlanner::new();
+    let planner = ReflectionPlanner::with_thresholds(0.92, 0.85);
 
     let node_1 = NodeId(Uuid::new_v4());
     let node_2 = NodeId(Uuid::new_v4());
@@ -415,7 +415,8 @@ fn test_contradiction_pass() {
     let mut findings = Vec::new();
     storage
         .run_transaction(|tx: &dyn StorageTransaction| {
-            findings = pass.run(tx.repositories(), &context).unwrap();
+            let snapshot = ReflectionSnapshot::new(tx.repositories());
+            findings = pass.run(&snapshot, &context).unwrap();
             Ok(())
         })
         .unwrap();
@@ -477,7 +478,8 @@ fn test_link_suggestion_pass() {
     let mut findings = Vec::new();
     storage
         .run_transaction(|tx: &dyn StorageTransaction| {
-            findings = pass.run(tx.repositories(), &context).unwrap();
+            let snapshot = brain_services::reflection::ReflectionSnapshot::new(tx.repositories());
+            findings = pass.run(&snapshot, &context).unwrap();
             Ok(())
         })
         .unwrap();
@@ -546,8 +548,9 @@ fn test_synthesis_pass() {
 
     let mut findings = Vec::new();
     storage
-        .run_transaction(&mut |tx: &dyn StorageTransaction| {
-            findings = pass.run(tx.repositories(), &context).unwrap();
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            let snapshot = brain_services::reflection::ReflectionSnapshot::new(tx.repositories());
+            findings = pass.run(&snapshot, &context).unwrap();
             Ok(())
         })
         .unwrap();
@@ -572,4 +575,63 @@ fn test_synthesis_pass() {
         }
     }
     assert!(found);
+}
+
+#[test]
+fn test_planner_total_ordering_and_policy() {
+    let planner = ReflectionPlanner::new();
+
+    let node_a = NodeId(Uuid::new_v4());
+    let node_b = NodeId(Uuid::new_v4());
+    let node_c = NodeId(Uuid::new_v4());
+
+    let findings = vec![
+        ReflectionFinding::LinkSuggested {
+            source_id: node_a,
+            target_id: node_b,
+            relation_kind: RelationKind::Uses,
+            evidence: FindingEvidence {
+                confidence: 0.85,
+                semantic_similarity: None,
+                edit_distance: None,
+                overlap_ratio: None,
+                details: "Medium confidence link".to_string(),
+            },
+        },
+        ReflectionFinding::DuplicateFound {
+            node_a,
+            node_b,
+            evidence: FindingEvidence {
+                confidence: 0.95,
+                semantic_similarity: Some(0.95),
+                edit_distance: Some(0),
+                overlap_ratio: None,
+                details: "High confidence duplicate".to_string(),
+            },
+        },
+        ReflectionFinding::LinkSuggested {
+            source_id: node_a,
+            target_id: node_c,
+            relation_kind: RelationKind::AssociatedWith,
+            evidence: FindingEvidence {
+                confidence: 0.95,
+                semantic_similarity: None,
+                edit_distance: None,
+                overlap_ratio: None,
+                details: "High confidence link".to_string(),
+            },
+        },
+    ];
+
+    let plan_1 = planner.plan(findings.clone());
+    let plan_2 = planner.plan(findings);
+
+    // Byte-for-byte total ordering determinism invariant
+    assert_eq!(plan_1.recommendations, plan_2.recommendations);
+    assert_eq!(plan_1.commands, plan_2.commands);
+
+    // Highest confidence (0.95) items come first
+    assert_eq!(plan_1.recommendations[0].confidence, 0.95);
+    assert_eq!(plan_1.recommendations[1].confidence, 0.95);
+    assert_eq!(plan_1.recommendations[2].confidence, 0.85);
 }

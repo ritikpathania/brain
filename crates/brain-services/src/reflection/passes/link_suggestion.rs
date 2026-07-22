@@ -1,8 +1,8 @@
-use crate::reflection::ReflectionContext;
+use crate::reflection::{ReflectionContext, ReflectionPass, ReflectionSnapshot};
 use brain_core::errors::BrainError;
-use brain_core::repositories::RepositorySet;
 use brain_domain::{
-    EdgeId, FindingEvidence, InferenceEngine, KnowledgeGraph, ReflectionFinding, RelationRegistry,
+    EdgeId, FindingEvidence, InferenceEngine, KnowledgeGraph, ReflectionFinding, ReflectionPassId,
+    RelationRegistry,
 };
 
 /// Pass suggestion transitive/inverse links using the domain InferenceEngine.
@@ -21,20 +21,29 @@ impl Default for LinkSuggestionPass {
     }
 }
 
-impl crate::reflection::ReflectionPass for LinkSuggestionPass {
+impl ReflectionPass for LinkSuggestionPass {
+    fn id(&self) -> ReflectionPassId {
+        ReflectionPassId::LinkSuggestion
+    }
+
+    fn version(&self) -> u32 {
+        1
+    }
+
     fn run(
         &self,
-        snapshot: &dyn RepositorySet,
+        snapshot: &ReflectionSnapshot,
         _context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError> {
+        let repos = snapshot.repositories();
         // 1. Gather all nodes and edges into KnowledgeGraph
         let mut graph = KnowledgeGraph::new();
-        for node in snapshot.nodes().list_all()? {
+        for node in repos.nodes().list_all()? {
             graph.add_node(node);
         }
 
         let mut existing_edges = std::collections::HashSet::new();
-        for edge in snapshot.edges().list_all()? {
+        for edge in repos.edges().list_all()? {
             let edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
             existing_edges.insert(edge_id);
             let _ = graph.add_edge(edge);

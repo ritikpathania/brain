@@ -272,9 +272,7 @@ impl BrainApplication {
                     }
                     for event in stored_events {
                         if let Ok(domain_event) =
-                            serde_json::from_str::<brain_events::DomainEvent>(
-                                &event.payload_json,
-                            )
+                            serde_json::from_str::<brain_events::DomainEvent>(&event.payload_json)
                         {
                             let envelope = brain_events::EventEnvelope {
                                 sequence: Some(event.sequence),
