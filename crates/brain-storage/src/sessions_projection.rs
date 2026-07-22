@@ -53,7 +53,15 @@ impl SqliteSessionReadModelRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.find_by_id_conn(&conn, session_id)
+    }
 
+    /// Finds a session read model state by ID using a shared transaction connection.
+    pub fn find_by_id_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        session_id: &SessionId,
+    ) -> Result<Option<SessionReadModel>, BrainError> {
         let res: Result<SessionReadModel, rusqlite::Error> = conn.query_row(
             "SELECT session_id, title, is_archived, is_pinned, created_at, updated_at, updated_sequence
              FROM sessions_projection
@@ -260,15 +268,13 @@ impl SqliteSessionReadModelRepository {
 
         Ok(results)
     }
-}
 
-impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModelRepository {
-    fn save(&self, model: &SessionReadModel) -> Result<(), BrainError> {
-        let conn = self.pool.get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
+    /// Saves a session read model state using a shared transaction connection.
+    pub fn save_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        model: &SessionReadModel,
+    ) -> Result<(), BrainError> {
         conn.execute(
             "INSERT INTO sessions_projection (session_id, title, is_archived, is_pinned, created_at, updated_at, updated_sequence)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -291,16 +297,15 @@ impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModel
             message: format!("Failed to save session read model: {}", e),
             source: Some(Box::new(e)),
         })?;
-
         Ok(())
     }
 
-    fn delete(&self, id: &SessionId) -> Result<(), BrainError> {
-        let conn = self.pool.get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
+    /// Deletes a session read model state using a shared transaction connection.
+    pub fn delete_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        id: &SessionId,
+    ) -> Result<(), BrainError> {
         conn.execute(
             "DELETE FROM sessions_projection WHERE session_id = ?1",
             params![id.to_string()],
@@ -309,8 +314,35 @@ impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModel
             message: format!("Failed to delete session read model: {}", e),
             source: Some(Box::new(e)),
         })?;
-
         Ok(())
+    }
+
+    /// Clears all session read model states using a shared transaction connection.
+    pub fn clear_all_conn(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        conn.execute("DELETE FROM sessions_projection", [])
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to clear sessions projection table: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+        Ok(())
+    }
+}
+
+impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModelRepository {
+    fn save(&self, model: &SessionReadModel) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        self.save_conn(&conn, model)
+    }
+
+    fn delete(&self, id: &SessionId) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        self.delete_conn(&conn, id)
     }
 
     fn clear_all(&self) -> Result<(), BrainError> {
@@ -318,13 +350,6 @@ impl ReadModelRepository<SessionReadModel, SessionId> for SqliteSessionReadModel
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
-
-        conn.execute("DELETE FROM sessions_projection", [])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to clear sessions projection table: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-
-        Ok(())
+        self.clear_all_conn(&conn)
     }
 }

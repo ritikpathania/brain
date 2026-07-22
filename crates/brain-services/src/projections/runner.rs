@@ -7,6 +7,7 @@ use brain_storage::SqliteProjectionCheckpointRepository;
 use std::sync::Arc;
 
 /// Orchestrator coordinating sequential event catch-up and rebuild loops for stateful reducers.
+/// Kept for backward compatibility and test runners.
 pub struct ProjectionRunner {
     event_log: Arc<dyn EventLog>,
     checkpoint_repo: Arc<SqliteProjectionCheckpointRepository>,
@@ -29,23 +30,21 @@ impl ProjectionRunner {
         }
     }
 
-    /// Registers a stateful reducer. Returns an error if a reducer with identical name already exists.
-    pub fn register(&self, reducer: Box<dyn StateReducer>) -> Result<(), BrainError> {
+    /// Registers a stateful reducer.
+    pub fn register(&self, reducer: Arc<dyn StateReducer>) -> Result<(), BrainError> {
         self.registry.register(reducer)
     }
 
     /// Runs incremental catch-up batches for all registered reducers.
-    /// Aggregates any errors to ensure one failing reducer does not block others.
     pub fn catch_up(&self) -> Result<(), BrainError> {
         let mut errors = Vec::new();
-        let catch_up_res = self.registry.with_all_mut(|id, reducer| {
+        let catch_up_res = self.registry.with_all(|id, reducer| {
             if let Err(e) = self.catch_up_reducer(id, reducer) {
                 errors.push(format!("{:?}: {:?}", id, e));
             }
             Ok(())
         });
 
-        // If with_all_mut itself returned error
         catch_up_res?;
 
         if !errors.is_empty() {
@@ -59,16 +58,27 @@ impl ProjectionRunner {
 
     /// Rebuilds a specific projection from sequence 0.
     pub fn rebuild_projection(&self, id: ProjectionId) -> Result<(), BrainError> {
-        self.registry.with_mut(id, |reducer| {
-            // 1. Reset the stateful reducer
-            reducer.reset()?;
-            // 2. Set the persisted checkpoint back to 0
-            let db_name = to_db_name(id);
-            self.checkpoint_repo.save_checkpoint(db_name, 0)?;
-            // 3. Catch up from scratch
-            self.catch_up_reducer(id, reducer)?;
-            Ok(())
-        })
+        let reducer = self.registry.get(id).ok_or_else(|| BrainError::Storage {
+            message: format!("Reducer not found: {:?}", id),
+            source: None,
+        })?;
+
+        let conn = self
+            .checkpoint_repo
+            .pool()
+            .get()
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to get connection: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
+        reducer.reset(&conn)?;
+
+        let db_name = to_db_name(id);
+        self.checkpoint_repo.save_checkpoint(db_name, 0)?;
+
+        self.catch_up_reducer(id, reducer.as_ref())?;
+        Ok(())
     }
 
     /// Rebuilds all registered projections.
@@ -84,15 +94,23 @@ impl ProjectionRunner {
     fn catch_up_reducer(
         &self,
         id: ProjectionId,
-        reducer: &mut dyn StateReducer,
+        reducer: &dyn StateReducer,
     ) -> Result<(), BrainError> {
         let db_name = to_db_name(id);
         let mut last_seq = self.checkpoint_repo.get_checkpoint(db_name)?;
         let mut advanced = false;
 
+        let conn = self
+            .checkpoint_repo
+            .pool()
+            .get()
+            .map_err(|e| BrainError::Storage {
+                message: format!("Failed to get connection: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+
         loop {
             let next_seq = last_seq + 1;
-            // Read in batches of 100
             let events = self.event_log.read_from(next_seq, 100)?;
             if events.is_empty() {
                 break;
@@ -107,9 +125,7 @@ impl ProjectionRunner {
                     source: None,
                 })?;
 
-                // 1. Reduce state
-                reducer.reduce(&envelope)?;
-                // 2. Persist checkpoint AFTER successful reduction
+                reducer.reduce(&conn, &envelope)?;
                 self.checkpoint_repo.save_checkpoint(db_name, seq)?;
                 last_seq = seq;
                 advanced = true;

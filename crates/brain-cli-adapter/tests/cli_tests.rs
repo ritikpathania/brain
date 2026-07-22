@@ -134,19 +134,45 @@ async fn test_cli_send_message() {
     write.write_all(reply_hs_str.as_bytes()).await.unwrap();
     write.flush().await.unwrap();
 
-    // 2. Read the message request
-    line.clear();
-    reader
-        .read_line(&mut line)
-        .await
-        .expect("failed to read message");
-    let request_json: serde_json::Value =
-        serde_json::from_str(&line).expect("invalid JSON request");
-    let payload_str = request_json
-        .get("payload")
-        .and_then(|p| p.as_str())
-        .unwrap();
-    let envelope: serde_json::Value = serde_json::from_str(payload_str).unwrap();
+    // 2. Read requests until we get the ingest_event request
+    let payload_str = loop {
+        line.clear();
+        reader
+            .read_line(&mut line)
+            .await
+            .expect("failed to read request");
+        let request_json: serde_json::Value =
+            serde_json::from_str(&line).expect("invalid JSON request");
+        let action = request_json
+            .get("action")
+            .and_then(|a| a.as_str())
+            .unwrap_or("");
+        if action == "v1/subscribe" {
+            let req_id = request_json
+                .get("id")
+                .and_then(|id| id.as_u64())
+                .unwrap_or(0);
+            let reply_sub = serde_json::json!({
+                "id": req_id,
+                "type": "Response",
+                "status": "success",
+                "body": "subscription ok"
+            });
+            let mut reply_sub_str = serde_json::to_string(&reply_sub).unwrap();
+            reply_sub_str.push('\n');
+            write.write_all(reply_sub_str.as_bytes()).await.unwrap();
+            write.flush().await.unwrap();
+        } else {
+            let p_str = request_json
+                .get("body")
+                .or_else(|| request_json.get("payload"))
+                .and_then(|p| p.as_str())
+                .unwrap();
+            break p_str.to_string();
+        }
+    };
+
+    let envelope: serde_json::Value = serde_json::from_str(&payload_str).unwrap();
     let event_id = envelope
         .get("identity")
         .and_then(|i| i.get("event_id"))

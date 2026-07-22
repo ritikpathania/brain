@@ -2,6 +2,8 @@
 pub mod feature_provider;
 /// Runtime ranking strategy using machine learned scoring models.
 pub mod model_strategy;
+/// Post-fusion candidate reranking infrastructure.
+pub mod reranker;
 /// Scoring facade for machine learned models.
 pub mod score_ranker;
 

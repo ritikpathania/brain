@@ -212,12 +212,15 @@ fn test_retrieval_determinism_validation() {
 
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "compiler optimization".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
         explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let budget = ContextBudget {
@@ -296,12 +299,15 @@ fn test_structured_telemetry_emission_contract() {
 
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "telemetry validation query".to_string(),
         limit: 5,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
         explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let (collector, _) = with_test_collector(|| {
@@ -357,12 +363,15 @@ fn test_retrieval_timeout_graceful_handling() {
     let deadline = std::time::Instant::now() - std::time::Duration::from_millis(50);
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "timeout check query".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: Some(deadline),
         explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let result = retrieval_service.execute_pipeline(&request);
@@ -393,12 +402,15 @@ fn test_embedding_failure_propagation() {
 
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "unsupported search terms".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
         explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let (collector, result) = with_test_collector(|| retrieval_service.execute_pipeline(&request));
@@ -444,12 +456,15 @@ fn test_retrieval_concurrency_lock_safety() {
         let handle = std::thread::spawn(move || {
             let session_id = brain_domain::SessionId::new();
             let request = RetrievalRequest {
+                reference_time: None,
                 session_id,
                 query: format!("shared query {}", i),
                 limit: 10,
                 exclude_ids: std::collections::HashSet::new(),
                 deadline: None,
                 explain: false,
+                graph_depth: None,
+                expand_relations: false,
             };
             let response = retrieval_service.execute_pipeline(&request).unwrap();
             assert!(response.nodes.len() <= 1);
@@ -497,12 +512,15 @@ fn test_collector_is_reusable_across_independent_scopes() {
     );
 
     let request = RetrievalRequest {
+        reference_time: None,
         query: "scope reuse probe".to_string(),
         session_id: brain_domain::SessionId::new(),
         limit: 5,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
         explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     // First scope

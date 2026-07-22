@@ -1,12 +1,15 @@
 use brain_core::errors::BrainError;
 use brain_events::{DomainEvent, EventEnvelope, EventLog, SystemEvent};
 use brain_services::{
-    JobProjectionReducer, ProjectionId, ProjectionNotificationBus, ProjectionRunner,
-    SessionProjectionReducer, StateReducer, SystemEventLog,
+    projections::scheduler::SequentialScheduler, projections::ProjectionConfig,
+    projections::ProjectionScheduler, projections::ReducerRegistry, JobProjectionReducer,
+    ProjectionId, ProjectionNotificationBus, ProjectionRunner, SessionProjectionReducer,
+    StateReducer, SystemEventLog,
 };
 use brain_storage::{
     ReadModelRepository, SqliteEventLog, SqliteJobReadModelRepository,
-    SqliteProjectionCheckpointRepository, SqliteSessionReadModelRepository, TestStorage,
+    SqliteProjectionCheckpointRepository, SqliteProjectionMetadataRepository,
+    SqliteSessionReadModelRepository, TestStorage,
 };
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -39,7 +42,11 @@ impl StateReducer for TestReducer {
         1
     }
 
-    fn reduce(&self, _conn: &rusqlite::Connection, envelope: &EventEnvelope) -> Result<(), BrainError> {
+    fn reduce(
+        &self,
+        _conn: &rusqlite::Connection,
+        envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
         let seq = envelope.sequence.unwrap();
         if let Some(fail_seq) = *self.fail_on_seq.lock() {
             if seq == fail_seq {
@@ -637,4 +644,353 @@ fn test_search_projection() {
         offset: None,
     };
     assert!(search_repo.search(&q_all).unwrap().is_empty());
+}
+
+#[test]
+fn test_sequential_scheduler_incremental_catchup() {
+    let test_storage = TestStorage::new();
+    let pool = test_storage.store().pool().clone();
+    let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
+    let event_log = Arc::new(SystemEventLog::new(raw_log));
+    let metadata_repo = Arc::new(SqliteProjectionMetadataRepository::new());
+
+    let registry = ReducerRegistry::new();
+    let reducer = Arc::new(TestReducer::new(ProjectionId::TestA));
+    registry.register(reducer.clone()).unwrap();
+
+    let config = ProjectionConfig {
+        batch_size: 5,
+        max_batch_duration_ms: 100,
+        queue_capacity: 10,
+    };
+
+    let scheduler = SequentialScheduler::new(
+        registry,
+        metadata_repo.clone(),
+        event_log.clone(),
+        config,
+        pool.clone(),
+    );
+
+    // Append 3 events
+    event_log.append(&create_envelope("test_src", 10)).unwrap(); // seq 1
+    event_log.append(&create_envelope("test_src", 20)).unwrap(); // seq 2
+    event_log.append(&create_envelope("test_src", 30)).unwrap(); // seq 3
+
+    // Catch up
+    scheduler.catch_up_all().unwrap();
+
+    // Verify sequences processed
+    assert_eq!(*reducer.processed.lock(), vec![1, 2, 3]);
+
+    // Verify metadata record
+    let conn = pool.get().unwrap();
+    let record = metadata_repo
+        .get_metadata(&conn, "test_a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.last_sequence, 3);
+    assert_eq!(record.status, brain_storage::ProjectionStatus::Idle);
+    assert_eq!(record.version, 1);
+}
+
+struct TestReducerV2 {
+    id: ProjectionId,
+    processed: Arc<Mutex<Vec<u64>>>,
+    reset_called: Arc<Mutex<bool>>,
+}
+
+impl StateReducer for TestReducerV2 {
+    fn id(&self) -> ProjectionId {
+        self.id
+    }
+    fn version(&self) -> u32 {
+        2 // Version 2!
+    }
+    fn reduce(
+        &self,
+        _conn: &rusqlite::Connection,
+        envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
+        let seq = envelope.sequence.unwrap();
+        self.processed.lock().push(seq);
+        Ok(())
+    }
+    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        *self.reset_called.lock() = true;
+        self.processed.lock().clear();
+        Ok(())
+    }
+}
+
+#[test]
+fn test_sequential_scheduler_version_skew_rebuild() {
+    let test_storage = TestStorage::new();
+    let pool = test_storage.store().pool().clone();
+    let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
+    let event_log = Arc::new(SystemEventLog::new(raw_log));
+    let metadata_repo = Arc::new(SqliteProjectionMetadataRepository::new());
+
+    // 1. Run initially with Version 1
+    {
+        let registry = ReducerRegistry::new();
+        let reducer = Arc::new(TestReducer::new(ProjectionId::TestA));
+        registry.register(reducer.clone()).unwrap();
+
+        let config = ProjectionConfig {
+            batch_size: 5,
+            max_batch_duration_ms: 100,
+            queue_capacity: 10,
+        };
+
+        let scheduler = SequentialScheduler::new(
+            registry,
+            metadata_repo.clone(),
+            event_log.clone(),
+            config,
+            pool.clone(),
+        );
+
+        event_log.append(&create_envelope("test_src", 10)).unwrap(); // seq 1
+        scheduler.catch_up_all().unwrap();
+
+        let conn = pool.get().unwrap();
+        let record = metadata_repo
+            .get_metadata(&conn, "test_a")
+            .unwrap()
+            .unwrap();
+        assert_eq!(record.version, 1);
+        assert_eq!(record.last_sequence, 1);
+    }
+
+    // 2. Add another event
+    event_log.append(&create_envelope("test_src", 20)).unwrap(); // seq 2
+
+    // 3. Now run with a different scheduler/registry using Version 2 of the reducer
+    let registry = ReducerRegistry::new();
+    let reducer_v2 = Arc::new(TestReducerV2 {
+        id: ProjectionId::TestA,
+        processed: Arc::new(Mutex::new(Vec::new())),
+        reset_called: Arc::new(Mutex::new(false)),
+    });
+    registry.register(reducer_v2.clone()).unwrap();
+
+    let config = ProjectionConfig {
+        batch_size: 5,
+        max_batch_duration_ms: 100,
+        queue_capacity: 10,
+    };
+
+    let scheduler = SequentialScheduler::new(
+        registry,
+        metadata_repo.clone(),
+        event_log.clone(),
+        config,
+        pool.clone(),
+    );
+
+    // This should detect version skew (1 vs 2), trigger rebuild (calls reset()), and catch up seq 1 and 2!
+    scheduler.catch_up_all().unwrap();
+
+    assert!(*reducer_v2.reset_called.lock());
+    // Should have re-run reduce for sequence 1 and 2
+    assert_eq!(*reducer_v2.processed.lock(), vec![1, 2]);
+
+    let conn = pool.get().unwrap();
+    let record = metadata_repo
+        .get_metadata(&conn, "test_a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.version, 2);
+    assert_eq!(record.last_sequence, 2);
+}
+
+struct SqlTestReducer {
+    id: ProjectionId,
+}
+
+impl StateReducer for SqlTestReducer {
+    fn id(&self) -> ProjectionId {
+        self.id
+    }
+    fn version(&self) -> u32 {
+        1
+    }
+    fn reduce(
+        &self,
+        conn: &rusqlite::Connection,
+        envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
+        let seq = envelope.sequence.unwrap();
+        // Create table if not exists
+        conn.execute("CREATE TABLE IF NOT EXISTS test_writes (seq INTEGER)", [])
+            .unwrap();
+
+        // Write row
+        conn.execute("INSERT INTO test_writes (seq) VALUES (?)", [seq])
+            .unwrap();
+
+        // Simulate failure on seq 2
+        if seq == 2 {
+            return Err(BrainError::Storage {
+                message: "Forced rollback".to_string(),
+                source: None,
+            });
+        }
+
+        Ok(())
+    }
+    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        conn.execute("DROP TABLE IF EXISTS test_writes", [])
+            .map(|_| ())
+            .map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })
+    }
+}
+
+#[test]
+fn test_sequential_scheduler_transactional_rollback() {
+    let test_storage = TestStorage::new();
+    let pool = test_storage.store().pool().clone();
+    let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
+    let event_log = Arc::new(SystemEventLog::new(raw_log));
+    let metadata_repo = Arc::new(SqliteProjectionMetadataRepository::new());
+
+    let registry = ReducerRegistry::new();
+    let reducer = Arc::new(SqlTestReducer {
+        id: ProjectionId::TestA,
+    });
+    registry.register(reducer.clone()).unwrap();
+
+    let config = ProjectionConfig {
+        batch_size: 5,
+        max_batch_duration_ms: 100,
+        queue_capacity: 10,
+    };
+
+    let scheduler = SequentialScheduler::new(
+        registry,
+        metadata_repo.clone(),
+        event_log.clone(),
+        config,
+        pool.clone(),
+    );
+
+    // Append two events
+    event_log.append(&create_envelope("test_src", 10)).unwrap(); // seq 1
+    event_log.append(&create_envelope("test_src", 20)).unwrap(); // seq 2
+
+    // Run catch_up_projection. It should run seq 1 successfully, then attempt seq 2, fail, and roll back the whole batch.
+    let res = scheduler.catch_up_projection(ProjectionId::TestA);
+    assert!(res.is_err());
+
+    // Verify metadata status is Failed and checkpoint remains at 0
+    let conn = pool.get().unwrap();
+    let record = metadata_repo
+        .get_metadata(&conn, "test_a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.last_sequence, 0);
+    assert_eq!(record.status, brain_storage::ProjectionStatus::Failed);
+    assert!(record.last_error.unwrap().contains("Forced rollback"));
+
+    // Verify that the table does not exist or has 0 rows (rolled back!)
+    let count: i32 = conn
+        .query_row("SELECT COUNT(*) FROM test_writes", [], |row| row.get(0))
+        .unwrap_or(0);
+    assert_eq!(count, 0);
+}
+
+struct ResetFailingReducer {
+    id: ProjectionId,
+    fail_reset: Arc<Mutex<bool>>,
+}
+
+impl StateReducer for ResetFailingReducer {
+    fn id(&self) -> ProjectionId {
+        self.id
+    }
+    fn version(&self) -> u32 {
+        1
+    }
+    fn reduce(
+        &self,
+        _conn: &rusqlite::Connection,
+        _envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
+        Ok(())
+    }
+    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        if *self.fail_reset.lock() {
+            return Err(BrainError::Storage {
+                message: "Simulated reset failure during rebuild".to_string(),
+                source: None,
+            });
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn test_sequential_scheduler_rebuild_reset_failure_and_recovery() {
+    let test_storage = TestStorage::new();
+    let pool = test_storage.store().pool().clone();
+    let raw_log = Arc::new(SqliteEventLog::new(pool.clone()));
+    let event_log = Arc::new(SystemEventLog::new(raw_log));
+    let metadata_repo = Arc::new(SqliteProjectionMetadataRepository::new());
+
+    let fail_reset = Arc::new(Mutex::new(true));
+    let registry = ReducerRegistry::new();
+    let reducer = Arc::new(ResetFailingReducer {
+        id: ProjectionId::TestA,
+        fail_reset: fail_reset.clone(),
+    });
+    registry.register(reducer.clone()).unwrap();
+
+    let config = ProjectionConfig {
+        batch_size: 5,
+        max_batch_duration_ms: 100,
+        queue_capacity: 10,
+    };
+
+    let scheduler = SequentialScheduler::new(
+        registry,
+        metadata_repo.clone(),
+        event_log.clone(),
+        config,
+        pool.clone(),
+    );
+
+    // Trigger rebuild while reset fails
+    let res = scheduler.rebuild_projection(ProjectionId::TestA);
+    assert!(res.is_err());
+
+    // Verify metadata record status is Failed
+    let conn = pool.get().unwrap();
+    let record = metadata_repo
+        .get_metadata(&conn, "test_a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.status, brain_storage::ProjectionStatus::Failed);
+    assert!(record
+        .last_error
+        .unwrap()
+        .contains("Simulated reset failure"));
+
+    // Now clear the failure flag and attempt rebuild again — should recover cleanly!
+    *fail_reset.lock() = false;
+    scheduler.rebuild_projection(ProjectionId::TestA).unwrap();
+
+    let conn2 = pool.get().unwrap();
+    let record_recovered = metadata_repo
+        .get_metadata(&conn2, "test_a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        record_recovered.status,
+        brain_storage::ProjectionStatus::Idle
+    );
+    assert_eq!(record_recovered.last_error, None);
 }

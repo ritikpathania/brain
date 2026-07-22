@@ -77,6 +77,10 @@ impl OfflineEvaluator {
                 limit: case.candidates.len(),
                 exclude_ids: std::collections::HashSet::new(),
                 deadline: None,
+                explain: false,
+                graph_depth: None,
+                expand_relations: false,
+                reference_time: None,
             };
 
             let raw = self.extractor.extract(

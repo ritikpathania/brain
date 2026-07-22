@@ -101,11 +101,15 @@ fn test_learned_temporal_scorer() {
     );
 
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "EntityA".to_string(),
         limit: 3,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let input_nodes = vec![

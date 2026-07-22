@@ -1,9 +1,10 @@
+use crate::reflection::{ReflectionContext, ReflectionPass};
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_domain::{FindingEvidence, ReflectionFinding, Normalizer};
-use crate::reflection::{ReflectionContext, ReflectionPass};
+use brain_domain::{FindingEvidence, Normalizer, ReflectionFinding};
 
 /// Analysis pass to identify potential duplicate concept nodes in the graph.
+#[derive(Default)]
 pub struct DuplicateDetectionPass;
 
 impl DuplicateDetectionPass {
@@ -20,15 +21,16 @@ impl ReflectionPass for DuplicateDetectionPass {
         context: &ReflectionContext,
     ) -> Result<Vec<ReflectionFinding>, BrainError> {
         let mut nodes = snapshot.nodes().list_all()?;
-        
+
         // Truncate to obey maximum node capacity limits in the context
         if nodes.len() > context.max_nodes {
             nodes.truncate(context.max_nodes);
         }
 
         let mut findings = Vec::new();
+        let len = nodes.len();
 
-        for i in 0..nodes.len() {
+        for i in 0..len {
             // Check cancellation token
             if context.cancellation_token.is_cancelled() {
                 return Err(BrainError::Validation {
@@ -36,7 +38,7 @@ impl ReflectionPass for DuplicateDetectionPass {
                 });
             }
 
-            for j in (i + 1)..nodes.len() {
+            for j in (i + 1)..len {
                 let node_a = &nodes[i];
                 let node_b = &nodes[j];
 
@@ -85,11 +87,13 @@ impl ReflectionPass for DuplicateDetectionPass {
                     let details = format!(
                         "Syntactic similarity: {:.2}%, Semantic similarity: {}",
                         syntactic_sim * 100.0,
-                        semantic_sim.map(|s| format!("{:.2}%", s * 100.0)).unwrap_or_else(|| "N/A".to_string())
+                        semantic_sim
+                            .map(|s| format!("{:.2}%", s * 100.0))
+                            .unwrap_or_else(|| "N/A".to_string())
                     );
 
                     let edit_dist = levenshtein_distance(&label_a, &label_b);
-                    
+
                     findings.push(ReflectionFinding::DuplicateFound {
                         node_a: node_a.id,
                         node_b: node_b.id,
@@ -114,27 +118,28 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
     let v2: Vec<char> = s2.chars().collect();
     let len1 = v1.len();
     let len2 = v2.len();
-    
-    if len1 == 0 { return len2; }
-    if len2 == 0 { return len1; }
-    
-    let mut dp = vec![0; len2 + 1];
-    for j in 0..=len2 {
-        dp[j] = j;
+
+    if len1 == 0 {
+        return len2;
     }
-    
+    if len2 == 0 {
+        return len1;
+    }
+
+    let mut dp = vec![0; len2 + 1];
+    for (j, item) in dp.iter_mut().enumerate() {
+        *item = j;
+    }
+
     for i in 1..=len1 {
         let mut prev = dp[0];
         dp[0] = i;
         for j in 1..=len2 {
             let temp = dp[j];
-            if v1[i-1] == v2[j-1] {
+            if v1[i - 1] == v2[j - 1] {
                 dp[j] = prev;
             } else {
-                dp[j] = 1 + std::cmp::min(
-                    prev,
-                    std::cmp::min(dp[j], dp[j-1])
-                );
+                dp[j] = 1 + std::cmp::min(prev, std::cmp::min(dp[j], dp[j - 1]));
             }
             prev = temp;
         }

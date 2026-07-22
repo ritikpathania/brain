@@ -2,10 +2,11 @@ use crate::projections::{ProjectionId, StateReducer};
 use brain_core::errors::BrainError;
 use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-/// Registry mapping typed ProjectionId enums to stateful event projections.
+/// Registry mapping typed ProjectionId enums to stateless event projections.
 pub struct ReducerRegistry {
-    reducers: Mutex<HashMap<ProjectionId, Box<dyn StateReducer>>>,
+    reducers: Mutex<HashMap<ProjectionId, Arc<dyn StateReducer>>>,
 }
 
 impl ReducerRegistry {
@@ -17,7 +18,7 @@ impl ReducerRegistry {
     }
 
     /// Registers a reducer. Returns an error if a duplicate name is registered.
-    pub fn register(&self, reducer: Box<dyn StateReducer>) -> Result<(), BrainError> {
+    pub fn register(&self, reducer: Arc<dyn StateReducer>) -> Result<(), BrainError> {
         let mut map = self.reducers.lock();
         let id = reducer.id();
         if map.contains_key(&id) {
@@ -36,32 +37,22 @@ impl ReducerRegistry {
         map.keys().cloned().collect()
     }
 
-    /// Accesses all registered reducers for execution.
-    pub fn with_all_mut<F>(&self, mut f: F) -> Result<(), BrainError>
-    where
-        F: FnMut(ProjectionId, &mut dyn StateReducer) -> Result<(), BrainError>,
-    {
-        let mut map = self.reducers.lock();
-        for (&id, reducer) in map.iter_mut() {
-            f(id, reducer.as_mut())?;
-        }
-        Ok(())
+    /// Retrieves a single registered reducer by ID.
+    pub fn get(&self, id: ProjectionId) -> Option<Arc<dyn StateReducer>> {
+        let map = self.reducers.lock();
+        map.get(&id).cloned()
     }
 
-    /// Accesses a single registered reducer by ID.
-    pub fn with_mut<F, R>(&self, id: ProjectionId, f: F) -> Result<R, BrainError>
+    /// Accesses all registered reducers for execution.
+    pub fn with_all<F>(&self, mut f: F) -> Result<(), BrainError>
     where
-        F: FnOnce(&mut dyn StateReducer) -> Result<R, BrainError>,
+        F: FnMut(ProjectionId, &dyn StateReducer) -> Result<(), BrainError>,
     {
-        let mut map = self.reducers.lock();
-        if let Some(reducer) = map.get_mut(&id) {
-            f(reducer.as_mut())
-        } else {
-            Err(BrainError::Storage {
-                message: format!("Projection ID {:?} not registered in runner", id),
-                source: None,
-            })
+        let map = self.reducers.lock();
+        for (&id, reducer) in map.iter() {
+            f(id, reducer.as_ref())?;
         }
+        Ok(())
     }
 }
 

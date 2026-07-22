@@ -377,4 +377,42 @@ impl TemporalProjector {
     pub fn project(edges: &[TemporalEdge], query: &TemporalQuery) -> TemporalSnapshot {
         TemporalSnapshot::project(edges, query)
     }
+
+    /// Projects the entire KnowledgeGraph state (nodes and active edges) at a target TemporalQuery criteria.
+    pub fn project_graph(
+        graph: &crate::entities::KnowledgeGraph,
+        temporal_edges: &[TemporalEdge],
+        query: &TemporalQuery,
+    ) -> crate::entities::KnowledgeGraph {
+        let reference = query.reference_time.unix_seconds();
+        let snapshot = Self::project(temporal_edges, query);
+
+        let mut projected_graph = crate::entities::KnowledgeGraph::new();
+
+        // 1. Filter nodes created/updated at or before reference time
+        for node in graph.nodes.values() {
+            if node.updated_at <= reference {
+                projected_graph.add_node(node.clone());
+            }
+        }
+
+        // 2. Filter edges active in the snapshot and matching visibility
+        for te in temporal_edges {
+            let edge_id = crate::identifiers::EdgeId::new(
+                te.edge.source,
+                te.edge.target,
+                te.edge.relation.id(),
+            );
+            if snapshot.active_edge_ids.contains(&edge_id) {
+                // Ensure both endpoints exist in the projected graph before adding
+                if projected_graph.nodes.contains_key(&te.edge.source)
+                    && projected_graph.nodes.contains_key(&te.edge.target)
+                {
+                    let _ = projected_graph.add_edge(te.edge.clone());
+                }
+            }
+        }
+
+        projected_graph
+    }
 }

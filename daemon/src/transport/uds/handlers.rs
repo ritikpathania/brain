@@ -1,14 +1,11 @@
-use std::str::FromStr;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
-use tracing::{error, info, warn};
 
 use brain_application::context::ExecutionContext;
 use brain_application::dispatcher::{ApplicationRequest, ApplicationResponse, RequestDispatcher};
-use brain_core::events::CorrelationId;
 
 use crate::server::protocol::{
     ClientRequest, LegacyResponse, ServerResponse, VersionedError, VersionedEvent,

@@ -7,13 +7,19 @@
 pub mod application;
 /// Execution contexts and progress sinks.
 pub mod context;
+/// Transport-agnostic request router.
+pub mod dispatcher;
 /// Application data transfer objects.
 pub mod dto;
 /// Semantic application error classifications.
 pub mod errors;
+/// Subscription management types.
+pub mod subscription;
 
 pub use application::{BrainApplication, IngestionResponse};
 pub use context::{
     ApplicationEvent, ApplicationEventSink, ApplicationRequestId, ExecutionContext, ProgressEvent,
 };
+pub use dispatcher::{ApplicationRequest, ApplicationResponse, RequestDispatcher};
 pub use errors::ApplicationError;
+pub use subscription::{EventStream, SubscriptionManager};

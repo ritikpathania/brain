@@ -37,7 +37,15 @@ impl SqliteSearchRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.find_by_id_conn(&conn, id)
+    }
 
+    /// Finds an indexed search document by its unique ID using a shared transaction connection.
+    pub fn find_by_id_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        id: &SearchDocumentId,
+    ) -> Result<Option<SearchDocument>, BrainError> {
         let mut stmt = conn
             .prepare("SELECT id, kind, title, body, metadata FROM search_projection WHERE id = ?1")
             .map_err(|e| BrainError::Storage {
@@ -96,7 +104,16 @@ impl SqliteSearchRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.save_conn(&conn, doc, sequence)
+    }
 
+    /// Saves a search document using a shared transaction connection.
+    pub fn save_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        doc: &SearchDocument,
+        sequence: u64,
+    ) -> Result<(), BrainError> {
         let id_str = doc.id.as_str();
 
         // Delete existing document first to ensure we replace it and avoid duplicates in FTS5
@@ -137,7 +154,15 @@ impl SqliteSearchRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.delete_conn(&conn, id)
+    }
 
+    /// Deletes a search document from the FTS5 virtual table using a shared transaction connection.
+    pub fn delete_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        id: &SearchDocumentId,
+    ) -> Result<(), BrainError> {
         conn.execute(
             "DELETE FROM search_projection WHERE id = ?1",
             params![id.as_str()],
@@ -261,13 +286,16 @@ impl SqliteSearchRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.clear_all_conn(&conn)
+    }
 
+    /// Clears all entries in the search projection using a shared transaction connection.
+    pub fn clear_all_conn(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
         conn.execute("DELETE FROM search_projection", [])
             .map_err(|e| BrainError::Storage {
                 message: format!("Failed to clear search projection: {}", e),
                 source: Some(Box::new(e)),
             })?;
-
         Ok(())
     }
 
@@ -277,7 +305,15 @@ impl SqliteSearchRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.delete_by_session_id_conn(&conn, session_id)
+    }
 
+    /// Deletes all indexed messages that belong to a specific session using a shared transaction connection.
+    pub fn delete_by_session_id_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        session_id: &SessionId,
+    ) -> Result<(), BrainError> {
         let like_pattern = format!("%\"session_id\":\"{}\"%", session_id.0);
         conn.execute(
             "DELETE FROM search_projection WHERE kind = 'message' AND metadata LIKE ?1",
@@ -287,7 +323,6 @@ impl SqliteSearchRepository {
             message: format!("Failed to delete messages by session: {}", e),
             source: Some(Box::new(e)),
         })?;
-
         Ok(())
     }
 }

@@ -168,6 +168,7 @@ impl HostContext for ApplicationRuntime {
             explain: false,
             graph_depth: None,
             expand_relations: false,
+            reference_time: None,
         };
         let response = retrieval_service.execute_pipeline(&request)?;
         Ok(response.nodes)

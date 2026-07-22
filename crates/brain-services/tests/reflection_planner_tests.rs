@@ -5,7 +5,7 @@ use brain_domain::{
     ReflectionDomainEvent, ReflectionFinding, RelationKind,
 };
 use brain_services::reflection::{
-    passes::DuplicateDetectionPass, handler::ReflectionCommandHandler, ReflectionContext,
+    handler::ReflectionCommandHandler, passes::DuplicateDetectionPass, ReflectionContext,
     ReflectionEngine, ReflectionPass, ReflectionPlanner, ReflectionRegistry,
 };
 use brain_storage::TestStorage;
@@ -73,7 +73,10 @@ fn test_planner_determinism_and_filtering() {
     );
 
     // Low confidence should be logged as skipped
-    assert_eq!(plan_1.skipped_findings[0].1, "Confidence below merge threshold (0.92)");
+    assert_eq!(
+        plan_1.skipped_findings[0].1,
+        "Confidence below merge threshold (0.92)"
+    );
 }
 
 #[test]
@@ -88,21 +91,27 @@ fn test_duplicate_detection_pass() {
 
     let node_1 = Node::new(node_1_id, "Apple Inc".to_string(), NodeType::Concept);
     let node_2 = Node::new(node_2_id, "apple inc.".to_string(), NodeType::Concept);
-    let node_diff_type = Node::new(node_diff_type_id, "Apple Inc".to_string(), NodeType::Project);
+    let node_diff_type = Node::new(
+        node_diff_type_id,
+        "Apple Inc".to_string(),
+        NodeType::Project,
+    );
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        let repos = tx.repositories();
-        repos.nodes().save(&node_1)?;
-        repos.nodes().save(&node_2)?;
-        repos.nodes().save(&node_diff_type)?;
-        
-        // Save matching embeddings (cosine similarity = 1.0)
-        let emb_1 = Embedding::new(node_1_id, vec![1.0, 0.0, 0.0]);
-        let emb_2 = Embedding::new(node_2_id, vec![1.0, 0.0, 0.0]);
-        repos.embeddings().save(&emb_1)?;
-        repos.embeddings().save(&emb_2)?;
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            let repos = tx.repositories();
+            repos.nodes().save(&node_1)?;
+            repos.nodes().save(&node_2)?;
+            repos.nodes().save(&node_diff_type)?;
+
+            // Save matching embeddings (cosine similarity = 1.0)
+            let emb_1 = Embedding::new(node_1_id, vec![1.0, 0.0, 0.0]);
+            let emb_2 = Embedding::new(node_2_id, vec![1.0, 0.0, 0.0]);
+            repos.embeddings().save(&emb_1)?;
+            repos.embeddings().save(&emb_2)?;
+            Ok(())
+        })
+        .unwrap();
 
     let registry = Arc::new({
         let mut r = ReflectionRegistry::new();
@@ -126,15 +135,19 @@ fn test_duplicate_detection_pass() {
     // Verify duplicate concept detected
     assert_eq!(findings.len(), 1);
     match &findings[0] {
-        ReflectionFinding::DuplicateFound { node_a, node_b, evidence } => {
+        ReflectionFinding::DuplicateFound {
+            node_a,
+            node_b,
+            evidence,
+        } => {
             let sorted_ids = if node_1_id < node_2_id {
                 (node_1_id, node_2_id)
             } else {
                 (node_2_id, node_1_id)
             };
             assert!(
-                (*node_a == sorted_ids.0 && *node_b == sorted_ids.1) ||
-                (*node_a == sorted_ids.1 && *node_b == sorted_ids.0)
+                (*node_a == sorted_ids.0 && *node_b == sorted_ids.1)
+                    || (*node_a == sorted_ids.1 && *node_b == sorted_ids.0)
             );
             assert!(evidence.confidence >= 0.9);
             assert_eq!(evidence.semantic_similarity, Some(1.0));
@@ -194,29 +207,39 @@ fn test_concept_merging_and_edge_relinking() {
     let node_other_id = NodeId(Uuid::new_v4());
 
     let mut node_1 = Node::new(node_1_id, "Apple Corp".to_string(), NodeType::Concept);
-    node_1.properties.insert("ticker".to_string(), serde_json::json!("AAPL"));
+    node_1
+        .properties
+        .insert("ticker".to_string(), serde_json::json!("AAPL"));
 
     let mut node_2 = Node::new(node_2_id, "apple corp.".to_string(), NodeType::Concept);
-    node_2.properties.insert("headquarters".to_string(), serde_json::json!("Cupertino"));
+    node_2
+        .properties
+        .insert("headquarters".to_string(), serde_json::json!("Cupertino"));
 
-    let node_other = Node::new(node_other_id, "iPhone Product".to_string(), NodeType::Concept);
+    let node_other = Node::new(
+        node_other_id,
+        "iPhone Product".to_string(),
+        NodeType::Concept,
+    );
 
     // Edge from duplicate node_2 to node_other
     let edge = Edge::new(node_2_id, node_other_id, RelationKind::Uses, 0.8);
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        let repos = tx.repositories();
-        repos.nodes().save(&node_1)?;
-        repos.nodes().save(&node_2)?;
-        repos.nodes().save(&node_other)?;
-        repos.edges().save(&edge)?;
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            let repos = tx.repositories();
+            repos.nodes().save(&node_1)?;
+            repos.nodes().save(&node_2)?;
+            repos.nodes().save(&node_other)?;
+            repos.edges().save(&edge)?;
 
-        let emb_1 = Embedding::new(node_1_id, vec![1.0, 0.0, 0.0]);
-        let emb_2 = Embedding::new(node_2_id, vec![1.0, 0.0, 0.0]);
-        repos.embeddings().save(&emb_1)?;
-        repos.embeddings().save(&emb_2)?;
-        Ok(())
-    }).unwrap();
+            let emb_1 = Embedding::new(node_1_id, vec![1.0, 0.0, 0.0]);
+            let emb_2 = Embedding::new(node_2_id, vec![1.0, 0.0, 0.0]);
+            repos.embeddings().save(&emb_1)?;
+            repos.embeddings().save(&emb_2)?;
+            Ok(())
+        })
+        .unwrap();
 
     // 2. Execute duplicate detection and planner
     let registry = Arc::new({
@@ -246,18 +269,24 @@ fn test_concept_merging_and_edge_relinking() {
     let handler = ReflectionCommandHandler::new();
     let mut events = Vec::new();
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        for cmd in plan.commands.clone() {
-            let ev = handler.handle(tx, cmd)?;
-            events.push(ev);
-        }
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            for cmd in plan.commands.clone() {
+                let ev = handler.handle(tx, cmd)?;
+                events.push(ev);
+            }
+            Ok(())
+        })
+        .unwrap();
 
     // Verify event details
     assert_eq!(events.len(), 1);
     match &events[0] {
-        ReflectionDomainEvent::ConceptMerged { canonical_id, merged_id, provenance } => {
+        ReflectionDomainEvent::ConceptMerged {
+            canonical_id,
+            merged_id,
+            provenance,
+        } => {
             let expected_canonical = std::cmp::min(node_1_id, node_2_id);
             let expected_merged = std::cmp::max(node_1_id, node_2_id);
             assert_eq!(*canonical_id, expected_canonical);
@@ -268,29 +297,35 @@ fn test_concept_merging_and_edge_relinking() {
     }
 
     // 4. Verify database state
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        let repos = tx.repositories();
-        let expected_canonical = std::cmp::min(node_1_id, node_2_id);
-        let expected_merged = std::cmp::max(node_1_id, node_2_id);
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            let repos = tx.repositories();
+            let expected_canonical = std::cmp::min(node_1_id, node_2_id);
+            let expected_merged = std::cmp::max(node_1_id, node_2_id);
 
-        // redudant node deleted, canonical survives
-        assert!(repos.nodes().find_by_id(&expected_merged)?.is_none());
-        let canonical_node = repos.nodes().find_by_id(&expected_canonical)?.unwrap();
+            // redudant node deleted, canonical survives
+            assert!(repos.nodes().find_by_id(&expected_merged)?.is_none());
+            let canonical_node = repos.nodes().find_by_id(&expected_canonical)?.unwrap();
 
-        // properties are merged
-        assert_eq!(canonical_node.properties.get("ticker").unwrap(), "AAPL");
-        assert_eq!(canonical_node.properties.get("headquarters").unwrap(), "Cupertino");
+            // properties are merged
+            assert_eq!(canonical_node.properties.get("ticker").unwrap(), "AAPL");
+            assert_eq!(
+                canonical_node.properties.get("headquarters").unwrap(),
+                "Cupertino"
+            );
 
-        // edge updated to point to canonical
-        let old_edge_id = EdgeId::new(node_2_id, node_other_id, RelationKind::Uses.id());
-        assert!(repos.edges().find_by_id(&old_edge_id)?.is_none());
+            // edge updated to point to canonical
+            let old_edge_id = EdgeId::new(node_2_id, node_other_id, RelationKind::Uses.id());
+            assert!(repos.edges().find_by_id(&old_edge_id)?.is_none());
 
-        let new_edge_id = EdgeId::new(expected_canonical, node_other_id, RelationKind::Uses.id());
-        let updated_edge = repos.edges().find_by_id(&new_edge_id)?.unwrap();
-        assert_eq!(updated_edge.weight, 0.8);
+            let new_edge_id =
+                EdgeId::new(expected_canonical, node_other_id, RelationKind::Uses.id());
+            let updated_edge = repos.edges().find_by_id(&new_edge_id)?.unwrap();
+            assert_eq!(updated_edge.weight, 0.8);
 
-        Ok(())
-    }).unwrap();
+            Ok(())
+        })
+        .unwrap();
 }
 
 #[test]
@@ -299,12 +334,18 @@ fn test_command_idempotency_and_rollback() {
     let storage = test_storage.store();
 
     let node_1_id = NodeId(Uuid::new_v4());
-    let node_1 = Node::new(node_1_id, "Canonical Concept".to_string(), NodeType::Concept);
+    let node_1 = Node::new(
+        node_1_id,
+        "Canonical Concept".to_string(),
+        NodeType::Concept,
+    );
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        tx.repositories().nodes().save(&node_1)?;
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            tx.repositories().nodes().save(&node_1)?;
+            Ok(())
+        })
+        .unwrap();
 
     let handler = ReflectionCommandHandler::new();
 
@@ -315,7 +356,7 @@ fn test_command_idempotency_and_rollback() {
         duplicate_id: non_existent_id,
     };
 
-    let result = storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
+    let result = storage.run_transaction(|tx: &dyn StorageTransaction| {
         handler.handle(tx, command.clone())?;
         Ok(())
     });
@@ -324,10 +365,12 @@ fn test_command_idempotency_and_rollback() {
     assert!(result.is_err());
 
     // Verify canonical node still exists untouched
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        assert!(tx.repositories().nodes().find_by_id(&node_1_id)?.is_some());
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            assert!(tx.repositories().nodes().find_by_id(&node_1_id)?.is_some());
+            Ok(())
+        })
+        .unwrap();
 }
 
 #[test]
@@ -341,16 +384,23 @@ fn test_contradiction_pass() {
     let node_b_id = NodeId(Uuid::new_v4());
 
     let mut node_a = Node::new(node_a_id, "Google Corp".to_string(), NodeType::Concept);
-    node_a.properties.insert("headquarters".to_string(), serde_json::json!("Mountain View"));
+    node_a.properties.insert(
+        "headquarters".to_string(),
+        serde_json::json!("Mountain View"),
+    );
 
     let mut node_b = Node::new(node_b_id, "google corp.".to_string(), NodeType::Concept);
-    node_b.properties.insert("headquarters".to_string(), serde_json::json!("New York"));
+    node_b
+        .properties
+        .insert("headquarters".to_string(), serde_json::json!("New York"));
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        tx.repositories().nodes().save(&node_a)?;
-        tx.repositories().nodes().save(&node_b)?;
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            tx.repositories().nodes().save(&node_a)?;
+            tx.repositories().nodes().save(&node_b)?;
+            Ok(())
+        })
+        .unwrap();
 
     let pass = ContradictionPass::new();
     let context = ReflectionContext {
@@ -363,13 +413,15 @@ fn test_contradiction_pass() {
     };
 
     let mut findings = Vec::new();
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        findings = pass.run(tx.repositories(), &context).unwrap();
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            findings = pass.run(tx.repositories(), &context).unwrap();
+            Ok(())
+        })
+        .unwrap();
 
     assert!(!findings.is_empty());
-    
+
     // Check that we found a contradiction finding for headquarters
     let mut found = false;
     for finding in findings {
@@ -401,14 +453,16 @@ fn test_link_suggestion_pass() {
     let edge_ab = Edge::new(node_a_id, node_b_id, RelationKind::Uses, 0.9);
     let edge_bc = Edge::new(node_b_id, node_c_id, RelationKind::Uses, 0.8);
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        tx.repositories().nodes().save(&node_a)?;
-        tx.repositories().nodes().save(&node_b)?;
-        tx.repositories().nodes().save(&node_c)?;
-        tx.repositories().edges().save(&edge_ab)?;
-        tx.repositories().edges().save(&edge_bc)?;
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            tx.repositories().nodes().save(&node_a)?;
+            tx.repositories().nodes().save(&node_b)?;
+            tx.repositories().nodes().save(&node_c)?;
+            tx.repositories().edges().save(&edge_ab)?;
+            tx.repositories().edges().save(&edge_bc)?;
+            Ok(())
+        })
+        .unwrap();
 
     let pass = LinkSuggestionPass::new();
     let context = ReflectionContext {
@@ -421,17 +475,28 @@ fn test_link_suggestion_pass() {
     };
 
     let mut findings = Vec::new();
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        findings = pass.run(tx.repositories(), &context).unwrap();
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            findings = pass.run(tx.repositories(), &context).unwrap();
+            Ok(())
+        })
+        .unwrap();
 
     assert!(!findings.is_empty());
 
     let mut found = false;
     for finding in findings {
-        if let ReflectionFinding::LinkSuggested { source_id, target_id, relation_kind, .. } = finding {
-            if source_id == node_a_id && target_id == node_c_id && relation_kind == RelationKind::Uses {
+        if let ReflectionFinding::LinkSuggested {
+            source_id,
+            target_id,
+            relation_kind,
+            ..
+        } = finding
+        {
+            if source_id == node_a_id
+                && target_id == node_c_id
+                && relation_kind == RelationKind::Uses
+            {
                 found = true;
             }
         }
@@ -458,14 +523,16 @@ fn test_synthesis_pass() {
     let edge_ab = Edge::new(node_a_id, node_b_id, RelationKind::AssociatedWith, 0.9);
     let edge_bc = Edge::new(node_b_id, node_c_id, RelationKind::AssociatedWith, 0.8);
 
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        tx.repositories().nodes().save(&node_a)?;
-        tx.repositories().nodes().save(&node_b)?;
-        tx.repositories().nodes().save(&node_c)?;
-        tx.repositories().edges().save(&edge_ab)?;
-        tx.repositories().edges().save(&edge_bc)?;
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(|tx: &dyn StorageTransaction| {
+            tx.repositories().nodes().save(&node_a)?;
+            tx.repositories().nodes().save(&node_b)?;
+            tx.repositories().nodes().save(&node_c)?;
+            tx.repositories().edges().save(&edge_ab)?;
+            tx.repositories().edges().save(&edge_bc)?;
+            Ok(())
+        })
+        .unwrap();
 
     let pass = SynthesisPass::new();
     let context = ReflectionContext {
@@ -478,22 +545,31 @@ fn test_synthesis_pass() {
     };
 
     let mut findings = Vec::new();
-    storage.run_transaction(&mut |tx: &dyn StorageTransaction| {
-        findings = pass.run(tx.repositories(), &context).unwrap();
-        Ok(())
-    }).unwrap();
+    storage
+        .run_transaction(&mut |tx: &dyn StorageTransaction| {
+            findings = pass.run(tx.repositories(), &context).unwrap();
+            Ok(())
+        })
+        .unwrap();
 
     assert!(!findings.is_empty());
 
     let mut found = false;
     for finding in findings {
-        if let ReflectionFinding::LinkSuggested { source_id, target_id, relation_kind, .. } = finding {
-            if source_id == node_a_id && target_id == node_c_id && relation_kind == RelationKind::AssociatedWith {
+        if let ReflectionFinding::LinkSuggested {
+            source_id,
+            target_id,
+            relation_kind,
+            ..
+        } = finding
+        {
+            if source_id == node_a_id
+                && target_id == node_c_id
+                && relation_kind == RelationKind::AssociatedWith
+            {
                 found = true;
             }
         }
     }
     assert!(found);
 }
-
-

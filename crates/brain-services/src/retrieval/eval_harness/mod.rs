@@ -6,6 +6,8 @@ pub mod correlation;
 pub mod cv;
 /// FTS retriever implementation.
 pub mod fts_retriever;
+/// Graph-aware retriever implementation.
+pub mod graph_retriever;
 /// Hybrid retriever implementation.
 pub mod hybrid_retriever;
 /// Evaluation metrics sub-engine.
@@ -56,6 +58,7 @@ pub use sensitivity::{
 };
 
 pub use fts_retriever::FtsRetriever;
+pub use graph_retriever::GraphAwareRetriever;
 pub use hybrid_retriever::HybridRetriever;
 pub use provider::FeatureProvider;
 pub use ranking::{LinearRanker, RankingRetriever, RankingWeights};
@@ -343,3 +346,10 @@ impl FeatureExtractor {
         )
     }
 }
+
+/// Production corpus fixtures.
+pub mod production_corpus;
+pub use production_corpus::{
+    HashingEmbeddingProvider, HashingQueryEmbeddingService, ProductionCorpus,
+    ProductionCorpusBuilder,
+};

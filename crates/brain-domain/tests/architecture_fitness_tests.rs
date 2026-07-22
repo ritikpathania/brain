@@ -41,6 +41,7 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
             "brain-python",
             "brain-observability",
             "brain-events",
+            "brain-integrations",
         ],
         "brain-application" => vec![
             "brain-domain",
@@ -49,6 +50,7 @@ fn get_allowed_dependencies(crate_name: &str) -> Vec<&str> {
             "brain-integrations",
             "brain-storage",
             "brain-config",
+            "brain-events",
         ],
         "brain-mcp-adapter" => vec![
             "brain-domain",

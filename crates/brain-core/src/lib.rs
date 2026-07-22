@@ -37,11 +37,15 @@ pub mod evolution;
 /// Reflection engine contracts for post-canonicalization entity examination.
 pub mod reflection;
 
+/// Graph/relationship model DTOs.
+pub mod graph;
+
 pub use agents::*;
 pub use errors::*;
 pub use events::*;
 pub use evolution::*;
 pub use extensibility::*;
+pub use graph::*;
 pub use projection::*;
 pub use reflection::*;
 pub use repositories::*;

@@ -1,8 +1,8 @@
 use brain_core::errors::BrainError;
 use brain_core::repositories::StorageTransaction;
 use brain_domain::{
-    Derivation, Edge, EdgeId, MemoryMergePolicy, ReflectionDomainCommand,
-    ReflectionDomainEvent, RuleId,
+    Derivation, Edge, EdgeId, MemoryMergePolicy, ReflectionDomainCommand, ReflectionDomainEvent,
+    RuleId,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -18,7 +18,7 @@ impl Default for ReflectionCommandHandler {
 impl ReflectionCommandHandler {
     /// Creates a new `ReflectionCommandHandler`.
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 
     /// Executes a single reflection command, mutating the repositories and returning the generated event.
@@ -30,24 +30,27 @@ impl ReflectionCommandHandler {
         let repos = tx.repositories();
 
         match command {
-            ReflectionDomainCommand::MergeConcepts { canonical_id, duplicate_id } => {
-                let canonical = repos
-                    .nodes()
-                    .find_by_id(&canonical_id)?
-                    .ok_or_else(|| BrainError::Validation {
+            ReflectionDomainCommand::MergeConcepts {
+                canonical_id,
+                duplicate_id,
+            } => {
+                let canonical = repos.nodes().find_by_id(&canonical_id)?.ok_or_else(|| {
+                    BrainError::Validation {
                         message: format!("Canonical node {:?} not found", canonical_id),
-                    })?;
-                let duplicate = repos
-                    .nodes()
-                    .find_by_id(&duplicate_id)?
-                    .ok_or_else(|| BrainError::Validation {
+                    }
+                })?;
+                let duplicate = repos.nodes().find_by_id(&duplicate_id)?.ok_or_else(|| {
+                    BrainError::Validation {
                         message: format!("Duplicate node {:?} not found", duplicate_id),
-                    })?;
+                    }
+                })?;
 
                 // 1. Merge the nodes using domain policy
-                let (merged_node, _) = MemoryMergePolicy::merge(&canonical, &duplicate)
-                    .map_err(|e| BrainError::Validation {
-                        message: format!("Domain merge logic failed: {:?}", e),
+                let (merged_node, _) =
+                    MemoryMergePolicy::merge(&canonical, &duplicate).map_err(|e| {
+                        BrainError::Validation {
+                            message: format!("Domain merge logic failed: {:?}", e),
+                        }
                     })?;
 
                 // 2. Persist the merged canonical node
@@ -60,8 +63,16 @@ impl ReflectionCommandHandler {
                     let old_edge_id = EdgeId::new(edge.source, edge.target, edge.relation.id());
                     repos.edges().delete(&old_edge_id)?;
 
-                    let new_source = if edge.source == duplicate_id { canonical_id } else { edge.source };
-                    let new_target = if edge.target == duplicate_id { canonical_id } else { edge.target };
+                    let new_source = if edge.source == duplicate_id {
+                        canonical_id
+                    } else {
+                        edge.source
+                    };
+                    let new_target = if edge.target == duplicate_id {
+                        canonical_id
+                    } else {
+                        edge.target
+                    };
 
                     if new_source == new_target {
                         // Skip creating self-loops
@@ -101,12 +112,16 @@ impl ReflectionCommandHandler {
                 relation_kind,
                 confidence,
             } => {
-                // Construct and save the inferred transitive relationship edge using factory method
-                let mut edge = Edge::new(source_id, target_id, relation_kind, confidence);
-                edge.derivation = Some(Derivation {
-                    rule: RuleId::Transitive,
-                    supporting_edges: Vec::new(),
-                });
+                let edge = Edge::new_derived(
+                    source_id,
+                    target_id,
+                    relation_kind,
+                    confidence,
+                    Derivation {
+                        rule: RuleId::Transitive,
+                        supporting_edges: Vec::new(),
+                    },
+                );
                 repos.edges().save(&edge)?;
 
                 Ok(ReflectionDomainEvent::RelationInferred {

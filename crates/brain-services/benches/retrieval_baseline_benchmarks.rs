@@ -463,11 +463,15 @@ fn run_scenario_tracing(
     let registry = Arc::new(RelationRegistry::default_embedded());
     let provider = Arc::new(BenchEmbeddingProvider);
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "compiler".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let (res_nodes, ivf_bypass, ivf_activation, cosine_comps) = match scenario {
@@ -623,11 +627,15 @@ fn run_macro_pipeline_tracing(storage: &SqliteStorage, count: usize) -> serde_js
     let registry = Arc::new(RelationRegistry::default_embedded());
     let provider = Arc::new(BenchEmbeddingProvider);
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "compiler".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let embed_service = Arc::new(DefaultQueryEmbeddingService::new(provider.clone()));
@@ -752,11 +760,15 @@ fn bench_retrieval_baseline(c: &mut Criterion) {
         let registry = Arc::new(RelationRegistry::default_embedded());
         let provider = Arc::new(BenchEmbeddingProvider);
         let request = RetrievalRequest {
+            reference_time: None,
             session_id: brain_domain::SessionId::new(),
             query: "compiler".to_string(),
             limit: 10,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
 
         // Heuristic

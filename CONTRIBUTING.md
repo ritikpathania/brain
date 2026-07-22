@@ -80,22 +80,20 @@ guardrail belong?"* rather than just *"should I add one?"*
 
 When closing a bug, work through this list before marking the PR ready:
 
-```
-□ Did runtime behavior regress?
+- [ ] Did runtime behavior regress?
   → Add or strengthen a regression test.
 
-□ Did an architectural boundary fail?
+- [ ] Did an architectural boundary fail?
   → Add or update an ArchitectureRule in crates/brain-arch-tests/.
 
-□ Did a public contract drift?
+- [ ] Did a public contract drift?
   → Update and re-run: cargo xtask verify-contracts
 
-□ Did performance regress?
+- [ ] Did performance regress?
   → Add or update a benchmark baseline.
 
-□ Did documentation describe an invariant that was violated?
+- [ ] Did documentation describe an invariant that was violated?
   → Update the documentation and add an executable check if feasible.
-```
 
 The left-hand side describes the *kind of promise that was broken*. The
 right-hand side describes *where to encode the protection*. If tool names

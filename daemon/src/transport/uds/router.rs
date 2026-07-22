@@ -1,7 +1,7 @@
 use crate::server::protocol::ClientRequest;
 use brain_application::dispatcher::ApplicationRequest;
-use brain_integrations::IngestionEnvelope;
 use brain_integrations::dto::v1::SearchQuery;
+use brain_integrations::IngestionEnvelope;
 
 /// UDS protocol router mapping wire protocol actions to application request variants.
 pub struct ProtocolRouter;
@@ -29,7 +29,7 @@ impl ProtocolRouter {
             "v1/ingest" => {
                 let envelope: IngestionEnvelope = serde_json::from_str(body)
                     .map_err(|e| format!("Failed to parse IngestionEnvelope: {}", e))?;
-                Ok(Some(ApplicationRequest::Ingest(envelope)))
+                Ok(Some(ApplicationRequest::Ingest(Box::new(envelope))))
             }
             "v1/replay" => {
                 let after_sequence: u64 = serde_json::from_str(body)
@@ -52,8 +52,8 @@ impl ProtocolRouter {
             }
             "v1/projections" => Ok(Some(ApplicationRequest::ListProjectionStatus)),
             "v1/rebuild_projection" => {
-                let name: String = serde_json::from_str(body)
-                    .unwrap_or_else(|_| body.trim().to_string());
+                let name: String =
+                    serde_json::from_str(body).unwrap_or_else(|_| body.trim().to_string());
                 Ok(Some(ApplicationRequest::RebuildProjection { name }))
             }
 
@@ -99,13 +99,13 @@ impl ProtocolRouter {
                     },
                     event,
                 };
-                Ok(Some(ApplicationRequest::Ingest(envelope)))
+                Ok(Some(ApplicationRequest::Ingest(Box::new(envelope))))
             }
             "ingest_event" => {
                 tracing::warn!("UDS Protocol Router: Received deprecated legacy action 'ingest_event'. Please upgrade client.");
                 let envelope: IngestionEnvelope = serde_json::from_str(body)
                     .map_err(|e| format!("Failed to parse IngestionEnvelope: {}", e))?;
-                Ok(Some(ApplicationRequest::Ingest(envelope)))
+                Ok(Some(ApplicationRequest::Ingest(Box::new(envelope))))
             }
             "replay" => {
                 tracing::warn!("UDS Protocol Router: Received deprecated legacy action 'replay'. Please upgrade client.");
@@ -214,11 +214,19 @@ mod tests {
     fn test_route_versioned_subscribe() {
         let req = make_versioned("v1/subscribe", "");
         let res = ProtocolRouter::route(&req).unwrap().unwrap();
-        assert!(matches!(res, ApplicationRequest::Subscribe { after_sequence: None }));
+        assert!(matches!(
+            res,
+            ApplicationRequest::Subscribe {
+                after_sequence: None
+            }
+        ));
 
         let req_with_seq = make_versioned("v1/subscribe", "123");
         let res_with_seq = ProtocolRouter::route(&req_with_seq).unwrap().unwrap();
-        if let ApplicationRequest::Subscribe { after_sequence: Some(seq) } = res_with_seq {
+        if let ApplicationRequest::Subscribe {
+            after_sequence: Some(seq),
+        } = res_with_seq
+        {
             assert_eq!(seq, 123);
         } else {
             panic!("Expected Subscribe with after_sequence = Some(123)");

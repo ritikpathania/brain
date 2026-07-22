@@ -364,9 +364,16 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
         }
     };
 
-    let rt_metrics_ref = Arc::clone(&brain_runtime);
+    let brain_app = Arc::new(brain_application::BrainApplication::new(Arc::clone(
+        &brain_runtime,
+    )));
+    let request_dispatcher = Arc::new(brain_application::dispatcher::RequestDispatcher::new(
+        Arc::clone(&brain_app),
+    ));
+
+    let dispatcher_ref = Arc::clone(&request_dispatcher);
     tokio::spawn(async move {
-        start_health_server(health_metrics, rt_metrics_ref).await;
+        start_health_server(health_metrics, dispatcher_ref).await;
     });
 
     let mut state = DaemonState::Starting;
@@ -450,12 +457,14 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     });
 
     let listener_metrics = metrics.clone();
-    let listener_runtime = Arc::clone(&brain_runtime);
+    let listener_dispatcher = Arc::clone(&request_dispatcher);
+    let listener_app = Arc::clone(&brain_app);
     tokio::select! {
         _ = start_uds_listener(
             listener,
             listener_metrics,
-            listener_runtime,
+            listener_dispatcher,
+            listener_app,
         ) => {}
         _ = cancel_token.cancelled() => {
             state = DaemonState::Draining;
@@ -490,6 +499,9 @@ async fn run_daemon_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::
     if active == 0 {
         info!(component = "shutdown", "Workers drained");
     }
+
+    drop(request_dispatcher);
+    drop(brain_app);
 
     match Arc::try_unwrap(brain_runtime) {
         Ok(runtime) => match runtime.shutdown() {

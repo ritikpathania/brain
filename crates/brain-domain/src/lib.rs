@@ -72,3 +72,7 @@ pub use consolidation::*;
 /// First-class background jobs models and state machine.
 pub mod jobs;
 pub use jobs::*;
+
+/// Knowledge Graph self-reflection and consolidation models.
+pub mod reflection;
+pub use reflection::*;

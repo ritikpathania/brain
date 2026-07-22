@@ -1,2 +1,2 @@
 /// Version 1 DTO schemas.
-pub mod v1;
+pub use brain_integrations::dto::v1;

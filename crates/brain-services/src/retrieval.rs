@@ -12,6 +12,8 @@ pub mod evaluator;
 pub mod experiment;
 /// Feature extraction pipeline for learned ranking.
 pub mod feature_extractor;
+/// Candidate fusion strategies (RRF).
+pub mod fusion;
 /// Graph traversal, budgeting, and analysis services.
 pub mod graph_service;
 /// Dynamic loader for learned ranking models.
@@ -22,6 +24,8 @@ pub mod model_resolver;
 pub mod pipeline;
 /// Contextual ranking strategies (BM25, Embeddings, Graph, and RRF).
 pub mod ranking;
+/// Post-retrieval relationship expansion.
+pub mod relationship_expander;
 /// Concrete memory source implementations (STM, LTM, etc).
 pub mod source;
 /// Durable SQLite cache store backend.
@@ -29,6 +33,7 @@ pub mod sqlite_store;
 /// Temporal retrieval integration, projection views, and ranking.
 pub mod temporal;
 
+use self::relationship_expander::RelationshipExpander;
 use crate::mapper::to_memory_dto;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
@@ -91,6 +96,7 @@ impl RetrievalServiceImpl {
             60.0,
         ));
 
+        let temporal_reranker = Arc::new(ranking::reranker::TemporalReranker::new());
         let pipeline = pipeline::MemoryPipelineBuilder::new()
             .register_source(src_stm)
             .register_source(src_ltm)
@@ -98,6 +104,13 @@ impl RetrievalServiceImpl {
             .with_ranking_strategy(rrf)
             .with_policy(CacheHydrationPolicy::OnHit)
             .with_cache_manager(cache_manager)
+            .with_temporal_ranking_config(brain_core::retrieval::TemporalRankingSettings {
+                enabled: false,
+                model: brain_core::retrieval::DecayModel::Uniform,
+                half_life_seconds: 86400,
+                scaling_factor: 1.0,
+            })
+            .register_reranker(temporal_reranker)
             .build();
 
         Self { repos, pipeline }
@@ -202,6 +215,7 @@ impl RetrievalServiceImpl {
             }
         };
 
+        let temporal_reranker = Arc::new(ranking::reranker::TemporalReranker::new());
         let pipeline = pipeline::MemoryPipelineBuilder::new()
             .register_source(src_stm)
             .register_source(src_ltm)
@@ -209,6 +223,8 @@ impl RetrievalServiceImpl {
             .with_ranking_strategy(ranking_strategy)
             .with_policy(CacheHydrationPolicy::OnHit)
             .with_cache_manager(cache_manager)
+            .with_temporal_ranking_config(config.retrieval().temporal_ranking().clone())
+            .register_reranker(temporal_reranker)
             .build();
 
         Self {
@@ -222,7 +238,13 @@ impl RetrievalServiceImpl {
         &self,
         request: &RetrievalRequest,
     ) -> Result<brain_core::retrieval::RetrievalResponse, BrainError> {
-        self.pipeline.execute(request)
+        let mut response = self.pipeline.execute(request)?;
+        if request.expand_relations {
+            let expander = RelationshipExpander::new(self.repos.clone());
+            let expanded = expander.expand(&response.nodes)?;
+            response.relationships = Some(expanded);
+        }
+        Ok(response)
     }
 }
 
@@ -239,6 +261,10 @@ impl RetrievalService for RetrievalServiceImpl {
             limit,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
+            reference_time: None,
         };
 
         let response = self.pipeline.execute(&request)?;

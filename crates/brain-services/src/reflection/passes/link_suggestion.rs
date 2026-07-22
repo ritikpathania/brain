@@ -1,10 +1,9 @@
+use crate::reflection::ReflectionContext;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_domain::{
-    EdgeId, FindingEvidence, InferenceEngine, KnowledgeGraph,
-    ReflectionFinding, RelationRegistry,
+    EdgeId, FindingEvidence, InferenceEngine, KnowledgeGraph, ReflectionFinding, RelationRegistry,
 };
-use crate::reflection::ReflectionContext;
 
 /// Pass suggestion transitive/inverse links using the domain InferenceEngine.
 pub struct LinkSuggestionPass;

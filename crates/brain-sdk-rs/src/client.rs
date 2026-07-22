@@ -8,7 +8,7 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 
 use crate::{BackpressurePolicy, ClientCommand};
 use brain_domain::{AdapterId, ClientId, ConversationId, EventId, SessionId, WorkspaceId};
-use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent, dto::v1};
+use brain_integrations::{dto::v1, EventIdentity, IngestionEnvelope, IngestionEvent};
 
 #[derive(Debug, thiserror::Error, Clone)]
 pub enum BrainSdkError {
@@ -190,9 +190,7 @@ pub struct BrainClient {
     last_sequence: Arc<std::sync::atomic::AtomicU64>,
     last_sequence_received: Arc<std::sync::atomic::AtomicU64>,
     replay_strategy: Arc<dyn ReplayStrategy>,
-    subscribers: Arc<
-        std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
-    >,
+    subscribers: Arc<std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>>,
 }
 
 impl BrainClient {
@@ -330,7 +328,7 @@ impl BrainClient {
             .map_err(|_| BrainSdkError::ShuttingDown)?;
         let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
         serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
-     }
+    }
 
     pub async fn metrics(&self) -> Result<v1::Metrics, BrainSdkError> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -346,9 +344,7 @@ impl BrainClient {
         serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
     }
 
-    pub async fn diagnostics(
-        &self,
-    ) -> Result<v1::Diagnostics, BrainSdkError> {
+    pub async fn diagnostics(&self) -> Result<v1::Diagnostics, BrainSdkError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ClientCommand::Rpc {
@@ -362,9 +358,7 @@ impl BrainClient {
         serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
     }
 
-    pub async fn capabilities(
-        &self,
-    ) -> Result<Vec<v1::Capability>, BrainSdkError> {
+    pub async fn capabilities(&self) -> Result<Vec<v1::Capability>, BrainSdkError> {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ClientCommand::Rpc {
@@ -436,9 +430,7 @@ struct ClientRuntime {
     pending_replay_tx: Option<oneshot::Sender<Result<Vec<IngestionEnvelope>, BrainSdkError>>>,
     pending_requests: BTreeMap<u64, oneshot::Sender<Result<String, BrainSdkError>>>,
     request_id_counter: u64,
-    subscribers: Arc<
-        std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
-    >,
+    subscribers: Arc<std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>>,
 }
 
 impl ClientRuntime {
@@ -449,9 +441,7 @@ impl ClientRuntime {
         last_sequence: Arc<std::sync::atomic::AtomicU64>,
         last_sequence_received: Arc<std::sync::atomic::AtomicU64>,
         replay_strategy: Arc<dyn ReplayStrategy>,
-        subscribers: Arc<
-            std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>,
-        >,
+        subscribers: Arc<std::sync::Mutex<Vec<mpsc::UnboundedSender<v1::StreamMessage>>>>,
     ) -> Self {
         let batch_strategy = Box::new(DefaultBatchStrategy::new(
             config.max_batch_size,

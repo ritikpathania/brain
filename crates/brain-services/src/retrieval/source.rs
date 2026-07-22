@@ -71,50 +71,71 @@ impl MemorySource for StmMemorySource {
             }
         }
 
-        // Graph Expansion using GraphTraversalService
+        // ── Graph Expansion ───────────────────────────────────────────────────
+        // graph_depth controls the traversal horizon. None = default depth 1
+        // (v0.7-compatible). Some(0) = flat retrieval, skip expansion entirely.
+        //
+        // Multi-hop correctness: BFS returns edges in breadth-first order, so
+        // depth-N edges reference depth-(N-1) nodes that may not yet be in
+        // `candidates`. We maintain `all_known_scores` — a superset of
+        // `candidates` that also tracks nodes found during this expansion pass —
+        // so each edge can always find its parent's score.
+        let depth = request.graph_depth.unwrap_or(1);
         let start_nodes: Vec<brain_domain::NodeId> = candidates.keys().cloned().collect();
-        let traversal_budget = crate::retrieval::graph_service::TraversalBudget {
-            max_depth: 1,
-            max_nodes: 50,
-            max_edges: 100,
-            prevent_cycles: true,
-            deadline: request.deadline,
-            ..Default::default()
-        };
+        if depth > 0 && !start_nodes.is_empty() {
+            let traversal_budget = crate::retrieval::graph_service::TraversalBudget {
+                max_depth: depth,
+                max_nodes: 50,
+                max_edges: 100,
+                prevent_cycles: true,
+                deadline: request.deadline,
+                ..Default::default()
+            };
 
-        let mut expansions = Vec::new();
-        if let Ok(connections) = crate::retrieval::graph_service::Graph.expand_neighbors(
-            self.repos.as_ref(),
-            self.registry.as_ref(),
-            &start_nodes,
-            &traversal_budget,
-        ) {
-            for edge in connections {
-                let (matched_id, neighbor_id) = if candidates.contains_key(&edge.source) {
-                    (edge.source, edge.target)
-                } else if candidates.contains_key(&edge.target) {
-                    (edge.target, edge.source)
-                } else {
-                    continue;
-                };
+            // Seed the running score map from initial candidates.
+            let mut all_known_scores: std::collections::HashMap<brain_domain::NodeId, f32> =
+                candidates
+                    .iter()
+                    .map(|(&id, (_, score, _))| (id, *score))
+                    .collect();
+            let mut expansions: Vec<(brain_domain::NodeId, f32)> = Vec::new();
 
-                if !candidates.contains_key(&neighbor_id)
-                    && !request.exclude_ids.contains(&neighbor_id)
-                {
-                    if let Some((_, parent_score, _)) = candidates.get(&matched_id) {
-                        expansions.push((neighbor_id, parent_score * 0.5));
+            if let Ok(connections) = crate::retrieval::graph_service::Graph.expand_neighbors(
+                self.repos.as_ref(),
+                self.registry.as_ref(),
+                &start_nodes,
+                &traversal_budget,
+            ) {
+                for edge in connections {
+                    // Identify which endpoint is already known and which is new.
+                    let (matched_id, neighbor_id) = if all_known_scores.contains_key(&edge.source) {
+                        (edge.source, edge.target)
+                    } else if all_known_scores.contains_key(&edge.target) {
+                        (edge.target, edge.source)
+                    } else {
+                        continue;
+                    };
+
+                    if !all_known_scores.contains_key(&neighbor_id)
+                        && !request.exclude_ids.contains(&neighbor_id)
+                    {
+                        let parent_score = all_known_scores[&matched_id];
+                        let exp_score = parent_score * 0.5;
+                        expansions.push((neighbor_id, exp_score));
+                        // Register immediately so subsequent depth-N edges can
+                        // use this node as their parent.
+                        all_known_scores.insert(neighbor_id, exp_score);
                     }
                 }
             }
-        }
 
-        for (neighbor_id, exp_score) in expansions {
-            if let Some((_, existing_score, _)) = candidates.get_mut(&neighbor_id) {
-                if exp_score > *existing_score {
-                    *existing_score = exp_score;
-                }
-            } else {
-                if let Ok(Some(neighbor_node)) = self.repos.nodes().find_by_id(&neighbor_id) {
+            for (neighbor_id, exp_score) in expansions {
+                if let Some((_, existing_score, _)) = candidates.get_mut(&neighbor_id) {
+                    if exp_score > *existing_score {
+                        *existing_score = exp_score;
+                    }
+                } else if let Ok(Some(neighbor_node)) = self.repos.nodes().find_by_id(&neighbor_id)
+                {
                     candidates.insert(neighbor_id, (neighbor_node, exp_score, usize::MAX));
                 }
             }
@@ -176,66 +197,88 @@ impl MemorySource for LtmMemorySource {
             "Retrieval stage completed: BM25"
         );
 
-        // Graph Expansion using GraphTraversalService
+        // ── Graph Expansion ───────────────────────────────────────────────────
+        // graph_depth controls the traversal horizon. None = default depth 1
+        // (v0.7-compatible). Some(0) = flat retrieval, skip expansion entirely.
+        //
+        // Multi-hop correctness: BFS returns edges in breadth-first order, so
+        // depth-N edges reference depth-(N-1) nodes that may not yet be in
+        // `candidates`. We maintain `all_known_scores` — a superset of
+        // `candidates` that also tracks nodes found during this expansion pass —
+        // so each edge can always find its parent's score.
+        let depth = request.graph_depth.unwrap_or(1);
         let start_nodes: Vec<brain_domain::NodeId> = candidates.keys().cloned().collect();
-        let traversal_budget = crate::retrieval::graph_service::TraversalBudget {
-            max_depth: 1,
-            max_nodes: 50,
-            max_edges: 100,
-            prevent_cycles: true,
-            deadline: request.deadline,
-            ..Default::default()
-        };
+        if depth > 0 && !start_nodes.is_empty() {
+            let traversal_budget = crate::retrieval::graph_service::TraversalBudget {
+                max_depth: depth,
+                max_nodes: 50,
+                max_edges: 100,
+                prevent_cycles: true,
+                deadline: request.deadline,
+                ..Default::default()
+            };
 
-        let start_expand = std::time::Instant::now();
-        let mut expansions = Vec::new();
-        let mut connections_count = 0;
-        if let Ok(connections) = crate::retrieval::graph_service::Graph.expand_neighbors(
-            self.repos.as_ref(),
-            self.registry.as_ref(),
-            &start_nodes,
-            &traversal_budget,
-        ) {
-            connections_count = connections.len();
-            for edge in connections {
-                let (matched_id, neighbor_id) = if candidates.contains_key(&edge.source) {
-                    (edge.source, edge.target)
-                } else if candidates.contains_key(&edge.target) {
-                    (edge.target, edge.source)
-                } else {
-                    continue;
-                };
+            let start_expand = std::time::Instant::now();
+            // Seed the running score map from initial candidates.
+            let mut all_known_scores: std::collections::HashMap<brain_domain::NodeId, f32> =
+                candidates
+                    .iter()
+                    .map(|(&id, (_, score))| (id, *score))
+                    .collect();
+            let mut expansions: Vec<(brain_domain::NodeId, f32)> = Vec::new();
+            let mut connections_count = 0;
 
-                if !candidates.contains_key(&neighbor_id)
-                    && !request.exclude_ids.contains(&neighbor_id)
-                {
-                    if let Some((_, parent_score)) = candidates.get(&matched_id) {
-                        expansions.push((neighbor_id, parent_score * 0.5));
+            if let Ok(connections) = crate::retrieval::graph_service::Graph.expand_neighbors(
+                self.repos.as_ref(),
+                self.registry.as_ref(),
+                &start_nodes,
+                &traversal_budget,
+            ) {
+                connections_count = connections.len();
+                for edge in connections {
+                    // Identify which endpoint is already known and which is new.
+                    let (matched_id, neighbor_id) = if all_known_scores.contains_key(&edge.source) {
+                        (edge.source, edge.target)
+                    } else if all_known_scores.contains_key(&edge.target) {
+                        (edge.target, edge.source)
+                    } else {
+                        continue;
+                    };
+
+                    if !all_known_scores.contains_key(&neighbor_id)
+                        && !request.exclude_ids.contains(&neighbor_id)
+                    {
+                        let parent_score = all_known_scores[&matched_id];
+                        let exp_score = parent_score * 0.5;
+                        expansions.push((neighbor_id, exp_score));
+                        // Register immediately so subsequent depth-N edges can
+                        // use this node as their parent.
+                        all_known_scores.insert(neighbor_id, exp_score);
                     }
                 }
             }
-        }
 
-        for (neighbor_id, exp_score) in expansions {
-            if let Some((_, existing_score)) = candidates.get_mut(&neighbor_id) {
-                if exp_score > *existing_score {
-                    *existing_score = exp_score;
-                }
-            } else {
-                if let Ok(Some(neighbor_node)) = self.repos.nodes().find_by_id(&neighbor_id) {
+            for (neighbor_id, exp_score) in expansions {
+                if let Some((_, existing_score)) = candidates.get_mut(&neighbor_id) {
+                    if exp_score > *existing_score {
+                        *existing_score = exp_score;
+                    }
+                } else if let Ok(Some(neighbor_node)) = self.repos.nodes().find_by_id(&neighbor_id)
+                {
                     candidates.insert(neighbor_id, (neighbor_node, exp_score));
                 }
             }
+            let expand_duration = start_expand.elapsed();
+            tracing::info!(
+                target: "brain::telemetry::retrieval",
+                stage = "graph_expansion",
+                depth = depth,
+                duration_ms = expand_duration.as_millis(),
+                input_nodes_count = start_nodes.len(),
+                found_connections_count = connections_count,
+                "Retrieval stage completed: graph expansion"
+            );
         }
-        let expand_duration = start_expand.elapsed();
-        tracing::info!(
-            target: "brain::telemetry::retrieval",
-            stage = "graph_expansion",
-            duration_ms = expand_duration.as_millis(),
-            input_nodes_count = start_nodes.len(),
-            found_connections_count = connections_count,
-            "Retrieval stage completed: graph expansion"
-        );
 
         let mut sorted_candidates: Vec<_> = candidates.into_values().collect();
         sorted_candidates.sort_by(|a, b| {

@@ -27,11 +27,15 @@ fn test_default_feature_extractor_values_and_isolation() {
     .unwrap();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "UniqueQuerySemantic".to_string(),
         limit: 2,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let nodes = vec![

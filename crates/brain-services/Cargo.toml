@@ -10,12 +10,13 @@ brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
 brain-session = { path = "../brain-session" }
 brain-config = { path = "../brain-config" }
-brain-storage = { path = "../brain-storage" }
+brain-storage = { path = "../brain-storage", features = ["test-utils"] }
 brain-plugins = { path = "../brain-plugins" }
 brain-python = { path = "../brain-python" }
 brain-tools = { path = "../brain-tools" }
 brain-events = { path = "../brain-events" }
 brain-observability = { path = "../brain-observability" }
+brain-integrations = { path = "../brain-integrations" }
 parking_lot = "0.12"
 fuzzy-matcher = "0.3.7"
 pyo3 = { workspace = true }
@@ -42,5 +43,9 @@ harness = false
 
 [[bench]]
 name = "retrieval_baseline_benchmarks"
+harness = false
+
+[[bench]]
+name = "graph_benchmarks"
 harness = false
 

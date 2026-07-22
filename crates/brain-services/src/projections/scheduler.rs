@@ -1,9 +1,12 @@
 use crate::projections::{
-    ProjectionConfig, ProjectionId, ProjectionMetadata, ProjectionScheduler, ReducerRegistry, StateReducer,
+    ProjectionConfig, ProjectionId, ProjectionMetadata, ProjectionScheduler, ReducerRegistry,
+    StateReducer,
 };
 use brain_core::errors::BrainError;
 use brain_events::EventLog;
-use brain_storage::{ProjectionMetadataRecord, ProjectionStatus, SqliteProjectionMetadataRepository};
+use brain_storage::{
+    ProjectionMetadataRecord, ProjectionStatus, SqliteProjectionMetadataRepository,
+};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio_util::sync::CancellationToken;
@@ -39,7 +42,7 @@ impl SequentialScheduler {
     /// Internal catch-up method that runs on a given database connection.
     fn catch_up_reducer(
         &self,
-        conn: &rusqlite::Connection,
+        conn: &mut rusqlite::Connection,
         reducer: &dyn StateReducer,
         record: &mut ProjectionMetadataRecord,
     ) -> Result<(), BrainError> {
@@ -53,8 +56,8 @@ impl SequentialScheduler {
             }
 
             // Execute batch processing inside a single transaction context
-            conn.execute("SAVEPOINT batch_catchup", []).map_err(|e| BrainError::Storage {
-                message: format!("Failed to create savepoint: {}", e),
+            let tx = conn.transaction().map_err(|e| BrainError::Storage {
+                message: format!("Failed to create transaction: {}", e),
                 source: Some(Box::new(e)),
             })?;
 
@@ -65,7 +68,7 @@ impl SequentialScheduler {
                         source: None,
                     })?;
 
-                    reducer.reduce(conn, &envelope)?;
+                    reducer.reduce(&tx, &envelope)?;
                     last_seq = seq;
                 }
 
@@ -74,29 +77,36 @@ impl SequentialScheduler {
                 record.status = ProjectionStatus::Active;
                 record.last_error = None;
                 record.updated_at = current_time_secs();
-                self.metadata_repo.save_metadata(conn, record)?;
+                self.metadata_repo.save_metadata(&tx, record)?;
                 Ok(())
             }();
 
             match result {
                 Ok(_) => {
-                    conn.execute("RELEASE SAVEPOINT batch_catchup", []).map_err(|e| BrainError::Storage {
-                        message: format!("Failed to release savepoint: {}", e),
+                    tx.commit().map_err(|e| BrainError::Storage {
+                        message: format!("Failed to commit transaction: {}", e),
                         source: Some(Box::new(e)),
                     })?;
                 }
                 Err(err) => {
-                    let _ = conn.execute("ROLLBACK TO SAVEPOINT batch_catchup", []);
-                    let _ = conn.execute("RELEASE SAVEPOINT batch_catchup", []);
+                    let _ = tx.rollback();
                     return Err(err);
                 }
             }
         }
 
         // Save final Idle status when all caught up
+        let tx = conn.transaction().map_err(|e| BrainError::Storage {
+            message: format!("Failed to create final transaction: {}", e),
+            source: Some(Box::new(e)),
+        })?;
         record.status = ProjectionStatus::Idle;
         record.updated_at = current_time_secs();
-        self.metadata_repo.save_metadata(conn, &*record)?;
+        self.metadata_repo.save_metadata(&tx, record)?;
+        tx.commit().map_err(|e| BrainError::Storage {
+            message: format!("Failed to commit final transaction: {}", e),
+            source: Some(Box::new(e)),
+        })?;
 
         Ok(())
     }
@@ -125,7 +135,7 @@ impl ProjectionScheduler for SequentialScheduler {
         })?;
 
         let db_name = to_db_name(id);
-        
+
         // Start transaction to get/initialize metadata
         let tx = conn.transaction().map_err(|e| BrainError::Storage {
             message: format!("Failed to begin transaction: {}", e),
@@ -170,14 +180,14 @@ impl ProjectionScheduler for SequentialScheduler {
         })?;
 
         // If projection was failed, we still try to resume but under the failed state until it succeeds
-        let catch_up_result = self.catch_up_reducer(&conn, reducer.as_ref(), &mut record);
+        let catch_up_result = self.catch_up_reducer(&mut conn, reducer.as_ref(), &mut record);
 
         if let Err(e) = catch_up_result {
             // Log failure inside metadata store
             record.status = ProjectionStatus::Failed;
             record.last_error = Some(e.to_string());
             record.updated_at = current_time_secs();
-            
+
             // Save the failure state using the existing connection
             let save_res = || -> Result<(), BrainError> {
                 let tx = conn.transaction().map_err(|e| BrainError::Storage {
@@ -229,7 +239,14 @@ impl ProjectionScheduler for SequentialScheduler {
         };
 
         // Reset the read model state
-        reducer.reset(&tx)?;
+        if let Err(e) = reducer.reset(&tx) {
+            record.status = ProjectionStatus::Failed;
+            record.last_error = Some(e.to_string());
+            record.updated_at = current_time_secs();
+            let _ = self.metadata_repo.save_metadata(&tx, &record);
+            let _ = tx.commit();
+            return Err(e);
+        }
         self.metadata_repo.save_metadata(&tx, &record)?;
         tx.commit().map_err(|e| BrainError::Storage {
             message: format!("Failed to commit setup transaction: {}", e),
@@ -237,7 +254,7 @@ impl ProjectionScheduler for SequentialScheduler {
         })?;
 
         // Stage 2: Replay catch-up
-        let catch_up_result = self.catch_up_reducer(&conn, reducer.as_ref(), &mut record);
+        let catch_up_result = self.catch_up_reducer(&mut conn, reducer.as_ref(), &mut record);
 
         if let Err(e) = catch_up_result {
             record.status = ProjectionStatus::Failed;
@@ -264,12 +281,12 @@ impl ProjectionScheduler for SequentialScheduler {
             return Err(e);
         }
 
-        // Stage 3: Mark as active
+        // Stage 3: Mark as idle (caught up)
         let tx = conn.transaction().map_err(|e| BrainError::Storage {
             message: format!("Failed to begin active transaction: {}", e),
             source: Some(Box::new(e)),
         })?;
-        record.status = ProjectionStatus::Active;
+        record.status = ProjectionStatus::Idle;
         record.updated_at = current_time_secs();
         self.metadata_repo.save_metadata(&tx, &record)?;
         tx.commit().map_err(|e| BrainError::Storage {

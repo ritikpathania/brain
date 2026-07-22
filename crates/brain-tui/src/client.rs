@@ -306,15 +306,19 @@ impl ExecutionClient for UdsClient {
                     url: None,
                 })?;
 
-        // Build wire payload. `body` remains a plain String for backward compat.
-        // `workspace_context` is added as a top-level sibling only when present;
-        // old daemons that do not recognise the field will ignore it safely.
+        // Construct search query
+        let search_query = serde_json::json!({
+            "text": req.prompt,
+            "kinds": Vec::<String>::new(),
+            "pagination": serde_json::Value::Null,
+        });
+
         let mut payload = serde_json::json!({
             "version": "1.0",
             "type": "Request",
             "id": 1,
-            "action": "query",
-            "body": req.prompt
+            "action": "v1/search",
+            "body": serde_json::to_string(&search_query).unwrap(),
         });
         if let Some(ref node_ids) = req.workspace_context {
             let ids: Vec<String> = node_ids.iter().map(|id| id.to_string()).collect();
@@ -355,6 +359,53 @@ impl ExecutionClient for UdsClient {
                             Ok(_) => {
                                 let trim_line = line.trim();
                                 if !trim_line.is_empty() {
+                                    if let Ok(resp) = serde_json::from_str::<serde_json::Value>(trim_line) {
+                                        if resp.get("status").is_some_and(|s| s == "success") {
+                                            if let Some(body_str) = resp.get("body").and_then(|b| b.as_str()) {
+                                                #[derive(serde::Deserialize)]
+                                                struct SearchSummaryDTO {
+                                                    id: String,
+                                                    title: String,
+                                                }
+                                                if let Ok(summaries) = serde_json::from_str::<Vec<SearchSummaryDTO>>(body_str) {
+                                                    let execution_id = Uuid::new_v4();
+                                                    let timestamp = std::time::SystemTime::now();
+
+                                                    let _ = tx.send(Ok(CoreStreamEvent {
+                                                        metadata: EventMetadata { execution_id, sequence: 0, timestamp },
+                                                        kind: StreamEventKind::Stage { name: "Start".to_string(), active: true },
+                                                    }));
+
+                                                    let plural = if summaries.len() == 1 { "result" } else { "results" };
+                                                    let header = format!("Found {} {} from your memory graph:\n", summaries.len(), plural);
+                                                    let _ = tx.send(Ok(CoreStreamEvent {
+                                                        metadata: EventMetadata { execution_id, sequence: 1, timestamp },
+                                                        kind: StreamEventKind::Token(header),
+                                                    }));
+
+                                                    let mut seq = 1;
+                                                    for summary in summaries {
+                                                        seq += 1;
+                                                        let out_line = format!("**{}** — {} (High confidence)\n", summary.id, summary.title);
+                                                        let _ = tx.send(Ok(CoreStreamEvent {
+                                                            metadata: EventMetadata { execution_id, sequence: seq, timestamp },
+                                                            kind: StreamEventKind::Token(out_line),
+                                                        }));
+                                                    }
+
+                                                    let _ = tx.send(Ok(CoreStreamEvent {
+                                                        metadata: EventMetadata { execution_id, sequence: seq + 1, timestamp },
+                                                        kind: StreamEventKind::Finished {
+                                                            response: "".to_string(),
+                                                        },
+                                                    }));
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Fallback for legacy events
                                     if let Ok(uds_ev) = serde_json::from_str::<UdsStreamEvent>(trim_line) {
                                         let core_events = map_uds_event(uds_ev);
                                         let mut should_break = false;
@@ -443,7 +494,7 @@ impl ExecutionClient for UdsClient {
             "version": "1.0",
             "type": "Request",
             "id": 1,
-            "action": "inspect_node",
+            "action": "v1/inspect_node",
             "body": id.to_string()
         });
 

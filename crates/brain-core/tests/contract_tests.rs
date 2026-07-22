@@ -67,11 +67,15 @@ fn test_trait_object_compilation() {
 fn test_retrieval_abstractions() {
     let session_id = brain_domain::SessionId::new();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "test query".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let node = brain_domain::Node::new(

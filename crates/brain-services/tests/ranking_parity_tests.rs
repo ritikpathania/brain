@@ -49,6 +49,12 @@ fn test_ranking_policy_switching_and_fallback() {
         load_default_config().with_retrieval(brain_config::schema::RetrievalSettings::new(
             RankingPolicy::LearnedModel,
             None, // no path => fallback to DefaultRrf
+            brain_core::retrieval::TemporalRankingSettings {
+                enabled: false,
+                model: brain_core::retrieval::DecayModel::Uniform,
+                half_life_seconds: 86400,
+                scaling_factor: 1.0,
+            },
         ));
 
     let svc = RetrievalServiceImpl::new_with_config(
@@ -65,6 +71,10 @@ fn test_ranking_policy_switching_and_fallback() {
         limit: 5,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
+        reference_time: None,
     };
 
     let response = svc.execute_pipeline(&request).unwrap();

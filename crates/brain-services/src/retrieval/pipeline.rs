@@ -105,15 +105,34 @@ pub struct RetrievalPipeline {
     ranking_strategy: Arc<dyn RankingStrategy>,
     cache_manager: Option<Arc<SessionCacheManager>>,
     policy: CacheHydrationPolicy,
+    rerankers: Vec<Arc<dyn brain_core::retrieval::Reranker>>,
+    temporal_ranking_config: brain_core::retrieval::TemporalRankingSettings,
 }
 
 impl RetrievalPipeline {
-    /// Executes the retrieval request through the pipeline, querying memory sources,
-    /// deduplicating, ranking, truncating, and performing cache hydration.
+    /// Executes the retrieval request through the pipeline.
+    ///
+    /// The pipeline is organized into five ordered stages:
+    ///
+    /// 1. **Normalization** — the query string is interpreted as-is by each memory
+    ///    source; sources are responsible for their own query preprocessing.
+    /// 2. **Candidate Retrieval** — each registered `MemorySource` is queried in
+    ///    order. Results are deduplicated into a flat candidate pool via the
+    ///    `PipelineAccumulator`.
+    /// 3. **Fusion / Ranking** — the accumulated candidates are passed to the
+    ///    registered `RankingStrategy` (e.g. RRF, BM25, embedding cosine) which
+    ///    produces the final ordered list.
+    /// 4. **Truncation** — the ranked list is capped to `request.limit`.
+    /// 5. **Projection** — downstream callers (e.g. `SearchProjector`) transform the
+    ///    ranked `Node` list into presentation-ready DTOs. This boundary is NOT inside
+    ///    `RetrievalPipeline`; it is the responsibility of the calling layer.
     pub fn execute(&self, request: &RetrievalRequest) -> Result<RetrievalResponse, BrainError> {
         let pipeline_start = std::time::Instant::now();
+
+        // ── Stage 1: Normalization (delegated to each MemorySource) ─────────────
         let mut accumulator = PipelineAccumulator::new(request.exclude_ids.clone());
 
+        // ── Stage 2: Candidate Retrieval ─────────────────────────────────────────
         for source in &self.sources {
             if self.sources.len() > 1 {
                 if accumulator.len() >= request.limit * 3 {
@@ -161,16 +180,33 @@ impl RetrievalPipeline {
             }
         }
 
-        // Rank
+        // ── Stage 3: Fusion / Ranking ─────────────────────────────────────────────
         let ranked_nodes = self.ranking_strategy.rank(request, accumulator.nodes())?;
 
-        // Truncate to limit
-        let mut final_nodes = ranked_nodes;
+        // ── Stage 3.5: Reranking ──────────────────────────────────────────────────
+        let reference_time = request.reference_time.unwrap_or_else(|| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        });
+        let rerank_context = brain_core::retrieval::RerankContext {
+            request,
+            config: &self.temporal_ranking_config,
+            reference_time,
+        };
+        let mut reranked_nodes = ranked_nodes;
+        for reranker in &self.rerankers {
+            reranked_nodes = reranker.rerank(reranked_nodes, &rerank_context)?;
+        }
+
+        // ── Stage 4: Truncation ───────────────────────────────────────────────────
+        let mut final_nodes = reranked_nodes;
         if final_nodes.len() > request.limit {
             final_nodes.truncate(request.limit);
         }
 
-        // Hydrate cache
+        // Cache hydration (side-effect; not a pipeline stage proper)
         if self.policy == CacheHydrationPolicy::OnHit || self.policy == CacheHydrationPolicy::Eager
         {
             if let Some(ref cache_manager) = self.cache_manager {
@@ -191,7 +227,12 @@ impl RetrievalPipeline {
             "Retrieval pipeline execution completed"
         );
 
-        Ok(RetrievalResponse { nodes: final_nodes })
+        // ── Stage 5: Projection ─── (performed by the calling layer, not here) ───
+        Ok(RetrievalResponse {
+            nodes: final_nodes,
+            explanation: None,
+            relationships: None,
+        })
     }
 
     /// Returns a reference to the registered sources.
@@ -221,6 +262,8 @@ pub struct MemoryPipelineBuilder {
     ranking_strategy: Arc<dyn RankingStrategy>,
     cache_manager: Option<Arc<SessionCacheManager>>,
     policy: CacheHydrationPolicy,
+    rerankers: Vec<Arc<dyn brain_core::retrieval::Reranker>>,
+    temporal_ranking_config: brain_core::retrieval::TemporalRankingSettings,
 }
 
 impl Default for MemoryPipelineBuilder {
@@ -230,6 +273,13 @@ impl Default for MemoryPipelineBuilder {
             ranking_strategy: Arc::new(IdentityRanking),
             cache_manager: None,
             policy: CacheHydrationPolicy::Never,
+            rerankers: Vec::new(),
+            temporal_ranking_config: brain_core::retrieval::TemporalRankingSettings {
+                enabled: false,
+                model: brain_core::retrieval::DecayModel::Uniform,
+                half_life_seconds: 86400,
+                scaling_factor: 1.0,
+            },
         }
     }
 }
@@ -264,6 +314,21 @@ impl MemoryPipelineBuilder {
         self
     }
 
+    /// Configures the temporal ranking settings for the pipeline.
+    pub fn with_temporal_ranking_config(
+        mut self,
+        config: brain_core::retrieval::TemporalRankingSettings,
+    ) -> Self {
+        self.temporal_ranking_config = config;
+        self
+    }
+
+    /// Registers a reranker in the pipeline.
+    pub fn register_reranker(mut self, reranker: Arc<dyn brain_core::retrieval::Reranker>) -> Self {
+        self.rerankers.push(reranker);
+        self
+    }
+
     /// Builds a new `RetrievalPipeline` using the configured settings.
     pub fn build(self) -> RetrievalPipeline {
         RetrievalPipeline {
@@ -271,6 +336,8 @@ impl MemoryPipelineBuilder {
             ranking_strategy: self.ranking_strategy,
             cache_manager: self.cache_manager,
             policy: self.policy,
+            rerankers: self.rerankers,
+            temporal_ranking_config: self.temporal_ranking_config,
         }
     }
 }

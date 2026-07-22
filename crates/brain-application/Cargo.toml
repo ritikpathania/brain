@@ -9,6 +9,7 @@ brain-core = { path = "../brain-core" }
 brain-services = { path = "../brain-services" }
 brain-integrations = { path = "../brain-integrations" }
 brain-storage = { path = "../brain-storage" }
+brain-events = { path = "../brain-events" }
 tokio = { workspace = true }
 tokio-util = { version = "0.7", features = ["rt"] }
 futures-util = "0.3"

@@ -18,7 +18,7 @@ pub enum ApplicationRequest {
     /// Perform a graph node query search
     Search(v1::SearchQuery),
     /// Ingest a source adapter event envelope
-    Ingest(IngestionEnvelope),
+    Ingest(Box<IngestionEnvelope>),
     /// Replay historical ingestion events after a sequence number
     Replay {
         /// Sequence number to search after
@@ -62,7 +62,7 @@ pub enum ApplicationResponse {
     /// Replayed WAL envelopes
     Replay(Vec<IngestionEnvelope>),
     /// Inspected node relations structure
-    InspectNode(InspectorModel),
+    InspectNode(Box<InspectorModel>),
     /// Subscription event stream
     Subscribe(crate::subscription::EventStream),
     /// Status list of projections
@@ -104,7 +104,7 @@ impl RequestDispatcher {
                 Ok(ApplicationResponse::Search(results))
             }
             ApplicationRequest::Ingest(envelope) => {
-                let res = self.app.ingest(envelope, context).await?;
+                let res = self.app.ingest(*envelope, context).await?;
                 Ok(ApplicationResponse::Ingest(res))
             }
             ApplicationRequest::Replay { after_sequence } => {
@@ -113,7 +113,7 @@ impl RequestDispatcher {
             }
             ApplicationRequest::InspectNode { id } => {
                 let model = self.app.inspect_node(&id).await?;
-                Ok(ApplicationResponse::InspectNode(model))
+                Ok(ApplicationResponse::InspectNode(Box::new(model)))
             }
             ApplicationRequest::Subscribe { after_sequence } => {
                 let stream = self.app.subscribe(after_sequence);

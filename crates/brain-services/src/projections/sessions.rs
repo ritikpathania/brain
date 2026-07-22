@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::projections::{ProjectionId, StateReducer};
 use brain_events::{DomainEvent, EventEnvelope};
-use brain_storage::{ReadModelRepository, SessionReadModel, SqliteSessionReadModelRepository};
+use brain_storage::{SessionReadModel, SqliteSessionReadModelRepository};
 
 /// Reducer implementing state reductions for session lifecycle events onto SQLite read models.
 pub struct SessionProjectionReducer {
@@ -22,7 +22,15 @@ impl StateReducer for SessionProjectionReducer {
         ProjectionId::Sessions
     }
 
-    fn reduce(&mut self, envelope: &EventEnvelope) -> Result<(), BrainError> {
+    fn version(&self) -> u32 {
+        1
+    }
+
+    fn reduce(
+        &self,
+        conn: &rusqlite::Connection,
+        envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
         let seq = envelope.sequence.ok_or_else(|| BrainError::Storage {
             message: "Sequence missing on event envelope during sessions reduction".to_string(),
             source: None,
@@ -49,18 +57,18 @@ impl StateReducer for SessionProjectionReducer {
                     updated_at: *created_at,
                     updated_sequence: seq,
                 };
-                self.repo.save(&model)?;
+                self.repo.save_conn(conn, &model)?;
             }
             brain_domain::DomainEvent::SessionRenamed {
                 session_id,
                 title,
                 updated_at,
             } => {
-                if let Some(mut model) = self.repo.find_by_id(session_id)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, session_id)? {
                     model.title = title.0.clone();
                     model.updated_at = *updated_at;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::SessionPinnedChanged {
@@ -68,38 +76,38 @@ impl StateReducer for SessionProjectionReducer {
                 pinned,
                 updated_at,
             } => {
-                if let Some(mut model) = self.repo.find_by_id(session_id)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, session_id)? {
                     model.is_pinned = *pinned;
                     model.updated_at = *updated_at;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::SessionArchived {
                 session_id,
                 updated_at,
             } => {
-                if let Some(mut model) = self.repo.find_by_id(session_id)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, session_id)? {
                     model.is_archived = true;
                     model.updated_at = *updated_at;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::SessionRestored {
                 session_id,
                 updated_at,
             } => {
-                if let Some(mut model) = self.repo.find_by_id(session_id)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, session_id)? {
                     model.is_archived = false;
                     model.updated_at = *updated_at;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::SessionDeleted { session_id } => {
                 // This is a projection policy to reflect active/live sessions
-                self.repo.delete(session_id)?;
+                self.repo.delete_conn(conn, session_id)?;
             }
             _ => {}
         }
@@ -107,7 +115,7 @@ impl StateReducer for SessionProjectionReducer {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), BrainError> {
-        self.repo.clear_all()
+    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        self.repo.clear_all_conn(conn)
     }
 }

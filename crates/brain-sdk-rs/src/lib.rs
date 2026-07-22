@@ -29,6 +29,12 @@ pub enum ClientCommand {
             Result<Vec<brain_integrations::IngestionEnvelope>, BrainSdkError>,
         >,
     },
+    /// Send a generic RPC command over UDS
+    Rpc {
+        action: String,
+        body: String,
+        tx: tokio::sync::oneshot::Sender<Result<String, BrainSdkError>>,
+    },
     /// Gracefully shutdown the runtime
     Shutdown {
         tx: tokio::sync::oneshot::Sender<()>,

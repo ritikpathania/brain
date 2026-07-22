@@ -393,11 +393,15 @@ fn test_pipeline_early_exit() {
         .build();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "Early".to_string(),
         limit: 1,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline.execute(&request).unwrap();
@@ -448,11 +452,15 @@ fn test_pipeline_empty_first_source() {
 #[test]
 fn test_pipeline_identity_ranking() {
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "test".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let node1 = Node::new(NodeId::new(), "Node 1".to_string(), NodeType::Concept);
@@ -483,11 +491,15 @@ fn test_pipeline_hydration_policy() {
         .build();
 
     let request_never = RetrievalRequest {
+        reference_time: None,
         session_id: session_id_never,
         query: "Hydrate".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline_never.execute(&request_never).unwrap();
@@ -506,11 +518,15 @@ fn test_pipeline_hydration_policy() {
         .build();
 
     let request_on_hit = RetrievalRequest {
+        reference_time: None,
         session_id: session_id_on_hit,
         query: "Hydrate".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline_on_hit.execute(&request_on_hit).unwrap();
@@ -531,11 +547,15 @@ fn test_pipeline_hydration_policy() {
         .build();
 
     let request_eager = RetrievalRequest {
+        reference_time: None,
         session_id: session_id_eager,
         query: "Hydrate".to_string(),
         limit: 10,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline_eager.execute(&request_eager).unwrap();

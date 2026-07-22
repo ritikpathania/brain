@@ -33,6 +33,7 @@ Start here to understand the structural design and guidelines:
 * **[PHILOSOPHY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/PHILOSOPHY.md)** — Core design axioms, derived consequences, and architectural identity.
 * **[STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md)** — Stability contracts for frozen, extensible, and experimental code.
 * **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the Brain runtime.
+* **[data-flow.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/data-flow.md)** — Documentation of internal data pathways, layers, and component execution sequence diagrams.
 * **[principles.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/principles.md)** — Enduring rules of the system architecture.
 * **[contract-lifecycle.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md)** — Explanation of the DTO contract lifecycle.
 * **[GRAPH_SPEC.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md)** — Specification governing the Knowledge Graph schema and constraints.
@@ -49,6 +50,7 @@ The core architectural decisions are recorded chronologically in the **[adr/](fi
 flowchart TD
     adr10["ADR-010 Domain Boundaries"] --> adr12["ADR-012 Value Objects"]
     adr10 --> adr20["ADR-020 Protocol Independence"]
+    adr10 --> adr26["ADR-026 Graph & Projections"]
     adr20 --> adr21["ADR-021 Stable Application Interface"]
     adr20 --> adr23["ADR-023 Shared Adapter Infrastructure"]
     adr21 --> adr22["ADR-022 Contract Ownership Strategy"]
@@ -61,7 +63,9 @@ flowchart TD
     adr14 --> adr18
     
     adr15["ADR-015 Strategy Interfaces"] --> adr17["ADR-017 Model Compilation"]
+    adr15 --> adr25["ADR-025 Hybrid Retrieval"]
     adr17 --> adr19
+    adr25 --> adr26
 ```
 
 ### ADR Stability Index
@@ -82,7 +86,8 @@ flowchart TD
 * **[ADR-015: Strategy Interfaces](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)** (Accepted) — Decouples ranking models and routers behind trait interfaces.
 * **[ADR-017: Model Compilation](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-017-model-compilation.md)** (Accepted) — Decouples serializable models from optimized compiled evaluation trees.
 * **[ADR-024: IVF Vector Indexing](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-024-ivf-vector-indexing.md)** (Accepted) — Establish deterministic inverted file clustering for sub-linear similarity search in SQLite.
-* **[ADR-025: Hybrid Retrieval Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md)** (Proposed) — Defines independent channels and reciprocal rank fusion (RRF) for hybrid retrieval.
+* **[ADR-025: Hybrid Retrieval Architecture](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md)** (Accepted) — Defines independent channels and reciprocal rank fusion (RRF) for hybrid retrieval.
+* **[ADR-026: Graph and Projection Capabilities](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-026-graph-and-projection-capabilities.md)** (Accepted) — Outlines design invariants for request-scoped graph retrieval, relationship expansion DTOs, and graph/temporal projection view models.
 
 ### Operational Lifecycle (Expected Stability: Evolutionary)
 * **[ADR-018: Reproducible ML Lifecycle](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-018-reproducible-ml-lifecycle.md)** (Proposed) — Defines promotional checkpoints from feedback and evaluation to canary routing.

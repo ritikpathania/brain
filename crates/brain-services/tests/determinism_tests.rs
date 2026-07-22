@@ -55,11 +55,15 @@ fn test_query_and_sorting_determinism() {
             .build();
 
         let req = RetrievalRequest {
+            reference_time: None,
             session_id,
             query: "Brain".to_string(),
             limit: 10,
             exclude_ids: HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
 
         pipeline.execute(&req).unwrap()

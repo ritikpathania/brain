@@ -162,24 +162,27 @@ impl BrainApplication {
 
         context.emit_progress(1, Some(2), "Preparing search terms");
 
-        let mapped_kinds: Option<Vec<brain_domain::SearchDocumentKind>> = query.kinds.map(|kinds| {
-            kinds
-                .into_iter()
-                .filter_map(|k| match k.as_str() {
-                    "session" => Some(brain_domain::SearchDocumentKind::Session),
-                    "message" => Some(brain_domain::SearchDocumentKind::Message),
-                    "goal" => Some(brain_domain::SearchDocumentKind::Goal),
-                    "job" => Some(brain_domain::SearchDocumentKind::Job),
-                    "retrieval" => Some(brain_domain::SearchDocumentKind::Retrieval),
-                    _ => None,
-                })
-                .collect()
-        });
+        let mapped_kinds: Option<Vec<brain_domain::SearchDocumentKind>> =
+            query.kinds.map(|kinds| {
+                kinds
+                    .into_iter()
+                    .filter_map(|k| match k.as_str() {
+                        "session" => Some(brain_domain::SearchDocumentKind::Session),
+                        "message" => Some(brain_domain::SearchDocumentKind::Message),
+                        "goal" => Some(brain_domain::SearchDocumentKind::Goal),
+                        "job" => Some(brain_domain::SearchDocumentKind::Job),
+                        "retrieval" => Some(brain_domain::SearchDocumentKind::Retrieval),
+                        _ => None,
+                    })
+                    .collect()
+            });
 
-        let mapped_pagination = query.pagination.map(|p| brain_services::query::PaginationSpec {
-            limit: p.limit,
-            offset: p.offset,
-        });
+        let mapped_pagination = query
+            .pagination
+            .map(|p| brain_services::query::PaginationSpec {
+                limit: p.limit,
+                offset: p.offset,
+            });
 
         let service_query = brain_services::query::SearchQuery {
             text: query.text,
@@ -263,43 +266,38 @@ impl BrainApplication {
                 }
 
                 let mut current_seq = actual_start;
-                loop {
-                    match db_log.read_from(current_seq, 500) {
-                        Ok(stored_events) => {
-                            if stored_events.is_empty() {
-                                break;
-                            }
-                            for event in stored_events {
-                                if let Ok(domain_event) =
-                                    serde_json::from_str::<brain_events::DomainEvent>(
-                                        &event.payload_json,
-                                    )
-                                {
-                                    let envelope = brain_events::EventEnvelope {
-                                        sequence: Some(event.sequence),
-                                        event_id: event.event_id,
-                                        correlation_id: event.correlation_id,
-                                        timestamp_ms: event.timestamp_ms,
-                                        version: event.version,
-                                        source: event.source,
-                                        payload: domain_event,
-                                    };
-                                    let dto = EventTranslator::translate_envelope(&envelope);
-                                    if tx
-                                        .send(StreamMessage::Event {
-                                            sequence: event.sequence,
-                                            event: dto,
-                                        })
-                                        .await
-                                        .is_err()
-                                    {
-                                        return;
-                                    }
-                                }
-                                current_seq = event.sequence + 1;
+                while let Ok(stored_events) = db_log.read_from(current_seq, 500) {
+                    if stored_events.is_empty() {
+                        break;
+                    }
+                    for event in stored_events {
+                        if let Ok(domain_event) =
+                            serde_json::from_str::<brain_events::DomainEvent>(
+                                &event.payload_json,
+                            )
+                        {
+                            let envelope = brain_events::EventEnvelope {
+                                sequence: Some(event.sequence),
+                                event_id: event.event_id,
+                                correlation_id: event.correlation_id,
+                                timestamp_ms: event.timestamp_ms,
+                                version: event.version,
+                                source: event.source,
+                                payload: domain_event,
+                            };
+                            let dto = EventTranslator::translate_envelope(&envelope);
+                            if tx
+                                .send(StreamMessage::Event {
+                                    sequence: event.sequence,
+                                    event: dto,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                return;
                             }
                         }
-                        Err(_) => break,
+                        current_seq = event.sequence + 1;
                     }
                 }
             }
@@ -496,11 +494,9 @@ impl BrainApplication {
             }
         };
 
-        scheduler
-            .rebuild_projection(projection_id)
-            .map_err(|e| {
-                ApplicationError::Internal(format!("Failed to rebuild projection {}: {:?}", name, e))
-            })?;
+        scheduler.rebuild_projection(projection_id).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to rebuild projection {}: {:?}", name, e))
+        })?;
 
         Ok(())
     }
@@ -517,9 +513,13 @@ impl BrainApplication {
         };
 
         // 1. Run read-only reflection passes
-        let findings = self.runtime.reflection_engine().reflect(&context).map_err(|e| {
-            ApplicationError::Internal(format!("Reflection engine failed: {:?}", e))
-        })?;
+        let findings = self
+            .runtime
+            .reflection_engine()
+            .reflect(&context)
+            .map_err(|e| {
+                ApplicationError::Internal(format!("Reflection engine failed: {:?}", e))
+            })?;
 
         // 2. Formulate decision plan via the planner
         let config = self.runtime.config();
@@ -551,9 +551,15 @@ impl BrainApplication {
                 execute_commands(tx, &commands, &mut events)
             };
 
-            self.runtime.storage_ref().run_transaction(&mut run_tx).map_err(|e| {
-                ApplicationError::Internal(format!("Failed to execute reflection write transaction: {:?}", e))
-            })?;
+            self.runtime
+                .storage_ref()
+                .run_transaction(&mut run_tx)
+                .map_err(|e| {
+                    ApplicationError::Internal(format!(
+                        "Failed to execute reflection write transaction: {:?}",
+                        e
+                    ))
+                })?;
         }
 
         let commands_executed = events.len();

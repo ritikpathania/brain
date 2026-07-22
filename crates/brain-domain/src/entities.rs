@@ -447,6 +447,25 @@ impl Edge {
         }
     }
 
+    /// Creates a new derived/inferred `Edge` with a derivation history.
+    pub fn new_derived(
+        source: NodeId,
+        target: NodeId,
+        relation: RelationKind,
+        weight: f64,
+        derivation: Derivation,
+    ) -> Self {
+        Self {
+            source,
+            target,
+            relation,
+            weight,
+            provenance: GraphProvenance::default(),
+            derivation: Some(derivation),
+            updated_at: current_unix_timestamp(),
+        }
+    }
+
     /// Strengthens the relationship weight by 0.1, capped at 1.0.
     pub fn strengthen(&mut self) -> Result<crate::events::DomainEvent, crate::errors::DomainError> {
         if !(0.0..=1.0).contains(&self.weight) {

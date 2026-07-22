@@ -1,8 +1,8 @@
 use crate::schema::{
     BrainSettings, DatabaseSettings, EmbeddingProvider, LlmProvider, Merge, ModelSettings,
-    PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialRetrievalSettings,
-    PartialSessionSettings, RankingPolicy, RetrievalSettings, SessionSettings, PartialTemporalRankingSettings,
-    PartialReflectionSettings, ReflectionSettings,
+    PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialReflectionSettings,
+    PartialRetrievalSettings, PartialSessionSettings, PartialTemporalRankingSettings,
+    RankingPolicy, ReflectionSettings, RetrievalSettings, SessionSettings,
 };
 use brain_core::BrainError;
 use std::convert::TryFrom;
@@ -295,7 +295,9 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
         let temp_opt = ret.temporal_ranking.unwrap_or_default();
         let temporal_ranking = brain_core::retrieval::TemporalRankingSettings {
             enabled: temp_opt.enabled.unwrap_or(false),
-            model: temp_opt.model.unwrap_or(brain_core::retrieval::DecayModel::Uniform),
+            model: temp_opt
+                .model
+                .unwrap_or(brain_core::retrieval::DecayModel::Uniform),
             half_life_seconds: temp_opt.half_life_seconds.unwrap_or(86400),
             scaling_factor: temp_opt.scaling_factor.unwrap_or(1.0),
         };
@@ -311,8 +313,12 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
 
         let ref_partial = partial.reflection.unwrap_or_default();
         let reflection = ReflectionSettings {
-            duplicate_confidence_threshold: ref_partial.duplicate_confidence_threshold.unwrap_or(0.92),
-            link_suggestion_confidence_threshold: ref_partial.link_suggestion_confidence_threshold.unwrap_or(0.85),
+            duplicate_confidence_threshold: ref_partial
+                .duplicate_confidence_threshold
+                .unwrap_or(0.92),
+            link_suggestion_confidence_threshold: ref_partial
+                .link_suggestion_confidence_threshold
+                .unwrap_or(0.85),
             auto_approve_merges: ref_partial.auto_approve_merges.unwrap_or(false),
         };
 

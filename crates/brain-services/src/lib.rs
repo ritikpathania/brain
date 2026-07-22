@@ -13,7 +13,7 @@ mod stub;
 pub use retrieval::RetrievalServiceImpl;
 pub use retrieval::{
     active_weights, cache, calibration, eval_harness, evaluator, experiment, feature_extractor,
-    model_resolver, pipeline, source,
+    model_resolver, pipeline, relationship_expander, source,
 };
 pub use session::SessionServiceImpl;
 pub use stub::{StubDomainEventPublisher, StubRetrievalService, StubSessionService};
@@ -41,6 +41,9 @@ pub use jobs::*;
 
 /// Query services and DTO layer.
 pub mod query;
+
+/// Graph projections and utilities.
+pub mod graph;
 
 /// Unified stateful projections engine.
 pub mod projections;
@@ -84,3 +87,6 @@ pub use brain_runtime::{
     BrainRuntime, CapabilityDescriptor, CapabilityRegistry, CapabilityState, RuntimeDiagnostics,
     RuntimeFailure, RuntimeHealth, RuntimeMetrics, RuntimeStatus, ShutdownSummary,
 };
+
+/// Self-reflection and memory consolidation engine.
+pub mod reflection;

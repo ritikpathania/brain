@@ -1,7 +1,7 @@
+use crate::reflection::ReflectionContext;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_domain::{FindingEvidence, ReflectionFinding};
-use crate::reflection::ReflectionContext;
 
 /// Pass scanning node properties for logical or scalar contradictions.
 pub struct ContradictionPass;

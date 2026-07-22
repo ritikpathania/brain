@@ -4,7 +4,6 @@ use brain_application::{
     BrainApplication, ExecutionContext,
 };
 use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent};
-use brain_services::query::SearchQuery;
 use brain_services::BrainRuntime;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -123,7 +122,7 @@ async fn test_direct_rust_caller_capabilities() {
     assert!(res.processed);
 
     // 2. Test Search (Empty DB search summary)
-    let query = SearchQuery {
+    let query = v1::SearchQuery {
         text: "relational memory".to_string(),
         kinds: None,
         pagination: None,
@@ -310,4 +309,62 @@ fn test_api_contract_stability_dto_serialization() {
     let serialized_inv = serde_json::to_string(&invalidation_event).unwrap();
     let deserialized_inv: v1::Event = serde_json::from_str(&serialized_inv).unwrap();
     assert_eq!(invalidation_event, deserialized_inv);
+}
+
+#[tokio::test]
+async fn test_resumable_subscription_replay_and_continuation() {
+    let (app, _dir) = setup_app();
+
+    let context = ExecutionContext::default();
+    let envelope = create_test_envelope();
+    let ingest_res = app.ingest(envelope, &context).await.unwrap();
+    assert!(ingest_res.processed);
+
+    // Give some time for background publisher job to run
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+    // Subscribe starting at sequence 1
+    let mut stream = app.subscribe(Some(1));
+
+    // The stream should yield CatchUpCompleted (if no events matched the sequence criteria in system_event_log)
+    // or the replayed events followed by CatchUpCompleted.
+    let mut received_catchup = false;
+    for _ in 0..10 {
+        match tokio::time::timeout(std::time::Duration::from_secs(1), stream.next()).await {
+            Ok(Some(msg)) => {
+                if let v1::StreamMessage::Control {
+                    payload: v1::ControlMessage::CatchUpCompleted,
+                } = msg
+                {
+                    received_catchup = true;
+                    break;
+                }
+            }
+            _ => break,
+        }
+    }
+    assert!(
+        received_catchup,
+        "Should receive CatchUpCompleted control message"
+    );
+
+    // Broadcast a live event
+    let progress_event = v1::Event::TaskProgress {
+        operation_id: "op-test".to_string(),
+        correlation_id: "corr-test".to_string(),
+        state: "Processing".to_string(),
+        source: "evolution".to_string(),
+        sequence: 2,
+    };
+    app.subscription_manager().broadcast(progress_event.clone());
+
+    // Receive live event
+    let live_msg = stream.next().await.expect("received live message");
+    match live_msg {
+        v1::StreamMessage::Event { sequence, event } => {
+            assert!(sequence > 0);
+            assert_eq!(event, progress_event);
+        }
+        other => panic!("Expected Event, got: {:?}", other),
+    }
 }

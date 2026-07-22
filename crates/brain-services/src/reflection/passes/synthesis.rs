@@ -1,9 +1,7 @@
+use crate::reflection::ReflectionContext;
 use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
-use brain_domain::{
-    FindingEvidence, ReflectionFinding, RelationKind,
-};
-use crate::reflection::ReflectionContext;
+use brain_domain::{FindingEvidence, ReflectionFinding, RelationKind};
 use std::collections::HashSet;
 
 /// Pass consolidating highly-connected clusters by closing triangles of generic associations.
@@ -32,16 +30,15 @@ impl crate::reflection::ReflectionPass for SynthesisPass {
         let mut findings = Vec::new();
 
         // 1. Gather all direct AssociatedWith links
-        let mut adj: std::collections::HashMap<brain_domain::NodeId, Vec<brain_domain::NodeId>> = std::collections::HashMap::new();
+        let mut adj: std::collections::HashMap<brain_domain::NodeId, Vec<brain_domain::NodeId>> =
+            std::collections::HashMap::new();
         let mut existing_edges = HashSet::new();
 
         for edge in &edges {
             existing_edges.insert((edge.source, edge.target, edge.relation.id()));
 
             if edge.relation == RelationKind::AssociatedWith {
-                adj.entry(edge.source)
-                    .or_default()
-                    .push(edge.target);
+                adj.entry(edge.source).or_default().push(edge.target);
             }
         }
 
@@ -68,7 +65,9 @@ impl crate::reflection::ReflectionPass for SynthesisPass {
                                     semantic_similarity: None,
                                     edit_distance: None,
                                     overlap_ratio: None,
-                                    details: "Synthesized transitive closure of AssociatedWith triad".to_string(),
+                                    details:
+                                        "Synthesized transitive closure of AssociatedWith triad"
+                                            .to_string(),
                                 },
                             });
                         }

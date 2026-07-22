@@ -126,11 +126,15 @@ fn test_pipeline_deterministic_execution_and_early_exit() {
         .build();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "test".to_string(),
         limit: 1,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline.execute(&request).unwrap();
@@ -159,11 +163,15 @@ fn test_pipeline_ranking_and_truncation() {
         .build();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "test".to_string(),
         limit: 1,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline.execute(&request).unwrap();
@@ -193,11 +201,15 @@ fn test_pipeline_cache_hydration() {
 
     let session_id = SessionId::new();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "test".to_string(),
         limit: 1, // Only first node should be in response and hydrated
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let response = pipeline.execute(&request).unwrap();
@@ -226,12 +238,16 @@ fn test_pipeline_timeout() {
         .build();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "test".to_string(),
         limit: 1,
         exclude_ids: HashSet::new(),
         // Deadline is 10ms from now, so it should time out
         deadline: Some(Instant::now() + Duration::from_millis(10)),
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let result = pipeline.execute(&request);
@@ -264,11 +280,15 @@ fn test_stm_memory_source() {
 
     // 1. Basic match
     let req = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "Cached".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let res = source.retrieve(&req).unwrap();
     assert_eq!(res.metadata.source_name, "StmMemorySource");
@@ -279,11 +299,15 @@ fn test_stm_memory_source() {
     let mut exclude_ids = HashSet::new();
     exclude_ids.insert(node.id);
     let req_exclude = RetrievalRequest {
+        reference_time: None,
         session_id,
         query: "Cached".to_string(),
         limit: 10,
         exclude_ids,
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let res_exclude = source.retrieve(&req_exclude).unwrap();
     assert!(res_exclude.nodes.is_empty());
@@ -312,11 +336,15 @@ fn test_ltm_memory_source() {
 
     // 1. Match case insensitivity and search query
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "longterm".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let res = source.retrieve(&req).unwrap();
     assert_eq!(res.metadata.source_name, "LtmMemorySource");
@@ -325,11 +353,15 @@ fn test_ltm_memory_source() {
 
     // 2. Keyword match "Node" (both match)
     let req_both = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "node".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let res_both = source.retrieve(&req_both).unwrap();
     assert_eq!(res_both.nodes.len(), 2);
@@ -338,11 +370,15 @@ fn test_ltm_memory_source() {
     let mut exclude = HashSet::new();
     exclude.insert(node1.id);
     let req_exclude = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "node".to_string(),
         limit: 10,
         exclude_ids: exclude,
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let res_exclude = source.retrieve(&req_exclude).unwrap();
     assert_eq!(res_exclude.nodes.len(), 1);

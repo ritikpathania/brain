@@ -22,11 +22,15 @@ fn make_node(id: u64, content: &str) -> Node {
 fn test_bm25_ranking() {
     let strategy = Bm25Ranking::default();
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "sqlite database".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let node1 = make_node(1, "database setup and sqlite configuration");
@@ -90,11 +94,15 @@ fn test_embedding_ranking() {
     // node3 has no embedding (similarity = 0.0)
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "query text".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let ranked = strategy
@@ -143,11 +151,15 @@ fn test_graph_ranking() {
         .unwrap();
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "query text".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let ranked = strategy
@@ -194,11 +206,15 @@ fn test_rrf_ranking() {
     let node2 = make_node(2, "second");
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "query text".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let ranked = rrf

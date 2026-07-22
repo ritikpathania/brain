@@ -53,10 +53,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 1. Punctuation
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "rust-lang!".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -68,10 +72,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 2. Unicode
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "äëïöü".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -83,10 +91,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 3. Mixed Case
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "RuSt".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -116,10 +128,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 6. Duplicate Tokens
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "rust rust".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -127,10 +143,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 7. Empty Query
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -138,10 +158,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 8. Stop Words Only
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "the is in".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -152,10 +176,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 9. Zero-match query
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "nonexistentkeyword".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -163,10 +191,14 @@ fn test_ltm_retrieval_edge_cases() {
 
     // 10. High-match query
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "match".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
     let res = source.retrieve(&req).unwrap();
@@ -190,10 +222,14 @@ fn test_ltm_retrieval_bm25_toggle() {
     let source = LtmMemorySource::new(Arc::new(store.clone()), registry);
 
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
         query: "compile".to_string(),
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
         limit: 10,
     };
 
@@ -213,11 +249,15 @@ struct MemorySourceRetriever {
 impl Retriever for MemorySourceRetriever {
     fn retrieve(&self, query: &str) -> Result<Vec<RetrievalResult>, BrainError> {
         let request = RetrievalRequest {
+            reference_time: None,
             session_id: self.session_id,
             query: query.to_string(),
             limit: 10,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
         let res = self.source.retrieve(&request)?;
         Ok(res
@@ -412,11 +452,15 @@ fn test_ltm_hybrid_retrieval_metrics() {
 
     for q in &queries_struct.queries {
         let req = RetrievalRequest {
+            reference_time: None,
             session_id,
             query: q.text.clone(),
             limit: 10,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
 
         // Get expected matching IDs

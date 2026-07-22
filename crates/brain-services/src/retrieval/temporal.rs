@@ -243,6 +243,10 @@ impl TemporalRetrievalService {
             limit,
             exclude_ids: std::collections::HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
+            reference_time: None,
         };
 
         // 1. Load all temporal edges from SQLite storage

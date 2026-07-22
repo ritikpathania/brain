@@ -98,11 +98,15 @@ fn test_invariant_model_transparency() {
     );
 
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "Alpha".to_string(),
         limit: 2,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let input_nodes = vec![
@@ -149,11 +153,15 @@ fn test_feature_pipeline_invariants() {
     .unwrap();
 
     let req = RetrievalRequest {
+        reference_time: None,
         session_id: brain_domain::SessionId::new(),
         query: "UniqueA".to_string(),
         limit: 2,
         exclude_ids: std::collections::HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let input_nodes = vec![

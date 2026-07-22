@@ -1,6 +1,7 @@
 pub mod config;
 pub mod server;
 pub mod telemetry;
+pub mod transport;
 
 use pyo3::prelude::*;
 use std::sync::atomic::AtomicU64;

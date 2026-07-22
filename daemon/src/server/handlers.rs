@@ -7,7 +7,6 @@ use tokio::net::UnixStream;
 use tracing::{error, info};
 
 use brain_core::events::CorrelationId;
-use brain_core::evolution::{Observation, Provenance};
 use brain_services::BrainRuntime;
 
 use crate::server::protocol::{
@@ -72,14 +71,23 @@ pub async fn handle_connection(
                 let ingest_start = Instant::now();
 
                 // 1. Run BrainRuntime Ingestion directly
-                let obs = Observation {
-                    payload: payload.as_bytes().to_vec(),
-                    media_type: "text/plain".to_string(),
-                    provenance: Provenance {
-                        source_adapter: "daemon-uds".to_string(),
-                        timestamp: std::time::SystemTime::now(),
-                        correlation_id: CorrelationId::new_v4(),
+                let event = brain_integrations::IngestionEvent::Text {
+                    content: payload,
+                    metadata: std::collections::BTreeMap::new(),
+                };
+                let envelope = brain_integrations::IngestionEnvelope {
+                    event_model_version: "1.0".to_string(),
+                    identity: brain_integrations::EventIdentity {
+                        event_id: brain_domain::EventId::new(),
+                        parent_event_id: None,
+                        workspace_id: brain_domain::WorkspaceId::new("uds-legacy"),
+                        client_id: brain_domain::ClientId::new("uds-legacy"),
+                        adapter_id: brain_domain::AdapterId::new("uds-legacy"),
+                        session_id: brain_domain::SessionId::new(),
+                        conversation_id: None,
+                        timestamp: chrono::Utc::now(),
                     },
+                    event,
                 };
 
                 metrics
@@ -87,7 +95,7 @@ pub async fn handle_connection(
                     .fetch_add(1, Ordering::Relaxed);
 
                 let rt_start = Instant::now();
-                match brain_runtime.ingest(obs) {
+                match brain_runtime.ingest(envelope) {
                     Ok(result) => {
                         let rt_elapsed = rt_start.elapsed().as_micros() as u64;
                         metrics
@@ -444,7 +452,7 @@ pub async fn handle_connection(
                                 })
                             }
                         } else {
-                            let text_to_ingest = match &env.event {
+                            let _text_to_ingest = match &env.event {
                                 brain_integrations::IngestionEvent::Text { content, .. } => {
                                     Some(content.clone())
                                 }
@@ -493,18 +501,7 @@ pub async fn handle_connection(
                                 _ => None,
                             };
 
-                            if let Some(text) = text_to_ingest {
-                                let obs = Observation {
-                                    payload: text.as_bytes().to_vec(),
-                                    media_type: "text/plain".to_string(),
-                                    provenance: Provenance {
-                                        source_adapter: "daemon-uds-event".to_string(),
-                                        timestamp: std::time::SystemTime::now(),
-                                        correlation_id: CorrelationId::new_v4(),
-                                    },
-                                };
-                                let _ = brain_runtime.ingest(obs);
-                            }
+                            let _ = brain_runtime.ingest(env.clone());
 
                             let ack_body = serde_json::json!({
                                 "sequence": 1,

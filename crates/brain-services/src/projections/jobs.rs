@@ -21,7 +21,15 @@ impl StateReducer for JobProjectionReducer {
         ProjectionId::Jobs
     }
 
-    fn reduce(&mut self, envelope: &EventEnvelope) -> Result<(), BrainError> {
+    fn version(&self) -> u32 {
+        1
+    }
+
+    fn reduce(
+        &self,
+        conn: &rusqlite::Connection,
+        envelope: &EventEnvelope,
+    ) -> Result<(), BrainError> {
         let seq = envelope.sequence.ok_or_else(|| BrainError::Storage {
             message: "Sequence missing on event envelope during jobs reduction".to_string(),
             source: None,
@@ -74,18 +82,18 @@ impl StateReducer for JobProjectionReducer {
                     failure_reason: None,
                     updated_sequence: seq,
                 };
-                self.repo.save(&model)?;
+                self.repo.save_conn(conn, &model)?;
             }
             brain_domain::DomainEvent::JobStarted { job_id, timestamp } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     model.state = "running".to_string();
                     model.started_at = Some(timestamp.0);
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::JobProgressed { job_id, progress } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     let progress_pct = match progress {
                         brain_domain::jobs::JobProgress::Determinate {
                             completed, total, ..
@@ -100,23 +108,23 @@ impl StateReducer for JobProjectionReducer {
                     };
                     model.progress = progress_pct;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::JobWaiting { job_id, .. } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     model.state = "waiting".to_string();
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::JobCompleted { job_id, timestamp } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     model.state = "completed".to_string();
                     model.completed_at = Some(timestamp.0);
                     model.progress = 100;
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::JobFailed {
@@ -124,20 +132,20 @@ impl StateReducer for JobProjectionReducer {
                 reason,
                 timestamp,
             } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     model.state = "failed".to_string();
                     model.completed_at = Some(timestamp.0);
                     model.failure_reason = Some(reason.0.clone());
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             brain_domain::DomainEvent::JobCancelled { job_id, timestamp } => {
-                if let Some(mut model) = self.repo.find_by_id(&job_id.0)? {
+                if let Some(mut model) = self.repo.find_by_id_conn(conn, &job_id.0)? {
                     model.state = "cancelled".to_string();
                     model.completed_at = Some(timestamp.0);
                     model.updated_sequence = seq;
-                    self.repo.save(&model)?;
+                    self.repo.save_conn(conn, &model)?;
                 }
             }
             _ => {}
@@ -146,7 +154,7 @@ impl StateReducer for JobProjectionReducer {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), BrainError> {
-        self.repo.clear_all()
+    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+        self.repo.clear_all_conn(conn)
     }
 }

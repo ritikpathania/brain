@@ -46,7 +46,15 @@ impl SqliteJobReadModelRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.save_conn(&conn, model)
+    }
 
+    /// Saves a job read model state using a shared transaction connection.
+    pub fn save_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        model: &JobReadModel,
+    ) -> Result<(), BrainError> {
         conn.execute(
             "INSERT INTO jobs_projection (job_id, kind, owner, state, priority, progress, started_at, completed_at, failure_reason, updated_sequence)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
@@ -73,7 +81,6 @@ impl SqliteJobReadModelRepository {
             message: format!("Failed to save job read model: {}", e),
             source: Some(Box::new(e)),
         })?;
-
         Ok(())
     }
 
@@ -83,7 +90,15 @@ impl SqliteJobReadModelRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.find_by_id_conn(&conn, job_id)
+    }
 
+    /// Finds a job read model state by ID using a shared transaction connection.
+    pub fn find_by_id_conn(
+        &self,
+        conn: &rusqlite::Connection,
+        job_id: &Uuid,
+    ) -> Result<Option<JobReadModel>, BrainError> {
         let res: Result<JobReadModel, rusqlite::Error> = conn.query_row(
             "SELECT job_id, kind, owner, state, priority, progress, started_at, completed_at, failure_reason, updated_sequence
              FROM jobs_projection
@@ -154,7 +169,11 @@ impl SqliteJobReadModelRepository {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
         })?;
+        self.clear_all_conn(&conn)
+    }
 
+    /// Clears all job read model states using a shared transaction connection.
+    pub fn clear_all_conn(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
         conn.execute("DELETE FROM jobs_projection", [])
             .map_err(|e| BrainError::Storage {
                 message: format!("Failed to clear jobs projection table: {}", e),

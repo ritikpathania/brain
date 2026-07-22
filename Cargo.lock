@@ -266,6 +266,7 @@ dependencies = [
  "brain-config",
  "brain-core",
  "brain-domain",
+ "brain-events",
  "brain-integrations",
  "brain-services",
  "brain-storage",
@@ -332,6 +333,7 @@ dependencies = [
 name = "brain-daemon"
 version = "0.1.0"
 dependencies = [
+ "brain-application",
  "brain-core",
  "brain-domain",
  "brain-integrations",
@@ -349,6 +351,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "ulid",
  "uuid",
 ]
 
@@ -479,6 +482,7 @@ dependencies = [
  "brain-core",
  "brain-domain",
  "brain-events",
+ "brain-integrations",
  "brain-observability",
  "brain-plugins",
  "brain-python",

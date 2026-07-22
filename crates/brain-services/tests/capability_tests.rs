@@ -1,8 +1,8 @@
 use brain_services::{BrainRuntime, CapabilityState};
 use std::sync::Arc;
 
-#[test]
-fn test_capabilities_discovery_and_stability() {
+#[tokio::test]
+async fn test_capabilities_discovery_and_stability() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_capabilities.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -28,8 +28,8 @@ fn test_capabilities_discovery_and_stability() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_capabilities_alphabetical_ordering() {
+#[tokio::test]
+async fn test_capabilities_alphabetical_ordering() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_ordering.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -48,8 +48,8 @@ fn test_capabilities_alphabetical_ordering() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_capabilities_concurrent_read_safety() {
+#[tokio::test]
+async fn test_capabilities_concurrent_read_safety() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_concurrency.db");
     let db_str = db_path.to_str().expect("Valid path string");

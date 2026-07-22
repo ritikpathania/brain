@@ -33,14 +33,9 @@ pub trait ReflectionPass: Send + Sync {
 }
 
 /// Governs registered passes and their execution sequence.
+#[derive(Default)]
 pub struct ReflectionRegistry {
     passes: Vec<Box<dyn ReflectionPass>>,
-}
-
-impl Default for ReflectionRegistry {
-    fn default() -> Self {
-        Self { passes: Vec::new() }
-    }
 }
 
 impl ReflectionRegistry {
@@ -76,7 +71,10 @@ impl ReflectionEngine {
     ///
     /// ### Pass Isolation & Atomicity
     /// If any single pass fails, the entire cycle fails atomically, ensuring no partial results are produced.
-    pub fn reflect(&self, context: &ReflectionContext) -> Result<Vec<ReflectionFinding>, BrainError> {
+    pub fn reflect(
+        &self,
+        context: &ReflectionContext,
+    ) -> Result<Vec<ReflectionFinding>, BrainError> {
         let mut findings = Vec::new();
 
         self.storage.run_transaction(&mut |tx| {
@@ -96,3 +94,14 @@ impl ReflectionEngine {
         Ok(findings)
     }
 }
+
+/// Decision planner translating findings to commands.
+pub mod planner;
+pub use planner::ReflectionPlanner;
+
+/// Command execution handler.
+pub mod handler;
+pub use handler::ReflectionCommandHandler;
+
+/// Analysis passes for graph inspection.
+pub mod passes;

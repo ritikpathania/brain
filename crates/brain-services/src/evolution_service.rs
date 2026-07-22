@@ -29,6 +29,17 @@ impl IngestionValidator for StandardIngestionValidator {
                 error_code: "EMPTY_PAYLOAD".to_string(),
             }]);
         }
+        // Trigger structural validation failure if payload contains an empty content field (JSON)
+        if let Ok(val) = serde_json::from_slice::<serde_json::Value>(&obs.payload) {
+            if let Some(content) = val.get("content").and_then(|c| c.as_str()) {
+                if content.is_empty() {
+                    return Err(vec![StructuralValidationError {
+                        field: "content".to_string(),
+                        error_code: "EMPTY_CONTENT".to_string(),
+                    }]);
+                }
+            }
+        }
         Ok(())
     }
 

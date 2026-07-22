@@ -5,12 +5,14 @@
 
 #![deny(missing_docs)]
 
+pub mod dto;
 pub mod envelope;
 pub mod events;
 pub mod identity;
 pub mod replay;
 pub mod traits;
 
+pub use dto::*;
 pub use envelope::*;
 pub use events::*;
 pub use identity::*;

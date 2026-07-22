@@ -1,6 +1,4 @@
-use brain_domain::{
-    ReflectionDomainCommand, ReflectionFinding, ReflectionPlan,
-};
+use brain_domain::{ReflectionDomainCommand, ReflectionFinding, ReflectionPlan};
 
 /// Evaluates reflection findings and plans domain commands.
 pub struct ReflectionPlanner {
@@ -42,7 +40,11 @@ impl ReflectionPlanner {
 
         for finding in findings {
             match finding {
-                ReflectionFinding::DuplicateFound { node_a, node_b, evidence } => {
+                ReflectionFinding::DuplicateFound {
+                    node_a,
+                    node_b,
+                    evidence,
+                } => {
                     // Configured threshold for merging duplicates
                     if evidence.confidence >= self.duplicate_confidence_threshold {
                         // Canonical node is chosen as the one with smaller ID (deterministic tie-breaking)
@@ -57,12 +59,24 @@ impl ReflectionPlanner {
                         });
                     } else {
                         skipped_findings.push((
-                            ReflectionFinding::DuplicateFound { node_a, node_b, evidence },
-                            format!("Confidence below merge threshold ({})", self.duplicate_confidence_threshold),
+                            ReflectionFinding::DuplicateFound {
+                                node_a,
+                                node_b,
+                                evidence,
+                            },
+                            format!(
+                                "Confidence below merge threshold ({})",
+                                self.duplicate_confidence_threshold
+                            ),
                         ));
                     }
                 }
-                ReflectionFinding::ContradictionFound { node_id, property_key, values, evidence } => {
+                ReflectionFinding::ContradictionFound {
+                    node_id,
+                    property_key,
+                    values,
+                    evidence,
+                } => {
                     // Contradictions are currently logged and skipped (awaiting manual intervention)
                     skipped_findings.push((
                         ReflectionFinding::ContradictionFound {
@@ -74,7 +88,12 @@ impl ReflectionPlanner {
                         "Contradiction resolution requires human approval policy".to_string(),
                     ));
                 }
-                ReflectionFinding::LinkSuggested { source_id, target_id, relation_kind, evidence } => {
+                ReflectionFinding::LinkSuggested {
+                    source_id,
+                    target_id,
+                    relation_kind,
+                    evidence,
+                } => {
                     // Configured threshold for automatic inference
                     if evidence.confidence >= self.link_suggestion_confidence_threshold {
                         commands.push(ReflectionDomainCommand::CreateInferredRelation {
@@ -91,7 +110,10 @@ impl ReflectionPlanner {
                                 relation_kind,
                                 evidence,
                             },
-                            format!("Confidence below link inference threshold ({})", self.link_suggestion_confidence_threshold),
+                            format!(
+                                "Confidence below link inference threshold ({})",
+                                self.link_suggestion_confidence_threshold
+                            ),
                         ));
                     }
                 }

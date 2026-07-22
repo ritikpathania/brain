@@ -1,33 +1,52 @@
-use brain_core::{events::CorrelationId, evolution::Observation};
+use brain_core::events::CorrelationId;
+use brain_integrations::{EventIdentity, IngestionEnvelope, IngestionEvent};
 use brain_services::{BrainRuntime, MemoryListQuery, RuntimeHealth, SqliteProjector};
 use std::time::{Duration, SystemTime};
 
-fn make_valid_obs(payload: &str, corr_id: CorrelationId) -> Observation {
-    Observation {
-        payload: payload.as_bytes().to_vec(),
-        media_type: "text/plain".to_string(),
-        provenance: brain_core::evolution::Provenance {
-            source_adapter: "test".to_string(),
-            timestamp: SystemTime::now(),
-            correlation_id: corr_id,
+fn make_valid_obs(payload: &str, corr_id: CorrelationId) -> IngestionEnvelope {
+    IngestionEnvelope {
+        event_model_version: "1.0".to_string(),
+        identity: EventIdentity {
+            event_id: brain_domain::EventId(corr_id),
+            parent_event_id: None,
+            workspace_id: brain_domain::WorkspaceId::new("test"),
+            client_id: brain_domain::ClientId::new("test"),
+            adapter_id: brain_domain::AdapterId::new("test"),
+            session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
+            conversation_id: None,
+            timestamp: chrono::Utc::now(),
+        },
+        event: IngestionEvent::Message {
+            role: "user".to_string(),
+            content: payload.to_string(),
+            metadata: std::collections::BTreeMap::new(),
         },
     }
 }
 
-fn make_invalid_obs(corr_id: CorrelationId) -> Observation {
-    Observation {
-        payload: vec![], // Empty payload triggers structural validation error
-        media_type: "text/plain".to_string(),
-        provenance: brain_core::evolution::Provenance {
-            source_adapter: "test".to_string(),
-            timestamp: SystemTime::now(),
-            correlation_id: corr_id,
+fn make_invalid_obs(corr_id: CorrelationId) -> IngestionEnvelope {
+    IngestionEnvelope {
+        event_model_version: "1.0".to_string(),
+        identity: EventIdentity {
+            event_id: brain_domain::EventId(corr_id),
+            parent_event_id: None,
+            workspace_id: brain_domain::WorkspaceId::new("test"),
+            client_id: brain_domain::ClientId::new("test"),
+            adapter_id: brain_domain::AdapterId::new("test"),
+            session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
+            conversation_id: None,
+            timestamp: chrono::Utc::now(),
+        },
+        event: IngestionEvent::Message {
+            role: "user".to_string(),
+            content: "".to_string(), // Empty content triggers validation failure
+            metadata: std::collections::BTreeMap::new(),
         },
     }
 }
 
-#[test]
-fn test_runtime_uptime_and_health_transitions() {
+#[tokio::test]
+async fn test_runtime_uptime_and_health_transitions() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_introspection.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -56,8 +75,8 @@ fn test_runtime_uptime_and_health_transitions() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_runtime_active_subscriber_count() {
+#[tokio::test]
+async fn test_runtime_active_subscriber_count() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_subscribers.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -74,8 +93,8 @@ fn test_runtime_active_subscriber_count() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_runtime_metrics_and_latencies() {
+#[tokio::test]
+async fn test_runtime_metrics_and_latencies() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_metrics.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -126,8 +145,8 @@ fn test_runtime_metrics_and_latencies() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_runtime_diagnostics_ring_buffer() {
+#[tokio::test]
+async fn test_runtime_diagnostics_ring_buffer() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_diagnostics.db");
     let db_str = db_path.to_str().expect("Valid path string");
@@ -140,14 +159,23 @@ fn test_runtime_diagnostics_ring_buffer() {
 
     // Generate 60 failures (empty payload) to verify FIFO eviction of ring buffer
     let corr_id = CorrelationId::new_v4();
-    for i in 0..60 {
-        let _ = runtime.ingest(Observation {
-            payload: vec![],
-            media_type: format!("err-index-{}", i), // Unique identifier
-            provenance: brain_core::evolution::Provenance {
-                source_adapter: "test".to_string(),
-                timestamp: SystemTime::now(),
-                correlation_id: corr_id,
+    for _ in 0..60 {
+        let _ = runtime.ingest(IngestionEnvelope {
+            event_model_version: "1.0".to_string(),
+            identity: EventIdentity {
+                event_id: brain_domain::EventId(corr_id),
+                parent_event_id: None,
+                workspace_id: brain_domain::WorkspaceId::new("test"),
+                client_id: brain_domain::ClientId::new("test"),
+                adapter_id: brain_domain::AdapterId::new("test"),
+                session_id: "01H7X1F8Z9Y000000000000000".parse().unwrap(),
+                conversation_id: None,
+                timestamp: chrono::Utc::now(),
+            },
+            event: IngestionEvent::Message {
+                role: "user".to_string(),
+                content: "".to_string(),
+                metadata: std::collections::BTreeMap::new(),
             },
         });
     }
@@ -167,8 +195,8 @@ fn test_runtime_diagnostics_ring_buffer() {
     runtime.shutdown().expect("Clean shutdown");
 }
 
-#[test]
-fn test_snapshot_consistency_monotonicity() {
+#[tokio::test]
+async fn test_snapshot_consistency_monotonicity() {
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("test_consistency.db");
     let db_str = db_path.to_str().expect("Valid path string");

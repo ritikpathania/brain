@@ -43,11 +43,15 @@ fn test_default_experiment_router() {
     let router = DefaultExperimentRouter::new(provider);
 
     let request = RetrievalRequest {
+        reference_time: None,
         session_id: SessionId::new(),
         query: "test".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
 
     let decision = router.route_decision(&request).unwrap();
@@ -94,11 +98,15 @@ fn test_canary_experiment_router_sticky_and_invariants() {
     // Identical routing keys (session IDs) yield identical routing decisions
     let session_a = SessionId::new();
     let request_a1 = RetrievalRequest {
+        reference_time: None,
         session_id: session_a,
         query: "test".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let request_a2 = request_a1.clone();
 
@@ -111,11 +119,15 @@ fn test_canary_experiment_router_sticky_and_invariants() {
     // Invariant 2: Deterministic Default on Nil/Empty Session ID
     let nil_session: SessionId = serde_json::from_str("\"00000000000000000000000000\"").unwrap();
     let request_nil = RetrievalRequest {
+        reference_time: None,
         session_id: nil_session,
         query: "test".to_string(),
         limit: 10,
         exclude_ids: HashSet::new(),
         deadline: None,
+        explain: false,
+        graph_depth: None,
+        expand_relations: false,
     };
     let decision_nil = router.route_decision(&request_nil).unwrap();
     // Must route to active baseline snapshot (version 1)
@@ -128,11 +140,15 @@ fn test_canary_experiment_router_sticky_and_invariants() {
 
     for _ in 0..100 {
         let req = RetrievalRequest {
+            reference_time: None,
             session_id: SessionId::new(),
             query: "test".to_string(),
             limit: 10,
             exclude_ids: HashSet::new(),
             deadline: None,
+            explain: false,
+            graph_depth: None,
+            expand_relations: false,
         };
         let dec = router.route_decision(&req).unwrap();
         if dec.variant_id == "baseline" {

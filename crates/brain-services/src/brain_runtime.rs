@@ -1,10 +1,10 @@
 use crate::query::SearchQuery;
 use crate::{
-    InMemoryEventDispatcher, SqliteCanonicalizer, SqliteProjectionManager, SqliteReflectionEngine,
     projections::{
         scheduler, JobProjectionReducer, ProjectionConfig, ProjectionScheduler, ReducerRegistry,
         SearchProjectionReducer, SessionProjectionReducer,
     },
+    InMemoryEventDispatcher, SqliteCanonicalizer, SqliteProjectionManager, SqliteReflectionEngine,
 };
 use brain_core::{
     errors::BrainError,
@@ -273,15 +273,14 @@ impl BrainRuntime {
         let health = Arc::new(AtomicU8::new(RuntimeHealth::Initializing as u8));
         let defaults_src = brain_config::loader::DefaultsSource;
         let env_src = brain_config::loader::EnvironmentSource;
-        let brain_settings = brain_config::loader::resolve(&[
-            Box::new(defaults_src),
-            Box::new(env_src),
-        ]).unwrap_or_else(|_| {
-            use brain_config::loader::ConfigSource;
-            use std::convert::TryFrom;
-            let partial = brain_config::loader::DefaultsSource.load().unwrap();
-            brain_config::schema::BrainSettings::try_from(partial).unwrap()
-        });
+        let brain_settings =
+            brain_config::loader::resolve(&[Box::new(defaults_src), Box::new(env_src)])
+                .unwrap_or_else(|_| {
+                    use brain_config::loader::ConfigSource;
+                    use std::convert::TryFrom;
+                    let partial = brain_config::loader::DefaultsSource.load().unwrap();
+                    brain_config::schema::BrainSettings::try_from(partial).unwrap()
+                });
         let metrics = Arc::new(InternalMetrics {
             observations_ingested: AtomicU64::new(0),
             canonicalization_successes: AtomicU64::new(0),
@@ -377,19 +376,27 @@ impl BrainRuntime {
 
         // 7. Register projections and set up SequentialScheduler & SchedulerRuntime
         let registry = ReducerRegistry::new();
-        
-        let jobs_repo = Arc::new(brain_storage::SqliteJobReadModelRepository::new(sqlite_storage.pool().clone()));
+
+        let jobs_repo = Arc::new(brain_storage::SqliteJobReadModelRepository::new(
+            sqlite_storage.pool().clone(),
+        ));
         registry.register(Arc::new(JobProjectionReducer::new(jobs_repo)))?;
 
-        let sessions_repo = Arc::new(brain_storage::SqliteSessionReadModelRepository::new(sqlite_storage.pool().clone()));
+        let sessions_repo = Arc::new(brain_storage::SqliteSessionReadModelRepository::new(
+            sqlite_storage.pool().clone(),
+        ));
         registry.register(Arc::new(SessionProjectionReducer::new(sessions_repo)))?;
 
-        registry.register(Arc::new(SearchProjectionReducer::new(search_repository.clone())))?;
+        registry.register(Arc::new(SearchProjectionReducer::new(
+            search_repository.clone(),
+        )))?;
 
         let metadata_repo = Arc::new(brain_storage::SqliteProjectionMetadataRepository::new());
-        let event_log_inner = Arc::new(brain_storage::SqliteEventLog::new(sqlite_storage.pool().clone()));
+        let event_log_inner = Arc::new(brain_storage::SqliteEventLog::new(
+            sqlite_storage.pool().clone(),
+        ));
         let event_log = Arc::new(crate::jobs::publisher::SystemEventLog::new(event_log_inner));
-        
+
         let config = ProjectionConfig {
             batch_size: 100,
             max_batch_duration_ms: 500,
@@ -404,13 +411,24 @@ impl BrainRuntime {
             sqlite_storage.pool().clone(),
         ));
 
-        let scheduler_runtime = Arc::new(scheduler::SchedulerRuntime::new(Arc::clone(&projection_scheduler) as Arc<dyn ProjectionScheduler>));
+        let scheduler_runtime = Arc::new(scheduler::SchedulerRuntime::new(Arc::clone(
+            &projection_scheduler,
+        )
+            as Arc<dyn ProjectionScheduler>));
 
         let mut reflection_registry = crate::reflection::ReflectionRegistry::new();
-        reflection_registry.register(Box::new(crate::reflection::passes::duplicate::DuplicateDetectionPass::new()));
-        reflection_registry.register(Box::new(crate::reflection::passes::contradiction::ContradictionPass::new()));
-        reflection_registry.register(Box::new(crate::reflection::passes::link_suggestion::LinkSuggestionPass::new()));
-        reflection_registry.register(Box::new(crate::reflection::passes::synthesis::SynthesisPass::new()));
+        reflection_registry.register(Box::new(
+            crate::reflection::passes::duplicate::DuplicateDetectionPass::new(),
+        ));
+        reflection_registry.register(Box::new(
+            crate::reflection::passes::contradiction::ContradictionPass::new(),
+        ));
+        reflection_registry.register(Box::new(
+            crate::reflection::passes::link_suggestion::LinkSuggestionPass::new(),
+        ));
+        reflection_registry.register(Box::new(
+            crate::reflection::passes::synthesis::SynthesisPass::new(),
+        ));
         let reflection_engine = Arc::new(crate::reflection::ReflectionEngine::new(
             Arc::new(reflection_registry),
             Arc::clone(&storage),
@@ -461,7 +479,7 @@ impl BrainRuntime {
 
         // 1. Insert/Deduplicate in the WAL
         let sequence = self.sqlite_storage.insert_event(&envelope)?;
-        let event_id = envelope.identity.event_id.clone();
+        let event_id = envelope.identity.event_id;
 
         // 2. Translate envelope DTO into internal Observation
         let payload = serde_json::to_vec(&envelope.event).map_err(|e| BrainError::Storage {
@@ -741,9 +759,9 @@ impl BrainRuntime {
         for edge in connections {
             let is_outgoing = edge.source == node_id;
             let neighbor_id = if is_outgoing {
-                edge.target.clone()
+                edge.target
             } else {
-                edge.source.clone()
+                edge.source
             };
             if let Some(neighbor) =
                 NodeRepository::find_by_id(self.sqlite_storage.as_ref(), &neighbor_id)?
@@ -770,12 +788,11 @@ impl BrainRuntime {
             extra_info: std::collections::HashMap::new(),
         };
 
-        let mut recent_activity = Vec::new();
-        recent_activity.push(ActivityLogEntry {
+        let recent_activity = vec![ActivityLogEntry {
             timestamp: 0,
             action: "Ingested".to_string(),
             details: "Entity extracted from source location by system.".to_string(),
-        });
+        }];
 
         Ok(InspectorModel {
             entity,

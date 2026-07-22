@@ -215,6 +215,19 @@ const MIGRATIONS: &[&str] = &[
     ALTER TABLE embeddings ADD COLUMN centroid_id INTEGER;
     CREATE INDEX IF NOT EXISTS idx_embeddings_centroid ON embeddings(centroid_id);
     "#,
+    // Version 15 Schema Setup (Projection Metadata & Resumable Checkpoints)
+    r#"
+    CREATE TABLE IF NOT EXISTS projection_metadata (
+        projection_name TEXT PRIMARY KEY,
+        projection_version INTEGER NOT NULL,
+        last_sequence INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('active', 'failed', 'rebuilding', 'idle')),
+        last_error TEXT,
+        updated_at INTEGER NOT NULL
+    );
+    INSERT OR IGNORE INTO projection_metadata (projection_name, projection_version, last_sequence, status, last_error, updated_at)
+    SELECT projection_name, 1, last_sequence, 'idle', NULL, strftime('%s','now') FROM projection_checkpoints;
+    "#,
 ];
 
 /// Runs all pending database schema migrations in a transaction.
