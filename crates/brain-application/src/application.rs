@@ -67,6 +67,7 @@ impl EventTranslator {
 pub struct BrainApplication {
     runtime: Arc<BrainRuntime>,
     subscription_manager: Arc<SubscriptionManager>,
+    last_reflection_report: Arc<parking_lot::Mutex<Option<v1::ReflectionReport>>>,
 }
 
 impl BrainApplication {
@@ -97,6 +98,7 @@ impl BrainApplication {
         Self {
             runtime,
             subscription_manager,
+            last_reflection_report: Arc::new(parking_lot::Mutex::new(None)),
         }
     }
 
@@ -499,10 +501,72 @@ impl BrainApplication {
         Ok(())
     }
 
+    fn map_finding_to_dto(f: &brain_domain::ReflectionFinding) -> v1::ReflectionFindingDto {
+        match f {
+            brain_domain::ReflectionFinding::DuplicateFound {
+                node_a,
+                node_b,
+                evidence,
+            } => v1::ReflectionFindingDto {
+                kind: f.kind().to_string(),
+                confidence: f.confidence(),
+                target_ids: vec![node_a.to_string(), node_b.to_string()],
+                details: evidence.details.clone(),
+            },
+            brain_domain::ReflectionFinding::ContradictionFound {
+                node_id,
+                property_key,
+                values: _,
+                evidence,
+            } => v1::ReflectionFindingDto {
+                kind: f.kind().to_string(),
+                confidence: f.confidence(),
+                target_ids: vec![node_id.to_string(), property_key.clone()],
+                details: evidence.details.clone(),
+            },
+            brain_domain::ReflectionFinding::LinkSuggested {
+                source_id,
+                target_id,
+                relation_kind: _,
+                evidence,
+            } => v1::ReflectionFindingDto {
+                kind: f.kind().to_string(),
+                confidence: f.confidence(),
+                target_ids: vec![source_id.to_string(), target_id.to_string()],
+                details: evidence.details.clone(),
+            },
+        }
+    }
+
+    fn map_rec_to_dto(
+        r: &brain_domain::ReflectionRecommendation,
+    ) -> v1::ReflectionRecommendationDto {
+        v1::ReflectionRecommendationDto {
+            pass_id: r.pass_id.to_string(),
+            finding_kind: r.finding_kind.to_string(),
+            confidence: r.confidence,
+            target_ids: r.target_ids.iter().map(|id| id.to_string()).collect(),
+            rationale: r.rationale.clone(),
+            command: format!("{:?}", r.command),
+        }
+    }
+
+    fn map_skipped_to_dto(
+        (finding, reasoning): &(brain_domain::ReflectionFinding, String),
+    ) -> v1::SkippedFindingDto {
+        v1::SkippedFindingDto {
+            finding_kind: finding.kind().to_string(),
+            confidence: finding.confidence(),
+            reasoning: reasoning.clone(),
+        }
+    }
+
     /// Trigger a manual reflection consolidation cycle on the active session.
     pub async fn reflect(&self) -> Result<v1::ReflectionReport, ApplicationError> {
+        let start = std::time::Instant::now();
+        let execution_id = uuid::Uuid::new_v4();
         let context = brain_services::reflection::ReflectionContext {
-            execution_id: uuid::Uuid::new_v4(),
+            execution_id,
             session_id: brain_domain::SessionId(ulid::Ulid::new()),
             cutoff_epoch: u64::MAX,
             max_nodes: 1000,
@@ -519,6 +583,9 @@ impl BrainApplication {
                 ApplicationError::Internal(format!("Reflection engine failed: {:?}", e))
             })?;
 
+        let finding_dtos: Vec<v1::ReflectionFindingDto> =
+            findings.iter().map(Self::map_finding_to_dto).collect();
+
         // 2. Formulate decision plan via the planner
         let config = self.runtime.config();
         let planner = brain_services::reflection::ReflectionPlanner::with_thresholds(
@@ -526,6 +593,17 @@ impl BrainApplication {
             config.reflection().link_suggestion_confidence_threshold(),
         );
         let plan = planner.plan(findings);
+
+        let rec_dtos: Vec<v1::ReflectionRecommendationDto> = plan
+            .recommendations
+            .iter()
+            .map(Self::map_rec_to_dto)
+            .collect();
+        let skipped_dtos: Vec<v1::SkippedFindingDto> = plan
+            .skipped_findings
+            .iter()
+            .map(Self::map_skipped_to_dto)
+            .collect();
 
         // 3. Execute planned commands
         let commands = plan.commands;
@@ -561,13 +639,101 @@ impl BrainApplication {
         }
 
         let commands_executed = events.len();
-        let details = events.into_iter().map(|ev| format!("{:?}", ev)).collect();
+        let executed_commands: Vec<String> = events.iter().map(|ev| format!("{:?}", ev)).collect();
+        let details = executed_commands.clone();
+        let duration_ms = start.elapsed().as_millis() as u64;
 
-        Ok(v1::ReflectionReport {
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let report = v1::ReflectionReport {
+            execution_id: execution_id.to_string(),
+            timestamp_ms,
+            duration_ms,
             findings_processed: plan.findings_processed,
             commands_executed,
+            findings: finding_dtos,
+            recommendations: rec_dtos,
+            executed_commands,
+            skipped_findings: skipped_dtos,
             details,
+        };
+
+        *self.last_reflection_report.lock() = Some(report.clone());
+        Ok(report)
+    }
+
+    /// Returns background reflection scheduler status and configuration.
+    pub async fn reflect_status(&self) -> Result<v1::ReflectionStatusReport, ApplicationError> {
+        let config = self.runtime.config().reflection();
+        let metrics = self.runtime.metrics();
+
+        Ok(v1::ReflectionStatusReport {
+            background_enabled: config.background_enabled(),
+            interval_secs: config.interval_secs(),
+            min_events_trigger: config.min_events_trigger(),
+            max_nodes_per_cycle: config.max_nodes_per_cycle(),
+            cycle_time_budget_ms: config.cycle_time_budget_ms(),
+            reflections_executed: metrics.reflections_executed,
+            reflection_findings_count: metrics.reflection_findings_count,
+            reflection_commands_executed: metrics.reflection_commands_executed,
+            reflection_commands_skipped: metrics.reflection_commands_skipped,
+            last_reflection_duration_ms: metrics
+                .last_reflection_duration
+                .map(|d| d.as_millis() as u64),
         })
+    }
+
+    /// Returns the cached immutable report of the most recent reflection run, if any.
+    pub async fn last_reflection_report(
+        &self,
+    ) -> Result<Option<v1::ReflectionReport>, ApplicationError> {
+        Ok(self.last_reflection_report.lock().clone())
+    }
+
+    /// Lightweight summary endpoint returning high-level metrics.
+    pub async fn reflect_summary(&self) -> Result<v1::ReflectionSummaryDto, ApplicationError> {
+        let status = self.reflect_status().await?;
+        let last_report = self.last_reflection_report.lock().clone();
+        let scheduler_state = if status.background_enabled {
+            "running".to_string()
+        } else {
+            "disabled".to_string()
+        };
+
+        Ok(v1::ReflectionSummaryDto {
+            last_execution_ms: last_report.as_ref().map(|r| r.timestamp_ms),
+            total_findings: status.reflection_findings_count,
+            total_commands_executed: status.reflection_commands_executed,
+            last_duration_ms: status.last_reflection_duration_ms,
+            scheduler_state,
+        })
+    }
+
+    /// Performs a fast read-only scan to return current active reflection findings.
+    pub async fn active_reflection_findings(
+        &self,
+    ) -> Result<Vec<v1::ReflectionFindingDto>, ApplicationError> {
+        let context = brain_services::reflection::ReflectionContext {
+            execution_id: uuid::Uuid::new_v4(),
+            session_id: brain_domain::SessionId(ulid::Ulid::new()),
+            cutoff_epoch: u64::MAX,
+            max_nodes: 1000,
+            time_budget_ms: 5000,
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+        };
+
+        let findings = self
+            .runtime
+            .reflection_engine()
+            .reflect(&context)
+            .map_err(|e| {
+                ApplicationError::Internal(format!("Failed active findings scan: {:?}", e))
+            })?;
+
+        Ok(findings.iter().map(Self::map_finding_to_dto).collect())
     }
 }
 

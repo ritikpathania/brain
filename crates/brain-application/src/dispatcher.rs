@@ -43,6 +43,14 @@ pub enum ApplicationRequest {
     },
     /// Trigger manual reflection engine cycle
     Reflect,
+    /// Retrieve reflection background scheduler status
+    ReflectStatus,
+    /// Retrieve most recent reflection report
+    ReflectReport,
+    /// Retrieve lightweight reflection summary
+    ReflectSummary,
+    /// Retrieve active unmerged reflection findings
+    ReflectFindings,
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
@@ -71,6 +79,14 @@ pub enum ApplicationResponse {
     RebuildProjection,
     /// Manual reflection cycle report
     Reflect(v1::ReflectionReport),
+    /// Reflection scheduler status report
+    ReflectStatus(v1::ReflectionStatusReport),
+    /// Most recent reflection execution report
+    ReflectReport(Option<v1::ReflectionReport>),
+    /// Reflection status summary
+    ReflectSummary(v1::ReflectionSummaryDto),
+    /// Active reflection findings
+    ReflectFindings(Vec<v1::ReflectionFindingDto>),
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -130,6 +146,22 @@ impl RequestDispatcher {
             ApplicationRequest::Reflect => {
                 let report = self.app.reflect().await?;
                 Ok(ApplicationResponse::Reflect(report))
+            }
+            ApplicationRequest::ReflectStatus => {
+                let status = self.app.reflect_status().await?;
+                Ok(ApplicationResponse::ReflectStatus(status))
+            }
+            ApplicationRequest::ReflectReport => {
+                let report = self.app.last_reflection_report().await?;
+                Ok(ApplicationResponse::ReflectReport(report))
+            }
+            ApplicationRequest::ReflectSummary => {
+                let summary = self.app.reflect_summary().await?;
+                Ok(ApplicationResponse::ReflectSummary(summary))
+            }
+            ApplicationRequest::ReflectFindings => {
+                let findings = self.app.active_reflection_findings().await?;
+                Ok(ApplicationResponse::ReflectFindings(findings))
             }
         }
     }

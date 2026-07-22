@@ -405,6 +405,66 @@ impl BrainClient {
         serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
     }
 
+    pub async fn reflect_status(&self) -> Result<v1::ReflectionStatusReport, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/reflect/status".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn last_reflection_report(
+        &self,
+    ) -> Result<Option<v1::ReflectionReport>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/reflect/report".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn reflect_summary(&self) -> Result<v1::ReflectionSummaryDto, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/reflect/summary".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn active_reflection_findings(
+        &self,
+    ) -> Result<Vec<v1::ReflectionFindingDto>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/reflect/findings".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
     pub fn subscribe(&self) -> mpsc::UnboundedReceiver<v1::StreamMessage> {
         let (tx, rx) = mpsc::unbounded_channel();
         self.subscribers.lock().unwrap().push(tx);

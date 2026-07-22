@@ -434,6 +434,18 @@ pub async fn handle_connection(
                     ApplicationResponse::Reflect(report) => {
                         serde_json::to_string(&report).unwrap_or_default()
                     }
+                    ApplicationResponse::ReflectStatus(status) => {
+                        serde_json::to_string(&status).unwrap_or_default()
+                    }
+                    ApplicationResponse::ReflectReport(report) => {
+                        serde_json::to_string(&report).unwrap_or_default()
+                    }
+                    ApplicationResponse::ReflectSummary(summary) => {
+                        serde_json::to_string(&summary).unwrap_or_default()
+                    }
+                    ApplicationResponse::ReflectFindings(findings) => {
+                        serde_json::to_string(&findings).unwrap_or_default()
+                    }
                 };
 
                 let response = if is_versioned {

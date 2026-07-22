@@ -51,8 +51,23 @@ enum Commands {
         /// The query text
         query: String,
     },
-    /// Trigger manual reflection consolidation cycle
-    Reflect,
+    /// Trigger manual reflection consolidation cycle or inspect reflection subsystem state
+    Reflect {
+        #[command(subcommand)]
+        subcommand: Option<ReflectCommands>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ReflectCommands {
+    /// Trigger manual reflection consolidation cycle and print report summary
+    Run,
+    /// Display background scheduler status, interval, trigger thresholds, and telemetry counters
+    Status,
+    /// Display the structured report of the most recent reflection run
+    Report,
+    /// Browse active unresolved reflection findings (duplicates, contradictions, link suggestions)
+    Findings,
 }
 
 #[derive(Subcommand)]
@@ -314,7 +329,7 @@ async fn main() {
             }
             client.shutdown().await;
         }
-        Commands::Reflect => {
+        Commands::Reflect { subcommand } => {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
@@ -327,9 +342,76 @@ async fn main() {
                 client.shutdown().await;
                 std::process::exit(1);
             }
-            match client.reflect().await {
-                Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
-                Err(e) => eprintln!("Error: {:?}", e),
+            match subcommand.unwrap_or(ReflectCommands::Run) {
+                ReflectCommands::Run => match client.reflect().await {
+                    Ok(report) => {
+                        println!("=== Reflection Consolidation Report ===");
+                        println!("Execution ID:       {}", report.execution_id);
+                        println!("Duration:           {} ms", report.duration_ms);
+                        println!("Findings Processed: {}", report.findings_processed);
+                        println!("Commands Executed:  {}", report.commands_executed);
+                        println!("Skipped Findings:   {}", report.skipped_findings.len());
+                        if !report.executed_commands.is_empty() {
+                            println!("\n[Executed Commands]");
+                            for cmd in &report.executed_commands {
+                                println!("  - {}", cmd);
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Error: {:?}", e),
+                },
+                ReflectCommands::Status => match client.reflect_status().await {
+                    Ok(status) => {
+                        println!("=== Background Reflection Scheduler Status ===");
+                        println!("Background Enabled:   {}", status.background_enabled);
+                        println!("Interval:             {} s", status.interval_secs);
+                        println!("Min Events Trigger:   {}", status.min_events_trigger);
+                        println!("Max Nodes per Cycle:  {}", status.max_nodes_per_cycle);
+                        println!("Cycle Time Budget:    {} ms", status.cycle_time_budget_ms);
+                        println!("Total Cycles Run:     {}", status.reflections_executed);
+                        println!("Total Findings:       {}", status.reflection_findings_count);
+                        println!(
+                            "Commands Executed:    {}",
+                            status.reflection_commands_executed
+                        );
+                        println!(
+                            "Findings Skipped:     {}",
+                            status.reflection_commands_skipped
+                        );
+                        println!(
+                            "Last Duration:        {} ms",
+                            status.last_reflection_duration_ms.unwrap_or(0)
+                        );
+                    }
+                    Err(e) => eprintln!("Error retrieving reflection status: {:?}", e),
+                },
+                ReflectCommands::Report => match client.last_reflection_report().await {
+                    Ok(Some(report)) => {
+                        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    }
+                    Ok(None) => println!("No previous reflection report found."),
+                    Err(e) => eprintln!("Error retrieving reflection report: {:?}", e),
+                },
+                ReflectCommands::Findings => match client.active_reflection_findings().await {
+                    Ok(findings) => {
+                        if findings.is_empty() {
+                            println!("No active unresolved findings detected.");
+                        } else {
+                            println!("=== Active Reflection Findings ({}) ===", findings.len());
+                            for (i, f) in findings.iter().enumerate() {
+                                println!(
+                                    "  [{}] Kind: {} | Confidence: {:.2} | Targets: {:?}",
+                                    i + 1,
+                                    f.kind,
+                                    f.confidence,
+                                    f.target_ids
+                                );
+                                println!("      Details: {}", f.details);
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Error retrieving active findings: {:?}", e),
+                },
             }
             client.shutdown().await;
         }

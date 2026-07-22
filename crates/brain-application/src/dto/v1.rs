@@ -1,1 +1,2 @@
-// Deprecated: Moved to brain-integrations/src/dto/v1.rs
+/// Re-export all Version 1 DTO schemas from brain_integrations.
+pub use brain_integrations::dto::v1::*;
