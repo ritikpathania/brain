@@ -59,3 +59,7 @@ pub mod completion;
 pub mod palette;
 /// Modal pinned context overlay widget.
 pub mod pinned_overlay;
+/// Runtime Dashboard operational control panel widget.
+pub mod runtime_dashboard;
+
+pub use runtime_dashboard::{draw_runtime_dashboard, RuntimeDashboardState};

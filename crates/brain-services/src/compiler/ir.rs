@@ -49,10 +49,64 @@ pub struct EntityIR {
     pub aliases: Vec<String>,
     /// Key-value property map.
     pub properties: BTreeMap<String, String>,
-    /// Aggregated confidence score.
+    /// Aggregated confidence score [0.0..1.0].
     pub confidence: f64,
-    /// Provenance tracking data.
+    /// Primary provenance tracking data.
     pub provenance: ProvenanceIR,
+    /// Additive provenance chain tracking all merged observation origins without data loss.
+    pub provenance_chain: Vec<ProvenanceIR>,
+}
+
+impl EntityIR {
+    /// Instantiates a new EntityIR with initial provenance chain containing primary provenance.
+    pub fn new(
+        id: EntityId,
+        canonical_name: impl Into<String>,
+        kind: impl Into<String>,
+        confidence: f64,
+        provenance: ProvenanceIR,
+    ) -> Self {
+        let chain = vec![provenance.clone()];
+        Self {
+            id,
+            canonical_name: canonical_name.into(),
+            kind: kind.into(),
+            aliases: Vec::new(),
+            properties: BTreeMap::new(),
+            confidence,
+            provenance,
+            provenance_chain: chain,
+        }
+    }
+
+    /// Merges secondary entity into self deterministically, preserving additive provenance.
+    pub fn merge_from(&mut self, secondary: EntityIR) {
+        // Merge aliases
+        for alias in secondary.aliases {
+            if !self.aliases.contains(&alias) && alias != self.canonical_name {
+                self.aliases.push(alias);
+            }
+        }
+        if !self.aliases.contains(&secondary.canonical_name)
+            && secondary.canonical_name != self.canonical_name
+        {
+            self.aliases.push(secondary.canonical_name);
+        }
+
+        // Merge properties additively (primary properties take precedence)
+        for (k, v) in secondary.properties {
+            self.properties.entry(k).or_insert(v);
+        }
+
+        // Additive provenance preservation
+        self.provenance_chain.push(secondary.provenance);
+        self.provenance_chain.extend(secondary.provenance_chain);
+
+        // Bayesian confidence aggregation: 1 - (1 - c1)(1 - c2)
+        let c1 = self.confidence.clamp(0.0, 1.0);
+        let c2 = secondary.confidence.clamp(0.0, 1.0);
+        self.confidence = (1.0 - (1.0 - c1) * (1.0 - c2)).clamp(0.0, 1.0);
+    }
 }
 
 /// Intermediate Representation of a subject-predicate-object fact.
@@ -66,10 +120,57 @@ pub struct FactIR {
     pub predicate: String,
     /// Object value or target entity ID.
     pub object_value: String,
-    /// Aggregated confidence score.
+    /// Aggregated confidence score [0.0..1.0].
     pub confidence: f64,
-    /// Provenance tracking data.
+    /// Optional start of temporal validity window in milliseconds.
+    pub valid_from_ms: Option<u64>,
+    /// Optional end of temporal validity window in milliseconds.
+    pub valid_until_ms: Option<u64>,
+    /// Whether this fact is the selected active canonical fact.
+    pub is_canonical: bool,
+    /// Fact ID of the canonical fact that superseded this fact, if any.
+    pub superseded_by: Option<FactId>,
+    /// Primary provenance tracking data.
     pub provenance: ProvenanceIR,
+    /// Additive provenance chain tracking all merged evidence origins.
+    pub provenance_chain: Vec<ProvenanceIR>,
+}
+
+impl FactIR {
+    /// Instantiates a new FactIR with initial provenance chain containing primary provenance.
+    pub fn new(
+        id: FactId,
+        subject_id: EntityId,
+        predicate: impl Into<String>,
+        object_value: impl Into<String>,
+        confidence: f64,
+        provenance: ProvenanceIR,
+    ) -> Self {
+        let chain = vec![provenance.clone()];
+        Self {
+            id,
+            subject_id,
+            predicate: predicate.into(),
+            object_value: object_value.into(),
+            confidence,
+            valid_from_ms: None,
+            valid_until_ms: None,
+            is_canonical: true,
+            superseded_by: None,
+            provenance,
+            provenance_chain: chain,
+        }
+    }
+
+    /// Merges secondary fact evidence additively into self.
+    pub fn merge_from(&mut self, secondary: FactIR) {
+        self.provenance_chain.push(secondary.provenance);
+        self.provenance_chain.extend(secondary.provenance_chain);
+
+        let c1 = self.confidence.clamp(0.0, 1.0);
+        let c2 = secondary.confidence.clamp(0.0, 1.0);
+        self.confidence = (1.0 - (1.0 - c1) * (1.0 - c2)).clamp(0.0, 1.0);
+    }
 }
 
 /// Intermediate Representation of a directed relation edge between entities.
@@ -83,8 +184,10 @@ pub struct RelationIR {
     pub relation_kind: String,
     /// Relationship strength weight [0.0..1.0].
     pub weight: f64,
-    /// Provenance tracking data.
+    /// Primary provenance tracking data.
     pub provenance: ProvenanceIR,
+    /// Additive provenance chain tracking all merged relation origins.
+    pub provenance_chain: Vec<ProvenanceIR>,
 }
 
 /// Complete in-memory Intermediate Representation (Knowledge IR) payload.

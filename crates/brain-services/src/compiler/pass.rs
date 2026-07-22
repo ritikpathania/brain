@@ -13,6 +13,10 @@ pub struct CompilerContext {
     pub compilation_id: Uuid,
     /// Active session ID.
     pub session_id: SessionId,
+    /// Monotonic graph version epoch counter.
+    pub graph_version: u64,
+    /// Optional read-only expanded dirty set for incremental compilation.
+    pub dirty_set: Option<std::sync::Arc<crate::compiler::dirty_set::DirtySet>>,
     /// Minimum confidence threshold for canonical entity resolution [0.0..1.0].
     pub min_confidence_threshold: f64,
     /// Maximum execution time budget in milliseconds.
@@ -38,10 +42,16 @@ impl CompilerPass for ObservationNormalizationPass {
         "observation_normalization"
     }
 
-    fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
+    fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
         for (id, entity) in ir.entities.iter_mut() {
+            if let Some(ref ds) = ctx.dirty_set {
+                if !ds.is_entity_dirty(id) {
+                    continue;
+                }
+            }
+
             let trimmed = entity.canonical_name.trim().to_string();
             if trimmed != entity.canonical_name {
                 entity.canonical_name = trimmed.clone();
@@ -70,6 +80,12 @@ impl CompilerPass for CanonicalEntityResolutionPass {
         let mut diagnostics = Vec::new();
 
         for (id, entity) in ir.entities.iter() {
+            if let Some(ref ds) = ctx.dirty_set {
+                if !ds.is_entity_dirty(id) {
+                    continue;
+                }
+            }
+
             if entity.confidence < ctx.min_confidence_threshold {
                 diagnostics.push(
                     Diagnostic::new(
@@ -100,10 +116,16 @@ impl CompilerPass for FactDeduplicationPass {
         "fact_deduplication"
     }
 
-    fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
+    fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
         for (id, fact) in ir.facts.iter() {
+            if let Some(ref ds) = ctx.dirty_set {
+                if !ds.is_fact_dirty(id) {
+                    continue;
+                }
+            }
+
             if fact.provenance.evidence_ids.is_empty() {
                 diagnostics.push(Diagnostic::new(
                     DiagnosticLevel::Warning,

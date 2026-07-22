@@ -508,6 +508,8 @@ pub enum TuiMode {
     Conversation,
     /// Detailed node context reference browsing.
     Exploration,
+    /// Live runtime operational observability dashboard screen.
+    RuntimeDashboard,
 }
 
 /// Active interface overlay state.
@@ -651,6 +653,10 @@ pub struct UiState {
     pub terminal_height: u16,
     /// In-memory store of conversation histories per Session ID.
     pub session_histories: std::collections::HashMap<SessionId, Vec<brain_domain::Message>>,
+    /// Stateful container for RuntimeDashboard cursor navigation.
+    pub runtime_dashboard_state: crate::ui::widgets::runtime_dashboard::RuntimeDashboardState,
+    /// Latest atomic point-in-time runtime diagnostics snapshot report.
+    pub diagnostics_report: Option<brain_integrations::dto::v1::RuntimeDiagnosticsReport>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -919,6 +925,9 @@ impl UiState {
             terminal_width: 80,
             terminal_height: 24,
             session_histories: std::collections::HashMap::new(),
+            runtime_dashboard_state:
+                crate::ui::widgets::runtime_dashboard::RuntimeDashboardState::default(),
+            diagnostics_report: None,
         }
     }
 
@@ -968,6 +977,9 @@ impl UiState {
             terminal_width: 80,
             terminal_height: 24,
             session_histories: std::collections::HashMap::new(),
+            runtime_dashboard_state:
+                crate::ui::widgets::runtime_dashboard::RuntimeDashboardState::default(),
+            diagnostics_report: None,
         }
     }
 
@@ -2052,6 +2064,7 @@ impl UiState {
                     (0, 0, c)
                 }
             }
+            TuiMode::RuntimeDashboard => (0, c, 0),
         }
     }
 

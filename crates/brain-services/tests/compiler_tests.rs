@@ -20,6 +20,8 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
     let context = CompilerContext {
         compilation_id: Uuid::new_v4(),
         session_id: SessionId::new(),
+        graph_version: 1,
+        dirty_set: None,
         min_confidence_threshold: 0.70,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
@@ -29,51 +31,52 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
     let mut ir = KnowledgeIR::new();
 
     // Insert entity needing whitespace normalization
-    ir.insert_entity(EntityIR {
-        id: EntityId("entity_rust".to_string()),
-        canonical_name: "  Rust Programming Language  ".to_string(),
-        kind: "concept".to_string(),
-        aliases: vec!["Rust".to_string()],
-        properties: Default::default(),
-        confidence: 0.95,
-        provenance: sample_provenance(),
-    });
+    let mut entity_rust = EntityIR::new(
+        EntityId("entity_rust".to_string()),
+        "  Rust Programming Language  ",
+        "concept",
+        0.95,
+        sample_provenance(),
+    );
+    entity_rust.aliases = vec!["Rust".to_string()];
+    ir.insert_entity(entity_rust);
 
     // Insert low-confidence entity
-    ir.insert_entity(EntityIR {
-        id: EntityId("entity_draft".to_string()),
-        canonical_name: "Draft Concept".to_string(),
-        kind: "concept".to_string(),
-        aliases: vec![],
-        properties: Default::default(),
-        confidence: 0.40, // Below min_confidence_threshold 0.70
-        provenance: sample_provenance(),
-    });
+    let entity_draft = EntityIR::new(
+        EntityId("entity_draft".to_string()),
+        "Draft Concept",
+        "concept",
+        0.40,
+        sample_provenance(),
+    );
+    ir.insert_entity(entity_draft);
 
     // Insert fact with evidence
-    ir.insert_fact(FactIR {
-        id: FactId("fact_1".to_string()),
-        subject_id: EntityId("entity_rust".to_string()),
-        predicate: "type".to_string(),
-        object_value: "Language".to_string(),
-        confidence: 0.90,
-        provenance: sample_provenance(),
-    });
+    let fact_1 = FactIR::new(
+        FactId("fact_1".to_string()),
+        EntityId("entity_rust".to_string()),
+        "type",
+        "Language",
+        0.90,
+        sample_provenance(),
+    );
+    ir.insert_fact(fact_1);
 
     // Insert fact missing evidence
-    ir.insert_fact(FactIR {
-        id: FactId("fact_no_evidence".to_string()),
-        subject_id: EntityId("entity_rust".to_string()),
-        predicate: "status".to_string(),
-        object_value: "Active".to_string(),
-        confidence: 0.80,
-        provenance: ProvenanceIR {
+    let fact_no_evidence = FactIR::new(
+        FactId("fact_no_evidence".to_string()),
+        EntityId("entity_rust".to_string()),
+        "status",
+        "Active",
+        0.80,
+        ProvenanceIR {
             source_origin: "synthetic".to_string(),
             evidence_ids: vec![],
             confidence: 0.80,
             timestamp_ms: 1700000000000,
         },
-    });
+    );
+    ir.insert_fact(fact_no_evidence);
 
     // Insert relation edge
     ir.add_relation(RelationIR {
@@ -82,6 +85,7 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
         relation_kind: "references".to_string(),
         weight: 0.8,
         provenance: sample_provenance(),
+        provenance_chain: vec![sample_provenance()],
     });
 
     let (compiled_ir, report) = compiler.compile(&context, &mut ir);
@@ -97,7 +101,7 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
     );
 
     // 2. Verify report fields
-    assert_eq!(report.passes_executed, 4);
+    assert_eq!(report.passes_executed, 12);
     assert_eq!(report.entities_compiled, 2);
     assert_eq!(report.facts_compiled, 2);
     assert!(!report.diagnostics.is_empty());
@@ -118,6 +122,8 @@ fn test_custom_pass_manager_pipeline() {
     let context = CompilerContext {
         compilation_id: Uuid::new_v4(),
         session_id: SessionId::new(),
+        graph_version: 1,
+        dirty_set: None,
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
@@ -128,6 +134,6 @@ fn test_custom_pass_manager_pipeline() {
     let mut ir = KnowledgeIR::new();
 
     let (_compiled_ir, report) = compiler.compile(&context, &mut ir);
-    assert_eq!(report.passes_executed, 4);
+    assert_eq!(report.passes_executed, 12);
     assert_eq!(report.entities_compiled, 0);
 }

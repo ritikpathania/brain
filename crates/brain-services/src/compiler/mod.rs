@@ -1,14 +1,22 @@
-//! Knowledge Processing Pipeline (KPP) Knowledge Compiler.
-
+pub mod dependency_graph;
 pub mod diagnostics;
+pub mod dirty_set;
 pub mod ir;
 pub mod pass;
+pub mod semantic_passes;
 
+pub use dependency_graph::CompilerDependencyGraph;
 pub use diagnostics::{Diagnostic, DiagnosticKind, DiagnosticLevel};
+pub use dirty_set::DirtySet;
 pub use ir::{EntityIR, EntityId, FactIR, FactId, KnowledgeIR, ProvenanceIR, RelationIR};
 pub use pass::{
     CanonicalEntityResolutionPass, CompilerContext, CompilerPass, FactDeduplicationPass,
     ObservationNormalizationPass, ValidationPass,
+};
+pub use semantic_passes::{
+    AliasResolutionPass, CanonicalFactSelectionPass, CompilerContradictionPass,
+    ConfidenceAggregationPass, EntityMergePass, ProvenanceMergePass, RelationNormalizationPass,
+    TemporalFactResolutionPass,
 };
 
 use brain_integrations::dto::v1::{DiagnosticDto, KnowledgeCompilationReport};
@@ -21,12 +29,20 @@ pub struct PassManager {
 }
 
 impl PassManager {
-    /// Creates a new `PassManager` with standard default compiler passes.
+    /// Creates a new `PassManager` with the standard default compiler pass suite.
     pub fn default_pipeline() -> Self {
         let mut manager = Self { passes: Vec::new() };
         manager.register(Box::new(ObservationNormalizationPass));
+        manager.register(Box::new(AliasResolutionPass));
+        manager.register(Box::new(EntityMergePass));
         manager.register(Box::new(CanonicalEntityResolutionPass));
+        manager.register(Box::new(ConfidenceAggregationPass));
+        manager.register(Box::new(ProvenanceMergePass));
         manager.register(Box::new(FactDeduplicationPass));
+        manager.register(Box::new(TemporalFactResolutionPass));
+        manager.register(Box::new(CanonicalFactSelectionPass));
+        manager.register(Box::new(RelationNormalizationPass));
+        manager.register(Box::new(CompilerContradictionPass));
         manager.register(Box::new(ValidationPass));
         manager
     }
@@ -143,5 +159,35 @@ impl KnowledgeCompiler {
         };
 
         (ir.clone(), report)
+    }
+
+    /// Performs incremental compilation over a dirty subset of Knowledge IR.
+    ///
+    /// **Invariants**:
+    /// 1. **Graph Version Epoch Alignment**: If `dirty_set.graph_version != ctx.graph_version`, forces full graph re-compilation.
+    /// 2. **Dependency Discovery**: Discovers affected downstream dependencies before pass execution.
+    /// 3. **Pass Local Purity**: Treats expanded `DirtySet` as read-only `Arc<DirtySet>` during execution.
+    /// 4. **Equivalence Guarantee**: Incremental output canonical IR matches full graph compilation output.
+    pub fn compile_incremental(
+        &self,
+        ctx: &CompilerContext,
+        ir: &mut KnowledgeIR,
+        input_dirty_set: DirtySet,
+    ) -> (KnowledgeIR, KnowledgeCompilationReport) {
+        let mut dirty_set = input_dirty_set;
+
+        // Force full re-compilation if graph version epoch mismatches
+        if dirty_set.graph_version != ctx.graph_version {
+            dirty_set.is_full_recompile = true;
+        }
+
+        // Discover dependencies prior to pass execution
+        let dep_graph = CompilerDependencyGraph::build_from_ir(ir);
+        let expanded_dirty_set = Arc::new(dep_graph.expand_dirty_set(&dirty_set));
+
+        let mut inc_ctx = ctx.clone();
+        inc_ctx.dirty_set = Some(expanded_dirty_set);
+
+        self.compile(&inc_ctx, ir)
     }
 }

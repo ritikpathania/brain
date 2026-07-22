@@ -744,6 +744,8 @@ impl BrainApplication {
         let context = brain_services::compiler::CompilerContext {
             compilation_id,
             session_id: brain_domain::SessionId(ulid::Ulid::new()),
+            graph_version: 1,
+            dirty_set: None,
             min_confidence_threshold: 0.50,
             time_budget_ms: 30000,
             cancellation_token: tokio_util::sync::CancellationToken::new(),

@@ -95,6 +95,7 @@ impl AppRenderer {
                     (0u16, 0u16, c)
                 }
             }
+            crate::state::TuiMode::RuntimeDashboard => (0u16, c, 0u16),
         };
 
         let mid_chunks = Layout::default()
@@ -126,6 +127,46 @@ impl AppRenderer {
 
         let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, status_area) =
             self.compute_layout(area, state);
+
+        if state.mode == crate::state::TuiMode::RuntimeDashboard {
+            let default_report = brain_integrations::dto::v1::RuntimeDiagnosticsReport {
+                snapshot_sequence: 0,
+                snapshot_timestamp_ms: 0,
+                health: "healthy".to_string(),
+                health_reason: None,
+                orchestrator: brain_integrations::dto::v1::OrchestratorStatsDto {
+                    pending_tasks_count: 0,
+                    tasks_queued: 0,
+                    tasks_completed: 0,
+                    tasks_failed: 0,
+                    tasks_dropped: 0,
+                    last_task_wait_ms: 0,
+                    last_task_exec_ms: 0,
+                    current_running_task: None,
+                    task_history: Vec::new(),
+                },
+                projection_lags: Vec::new(),
+                reflection: brain_integrations::dto::v1::ReflectionStatusReport {
+                    background_enabled: true,
+                    interval_secs: 300,
+                    min_events_trigger: 10,
+                    max_nodes_per_cycle: 100,
+                    cycle_time_budget_ms: 5000,
+                    reflections_executed: 0,
+                    reflection_findings_count: 0,
+                    reflection_commands_executed: 0,
+                    reflection_commands_skipped: 0,
+                    last_reflection_duration_ms: None,
+                },
+            };
+            let report_ref = state.diagnostics_report.as_ref().unwrap_or(&default_report);
+            let vm = crate::ui::widgets::view_models::RuntimeDashboardViewModel::from_report(
+                report_ref,
+                Some(state.runtime_dashboard_state.selected_history_index),
+            );
+            crate::ui::widgets::draw_runtime_dashboard(f, area, &vm, theme);
+            return;
+        }
 
         // 1. Build Header ViewModel
         let connection_status = match state.connection_mode {
