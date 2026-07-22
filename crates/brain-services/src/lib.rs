@@ -93,3 +93,10 @@ pub mod reflection;
 
 /// Background orchestrator and runtime task automation.
 pub mod orchestrator;
+
+/// Rule-based health evaluation module.
+pub mod health_evaluator;
+pub use health_evaluator::{DerivedRuntimeHealth, HealthEvaluator};
+
+/// Knowledge Processing Pipeline (KPP) Knowledge Compiler.
+pub mod compiler;

@@ -465,6 +465,20 @@ impl BrainClient {
         serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
     }
 
+    pub async fn compile_knowledge(&self) -> Result<v1::KnowledgeCompilationReport, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
     pub fn subscribe(&self) -> mpsc::UnboundedReceiver<v1::StreamMessage> {
         let (tx, rx) = mpsc::unbounded_channel();
         self.subscribers.lock().unwrap().push(tx);

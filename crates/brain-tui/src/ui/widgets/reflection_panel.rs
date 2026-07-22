@@ -1,7 +1,5 @@
-use brain_integrations::dto::v1::{
-    ReflectionFindingDto, ReflectionReport, ReflectionStatusReport, SkippedFindingDto,
-};
 use crate::ui::theme::Theme;
+use brain_integrations::dto::v1::{ReflectionFindingDto, ReflectionReport, ReflectionStatusReport};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -66,7 +64,9 @@ pub fn draw(
         if st.background_enabled {
             (
                 format!("Running (Interval: {}s)", st.interval_secs),
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             )
         } else {
             (
@@ -75,10 +75,7 @@ pub fn draw(
             )
         }
     } else {
-        (
-            "Unknown".to_string(),
-            Style::default().fg(Color::Gray),
-        )
+        ("Unknown".to_string(), Style::default().fg(Color::Gray))
     };
 
     let mut status_lines = vec![Line::from(vec![
@@ -86,8 +83,14 @@ pub fn draw(
         Span::styled(bg_status_text, bg_status_style),
         Span::styled("  │  Total Cycles: ", Style::default().fg(Color::Gray)),
         Span::styled(
-            state.status.as_ref().map(|s| s.reflections_executed.to_string()).unwrap_or_else(|| "0".to_string()),
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            state
+                .status
+                .as_ref()
+                .map(|s| s.reflections_executed.to_string())
+                .unwrap_or_else(|| "0".to_string()),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  │  Last Run: ", Style::default().fg(Color::Gray)),
         Span::styled(
@@ -105,17 +108,31 @@ pub fn draw(
         status_lines.push(Line::from(vec![
             Span::styled("Last Report ID: ", Style::default().fg(Color::Gray)),
             Span::styled(&r.execution_id[..8], Style::default().fg(Color::White)),
-            Span::styled("  │  Findings Evaluated: ", Style::default().fg(Color::Gray)),
-            Span::styled(r.findings_processed.to_string(), Style::default().fg(Color::Yellow)),
+            Span::styled(
+                "  │  Findings Evaluated: ",
+                Style::default().fg(Color::Gray),
+            ),
+            Span::styled(
+                r.findings_processed.to_string(),
+                Style::default().fg(Color::Yellow),
+            ),
             Span::styled("  │  Executed: ", Style::default().fg(Color::Gray)),
-            Span::styled(r.commands_executed.to_string(), Style::default().fg(Color::Green)),
+            Span::styled(
+                r.commands_executed.to_string(),
+                Style::default().fg(Color::Green),
+            ),
             Span::styled("  │  Skipped: ", Style::default().fg(Color::Gray)),
-            Span::styled(r.skipped_findings.len().to_string(), Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                r.skipped_findings.len().to_string(),
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
     } else {
         status_lines.push(Line::from(vec![Span::styled(
             "No reflection cycles recorded yet.",
-            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
         )]));
     }
 
@@ -143,7 +160,9 @@ pub fn draw(
         for (idx, f_dto) in state.active_findings.iter().enumerate() {
             let is_selected = idx == state.selected_finding_index;
             let item_style = if is_selected {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             };
@@ -151,18 +170,30 @@ pub fn draw(
 
             finding_lines.push(Line::from(vec![
                 Span::styled(prefix, item_style),
-                Span::styled(format!("[{}] ", f_dto.kind), Style::default().fg(Color::Cyan)),
-                Span::styled(format!("Conf: {:.2} ", f_dto.confidence), Style::default().fg(Color::Magenta)),
+                Span::styled(
+                    format!("[{}] ", f_dto.kind),
+                    Style::default().fg(Color::Cyan),
+                ),
+                Span::styled(
+                    format!("Conf: {:.2} ", f_dto.confidence),
+                    Style::default().fg(Color::Magenta),
+                ),
                 Span::styled(format!("Targets: {:?}", f_dto.target_ids), item_style),
             ]));
         }
     }
 
     let findings_block = Block::default()
-        .title(format!(" Active Findings ({}) ", state.active_findings.len()))
+        .title(format!(
+            " Active Findings ({}) ",
+            state.active_findings.len()
+        ))
         .borders(Borders::ALL)
         .border_style(theme.border);
-    f.render_widget(Paragraph::new(finding_lines).block(findings_block), sub_chunks[0]);
+    f.render_widget(
+        Paragraph::new(finding_lines).block(findings_block),
+        sub_chunks[0],
+    );
 
     // Right Panel: Executed Commands & Decisions
     let mut decision_lines = Vec::new();
@@ -170,7 +201,9 @@ pub fn draw(
         if !report.executed_commands.is_empty() {
             decision_lines.push(Line::from(vec![Span::styled(
                 "Executed Commands:",
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             )]));
             for cmd in &report.executed_commands {
                 decision_lines.push(Line::from(vec![
@@ -183,12 +216,20 @@ pub fn draw(
             decision_lines.push(Line::from(""));
             decision_lines.push(Line::from(vec![Span::styled(
                 "Skipped Findings:",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )]));
             for sk in &report.skipped_findings {
                 decision_lines.push(Line::from(vec![
                     Span::styled("  ⊘ ", Style::default().fg(Color::Yellow)),
-                    Span::styled(format!("{} (Conf: {:.2}): {}", sk.finding_kind, sk.confidence, sk.reasoning), Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        format!(
+                            "{} (Conf: {:.2}): {}",
+                            sk.finding_kind, sk.confidence, sk.reasoning
+                        ),
+                        Style::default().fg(Color::DarkGray),
+                    ),
                 ]));
             }
         }
@@ -196,7 +237,9 @@ pub fn draw(
         decision_lines.push(Line::from(""));
         decision_lines.push(Line::from(vec![Span::styled(
             "  No executed commands or decisions recorded.",
-            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
         )]));
     }
 
@@ -204,5 +247,8 @@ pub fn draw(
         .title(" Executed Commands & Decision Log ")
         .borders(Borders::ALL)
         .border_style(theme.border);
-    f.render_widget(Paragraph::new(decision_lines).block(decisions_block), sub_chunks[1]);
+    f.render_widget(
+        Paragraph::new(decision_lines).block(decisions_block),
+        sub_chunks[1],
+    );
 }

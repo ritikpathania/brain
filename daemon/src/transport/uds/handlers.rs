@@ -446,6 +446,9 @@ pub async fn handle_connection(
                     ApplicationResponse::ReflectFindings(findings) => {
                         serde_json::to_string(&findings).unwrap_or_default()
                     }
+                    ApplicationResponse::CompileKnowledge(report) => {
+                        serde_json::to_string(&report).unwrap_or_default()
+                    }
                 };
 
                 let response = if is_versioned {

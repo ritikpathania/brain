@@ -316,3 +316,113 @@ pub struct ReflectionSummaryDto {
     /// Scheduler status ("running", "idle", "disabled").
     pub scheduler_state: String,
 }
+
+/// Version 1 DTO for a compiler diagnostic entry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiagnosticDto {
+    /// Severity level ("error", "warning", "info").
+    pub level: String,
+    /// Diagnostic classification ("conflicting_facts", "ambiguous_identity", "missing_evidence", "low_confidence", "orphan_concept").
+    pub kind: String,
+    /// Entity ID or scope path associated with the diagnostic.
+    pub target: String,
+    /// Human-readable explanation.
+    pub message: String,
+    /// Actionable suggestion for resolution, if any.
+    pub suggestion: Option<String>,
+}
+
+/// Version 1 DTO for Knowledge Compiler execution results.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KnowledgeCompilationReport {
+    /// Unique compilation execution ID (UUID string).
+    pub compilation_id: String,
+    /// Wall-clock timestamp of compilation in milliseconds.
+    pub timestamp_ms: u64,
+    /// Execution duration in milliseconds.
+    pub duration_ms: u64,
+    /// Total compiler passes executed in deterministic sequence.
+    pub passes_executed: usize,
+    /// Number of canonical entities compiled in Knowledge IR.
+    pub entities_compiled: usize,
+    /// Number of canonical facts compiled in Knowledge IR.
+    pub facts_compiled: usize,
+    /// Deterministically sorted compiler diagnostics emitted during compilation.
+    pub diagnostics: Vec<DiagnosticDto>,
+    /// Chronological step-by-step compilation log messages.
+    pub details: Vec<String>,
+}
+
+/// Version 1 DTO for a task execution trace record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskTraceDto {
+    /// Unique task identifier string.
+    pub id: String,
+    /// Task category ("compile", "project", "reflect", "maintain").
+    pub kind: String,
+    /// Priority level ("critical", "high", "normal", "low").
+    pub priority: String,
+    /// Execution status string.
+    pub status: String,
+    /// Wall-clock timestamp in ms when task was created.
+    pub created_at_unix_ms: u64,
+    /// Time spent waiting in queue in ms.
+    pub wait_duration_ms: u64,
+    /// Time spent actively executing in ms.
+    pub exec_duration_ms: u64,
+}
+
+/// Version 1 DTO for a projection sequence lag record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProjectionLagDto {
+    /// Identifier name of the projection.
+    pub projection_id: String,
+    /// Last sequence number processed by this projection.
+    pub last_processed_sequence: u64,
+    /// Maximum sequence number present in the event log.
+    pub max_event_sequence: u64,
+    /// Unprocessed sequence lag count.
+    pub lag_sequence_count: u64,
+}
+
+/// Version 1 DTO for background runtime orchestrator status and metrics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OrchestratorStatsDto {
+    /// Pending task count in queue.
+    pub pending_tasks_count: usize,
+    /// Cumulative tasks queued.
+    pub tasks_queued: u64,
+    /// Cumulative tasks completed.
+    pub tasks_completed: u64,
+    /// Cumulative tasks failed.
+    pub tasks_failed: u64,
+    /// Cumulative tasks dropped under backpressure.
+    pub tasks_dropped: u64,
+    /// Wait latency of last task in ms.
+    pub last_task_wait_ms: u64,
+    /// Execution latency of last task in ms.
+    pub last_task_exec_ms: u64,
+    /// Details of currently executing task, if any.
+    pub current_running_task: Option<TaskTraceDto>,
+    /// Recent task trace history list.
+    pub task_history: Vec<TaskTraceDto>,
+}
+
+/// Version 1 DTO for a unified point-in-time runtime diagnostics snapshot report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RuntimeDiagnosticsReport {
+    /// Monotonic sequence number generated when snapshot was captured.
+    pub snapshot_sequence: u64,
+    /// Wall-clock timestamp in ms when snapshot was captured.
+    pub snapshot_timestamp_ms: u64,
+    /// Overall derived runtime health ("healthy", "degraded", "unhealthy").
+    pub health: String,
+    /// Optional reason string explaining non-healthy status.
+    pub health_reason: Option<String>,
+    /// Orchestrator stats and task trace history snapshot.
+    pub orchestrator: OrchestratorStatsDto,
+    /// Per-projection lag metrics snapshot.
+    pub projection_lags: Vec<ProjectionLagDto>,
+    /// Reflection engine telemetry snapshot.
+    pub reflection: ReflectionStatusReport,
+}

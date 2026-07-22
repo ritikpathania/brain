@@ -1,4 +1,6 @@
-use brain_integrations::dto::v1::{ReflectionFindingDto, ReflectionReport, ReflectionStatusReport, SkippedFindingDto};
+use brain_integrations::dto::v1::{
+    ReflectionFindingDto, ReflectionReport, ReflectionStatusReport, SkippedFindingDto,
+};
 use brain_tui::ui::theme::dark_theme;
 use brain_tui::ui::widgets::reflection_panel::{draw, ReflectionPanelState};
 use ratatui::backend::TestBackend;

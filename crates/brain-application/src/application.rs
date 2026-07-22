@@ -735,6 +735,127 @@ impl BrainApplication {
 
         Ok(findings.iter().map(Self::map_finding_to_dto).collect())
     }
+
+    /// Compiles raw observations into canonical Knowledge IR and returns a KnowledgeCompilationReport.
+    pub async fn compile_knowledge(
+        &self,
+    ) -> Result<v1::KnowledgeCompilationReport, ApplicationError> {
+        let compilation_id = uuid::Uuid::new_v4();
+        let context = brain_services::compiler::CompilerContext {
+            compilation_id,
+            session_id: brain_domain::SessionId(ulid::Ulid::new()),
+            min_confidence_threshold: 0.50,
+            time_budget_ms: 30000,
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+        };
+
+        let compiler = brain_services::compiler::KnowledgeCompiler::new();
+        let mut ir = brain_services::compiler::KnowledgeIR::new();
+
+        let (_compiled_ir, report) = compiler.compile(&context, &mut ir);
+        Ok(report)
+    }
+
+    /// Captures an immutable point-in-time atomic snapshot of all runtime diagnostics.
+    pub async fn diagnostics_snapshot(
+        &self,
+    ) -> Result<v1::RuntimeDiagnosticsReport, ApplicationError> {
+        let snap = self.runtime.diagnostics_snapshot();
+        Ok(Self::map_snapshot_to_dto(&snap))
+    }
+
+    /// Returns recent task execution trace history projecting directly from `diagnostics_snapshot()`.
+    pub async fn task_history(&self) -> Result<Vec<v1::TaskTraceDto>, ApplicationError> {
+        let snap = self.diagnostics_snapshot().await?;
+        Ok(snap.orchestrator.task_history)
+    }
+
+    /// Returns per-projection sequence lag metrics projecting directly from `diagnostics_snapshot()`.
+    pub async fn projection_lags(&self) -> Result<Vec<v1::ProjectionLagDto>, ApplicationError> {
+        let snap = self.diagnostics_snapshot().await?;
+        Ok(snap.projection_lags)
+    }
+
+    fn map_snapshot_to_dto(
+        s: &brain_services::brain_runtime::RuntimeDiagnosticsSnapshot,
+    ) -> v1::RuntimeDiagnosticsReport {
+        let (health_str, reason) = match &s.health {
+            brain_services::health_evaluator::DerivedRuntimeHealth::Healthy => {
+                ("healthy".to_string(), None)
+            }
+            brain_services::health_evaluator::DerivedRuntimeHealth::Degraded {
+                subsystem: _,
+                reason,
+            } => ("degraded".to_string(), Some(reason.clone())),
+            brain_services::health_evaluator::DerivedRuntimeHealth::Unhealthy {
+                subsystem: _,
+                reason,
+            } => ("unhealthy".to_string(), Some(reason.clone())),
+        };
+
+        v1::RuntimeDiagnosticsReport {
+            snapshot_sequence: s.snapshot_sequence,
+            snapshot_timestamp_ms: s.snapshot_timestamp_ms,
+            health: health_str,
+            health_reason: reason,
+            orchestrator: v1::OrchestratorStatsDto {
+                pending_tasks_count: s.orchestrator.pending_tasks_count,
+                tasks_queued: s.orchestrator.tasks_queued,
+                tasks_completed: s.orchestrator.tasks_completed,
+                tasks_failed: s.orchestrator.tasks_failed,
+                tasks_dropped: s.orchestrator.tasks_dropped,
+                last_task_wait_ms: s.orchestrator.last_task_wait_ms,
+                last_task_exec_ms: s.orchestrator.last_task_exec_ms,
+                current_running_task: s
+                    .orchestrator
+                    .current_running_task
+                    .as_ref()
+                    .map(Self::map_task_trace_to_dto),
+                task_history: s
+                    .orchestrator
+                    .task_history
+                    .iter()
+                    .map(Self::map_task_trace_to_dto)
+                    .collect(),
+            },
+            projection_lags: s
+                .projection_lags
+                .iter()
+                .map(|p| v1::ProjectionLagDto {
+                    projection_id: p.projection_id.clone(),
+                    last_processed_sequence: p.last_processed_sequence,
+                    max_event_sequence: p.max_event_sequence,
+                    lag_sequence_count: p.lag_sequence_count,
+                })
+                .collect(),
+            reflection: v1::ReflectionStatusReport {
+                background_enabled: true,
+                interval_secs: 300,
+                min_events_trigger: 10,
+                max_nodes_per_cycle: 100,
+                cycle_time_budget_ms: 5000,
+                reflections_executed: s.reflection.reflections_executed,
+                reflection_findings_count: s.reflection.reflection_findings_count,
+                reflection_commands_executed: s.reflection.reflection_commands_executed,
+                reflection_commands_skipped: s.reflection.reflection_commands_skipped,
+                last_reflection_duration_ms: s.reflection.last_reflection_duration_ms,
+            },
+        }
+    }
+
+    fn map_task_trace_to_dto(
+        t: &brain_services::orchestrator::TaskTraceRecord,
+    ) -> v1::TaskTraceDto {
+        v1::TaskTraceDto {
+            id: t.id.to_string(),
+            kind: t.kind.to_string(),
+            priority: t.priority.to_string(),
+            status: format!("{:?}", t.status),
+            created_at_unix_ms: t.created_at_unix_ms,
+            wait_duration_ms: t.wait_duration_ms,
+            exec_duration_ms: t.exec_duration_ms,
+        }
+    }
 }
 
 /// Normalized DTO wrapper for successful ingestion response.

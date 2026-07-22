@@ -556,6 +556,7 @@ dependencies = [
  "async-trait",
  "brain-core",
  "brain-domain",
+ "brain-integrations",
  "brain-observability",
  "crossterm",
  "ratatui",

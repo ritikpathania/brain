@@ -51,6 +51,8 @@ pub enum ApplicationRequest {
     ReflectSummary,
     /// Retrieve active unmerged reflection findings
     ReflectFindings,
+    /// Trigger Knowledge Compiler pipeline execution
+    CompileKnowledge,
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
@@ -87,6 +89,8 @@ pub enum ApplicationResponse {
     ReflectSummary(v1::ReflectionSummaryDto),
     /// Active reflection findings
     ReflectFindings(Vec<v1::ReflectionFindingDto>),
+    /// Knowledge Compiler report
+    CompileKnowledge(v1::KnowledgeCompilationReport),
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -162,6 +166,10 @@ impl RequestDispatcher {
             ApplicationRequest::ReflectFindings => {
                 let findings = self.app.active_reflection_findings().await?;
                 Ok(ApplicationResponse::ReflectFindings(findings))
+            }
+            ApplicationRequest::CompileKnowledge => {
+                let report = self.app.compile_knowledge().await?;
+                Ok(ApplicationResponse::CompileKnowledge(report))
             }
         }
     }

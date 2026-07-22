@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
+use std::time::Instant;
 use uuid::Uuid;
 
 /// Unique identifier for an orchestrator task.
@@ -98,6 +99,66 @@ impl fmt::Display for TaskKind {
     }
 }
 
+/// Explicit lifecycle status of an orchestrator task.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TaskStatus {
+    /// Task is enqueued in the priority queue.
+    Queued,
+    /// Task is waiting for parent dependencies to complete.
+    WaitingOnDependencies {
+        /// Outstanding uncompleted parent task IDs.
+        pending_dependencies: Vec<TaskId>,
+    },
+    /// Task dependencies have been satisfied; task is ready for dispatch.
+    Ready,
+    /// Task is actively executing on the orchestrator event loop.
+    Running {
+        /// Timestamp in ms when execution began.
+        started_at_unix_ms: u64,
+    },
+    /// Task completed execution successfully.
+    Succeeded {
+        /// Timestamp in ms when task completed.
+        completed_at_unix_ms: u64,
+        /// Total execution duration in ms.
+        duration_ms: u64,
+    },
+    /// Task execution failed with an error detail.
+    Failed {
+        /// Timestamp in ms when task failed.
+        failed_at_unix_ms: u64,
+        /// Error message detail.
+        error: String,
+    },
+    /// Task was cancelled or dropped under backpressure.
+    Cancelled {
+        /// Timestamp in ms when task was cancelled.
+        cancelled_at_unix_ms: u64,
+    },
+}
+
+/// Trace record capturing a task's execution lifecycle and dual timestamps.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TaskTraceRecord {
+    /// Unique task identifier.
+    pub id: TaskId,
+    /// Declarative category of the task.
+    pub kind: TaskKind,
+    /// Scheduling priority level.
+    pub priority: TaskPriority,
+    /// Current lifecycle status of the task.
+    pub status: TaskStatus,
+    /// Wall-clock timestamp in milliseconds when task was created.
+    pub created_at_unix_ms: u64,
+    /// Monotonic instant for drift-free duration calculations.
+    #[serde(skip)]
+    pub created_instant: Option<Instant>,
+    /// Time spent waiting in queue before execution began in milliseconds.
+    pub wait_duration_ms: u64,
+    /// Time spent actively executing in milliseconds.
+    pub exec_duration_ms: u64,
+}
+
 /// Declarative task description scheduled by the orchestrator.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct OrchestratorTask {
@@ -111,6 +172,9 @@ pub struct OrchestratorTask {
     pub dependencies: Vec<TaskId>,
     /// Unix timestamp in milliseconds when the task was created.
     pub created_at_unix_ms: u64,
+    /// Monotonic instant recorded at creation time.
+    #[serde(skip)]
+    pub created_instant: Option<Instant>,
     /// Optional execution timeout in milliseconds.
     pub timeout_ms: Option<u64>,
     /// Metadata tags attached to the task for auditing and tracing.
@@ -131,6 +195,7 @@ impl OrchestratorTask {
             priority,
             dependencies: Vec::new(),
             created_at_unix_ms: now_ms,
+            created_instant: Some(Instant::now()),
             timeout_ms: None,
             metadata: BTreeMap::new(),
         }
@@ -146,5 +211,19 @@ impl OrchestratorTask {
     pub fn with_timeout_ms(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
         self
+    }
+
+    /// Converts task to an initial `TaskTraceRecord`.
+    pub fn to_trace_record(&self, status: TaskStatus) -> TaskTraceRecord {
+        TaskTraceRecord {
+            id: self.id,
+            kind: self.kind.clone(),
+            priority: self.priority,
+            status,
+            created_at_unix_ms: self.created_at_unix_ms,
+            created_instant: self.created_instant,
+            wait_duration_ms: 0,
+            exec_duration_ms: 0,
+        }
     }
 }

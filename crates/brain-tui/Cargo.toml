@@ -16,3 +16,4 @@ thiserror.workspace = true
 brain-observability = { path = "../brain-observability", optional = true }
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
+brain-integrations = { path = "../brain-integrations" }

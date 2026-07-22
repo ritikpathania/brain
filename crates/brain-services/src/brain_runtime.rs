@@ -22,6 +22,7 @@ use brain_events::EventLog;
 use brain_integrations::IngestionEnvelope;
 use brain_observability::{timeline::OperationSpan, CorrelationIndex, ObservabilitySubscriber};
 use brain_storage::{EventLogRepository, SqliteSearchRepository, SqliteStorage};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
@@ -210,6 +211,53 @@ pub struct RuntimeStatus {
     pub health: RuntimeHealth,
 }
 
+/// Point-in-time projection lag metric record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectionLagRecord {
+    /// Identifier name of the projection.
+    pub projection_id: String,
+    /// Last sequence number processed by this projection.
+    pub last_processed_sequence: u64,
+    /// Maximum sequence number present in the event log.
+    pub max_event_sequence: u64,
+    /// Unprocessed sequence lag count.
+    pub lag_sequence_count: u64,
+}
+
+/// Point-in-time reflection telemetry diagnostic record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReflectionDiagnosticsRecord {
+    /// Total reflection cycles executed.
+    pub reflections_executed: u64,
+    /// Total findings detected.
+    pub reflection_findings_count: u64,
+    /// Total commands executed.
+    pub reflection_commands_executed: u64,
+    /// Total findings skipped.
+    pub reflection_commands_skipped: u64,
+    /// Duration of last reflection run in ms.
+    pub last_reflection_duration_ms: Option<u64>,
+    /// Timestamp of last successful reflection run in ms.
+    pub last_successful_reflection_at_ms: Option<u64>,
+}
+
+/// Point-in-time immutable atomic snapshot of all runtime diagnostics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RuntimeDiagnosticsSnapshot {
+    /// Monotonic sequence number generated when snapshot was captured.
+    pub snapshot_sequence: u64,
+    /// Wall-clock timestamp in ms when snapshot was captured.
+    pub snapshot_timestamp_ms: u64,
+    /// Derived system health status.
+    pub health: crate::health_evaluator::DerivedRuntimeHealth,
+    /// Orchestrator queue depth and task history snapshot.
+    pub orchestrator: crate::orchestrator::OrchestratorDiagnosticsSnapshot,
+    /// Per-projection lag metrics snapshot.
+    pub projection_lags: Vec<ProjectionLagRecord>,
+    /// Reflection engine telemetry snapshot.
+    pub reflection: ReflectionDiagnosticsRecord,
+}
+
 /// Internal atomic performance and telemetry metrics.
 #[derive(Debug, Default)]
 pub struct InternalMetrics {
@@ -225,6 +273,7 @@ pub struct InternalMetrics {
     pub(crate) last_ingest_duration_ns: AtomicU64,
     pub(crate) last_projection_duration_ns: AtomicU64,
     pub(crate) last_reflection_duration_ns: AtomicU64,
+    pub(crate) last_successful_reflection_at_ms: AtomicU64,
     // Sprint 8 stage durations
     pub(crate) canonicalization_duration_ns: AtomicU64,
     pub(crate) reflection_duration_ns: AtomicU64,
@@ -249,6 +298,7 @@ pub struct BrainRuntime {
     reflection_scheduler: Arc<crate::reflection::BackgroundReflectionScheduler>,
     runtime_orchestrator: Arc<crate::orchestrator::RuntimeOrchestrator>,
     config: brain_config::schema::BrainSettings,
+    snapshot_counter: AtomicU64,
 
     created_at: Instant,
     health: Arc<AtomicU8>,
@@ -310,6 +360,7 @@ impl BrainRuntime {
             last_ingest_duration_ns: AtomicU64::new(0),
             last_projection_duration_ns: AtomicU64::new(0),
             last_reflection_duration_ns: AtomicU64::new(0),
+            last_successful_reflection_at_ms: AtomicU64::new(0),
             canonicalization_duration_ns: AtomicU64::new(0),
             reflection_duration_ns: AtomicU64::new(0),
             dispatch_duration_ns: AtomicU64::new(0),
@@ -496,6 +547,7 @@ impl BrainRuntime {
             reflection_scheduler,
             runtime_orchestrator,
             config: brain_settings,
+            snapshot_counter: AtomicU64::new(0),
             created_at,
             health,
             metrics,
@@ -639,6 +691,124 @@ impl BrainRuntime {
     /// Returns a reference to the background runtime orchestrator.
     pub fn orchestrator(&self) -> Arc<crate::orchestrator::RuntimeOrchestrator> {
         Arc::clone(&self.runtime_orchestrator)
+    }
+
+    /// Captures an immutable point-in-time atomic snapshot of all runtime diagnostics.
+    pub fn diagnostics_snapshot(&self) -> RuntimeDiagnosticsSnapshot {
+        let seq = self.snapshot_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let orchestrator_snap = self.runtime_orchestrator.diagnostics_snapshot();
+
+        let max_event_seq = if let Ok(conn) = self.sqlite_storage.pool().get() {
+            conn.query_row("SELECT MAX(sequence) FROM system_event_log", [], |row| {
+                row.get::<_, Option<i64>>(0)
+            })
+            .unwrap_or(None)
+            .unwrap_or(0) as u64
+        } else {
+            0
+        };
+
+        let proj_ids = vec![
+            crate::projections::ProjectionId::Jobs,
+            crate::projections::ProjectionId::Sessions,
+            crate::projections::ProjectionId::Search,
+        ];
+
+        let mut projection_lags = Vec::new();
+        let mut max_lag = 0u64;
+
+        let metadata_list = self
+            .projection_scheduler
+            .list_metadata()
+            .unwrap_or_default();
+        let metadata_map: std::collections::HashMap<_, _> = metadata_list
+            .into_iter()
+            .map(|m| (m.name.clone(), m))
+            .collect();
+
+        for pid in proj_ids {
+            let pid_str = format!("{:?}", pid);
+            let last_seq = metadata_map
+                .get(&pid_str)
+                .map(|m| m.last_sequence)
+                .unwrap_or(0);
+            let lag = max_event_seq.saturating_sub(last_seq);
+            if lag > max_lag {
+                max_lag = lag;
+            }
+            projection_lags.push(ProjectionLagRecord {
+                projection_id: pid_str,
+                last_processed_sequence: last_seq,
+                max_event_sequence: max_event_seq,
+                lag_sequence_count: lag,
+            });
+        }
+
+        let last_ref_ns = self
+            .metrics
+            .last_reflection_duration_ns
+            .load(Ordering::Acquire);
+        let last_succ_ms = self
+            .metrics
+            .last_successful_reflection_at_ms
+            .load(Ordering::Acquire);
+
+        let reflection = ReflectionDiagnosticsRecord {
+            reflections_executed: self.metrics.reflections_executed.load(Ordering::Acquire),
+            reflection_findings_count: self
+                .metrics
+                .reflection_findings_count
+                .load(Ordering::Acquire),
+            reflection_commands_executed: self
+                .metrics
+                .reflection_commands_executed
+                .load(Ordering::Acquire),
+            reflection_commands_skipped: self
+                .metrics
+                .reflection_commands_skipped
+                .load(Ordering::Acquire),
+            last_reflection_duration_ms: if last_ref_ns > 0 {
+                Some(last_ref_ns / 1_000_000)
+            } else {
+                None
+            },
+            last_successful_reflection_at_ms: if last_succ_ms > 0 {
+                Some(last_succ_ms)
+            } else {
+                None
+            },
+        };
+
+        let evaluator = crate::health_evaluator::HealthEvaluator::default();
+        let health = evaluator.evaluate(
+            orchestrator_snap.pending_tasks_count,
+            orchestrator_snap.tasks_failed,
+            max_lag,
+        );
+
+        RuntimeDiagnosticsSnapshot {
+            snapshot_sequence: seq,
+            snapshot_timestamp_ms: now_ms,
+            health,
+            orchestrator: orchestrator_snap,
+            projection_lags,
+            reflection,
+        }
+    }
+
+    /// Convenience query for task trace history projecting directly from `diagnostics_snapshot()`.
+    pub fn task_history(&self) -> Vec<crate::orchestrator::TaskTraceRecord> {
+        self.diagnostics_snapshot().orchestrator.task_history
+    }
+
+    /// Convenience query for projection lag metrics projecting directly from `diagnostics_snapshot()`.
+    pub fn projection_lags(&self) -> Vec<ProjectionLagRecord> {
+        self.diagnostics_snapshot().projection_lags
     }
 
     /// Exposes read-only facade query for correlation index spans.

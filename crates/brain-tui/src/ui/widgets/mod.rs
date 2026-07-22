@@ -4,10 +4,10 @@ pub mod chat;
 pub mod header;
 /// Interactive knowledge inspector widget.
 pub mod inspector;
-/// Reflection subsystem inspection panel widget.
-pub mod reflection_panel;
 /// Prompt input buffer bar widget.
 pub mod prompt;
+/// Reflection subsystem inspection panel widget.
+pub mod reflection_panel;
 /// Sidebar widget listing session threads.
 pub mod sidebar;
 /// Status footer widget carrying shortcuts list.
