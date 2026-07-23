@@ -512,6 +512,8 @@ pub enum TuiMode {
     RuntimeDashboard,
     /// Causal concept explainability timeline screen.
     Explainability,
+    /// Actionable reflection proposal review and execution screen.
+    InteractiveReflection,
 }
 
 /// Active interface overlay state.
@@ -669,6 +671,11 @@ pub struct UiState {
     pub explainability_state: crate::ui::widgets::explainability::ExplainabilityState,
     /// Latest concept causal explanation report DTO.
     pub explanation_report: Option<brain_integrations::dto::v1::ExplanationReport>,
+    /// Stateful container for InteractiveReflection session navigation.
+    pub interactive_reflection_state:
+        crate::ui::widgets::interactive_reflection::InteractiveReflectionState,
+    /// Catalog of reviewable reflection proposal DTOs.
+    pub reflection_proposals: Vec<brain_integrations::dto::v1::ReflectionProposalDto>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -947,6 +954,9 @@ impl UiState {
             explainability_state: crate::ui::widgets::explainability::ExplainabilityState::default(
             ),
             explanation_report: None,
+            interactive_reflection_state:
+                crate::ui::widgets::interactive_reflection::InteractiveReflectionState::default(),
+            reflection_proposals: Vec::new(),
         }
     }
 
@@ -1006,6 +1016,9 @@ impl UiState {
             explainability_state: crate::ui::widgets::explainability::ExplainabilityState::default(
             ),
             explanation_report: None,
+            interactive_reflection_state:
+                crate::ui::widgets::interactive_reflection::InteractiveReflectionState::default(),
+            reflection_proposals: Vec::new(),
         }
     }
 
@@ -2092,6 +2105,7 @@ impl UiState {
             }
             TuiMode::RuntimeDashboard => (0, c, 0),
             TuiMode::Explainability => (0, c, 0),
+            TuiMode::InteractiveReflection => (0, c, 0),
         }
     }
 

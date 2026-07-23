@@ -925,3 +925,181 @@ impl ExplanationViewModel {
         }
     }
 }
+
+/// Proposal item view model for InteractiveReflection proposal list table.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReflectionProposalItemViewModel {
+    /// Proposal ID string (e.g. "prop_94a2b18c").
+    pub proposal_id: String,
+    /// Status badge string ("[PENDING]", "[ACCEPTED]", "[REJECTED]", "[DEFERRED]").
+    pub status_badge: String,
+    /// Status badge ratatui color.
+    pub status_color: ratatui::style::Color,
+    /// Typed action badge string ("[MERGE]", "[STRENGTHEN]", "[PRUNE]", "[INFER]").
+    pub action_badge: String,
+    /// Action badge ratatui color.
+    pub action_color: ratatui::style::Color,
+    /// Primary source concept ID.
+    pub source_concept_id: String,
+    /// Target concept ID, if any.
+    pub target_concept_id_text: String,
+    /// Formatted confidence percentage text (e.g. "94%").
+    pub confidence_text: String,
+    /// Summary sentence string.
+    pub explanation_summary: String,
+}
+
+/// Detailed view model for focused proposal breakdown pane.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReflectionProposalDetailViewModel {
+    /// Proposal ID string.
+    pub proposal_id: String,
+    /// Finding kind description string.
+    pub finding_kind: String,
+    /// Source concept ID.
+    pub source_concept_id: String,
+    /// Target concept ID text.
+    pub target_concept_id_text: String,
+    /// Confidence text.
+    pub confidence_text: String,
+    /// Action type text.
+    pub action_type_text: String,
+    /// Status text.
+    pub status_text: String,
+    /// Full explanation summary description.
+    pub explanation_summary: String,
+    /// Formatted creation timestamp string.
+    pub created_at_text: String,
+    /// Formatted resolution timestamp string, if resolved.
+    pub resolved_at_text: String,
+}
+
+/// Composite view model for InteractiveReflection screen.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InteractiveReflectionViewModel {
+    /// Proposals list items.
+    pub items: Vec<ReflectionProposalItemViewModel>,
+    /// Selected index.
+    pub selected_index: Option<usize>,
+    /// Focused proposal detail view model.
+    pub detail_pane: Option<ReflectionProposalDetailViewModel>,
+    /// Pending proposals count.
+    pub pending_count: usize,
+    /// Accepted proposals count.
+    pub accepted_count: usize,
+    /// Rejected proposals count.
+    pub rejected_count: usize,
+    /// Deferred proposals count.
+    pub deferred_count: usize,
+}
+
+impl InteractiveReflectionViewModel {
+    /// Creates an `InteractiveReflectionViewModel` from proposal DTOs.
+    pub fn from_proposals(
+        proposals: &[brain_integrations::dto::v1::ReflectionProposalDto],
+        selected_idx: Option<usize>,
+        filter: Option<brain_integrations::dto::v1::ReflectionProposalStatus>,
+    ) -> Self {
+        use brain_integrations::dto::v1::{ReflectionActionType, ReflectionProposalStatus};
+        use ratatui::style::Color;
+
+        let mut pending_count = 0;
+        let mut accepted_count = 0;
+        let mut rejected_count = 0;
+        let mut deferred_count = 0;
+
+        for p in proposals {
+            match p.status {
+                ReflectionProposalStatus::Pending => pending_count += 1,
+                ReflectionProposalStatus::Accepted => accepted_count += 1,
+                ReflectionProposalStatus::Rejected => rejected_count += 1,
+                ReflectionProposalStatus::Deferred => deferred_count += 1,
+            }
+        }
+
+        let filtered: Vec<&brain_integrations::dto::v1::ReflectionProposalDto> = proposals
+            .iter()
+            .filter(|p| filter.is_none_or(|f| p.status == f))
+            .collect();
+
+        let mut items = Vec::new();
+        for p in &filtered {
+            let (status_badge, status_color) = match p.status {
+                ReflectionProposalStatus::Pending => ("[PENDING]", Color::Yellow),
+                ReflectionProposalStatus::Accepted => ("[ACCEPTED]", Color::Green),
+                ReflectionProposalStatus::Rejected => ("[REJECTED]", Color::Red),
+                ReflectionProposalStatus::Deferred => ("[DEFERRED]", Color::DarkGray),
+            };
+
+            let (action_badge, action_color) = match p.action_type {
+                ReflectionActionType::MergeEntities => ("[MERGE]", Color::Magenta),
+                ReflectionActionType::StrengthenEdge => ("[STRENGTHEN]", Color::Cyan),
+                ReflectionActionType::PruneFact => ("[PRUNE]", Color::Red),
+                ReflectionActionType::InferRelation => ("[INFER]", Color::Green),
+            };
+
+            items.push(ReflectionProposalItemViewModel {
+                proposal_id: p.proposal_id.clone(),
+                status_badge: status_badge.to_string(),
+                status_color,
+                action_badge: action_badge.to_string(),
+                action_color,
+                source_concept_id: p.source_concept_id.clone(),
+                target_concept_id_text: p
+                    .target_concept_id
+                    .clone()
+                    .unwrap_or_else(|| "None".to_string()),
+                confidence_text: format!("{:.0}%", p.confidence * 100.0),
+                explanation_summary: p.explanation_summary.clone(),
+            });
+        }
+
+        let detail_pane = if let (Some(idx), false) = (selected_idx, filtered.is_empty()) {
+            filtered.get(idx).map(|p| {
+                let status_text = match p.status {
+                    ReflectionProposalStatus::Pending => "Pending Review",
+                    ReflectionProposalStatus::Accepted => "Accepted & Executed",
+                    ReflectionProposalStatus::Rejected => "Rejected by User",
+                    ReflectionProposalStatus::Deferred => "Deferred for Future Review",
+                };
+
+                let action_text = match p.action_type {
+                    ReflectionActionType::MergeEntities => "Merge Duplicate Entities",
+                    ReflectionActionType::StrengthenEdge => "Strengthen Adjacency Edge",
+                    ReflectionActionType::PruneFact => "Prune Superseded Fact",
+                    ReflectionActionType::InferRelation => "Infer Relationship Edge",
+                };
+
+                ReflectionProposalDetailViewModel {
+                    proposal_id: p.proposal_id.clone(),
+                    finding_kind: p.finding_kind.clone(),
+                    source_concept_id: p.source_concept_id.clone(),
+                    target_concept_id_text: p
+                        .target_concept_id
+                        .clone()
+                        .unwrap_or_else(|| "None".to_string()),
+                    confidence_text: format!("{:.1}%", p.confidence * 100.0),
+                    action_type_text: action_text.to_string(),
+                    status_text: status_text.to_string(),
+                    explanation_summary: p.explanation_summary.clone(),
+                    created_at_text: p.created_at_ms.to_string(),
+                    resolved_at_text: p
+                        .resolved_at_ms
+                        .map_or_else(|| "Unresolved".to_string(), |t| t.to_string()),
+                }
+            })
+        } else {
+            None
+        };
+
+        Self {
+            items,
+            selected_index: selected_idx,
+            detail_pane,
+            pending_count,
+            accepted_count,
+            rejected_count,
+            deferred_count,
+        }
+    }
+}

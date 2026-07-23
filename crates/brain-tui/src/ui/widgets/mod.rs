@@ -59,6 +59,8 @@ pub use toolbar::Toolbar;
 pub mod completion;
 /// Causal concept explainability timeline screen widget.
 pub mod explainability;
+/// Interactive Reflection review and proposal action screen widget.
+pub mod interactive_reflection;
 /// Knowledge Graph Explorer read-only inspection screen widget.
 pub mod knowledge_explorer;
 /// Command Palette overlay widget.
@@ -67,9 +69,16 @@ pub mod palette;
 pub mod pinned_overlay;
 /// Runtime Dashboard operational control panel widget.
 pub mod runtime_dashboard;
+/// Shared ScreenState interface trait.
+pub mod screen_state;
 
 pub use explainability::{
     draw_explainability_screen, ExplainabilityIntent, ExplainabilityState, ExplanationNavigator,
 };
+pub use interactive_reflection::{
+    draw_interactive_reflection_screen, InteractiveReflectionIntent, InteractiveReflectionState,
+    ProposalDispatchState, ReflectionProposalNavigator,
+};
 pub use knowledge_explorer::{draw_knowledge_explorer, ExplorerIntent, KnowledgeExplorerState};
 pub use runtime_dashboard::{draw_runtime_dashboard, RuntimeDashboardState};
+pub use screen_state::ScreenState;

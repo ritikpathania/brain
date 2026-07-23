@@ -640,3 +640,93 @@ pub struct ExplanationReport {
     /// Chronologically ordered causal explanation steps.
     pub steps: Vec<ExplanationStepDto>,
 }
+
+/// Typed classification of proposed reflection actions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReflectionActionType {
+    /// Merge duplicate concept entities.
+    MergeEntities,
+    /// Strengthen directional relationship edge weight.
+    StrengthenEdge,
+    /// Prune superseded or invalid fact.
+    PruneFact,
+    /// Infer new implicit relationship edge.
+    InferRelation,
+}
+
+/// Lifecycle status classification for reflection proposals.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReflectionProposalStatus {
+    /// Proposal pending user or automated review (`[PENDING]`).
+    Pending,
+    /// Proposal accepted and executed (`[ACCEPTED]`).
+    Accepted,
+    /// Proposal rejected by user (`[REJECTED]`).
+    Rejected,
+    /// Proposal deferred for future review cycle (`[DEFERRED]`).
+    Deferred,
+}
+
+/// Explicit outcome classification of a proposal resolution command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalResolutionOutcome {
+    /// Command successfully applied state transformation.
+    Applied,
+    /// Command was previously resolved (idempotent no-op).
+    AlreadyResolved,
+    /// Target proposal ID was not found in catalog.
+    NotFound,
+}
+
+/// Version 1 DTO representing a reviewable reflection proposal.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReflectionProposalDto {
+    /// Unique deterministic decision identifier string (e.g. "prop_94a2b18c").
+    pub proposal_id: String,
+    /// Reflection finding classification name.
+    pub finding_kind: String,
+    /// Primary concept entity ID.
+    pub source_concept_id: String,
+    /// Optional target concept entity ID for relationships or merges.
+    pub target_concept_id: Option<String>,
+    /// Statistical confidence score (0.0 to 1.0).
+    pub confidence: f64,
+    /// Typed reflection action classification.
+    pub action_type: ReflectionActionType,
+    /// Human-readable explanation summary sentence.
+    pub explanation_summary: String,
+    /// Lifecycle review status.
+    pub status: ReflectionProposalStatus,
+    /// Creation timestamp in milliseconds.
+    pub created_at_ms: u64,
+    /// Resolution timestamp in milliseconds, if resolved.
+    pub resolved_at_ms: Option<u64>,
+    /// Graph version epoch at which proposal was resolved, if resolved.
+    pub resolved_graph_version: Option<u64>,
+}
+
+/// Version 1 DTO for the result of a proposal resolution command.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ReflectionProposalActionReport {
+    /// Proposal identifier string.
+    pub proposal_id: String,
+    /// Reflection action classification.
+    pub action_type: ReflectionActionType,
+    /// Proposal status after command resolution.
+    pub status: ReflectionProposalStatus,
+    /// Explicit resolution outcome.
+    pub outcome: ProposalResolutionOutcome,
+    /// Graph version epoch sequence after processing (unchanged on idempotent replay).
+    pub graph_version: u64,
+    /// Number of read-model projections synchronized.
+    pub affected_projection_count: usize,
+    /// List of concept entity IDs modified or invalidated.
+    pub affected_concept_ids: Vec<String>,
+    /// Flag indicating whether an updated causal explanation is available.
+    pub new_explanation_available: bool,
+    /// Result summary sentence.
+    pub result_summary: String,
+}

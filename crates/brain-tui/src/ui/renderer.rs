@@ -95,9 +95,9 @@ impl AppRenderer {
                     (0u16, 0u16, c)
                 }
             }
-            crate::state::TuiMode::RuntimeDashboard | crate::state::TuiMode::Explainability => {
-                (0u16, c, 0u16)
-            }
+            crate::state::TuiMode::RuntimeDashboard
+            | crate::state::TuiMode::Explainability
+            | crate::state::TuiMode::InteractiveReflection => (0u16, c, 0u16),
         };
 
         let mid_chunks = Layout::default()
@@ -197,6 +197,23 @@ impl AppRenderer {
                 area,
                 &vm,
                 &state.explainability_state,
+                theme,
+            );
+            return;
+        }
+
+        if state.mode == crate::state::TuiMode::InteractiveReflection {
+            let vm =
+                crate::ui::widgets::view_models::InteractiveReflectionViewModel::from_proposals(
+                    &state.reflection_proposals,
+                    Some(state.interactive_reflection_state.selected_proposal_index),
+                    state.interactive_reflection_state.filter_status,
+                );
+            crate::ui::widgets::draw_interactive_reflection_screen(
+                f,
+                area,
+                &vm,
+                &state.interactive_reflection_state,
                 theme,
             );
             return;

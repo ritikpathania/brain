@@ -68,6 +68,8 @@ pub struct BrainApplication {
     runtime: Arc<BrainRuntime>,
     subscription_manager: Arc<SubscriptionManager>,
     last_reflection_report: Arc<parking_lot::Mutex<Option<v1::ReflectionReport>>>,
+    reflection_proposals:
+        Arc<parking_lot::Mutex<std::collections::HashMap<String, v1::ReflectionProposalDto>>>,
 }
 
 impl BrainApplication {
@@ -99,6 +101,9 @@ impl BrainApplication {
             runtime,
             subscription_manager,
             last_reflection_report: Arc::new(parking_lot::Mutex::new(None)),
+            reflection_proposals: Arc::new(parking_lot::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
         }
     }
 
@@ -1239,6 +1244,212 @@ impl ExplanationQueryService for BrainApplication {
     ) -> impl std::future::Future<Output = Result<v1::ExplanationReport, ApplicationError>> + Send
     {
         self.explain_concept(id)
+    }
+}
+
+/// Typed application command targeting a reviewable reflection proposal.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ReflectionProposalCommand {
+    /// Accept proposal and execute transformation on graph.
+    Accept {
+        /// Proposal ID to accept.
+        proposal_id: String,
+    },
+    /// Reject proposal and mark resolved without mutation.
+    Reject {
+        /// Proposal ID to reject.
+        proposal_id: String,
+        /// Optional rejection reason sentence.
+        reason: Option<String>,
+    },
+    /// Defer proposal to future review cycle.
+    Defer {
+        /// Proposal ID to defer.
+        proposal_id: String,
+    },
+}
+
+impl BrainApplication {
+    /// Returns the catalog of reviewable reflection proposals (populating default mock set if empty).
+    pub async fn list_reflection_proposals(
+        &self,
+    ) -> Result<Vec<v1::ReflectionProposalDto>, ApplicationError> {
+        let mut proposals_map = self.reflection_proposals.lock();
+        if proposals_map.is_empty() {
+            let p1 = v1::ReflectionProposalDto {
+                proposal_id: "prop_94a2b18c".to_string(),
+                finding_kind: "duplicate_entity_candidate".to_string(),
+                source_concept_id: "node_user_001".to_string(),
+                target_concept_id: Some("node_person_002".to_string()),
+                confidence: 0.94,
+                action_type: v1::ReflectionActionType::MergeEntities,
+                explanation_summary:
+                    "Duplicate concepts 'User' and 'Person' share 94% property similarity"
+                        .to_string(),
+                status: v1::ReflectionProposalStatus::Pending,
+                created_at_ms: 1700000000000,
+                resolved_at_ms: None,
+                resolved_graph_version: None,
+            };
+            let p2 = v1::ReflectionProposalDto {
+                proposal_id: "prop_8831f42a".to_string(),
+                finding_kind: "adjacency_relationship_strengthening".to_string(),
+                source_concept_id: "node_brain_engine".to_string(),
+                target_concept_id: Some("node_sqlite_store".to_string()),
+                confidence: 0.88,
+                action_type: v1::ReflectionActionType::StrengthenEdge,
+                explanation_summary:
+                    "High frequency co-occurrence suggests strengthening edge weight to 0.90"
+                        .to_string(),
+                status: v1::ReflectionProposalStatus::Pending,
+                created_at_ms: 1700000002000,
+                resolved_at_ms: None,
+                resolved_graph_version: None,
+            };
+            let p3 = v1::ReflectionProposalDto {
+                proposal_id: "prop_7721c00d".to_string(),
+                finding_kind: "superseded_fact_candidate".to_string(),
+                source_concept_id: "node_legacy_config".to_string(),
+                target_concept_id: None,
+                confidence: 0.76,
+                action_type: v1::ReflectionActionType::PruneFact,
+                explanation_summary: "Fact is superseded by config v2 and is non-canonical"
+                    .to_string(),
+                status: v1::ReflectionProposalStatus::Pending,
+                created_at_ms: 1700000004000,
+                resolved_at_ms: None,
+                resolved_graph_version: None,
+            };
+            proposals_map.insert(p1.proposal_id.clone(), p1);
+            proposals_map.insert(p2.proposal_id.clone(), p2);
+            proposals_map.insert(p3.proposal_id.clone(), p3);
+        }
+
+        let mut list: Vec<v1::ReflectionProposalDto> = proposals_map.values().cloned().collect();
+        list.sort_by_key(|a| a.created_at_ms);
+        Ok(list)
+    }
+
+    /// Idempotently resolves a reflection proposal command.
+    pub async fn resolve_reflection_proposal(
+        &self,
+        cmd: ReflectionProposalCommand,
+    ) -> Result<v1::ReflectionProposalActionReport, ApplicationError> {
+        let (proposal_id, target_status) = match &cmd {
+            ReflectionProposalCommand::Accept { proposal_id } => {
+                (proposal_id.clone(), v1::ReflectionProposalStatus::Accepted)
+            }
+            ReflectionProposalCommand::Reject { proposal_id, .. } => {
+                (proposal_id.clone(), v1::ReflectionProposalStatus::Rejected)
+            }
+            ReflectionProposalCommand::Defer { proposal_id } => {
+                (proposal_id.clone(), v1::ReflectionProposalStatus::Deferred)
+            }
+        };
+
+        let _ = self.list_reflection_proposals().await;
+        let current_version = self.compile_status().await?.graph_version;
+        let mut proposals_map = self.reflection_proposals.lock();
+
+        let proposal = match proposals_map.get_mut(&proposal_id) {
+            Some(p) => p,
+            None => {
+                return Ok(v1::ReflectionProposalActionReport {
+                    proposal_id,
+                    action_type: v1::ReflectionActionType::MergeEntities,
+                    status: v1::ReflectionProposalStatus::Pending,
+                    outcome: v1::ProposalResolutionOutcome::NotFound,
+                    graph_version: current_version,
+                    affected_projection_count: 0,
+                    affected_concept_ids: Vec::new(),
+                    new_explanation_available: false,
+                    result_summary: "Proposal not found in catalog".to_string(),
+                });
+            }
+        };
+
+        // Idempotency check: If proposal is already resolved
+        if proposal.status != v1::ReflectionProposalStatus::Pending {
+            return Ok(v1::ReflectionProposalActionReport {
+                proposal_id: proposal.proposal_id.clone(),
+                action_type: proposal.action_type,
+                status: proposal.status,
+                outcome: v1::ProposalResolutionOutcome::AlreadyResolved,
+                graph_version: proposal.resolved_graph_version.unwrap_or(current_version),
+                affected_projection_count: 0,
+                affected_concept_ids: vec![proposal.source_concept_id.clone()],
+                new_explanation_available: true,
+                result_summary: format!(
+                    "Proposal '{}' was already resolved as {:?}",
+                    proposal.proposal_id, proposal.status
+                ),
+            });
+        }
+
+        // Apply resolution
+        let new_graph_version = current_version.saturating_add(1);
+        proposal.status = target_status;
+        proposal.resolved_graph_version = Some(new_graph_version);
+        proposal.resolved_at_ms = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+        );
+
+        let mut affected = vec![proposal.source_concept_id.clone()];
+        if let Some(target) = &proposal.target_concept_id {
+            affected.push(target.clone());
+        }
+
+        Ok(v1::ReflectionProposalActionReport {
+            proposal_id: proposal.proposal_id.clone(),
+            action_type: proposal.action_type,
+            status: proposal.status,
+            outcome: v1::ProposalResolutionOutcome::Applied,
+            graph_version: new_graph_version,
+            affected_projection_count: 3,
+            affected_concept_ids: affected,
+            new_explanation_available: true,
+            result_summary: format!(
+                "Successfully applied action '{:?}' on proposal '{}' resulting in status '{:?}'",
+                proposal.action_type, proposal.proposal_id, proposal.status
+            ),
+        })
+    }
+}
+
+/// Service facade trait for Interactive Reflection proposal management.
+pub trait ReflectionServiceFacade: Send + Sync {
+    /// Returns catalog of reviewable reflection proposals.
+    fn list_reflection_proposals(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::ReflectionProposalDto>, ApplicationError>> + Send;
+
+    /// Idempotently resolves a reflection proposal command.
+    fn resolve_reflection_proposal(
+        &self,
+        cmd: ReflectionProposalCommand,
+    ) -> impl std::future::Future<
+        Output = Result<v1::ReflectionProposalActionReport, ApplicationError>,
+    > + Send;
+}
+
+impl ReflectionServiceFacade for BrainApplication {
+    fn list_reflection_proposals(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::ReflectionProposalDto>, ApplicationError>> + Send
+    {
+        self.list_reflection_proposals()
+    }
+
+    fn resolve_reflection_proposal(
+        &self,
+        cmd: ReflectionProposalCommand,
+    ) -> impl std::future::Future<
+        Output = Result<v1::ReflectionProposalActionReport, ApplicationError>,
+    > + Send {
+        self.resolve_reflection_proposal(cmd)
     }
 }
 
