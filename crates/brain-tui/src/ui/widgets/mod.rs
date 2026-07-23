@@ -1,5 +1,7 @@
 /// Chat widget showing history message viewport.
 pub mod chat;
+/// Knowledge Compiler subsystem inspection panel widget.
+pub mod compiler_panel;
 /// Header widget displaying app title and status.
 pub mod header;
 /// Interactive knowledge inspector widget.

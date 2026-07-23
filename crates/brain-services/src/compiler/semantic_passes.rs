@@ -13,6 +13,10 @@ impl CompilerPass for AliasResolutionPass {
         "alias_resolution"
     }
 
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::AliasResolution
+    }
+
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let diagnostics = Vec::new();
         let mut alias_map: HashMap<String, EntityId> = HashMap::new();
@@ -55,6 +59,10 @@ pub struct EntityMergePass;
 impl CompilerPass for EntityMergePass {
     fn name(&self) -> &'static str {
         "entity_merge"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::EntityMerge
     }
 
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
@@ -116,6 +124,10 @@ pub struct ConfidenceAggregationPass;
 impl CompilerPass for ConfidenceAggregationPass {
     fn name(&self) -> &'static str {
         "confidence_aggregation"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::ConfidenceAggregation
     }
 
     fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
@@ -198,6 +210,10 @@ impl CompilerPass for ProvenanceMergePass {
         "provenance_merge"
     }
 
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::ProvenanceMerge
+    }
+
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -250,6 +266,10 @@ impl CompilerPass for TemporalFactResolutionPass {
         "temporal_fact_resolution"
     }
 
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::TemporalFactResolution
+    }
+
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -286,6 +306,10 @@ pub struct CanonicalFactSelectionPass;
 impl CompilerPass for CanonicalFactSelectionPass {
     fn name(&self) -> &'static str {
         "canonical_fact_selection"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::CanonicalFactSelection
     }
 
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
@@ -355,6 +379,10 @@ impl CompilerPass for RelationNormalizationPass {
         "relation_normalization"
     }
 
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::RelationNormalization
+    }
+
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -390,6 +418,10 @@ pub struct CompilerContradictionPass;
 impl CompilerPass for CompilerContradictionPass {
     fn name(&self) -> &'static str {
         "compiler_contradiction"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::CompilerContradiction
     }
 
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {

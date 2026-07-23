@@ -25,7 +25,13 @@ impl ProtocolRouter {
             "v1/reflect/report" => Ok(Some(ApplicationRequest::ReflectReport)),
             "v1/reflect/summary" => Ok(Some(ApplicationRequest::ReflectSummary)),
             "v1/reflect/findings" => Ok(Some(ApplicationRequest::ReflectFindings)),
-            "v1/compile" => Ok(Some(ApplicationRequest::CompileKnowledge)),
+            "v1/compile" | "v1/compile/run" => Ok(Some(ApplicationRequest::CompileKnowledge)),
+            "v1/compile/status" => Ok(Some(ApplicationRequest::CompileStatus)),
+            "v1/compile/report" => Ok(Some(ApplicationRequest::CompileReport)),
+            "v1/compile/summary" => Ok(Some(ApplicationRequest::CompileSummary)),
+            "v1/compile/diagnostics" => Ok(Some(ApplicationRequest::CompileDiagnostics)),
+            "v1/compile/stats" => Ok(Some(ApplicationRequest::CompileStats)),
+            "v1/compile/ir" => Ok(Some(ApplicationRequest::CompileIrSummary)),
             "v1/search" => {
                 let query: SearchQuery = serde_json::from_str(body)
                     .map_err(|e| format!("Failed to parse SearchQuery: {}", e))?;

@@ -758,6 +758,95 @@ impl BrainApplication {
         Ok(report)
     }
 
+    /// Returns compiler operational status and telemetry report derived from an atomic CompilerSnapshot.
+    pub async fn compile_status(&self) -> Result<v1::CompilerStatusReport, ApplicationError> {
+        let compiler = brain_services::compiler::KnowledgeCompiler::new();
+        let snap = compiler.runtime_state().live_snapshot();
+
+        let pass_metrics = snap
+            .pass_metrics
+            .iter()
+            .map(|pm| v1::PassMetricDto {
+                pass_name: pm.pass_name.clone(),
+                executions: pm.executions,
+                total_duration_ms: pm.total_duration_ns / 1_000_000,
+                avg_duration_ms: pm.avg_duration_ms(),
+            })
+            .collect();
+
+        Ok(v1::CompilerStatusReport {
+            graph_version: snap.graph_version,
+            total_compilations: snap.total_compilations,
+            full_compilations: snap.full_compilations,
+            incremental_compilations: snap.incremental_compilations,
+            entities_compiled_total: snap.entities_compiled_total,
+            facts_compiled_total: snap.facts_compiled_total,
+            diagnostics_emitted_total: snap.diagnostics_emitted_total,
+            last_compilation_duration_ms: snap.last_compilation_duration_ms,
+            last_compilation_mode: snap.last_compilation_mode.map(|m| m.to_string()),
+            pass_metrics,
+        })
+    }
+
+    /// Retrieves the most recent KnowledgeCompilationReport from historical ring buffer.
+    pub async fn last_compilation_report(
+        &self,
+    ) -> Result<Option<v1::KnowledgeCompilationReport>, ApplicationError> {
+        let compiler = brain_services::compiler::KnowledgeCompiler::new();
+        Ok(compiler.runtime_state().latest_report())
+    }
+
+    /// Returns a lightweight summary DTO of compiler state.
+    pub async fn compile_summary(&self) -> Result<v1::CompilerSummaryDto, ApplicationError> {
+        let status = self.compile_status().await?;
+        let latest = self.last_compilation_report().await?;
+
+        let (total_entities, total_facts, active_diagnostics) = match latest {
+            Some(ref r) => (r.entities_compiled, r.facts_compiled, r.diagnostics.len()),
+            None => (0, 0, 0),
+        };
+
+        Ok(v1::CompilerSummaryDto {
+            last_execution_ms: status.last_compilation_duration_ms,
+            graph_version: status.graph_version,
+            total_entities,
+            total_facts,
+            active_diagnostics,
+            last_duration_ms: status.last_compilation_duration_ms,
+        })
+    }
+
+    /// Returns all emitted diagnostics from the most recent compilation run.
+    pub async fn compile_diagnostics(&self) -> Result<Vec<v1::DiagnosticDto>, ApplicationError> {
+        let latest = self.last_compilation_report().await?;
+        Ok(latest.map(|r| r.diagnostics).unwrap_or_default())
+    }
+
+    /// Returns compiler statistics (alias for compile_status).
+    pub async fn compile_stats(&self) -> Result<v1::CompilerStatusReport, ApplicationError> {
+        self.compile_status().await
+    }
+
+    /// Returns a read-only structural summary of compiled Knowledge IR.
+    pub async fn compile_ir_summary(&self) -> Result<v1::CompilerIrSummaryDto, ApplicationError> {
+        let status = self.compile_status().await?;
+        let latest = self.last_compilation_report().await?;
+
+        let (canonical_entities_count, canonical_facts_count, _active_diags) = match latest {
+            Some(ref r) => (r.entities_compiled, r.facts_compiled, r.diagnostics.len()),
+            None => (0, 0, 0),
+        };
+
+        Ok(v1::CompilerIrSummaryDto {
+            graph_version: status.graph_version,
+            canonical_entities_count,
+            canonical_facts_count,
+            superseded_facts_count: 0,
+            relations_count: 0,
+            top_entity_kinds: vec![("concept".to_string(), canonical_entities_count)],
+        })
+    }
+
     /// Captures an immutable point-in-time atomic snapshot of all runtime diagnostics.
     pub async fn diagnostics_snapshot(
         &self,

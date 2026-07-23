@@ -449,6 +449,24 @@ pub async fn handle_connection(
                     ApplicationResponse::CompileKnowledge(report) => {
                         serde_json::to_string(&report).unwrap_or_default()
                     }
+                    ApplicationResponse::CompileStatus(status) => {
+                        serde_json::to_string(&status).unwrap_or_default()
+                    }
+                    ApplicationResponse::CompileReport(report) => {
+                        serde_json::to_string(&report).unwrap_or_default()
+                    }
+                    ApplicationResponse::CompileSummary(summary) => {
+                        serde_json::to_string(&summary).unwrap_or_default()
+                    }
+                    ApplicationResponse::CompileDiagnostics(diagnostics) => {
+                        serde_json::to_string(&diagnostics).unwrap_or_default()
+                    }
+                    ApplicationResponse::CompileStats(stats) => {
+                        serde_json::to_string(&stats).unwrap_or_default()
+                    }
+                    ApplicationResponse::CompileIrSummary(ir_summary) => {
+                        serde_json::to_string(&ir_summary).unwrap_or_default()
+                    }
                 };
 
                 let response = if is_versioned {

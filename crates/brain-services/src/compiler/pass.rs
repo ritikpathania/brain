@@ -30,6 +30,9 @@ pub trait CompilerPass: Send + Sync {
     /// Returns the unique name identifier of the compiler pass.
     fn name(&self) -> &'static str;
 
+    /// Returns the stable PassId enum identifier.
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId;
+
     /// Executes the transformation on Knowledge IR and appends diagnostics.
     fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic>;
 }
@@ -40,6 +43,10 @@ pub struct ObservationNormalizationPass;
 impl CompilerPass for ObservationNormalizationPass {
     fn name(&self) -> &'static str {
         "observation_normalization"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::ObservationNormalization
     }
 
     fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
@@ -74,6 +81,10 @@ pub struct CanonicalEntityResolutionPass;
 impl CompilerPass for CanonicalEntityResolutionPass {
     fn name(&self) -> &'static str {
         "canonical_entity_resolution"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::CanonicalEntityResolution
     }
 
     fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
@@ -116,6 +127,10 @@ impl CompilerPass for FactDeduplicationPass {
         "fact_deduplication"
     }
 
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::FactDeduplication
+    }
+
     fn run(&self, ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
@@ -146,6 +161,10 @@ pub struct ValidationPass;
 impl CompilerPass for ValidationPass {
     fn name(&self) -> &'static str {
         "validation"
+    }
+
+    fn pass_id(&self) -> crate::compiler::telemetry::PassId {
+        crate::compiler::telemetry::PassId::Validation
     }
 
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {

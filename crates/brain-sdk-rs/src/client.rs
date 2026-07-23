@@ -469,7 +469,93 @@ impl BrainClient {
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx
             .send(ClientCommand::Rpc {
-                action: "v1/compile".to_string(),
+                action: "v1/compile/run".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn compile_status(&self) -> Result<v1::CompilerStatusReport, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/status".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn last_compilation_report(
+        &self,
+    ) -> Result<Option<v1::KnowledgeCompilationReport>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/report".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn compile_summary(&self) -> Result<v1::CompilerSummaryDto, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/summary".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn compile_diagnostics(&self) -> Result<Vec<v1::DiagnosticDto>, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/diagnostics".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn compile_stats(&self) -> Result<v1::CompilerStatusReport, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/stats".to_string(),
+                body: "".to_string(),
+                tx: reply_tx,
+            })
+            .await
+            .map_err(|_| BrainSdkError::ShuttingDown)?;
+        let resp = reply_rx.await.map_err(|_| BrainSdkError::ShuttingDown)??;
+        serde_json::from_str(&resp).map_err(|e| BrainSdkError::Serialization(e.to_string()))
+    }
+
+    pub async fn compile_ir_summary(&self) -> Result<v1::CompilerIrSummaryDto, BrainSdkError> {
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.tx
+            .send(ClientCommand::Rpc {
+                action: "v1/compile/ir".to_string(),
                 body: "".to_string(),
                 tx: reply_tx,
             })

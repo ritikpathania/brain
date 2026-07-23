@@ -3,7 +3,9 @@ pub mod diagnostics;
 pub mod dirty_set;
 pub mod ir;
 pub mod pass;
+pub mod runtime_state;
 pub mod semantic_passes;
+pub mod telemetry;
 
 pub use dependency_graph::CompilerDependencyGraph;
 pub use diagnostics::{Diagnostic, DiagnosticKind, DiagnosticLevel};
@@ -13,11 +15,13 @@ pub use pass::{
     CanonicalEntityResolutionPass, CompilerContext, CompilerPass, FactDeduplicationPass,
     ObservationNormalizationPass, ValidationPass,
 };
+pub use runtime_state::{CompilationHistory, CompilerRuntimeState, CompilerSnapshot};
 pub use semantic_passes::{
     AliasResolutionPass, CanonicalFactSelectionPass, CompilerContradictionPass,
     ConfidenceAggregationPass, EntityMergePass, ProvenanceMergePass, RelationNormalizationPass,
     TemporalFactResolutionPass,
 };
+pub use telemetry::{CompilationMode, CompilerTelemetry, PassExecutionRecord, PassId, PassMetrics};
 
 use brain_integrations::dto::v1::{DiagnosticDto, KnowledgeCompilationReport};
 use std::sync::Arc;
@@ -57,20 +61,35 @@ impl PassManager {
         &self,
         ctx: &CompilerContext,
         ir: &mut KnowledgeIR,
-    ) -> (usize, Vec<Diagnostic>, Vec<String>) {
+    ) -> (
+        usize,
+        Vec<Diagnostic>,
+        Vec<String>,
+        Vec<PassExecutionRecord>,
+    ) {
         let mut all_diagnostics = Vec::new();
         let mut details = Vec::new();
+        let mut pass_records = Vec::new();
 
         for pass in &self.passes {
             let start = Instant::now();
             let pass_diags = pass.run(ctx, ir);
-            let elapsed = start.elapsed().as_millis();
+            let elapsed_ns = start.elapsed().as_nanos() as u64;
+            let elapsed_ms = elapsed_ns / 1_000_000;
+
             details.push(format!(
                 "Pass '{}' executed in {} ms (emitted {} diagnostics)",
                 pass.name(),
-                elapsed,
+                elapsed_ms,
                 pass_diags.len()
             ));
+
+            pass_records.push(PassExecutionRecord {
+                pass_id: pass.pass_id(),
+                duration_ns: elapsed_ns,
+                diagnostics_emitted: pass_diags.len(),
+            });
+
             all_diagnostics.extend(pass_diags);
         }
 
@@ -83,13 +102,14 @@ impl PassManager {
                 .then_with(|| a.message.cmp(&b.message))
         });
 
-        (self.passes.len(), all_diagnostics, details)
+        (self.passes.len(), all_diagnostics, details, pass_records)
     }
 }
 
 /// Central composition root for the Knowledge Compiler.
 pub struct KnowledgeCompiler {
     pass_manager: Arc<PassManager>,
+    runtime_state: Arc<CompilerRuntimeState>,
 }
 
 impl Default for KnowledgeCompiler {
@@ -103,6 +123,7 @@ impl KnowledgeCompiler {
     pub fn new() -> Self {
         Self {
             pass_manager: Arc::new(PassManager::default_pipeline()),
+            runtime_state: Arc::new(CompilerRuntimeState::new()),
         }
     }
 
@@ -110,7 +131,13 @@ impl KnowledgeCompiler {
     pub fn with_pipeline(pass_manager: PassManager) -> Self {
         Self {
             pass_manager: Arc::new(pass_manager),
+            runtime_state: Arc::new(CompilerRuntimeState::new()),
         }
+    }
+
+    /// Returns a reference to the compiler runtime state owner.
+    pub fn runtime_state(&self) -> Arc<CompilerRuntimeState> {
+        Arc::clone(&self.runtime_state)
     }
 
     /// Compiles raw Knowledge IR into canonical knowledge, emitting diagnostics and an immutable compilation report.
@@ -119,8 +146,15 @@ impl KnowledgeCompiler {
         ctx: &CompilerContext,
         ir: &mut KnowledgeIR,
     ) -> (KnowledgeIR, KnowledgeCompilationReport) {
+        let mode = if ctx.dirty_set.is_some() {
+            CompilationMode::Incremental
+        } else {
+            CompilationMode::Full
+        };
+
         let start = Instant::now();
-        let (passes_executed, diagnostics, mut details) = self.pass_manager.execute(ctx, ir);
+        let (passes_executed, diagnostics, mut details, pass_records) =
+            self.pass_manager.execute(ctx, ir);
         let duration_ms = start.elapsed().as_millis() as u64;
 
         let timestamp_ms = std::time::SystemTime::now()
@@ -158,16 +192,13 @@ impl KnowledgeCompiler {
             details,
         };
 
+        self.runtime_state
+            .record_compilation(mode, &report, &pass_records);
+
         (ir.clone(), report)
     }
 
     /// Performs incremental compilation over a dirty subset of Knowledge IR.
-    ///
-    /// **Invariants**:
-    /// 1. **Graph Version Epoch Alignment**: If `dirty_set.graph_version != ctx.graph_version`, forces full graph re-compilation.
-    /// 2. **Dependency Discovery**: Discovers affected downstream dependencies before pass execution.
-    /// 3. **Pass Local Purity**: Treats expanded `DirtySet` as read-only `Arc<DirtySet>` during execution.
-    /// 4. **Equivalence Guarantee**: Incremental output canonical IR matches full graph compilation output.
     pub fn compile_incremental(
         &self,
         ctx: &CompilerContext,

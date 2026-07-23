@@ -488,3 +488,75 @@ pub struct ConceptDetailReport {
     /// Structured origin provenance metadata.
     pub provenance: ProvenanceDetailDto,
 }
+
+/// Version 1 DTO for a pass execution timing metric.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PassMetricDto {
+    /// Pass static identifier string.
+    pub pass_name: String,
+    /// Total times this pass has been executed.
+    pub executions: u64,
+    /// Total duration spent in this pass in milliseconds.
+    pub total_duration_ms: u64,
+    /// Average duration per execution in milliseconds.
+    pub avg_duration_ms: f64,
+}
+
+/// Version 1 DTO for background compiler status and telemetry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CompilerStatusReport {
+    /// Current graph version epoch sequence.
+    pub graph_version: u64,
+    /// Total compilations executed.
+    pub total_compilations: u64,
+    /// Total full graph re-compilations executed.
+    pub full_compilations: u64,
+    /// Total incremental compilations executed.
+    pub incremental_compilations: u64,
+    /// Total entities compiled across runs.
+    pub entities_compiled_total: u64,
+    /// Total facts compiled across runs.
+    pub facts_compiled_total: u64,
+    /// Total diagnostics emitted across runs.
+    pub diagnostics_emitted_total: u64,
+    /// Duration of last compilation run in milliseconds, if any.
+    pub last_compilation_duration_ms: Option<u64>,
+    /// Mode of last compilation run ("full" or "incremental"), if any.
+    pub last_compilation_mode: Option<String>,
+    /// Per-pass timing metrics list.
+    pub pass_metrics: Vec<PassMetricDto>,
+}
+
+/// Version 1 lightweight DTO for compiler status summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CompilerSummaryDto {
+    /// Timestamp of last compilation execution in ms, if any.
+    pub last_execution_ms: Option<u64>,
+    /// Current graph version epoch sequence.
+    pub graph_version: u64,
+    /// Total canonical entities compiled.
+    pub total_entities: usize,
+    /// Total canonical facts compiled.
+    pub total_facts: usize,
+    /// Number of active diagnostics.
+    pub active_diagnostics: usize,
+    /// Duration of last compilation run in ms.
+    pub last_duration_ms: Option<u64>,
+}
+
+/// Version 1 DTO for Knowledge IR structural inspection summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CompilerIrSummaryDto {
+    /// Current graph version epoch sequence.
+    pub graph_version: u64,
+    /// Number of canonical entities in IR.
+    pub canonical_entities_count: usize,
+    /// Number of active canonical facts in IR.
+    pub canonical_facts_count: usize,
+    /// Number of superseded non-canonical facts in IR.
+    pub superseded_facts_count: usize,
+    /// Number of directed relations in IR.
+    pub relations_count: usize,
+    /// Top entity classifications with count tuples.
+    pub top_entity_kinds: Vec<(String, usize)>,
+}

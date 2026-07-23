@@ -56,6 +56,27 @@ enum Commands {
         #[command(subcommand)]
         subcommand: Option<ReflectCommands>,
     },
+    /// Trigger Knowledge Compiler pipeline execution or inspect compiler state
+    Compile {
+        #[command(subcommand)]
+        subcommand: Option<CompileCommands>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CompileCommands {
+    /// Trigger manual Knowledge Compiler execution and print summary (Action)
+    Run,
+    /// Display compiler status, graph version, and telemetry (Query)
+    Status,
+    /// Display the structured report of the most recent compilation run (Query)
+    Report,
+    /// Display emitted compiler diagnostics (Query)
+    Diagnostics,
+    /// Display compiler operational telemetry & pass-level timing metrics (Query)
+    Stats,
+    /// Display read-only structural summary of compiled Knowledge IR (Query)
+    Ir,
 }
 
 #[derive(Subcommand)]
@@ -411,6 +432,132 @@ async fn main() {
                         }
                     }
                     Err(e) => eprintln!("Error retrieving active findings: {:?}", e),
+                },
+            }
+            client.shutdown().await;
+        }
+        Commands::Compile { subcommand } => {
+            let client = match BrainClient::connect(config).await {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("Failed to connect client: {:?}", e);
+                    std::process::exit(1);
+                }
+            };
+            if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
+                eprintln!("Error connecting to daemon: {}", e);
+                client.shutdown().await;
+                std::process::exit(1);
+            }
+            match subcommand.unwrap_or(CompileCommands::Run) {
+                CompileCommands::Run => match client.compile_knowledge().await {
+                    Ok(report) => {
+                        println!("=== Knowledge Compiler Execution Summary ===");
+                        println!("Compilation ID:    {}", report.compilation_id);
+                        println!("Duration:          {} ms", report.duration_ms);
+                        println!("Passes Executed:   {}", report.passes_executed);
+                        println!("Entities Compiled: {}", report.entities_compiled);
+                        println!("Facts Compiled:    {}", report.facts_compiled);
+                        println!("Diagnostics:       {}", report.diagnostics.len());
+                        if !report.diagnostics.is_empty() {
+                            println!("\n[Diagnostics Summary]");
+                            for diag in &report.diagnostics {
+                                println!(
+                                    "  [{}] ({}) target: {} - {}",
+                                    diag.level.to_uppercase(),
+                                    diag.kind,
+                                    diag.target,
+                                    diag.message
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Error executing knowledge compiler: {:?}", e),
+                },
+                CompileCommands::Status => match client.compile_status().await {
+                    Ok(status) => {
+                        println!("=== Knowledge Compiler Subsystem Status ===");
+                        println!("Graph Version Epoch:  {}", status.graph_version);
+                        println!("Total Compilations:   {}", status.total_compilations);
+                        println!("Full Compilations:    {}", status.full_compilations);
+                        println!("Incremental Runs:     {}", status.incremental_compilations);
+                        println!("Total Entities:       {}", status.entities_compiled_total);
+                        println!("Total Facts:          {}", status.facts_compiled_total);
+                        println!("Total Diagnostics:    {}", status.diagnostics_emitted_total);
+                        println!(
+                            "Last Duration:        {} ms",
+                            status.last_compilation_duration_ms.unwrap_or(0)
+                        );
+                        println!(
+                            "Last Mode:            {}",
+                            status.last_compilation_mode.as_deref().unwrap_or("none")
+                        );
+                    }
+                    Err(e) => eprintln!("Error retrieving compiler status: {:?}", e),
+                },
+                CompileCommands::Report => match client.last_compilation_report().await {
+                    Ok(Some(report)) => {
+                        println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                    }
+                    Ok(None) => println!("No previous compilation report found."),
+                    Err(e) => eprintln!("Error retrieving compilation report: {:?}", e),
+                },
+                CompileCommands::Diagnostics => match client.compile_diagnostics().await {
+                    Ok(diagnostics) => {
+                        if diagnostics.is_empty() {
+                            println!("No compiler diagnostics emitted in recent compilation run.");
+                        } else {
+                            println!("=== Compiler Diagnostics ({}) ===", diagnostics.len());
+                            for (i, d) in diagnostics.iter().enumerate() {
+                                println!(
+                                    "  [{}] Level: {} | Kind: {} | Target: {}",
+                                    i + 1,
+                                    d.level.to_uppercase(),
+                                    d.kind,
+                                    d.target
+                                );
+                                println!("      Message: {}", d.message);
+                                if let Some(ref sug) = d.suggestion {
+                                    println!("      Suggestion: {}", sug);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Error retrieving diagnostics: {:?}", e),
+                },
+                CompileCommands::Stats => match client.compile_stats().await {
+                    Ok(stats) => {
+                        println!("=== Compiler Pass Execution Statistics ===");
+                        println!("Pass Name                    | Executions | Total ms | Avg ms");
+                        println!("-------------------------------------------------------------");
+                        for pm in &stats.pass_metrics {
+                            println!(
+                                "{:<28} | {:<10} | {:<8} | {:.2}",
+                                pm.pass_name,
+                                pm.executions,
+                                pm.total_duration_ms,
+                                pm.avg_duration_ms
+                            );
+                        }
+                    }
+                    Err(e) => eprintln!("Error retrieving compiler stats: {:?}", e),
+                },
+                CompileCommands::Ir => match client.compile_ir_summary().await {
+                    Ok(ir) => {
+                        println!("=== Compiled Knowledge IR Summary ===");
+                        println!("Graph Version Epoch:     {}", ir.graph_version);
+                        println!("Canonical Entities:      {}", ir.canonical_entities_count);
+                        println!("Canonical Facts:         {}", ir.canonical_facts_count);
+                        println!("Superseded Facts:        {}", ir.superseded_facts_count);
+                        println!("Directed Relations:      {}", ir.relations_count);
+                        if !ir.top_entity_kinds.is_empty() {
+                            println!("\n[Entity Classification Breakdown]");
+                            for (kind, count) in &ir.top_entity_kinds {
+                                println!("  - {}: {}", kind, count);
+                            }
+                        }
+                    }
+                    Err(e) => eprintln!("Error retrieving IR summary: {:?}", e),
                 },
             }
             client.shutdown().await;

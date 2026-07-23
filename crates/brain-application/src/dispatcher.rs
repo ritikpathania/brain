@@ -53,6 +53,18 @@ pub enum ApplicationRequest {
     ReflectFindings,
     /// Trigger Knowledge Compiler pipeline execution
     CompileKnowledge,
+    /// Retrieve compiler operational status report
+    CompileStatus,
+    /// Retrieve most recent compilation report
+    CompileReport,
+    /// Retrieve lightweight compiler status summary
+    CompileSummary,
+    /// Retrieve active compiler diagnostics list
+    CompileDiagnostics,
+    /// Retrieve compiler operational telemetry statistics
+    CompileStats,
+    /// Retrieve read-only Knowledge IR structural summary
+    CompileIrSummary,
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
@@ -91,6 +103,18 @@ pub enum ApplicationResponse {
     ReflectFindings(Vec<v1::ReflectionFindingDto>),
     /// Knowledge Compiler report
     CompileKnowledge(v1::KnowledgeCompilationReport),
+    /// Compiler status report
+    CompileStatus(v1::CompilerStatusReport),
+    /// Most recent compilation report
+    CompileReport(Option<v1::KnowledgeCompilationReport>),
+    /// Compiler status summary
+    CompileSummary(v1::CompilerSummaryDto),
+    /// Emitted compiler diagnostics
+    CompileDiagnostics(Vec<v1::DiagnosticDto>),
+    /// Compiler operational telemetry statistics
+    CompileStats(v1::CompilerStatusReport),
+    /// Read-only Knowledge IR structural summary
+    CompileIrSummary(v1::CompilerIrSummaryDto),
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -170,6 +194,30 @@ impl RequestDispatcher {
             ApplicationRequest::CompileKnowledge => {
                 let report = self.app.compile_knowledge().await?;
                 Ok(ApplicationResponse::CompileKnowledge(report))
+            }
+            ApplicationRequest::CompileStatus => {
+                let status = self.app.compile_status().await?;
+                Ok(ApplicationResponse::CompileStatus(status))
+            }
+            ApplicationRequest::CompileReport => {
+                let report = self.app.last_compilation_report().await?;
+                Ok(ApplicationResponse::CompileReport(report))
+            }
+            ApplicationRequest::CompileSummary => {
+                let summary = self.app.compile_summary().await?;
+                Ok(ApplicationResponse::CompileSummary(summary))
+            }
+            ApplicationRequest::CompileDiagnostics => {
+                let diagnostics = self.app.compile_diagnostics().await?;
+                Ok(ApplicationResponse::CompileDiagnostics(diagnostics))
+            }
+            ApplicationRequest::CompileStats => {
+                let stats = self.app.compile_stats().await?;
+                Ok(ApplicationResponse::CompileStats(stats))
+            }
+            ApplicationRequest::CompileIrSummary => {
+                let ir_summary = self.app.compile_ir_summary().await?;
+                Ok(ApplicationResponse::CompileIrSummary(ir_summary))
             }
         }
     }
