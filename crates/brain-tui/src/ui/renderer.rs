@@ -95,7 +95,9 @@ impl AppRenderer {
                     (0u16, 0u16, c)
                 }
             }
-            crate::state::TuiMode::RuntimeDashboard => (0u16, c, 0u16),
+            crate::state::TuiMode::RuntimeDashboard | crate::state::TuiMode::Explainability => {
+                (0u16, c, 0u16)
+            }
         };
 
         let mid_chunks = Layout::default()
@@ -180,6 +182,21 @@ impl AppRenderer {
                 area,
                 &vm,
                 &state.knowledge_explorer_state,
+                theme,
+            );
+            return;
+        }
+
+        if state.mode == crate::state::TuiMode::Explainability {
+            let vm = crate::ui::widgets::view_models::ExplanationViewModel::from_report(
+                state.explanation_report.as_ref(),
+                Some(state.explainability_state.selected_step_index),
+            );
+            crate::ui::widgets::draw_explainability_screen(
+                f,
+                area,
+                &vm,
+                &state.explainability_state,
                 theme,
             );
             return;

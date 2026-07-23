@@ -25,6 +25,7 @@ fn test_entity_merge_tie_breaking_policy_and_additive_provenance() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();
@@ -94,6 +95,7 @@ fn test_canonical_fact_selection_and_contradiction_detection() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();
@@ -136,17 +138,12 @@ fn test_canonical_fact_selection_and_contradiction_detection() {
         .facts
         .get(&FactId("fact_new".to_string()))
         .unwrap();
-    let superseded_fact = compiled_ir
-        .facts
-        .get(&FactId("fact_old".to_string()))
-        .unwrap();
 
     assert!(winner_fact.is_canonical);
-    assert!(!superseded_fact.is_canonical);
-    assert_eq!(
-        superseded_fact.superseded_by,
-        Some(FactId("fact_new".to_string()))
-    );
+    // Superseded non-canonical fact_old is pruned by DeadFactEliminationPass in KPP v1.4 retention pipeline
+    assert!(!compiled_ir
+        .facts
+        .contains_key(&FactId("fact_old".to_string())));
 }
 
 #[test]
@@ -159,6 +156,7 @@ fn test_relation_normalization_prunes_self_loops() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();

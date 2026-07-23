@@ -23,6 +23,8 @@ pub struct CompilerContext {
     pub time_budget_ms: u64,
     /// Cooperative cancellation token.
     pub cancellation_token: CancellationToken,
+    /// Configurable parameters for optimization passes and retention policies.
+    pub config: crate::compiler::config::CompilerOptimizationConfig,
 }
 
 /// Abstract compiler pass transforming Knowledge IR and emitting diagnostics.
@@ -155,7 +157,7 @@ impl CompilerPass for FactDeduplicationPass {
     }
 }
 
-/// Pass 4: Validates structural integrity and flags orphan concept nodes.
+/// Pass 17: General structural invariant validator for Knowledge IR integrity.
 pub struct ValidationPass;
 
 impl CompilerPass for ValidationPass {
@@ -170,6 +172,48 @@ impl CompilerPass for ValidationPass {
     fn run(&self, _ctx: &CompilerContext, ir: &mut KnowledgeIR) -> Vec<Diagnostic> {
         let mut diagnostics = Vec::new();
 
+        // 1. Check for dangling subject entities in facts
+        for (fact_id, fact) in &ir.facts {
+            if !ir.entities.contains_key(&fact.subject_id) {
+                diagnostics.push(Diagnostic::new(
+                    DiagnosticLevel::Error,
+                    DiagnosticKind::OrphanConcept,
+                    fact_id.0.clone(),
+                    format!(
+                        "Fact '{}' references dangling subject entity '{}'",
+                        fact_id, fact.subject_id
+                    ),
+                ));
+            }
+        }
+
+        // 2. Check for dangling relation endpoints in relation edges
+        for rel in &ir.relations {
+            if !ir.entities.contains_key(&rel.source_id) {
+                diagnostics.push(Diagnostic::new(
+                    DiagnosticLevel::Error,
+                    DiagnosticKind::OrphanConcept,
+                    rel.source_id.0.clone(),
+                    format!(
+                        "Relation edge '{}' -> '{}' ({}) references dangling source entity",
+                        rel.source_id, rel.target_id, rel.relation_kind
+                    ),
+                ));
+            }
+            if !ir.entities.contains_key(&rel.target_id) {
+                diagnostics.push(Diagnostic::new(
+                    DiagnosticLevel::Error,
+                    DiagnosticKind::OrphanConcept,
+                    rel.target_id.0.clone(),
+                    format!(
+                        "Relation edge '{}' -> '{}' ({}) references dangling target entity",
+                        rel.source_id, rel.target_id, rel.relation_kind
+                    ),
+                ));
+            }
+        }
+
+        // 3. Flag orphan concept nodes with 0 connected relation edges
         let connected_ids: std::collections::HashSet<EntityId> = ir
             .relations
             .iter()

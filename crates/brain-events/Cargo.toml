@@ -7,5 +7,6 @@ edition = "2021"
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
+tokio.workspace = true
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }

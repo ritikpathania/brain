@@ -81,15 +81,21 @@ pub struct CompilerSnapshot {
     pub last_compilation_timestamp_ms: Option<u64>,
     /// Mode of last compilation run ("full" or "incremental").
     pub last_compilation_mode: Option<CompilationMode>,
+    /// Current background scheduler state machine status ("idle", "waiting", "compiling", etc.).
+    pub scheduler_state: String,
+    /// Pending coalesced dirty event keys count.
+    pub pending_dirty_count: usize,
     /// Per-pass performance metrics list.
     pub pass_metrics: Vec<PassMetrics>,
 }
 
-/// Central state owner for compiler telemetry, graph versioning, and compilation report history.
+/// Central state owner for compiler telemetry, graph versioning, dirty buffer, and report history.
 pub struct CompilerRuntimeState {
     graph_version: AtomicU64,
     telemetry: Arc<CompilerTelemetry>,
     history: Mutex<CompilationHistory>,
+    dirty_buffer: Arc<crate::compiler::scheduler::CoalescingDirtyBuffer>,
+    scheduler_state: Arc<Mutex<crate::compiler::scheduler::SchedulerState>>,
 }
 
 impl Default for CompilerRuntimeState {
@@ -105,7 +111,14 @@ impl CompilerRuntimeState {
             graph_version: AtomicU64::new(1),
             telemetry: Arc::new(CompilerTelemetry::default()),
             history: Mutex::new(CompilationHistory::default()),
+            dirty_buffer: Arc::new(crate::compiler::scheduler::CoalescingDirtyBuffer::new(1)),
+            scheduler_state: Arc::new(Mutex::new(crate::compiler::scheduler::SchedulerState::Idle)),
         }
+    }
+
+    /// Returns a reference to the thread-shared dirty key coalescing buffer.
+    pub fn dirty_buffer(&self) -> Arc<crate::compiler::scheduler::CoalescingDirtyBuffer> {
+        Arc::clone(&self.dirty_buffer)
     }
 
     /// Increments the graph version epoch counter and returns the new version.
@@ -192,6 +205,8 @@ impl CompilerRuntimeState {
                 None
             },
             last_compilation_mode: mode,
+            scheduler_state: self.scheduler_state.lock().unwrap().to_string(),
+            pending_dirty_count: self.dirty_buffer.pending_count(),
             pass_metrics: pass_metrics_list,
         }
     }

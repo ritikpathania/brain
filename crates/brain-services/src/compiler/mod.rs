@@ -1,21 +1,36 @@
+pub mod config;
 pub mod dependency_graph;
 pub mod diagnostics;
 pub mod dirty_set;
 pub mod ir;
+pub mod optimization_passes;
 pub mod pass;
+pub mod retention_passes;
 pub mod runtime_state;
+pub mod scheduler;
 pub mod semantic_passes;
 pub mod telemetry;
 
+pub use config::CompilerOptimizationConfig;
 pub use dependency_graph::CompilerDependencyGraph;
 pub use diagnostics::{Diagnostic, DiagnosticKind, DiagnosticLevel};
 pub use dirty_set::DirtySet;
 pub use ir::{EntityIR, EntityId, FactIR, FactId, KnowledgeIR, ProvenanceIR, RelationIR};
+pub use optimization_passes::{
+    ProvenanceCompressionPass, RelationDeduplicationPass, TransitiveReductionPass,
+};
 pub use pass::{
     CanonicalEntityResolutionPass, CompilerContext, CompilerPass, FactDeduplicationPass,
     ObservationNormalizationPass, ValidationPass,
 };
+pub use retention_passes::{
+    ConfidencePruningPass, DeadFactEliminationPass, UnreachableEntityPruningPass,
+};
 pub use runtime_state::{CompilationHistory, CompilerRuntimeState, CompilerSnapshot};
+pub use scheduler::{
+    CoalescingDirtyBuffer, CompilationResult, CompileDecision, CompilerScheduler,
+    CompilerSchedulerConfig, CompilerSchedulingPolicy, SchedulerState,
+};
 pub use semantic_passes::{
     AliasResolutionPass, CanonicalFactSelectionPass, CompilerContradictionPass,
     ConfidenceAggregationPass, EntityMergePass, ProvenanceMergePass, RelationNormalizationPass,
@@ -36,7 +51,9 @@ impl PassManager {
     /// Creates a new `PassManager` with the standard default compiler pass suite.
     pub fn default_pipeline() -> Self {
         let mut manager = Self { passes: Vec::new() };
+        // 1. Structural Passes
         manager.register(Box::new(ObservationNormalizationPass));
+        // 2. Semantic Passes
         manager.register(Box::new(AliasResolutionPass));
         manager.register(Box::new(EntityMergePass));
         manager.register(Box::new(CanonicalEntityResolutionPass));
@@ -47,6 +64,16 @@ impl PassManager {
         manager.register(Box::new(CanonicalFactSelectionPass));
         manager.register(Box::new(RelationNormalizationPass));
         manager.register(Box::new(CompilerContradictionPass));
+        // 3. Graph Optimization Passes
+        manager.register(Box::new(RelationDeduplicationPass));
+        manager.register(Box::new(TransitiveReductionPass));
+        // 4. Evidence Optimization Passes
+        manager.register(Box::new(ProvenanceCompressionPass));
+        // 5. Retention & Lifecycle Policy Passes
+        manager.register(Box::new(DeadFactEliminationPass));
+        manager.register(Box::new(UnreachableEntityPruningPass));
+        manager.register(Box::new(ConfidencePruningPass));
+        // 6. General Structural Invariant Validation
         manager.register(Box::new(ValidationPass));
         manager
     }

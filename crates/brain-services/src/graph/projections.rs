@@ -277,3 +277,81 @@ impl Projector<ClusterProjectionResult, ClusterQuery> for ClusterProjector {
         ClusterProjectionResult { clusters }
     }
 }
+
+// ─── Event-Driven Projection Service (KPP v1.6) ──────────────────────────────
+
+use brain_events::{
+    ProjectionUpdatedPayload, RuntimeEvent, RuntimeEventBus, RuntimeEventSubscriber,
+};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Service managing graph and search projections, enforcing `ProjectionVersion <= GraphVersion`.
+pub struct ProjectionService {
+    projection_name: String,
+    projection_version: AtomicU64,
+    event_bus: Option<Arc<RuntimeEventBus>>,
+}
+
+impl ProjectionService {
+    /// Instantiates a new `ProjectionService`.
+    pub fn new(name: impl Into<String>, event_bus: Option<Arc<RuntimeEventBus>>) -> Self {
+        Self {
+            projection_name: name.into(),
+            projection_version: AtomicU64::new(0),
+            event_bus,
+        }
+    }
+
+    /// Returns current projection version epoch.
+    pub fn projection_version(&self) -> u64 {
+        self.projection_version.load(Ordering::Acquire)
+    }
+
+    /// Returns `true` if `ProjectionVersion == GraphVersion` (fully synchronized).
+    pub fn is_synchronized(&self, graph_version: u64) -> bool {
+        self.projection_version() == graph_version
+    }
+
+    /// Updates projection to graph version epoch and emits `RuntimeEvent::ProjectionUpdated`.
+    pub async fn catchup_to_epoch(&self, graph_version: u64) -> ProjectionUpdatedPayload {
+        self.projection_version
+            .store(graph_version, Ordering::Release);
+
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let payload = ProjectionUpdatedPayload {
+            projection_name: self.projection_name.clone(),
+            projection_version: graph_version,
+            timestamp_ms: now_ms,
+        };
+
+        if let Some(ref bus) = self.event_bus {
+            bus.publish(RuntimeEvent::ProjectionUpdated(payload.clone()))
+                .await;
+        }
+
+        payload
+    }
+}
+
+impl RuntimeEventSubscriber for ProjectionService {
+    fn name(&self) -> &'static str {
+        "ProjectionService"
+    }
+
+    fn handle_event<'a>(
+        &'a self,
+        event: std::sync::Arc<RuntimeEvent>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            if let RuntimeEvent::KnowledgeCompiled(payload) = &*event {
+                self.catchup_to_epoch(payload.graph_version).await;
+            }
+        })
+    }
+}

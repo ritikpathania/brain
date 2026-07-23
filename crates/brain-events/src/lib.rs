@@ -11,5 +11,9 @@ pub mod commands;
 /// Asynchronous domain events, metadata envelopes, and pub/sub bus traits.
 pub mod events;
 
+/// In-process event vocabulary, pub/sub bus, and subscriber isolation contracts.
+pub mod runtime_events;
+
 pub use commands::*;
 pub use events::*;
+pub use runtime_events::*;

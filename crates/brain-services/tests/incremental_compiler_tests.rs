@@ -79,6 +79,7 @@ fn test_incremental_vs_full_compilation_equivalence() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();
@@ -111,6 +112,7 @@ fn test_graph_version_mismatch_forces_full_recompile() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();
@@ -123,5 +125,5 @@ fn test_graph_version_mismatch_forces_full_recompile() {
     let (_compiled_ir, report) = compiler.compile_incremental(&context, &mut ir, dirty_set);
 
     // Should complete successfully via fallback to full compilation
-    assert_eq!(report.passes_executed, 12);
+    assert_eq!(report.passes_executed, 18);
 }

@@ -25,6 +25,7 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
         min_confidence_threshold: 0.70,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let compiler = KnowledgeCompiler::new();
@@ -101,7 +102,7 @@ fn test_compiler_pass_ordering_and_ir_transformations() {
     );
 
     // 2. Verify report fields
-    assert_eq!(report.passes_executed, 12);
+    assert_eq!(report.passes_executed, 18);
     assert_eq!(report.entities_compiled, 2);
     assert_eq!(report.facts_compiled, 2);
     assert!(!report.diagnostics.is_empty());
@@ -127,6 +128,7 @@ fn test_custom_pass_manager_pipeline() {
         min_confidence_threshold: 0.50,
         time_budget_ms: 5000,
         cancellation_token: CancellationToken::new(),
+        config: brain_services::compiler::CompilerOptimizationConfig::default(),
     };
 
     let pass_manager = PassManager::default_pipeline();
@@ -134,6 +136,6 @@ fn test_custom_pass_manager_pipeline() {
     let mut ir = KnowledgeIR::new();
 
     let (_compiled_ir, report) = compiler.compile(&context, &mut ir);
-    assert_eq!(report.passes_executed, 12);
+    assert_eq!(report.passes_executed, 18);
     assert_eq!(report.entities_compiled, 0);
 }

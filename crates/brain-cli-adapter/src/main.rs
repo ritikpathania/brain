@@ -477,6 +477,18 @@ async fn main() {
                 CompileCommands::Status => match client.compile_status().await {
                     Ok(status) => {
                         println!("=== Knowledge Compiler Subsystem Status ===");
+                        println!("Scheduler State:      {}", status.scheduler_state);
+                        println!("Pending Dirty Events: {}", status.pending_dirty_count);
+                        println!(
+                            "Projection Synced:    {}",
+                            if status.projection_synced {
+                                "yes"
+                            } else {
+                                "no"
+                            }
+                        );
+                        println!("Event Queue Depth:    {}", status.queue_depth);
+                        println!("Subscriber Lag:       {} ms", status.subscriber_lag_ms);
                         println!("Graph Version Epoch:  {}", status.graph_version);
                         println!("Total Compilations:   {}", status.total_compilations);
                         println!("Full Compilations:    {}", status.full_compilations);

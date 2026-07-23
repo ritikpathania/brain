@@ -510,6 +510,8 @@ pub enum TuiMode {
     Exploration,
     /// Live runtime operational observability dashboard screen.
     RuntimeDashboard,
+    /// Causal concept explainability timeline screen.
+    Explainability,
 }
 
 /// Active interface overlay state.
@@ -663,6 +665,10 @@ pub struct UiState {
     pub explorer_concepts: Vec<brain_integrations::dto::v1::ConceptSummaryDto>,
     /// Currently focused concept detail report DTO for KnowledgeExplorer.
     pub explorer_concept_detail: Option<brain_integrations::dto::v1::ConceptDetailReport>,
+    /// Stateful container for Explainability session navigation.
+    pub explainability_state: crate::ui::widgets::explainability::ExplainabilityState,
+    /// Latest concept causal explanation report DTO.
+    pub explanation_report: Option<brain_integrations::dto::v1::ExplanationReport>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -938,6 +944,9 @@ impl UiState {
                 crate::ui::widgets::knowledge_explorer::KnowledgeExplorerState::default(),
             explorer_concepts: Vec::new(),
             explorer_concept_detail: None,
+            explainability_state: crate::ui::widgets::explainability::ExplainabilityState::default(
+            ),
+            explanation_report: None,
         }
     }
 
@@ -994,6 +1003,9 @@ impl UiState {
                 crate::ui::widgets::knowledge_explorer::KnowledgeExplorerState::default(),
             explorer_concepts: Vec::new(),
             explorer_concept_detail: None,
+            explainability_state: crate::ui::widgets::explainability::ExplainabilityState::default(
+            ),
+            explanation_report: None,
         }
     }
 
@@ -2079,6 +2091,7 @@ impl UiState {
                 }
             }
             TuiMode::RuntimeDashboard => (0, c, 0),
+            TuiMode::Explainability => (0, c, 0),
         }
     }
 

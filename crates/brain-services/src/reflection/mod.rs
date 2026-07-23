@@ -9,6 +9,10 @@ use uuid::Uuid;
 pub mod snapshot;
 pub use snapshot::ReflectionSnapshot;
 
+/// Decoupled event-driven reflection service.
+pub mod service;
+pub use service::ReflectionService;
+
 /// Execution context and constraints for a reflection run.
 #[derive(Debug, Clone)]
 pub struct ReflectionContext {

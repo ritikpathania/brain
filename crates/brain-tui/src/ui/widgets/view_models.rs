@@ -727,3 +727,201 @@ impl KnowledgeExplorerViewModel {
         }
     }
 }
+
+/// Step item view model for ExplanationTimelineWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplanationStepItemViewModel {
+    /// Unique deterministic step identifier string.
+    pub step_id: String,
+    /// Monotonic sequence number in timeline chain.
+    pub step_sequence: u64,
+    /// Optional parent step ID establishing explicit causal origin.
+    pub parent_step_id: Option<String>,
+    /// Formatted timestamp string.
+    pub time_text: String,
+    /// Formatted stage text (e.g. "[OBSERVATION]").
+    pub stage_text: String,
+    /// Visual status badge string ("✓", "⚠", "✖", "ℹ").
+    pub status_badge: String,
+    /// Ratatui style color for status badge.
+    pub status_color: ratatui::style::Color,
+    /// Display title string.
+    pub title: String,
+    /// Stage narrative description string.
+    pub description: String,
+}
+
+/// Concept summary view model for ExplanationSummaryWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplanationSummaryViewModel {
+    /// Concept identifier string.
+    pub concept_id: String,
+    /// Canonical display label.
+    pub concept_label: String,
+    /// Node classification type.
+    pub node_type: String,
+    /// Ingestion timestamp string.
+    pub created_at_text: String,
+    /// Total causal steps count text.
+    pub total_steps_text: String,
+}
+
+/// Timeline view model for ExplanationTimelineWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplanationTimelineViewModel {
+    /// Timeline step items list.
+    pub items: Vec<ExplanationStepItemViewModel>,
+    /// Cursor selection index.
+    pub selected_index: Option<usize>,
+}
+
+/// Stage execution detail view model for ExplanationDetailWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplanationDetailPaneViewModel {
+    /// Step ID string.
+    pub step_id: String,
+    /// Step sequence.
+    pub step_sequence: u64,
+    /// Parent step ID formatted text ("None", "step_001", or "Parent step unavailable").
+    pub parent_step_id_text: String,
+    /// Stage text.
+    pub stage_text: String,
+    /// Status text.
+    pub status_text: String,
+    /// Title string.
+    pub title: String,
+    /// Detailed description.
+    pub description: String,
+    /// Key-value metadata annotations pairs list.
+    pub metadata_items: Vec<(String, String)>,
+}
+
+/// Composite view model for ExplainabilityScreen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExplanationViewModel {
+    /// Target concept explanation summary.
+    pub summary: Option<ExplanationSummaryViewModel>,
+    /// Timeline steps list.
+    pub timeline: ExplanationTimelineViewModel,
+    /// Focused step execution details.
+    pub detail_pane: Option<ExplanationDetailPaneViewModel>,
+}
+
+impl ExplanationViewModel {
+    /// Creates a presentation-layer `ExplanationViewModel` from a `v1::ExplanationReport`.
+    pub fn from_report(
+        report: Option<&brain_integrations::dto::v1::ExplanationReport>,
+        selected_step_idx: Option<usize>,
+    ) -> Self {
+        use brain_integrations::dto::v1::{ExplanationStage, ExplanationStatus};
+        use ratatui::style::Color;
+
+        let summary = report.map(|r| ExplanationSummaryViewModel {
+            concept_id: r.concept_id.clone(),
+            concept_label: r.concept_label.clone(),
+            node_type: r.node_type.clone(),
+            created_at_text: r.created_at_ms.to_string(),
+            total_steps_text: r.steps.len().to_string(),
+        });
+
+        let mut step_items = Vec::new();
+        let mut step_id_set = std::collections::HashSet::new();
+
+        if let Some(r) = report {
+            for step in &r.steps {
+                step_id_set.insert(step.step_id.clone());
+            }
+
+            for step in &r.steps {
+                let stage_str = match step.stage {
+                    ExplanationStage::Observation => "[OBSERVATION]",
+                    ExplanationStage::Compiler => "[COMPILER]",
+                    ExplanationStage::Knowledge => "[KNOWLEDGE]",
+                    ExplanationStage::Projection => "[PROJECTION]",
+                    ExplanationStage::Reflection => "[REFLECTION]",
+                    ExplanationStage::Recommendation => "[RECOMMENDATION]",
+                };
+
+                let (badge, color) = match step.status {
+                    ExplanationStatus::Success => ("✓", Color::Green),
+                    ExplanationStatus::Warning => ("⚠", Color::Yellow),
+                    ExplanationStatus::Error => ("✖", Color::Red),
+                    ExplanationStatus::Info => ("ℹ", Color::Cyan),
+                };
+
+                step_items.push(ExplanationStepItemViewModel {
+                    step_id: step.step_id.clone(),
+                    step_sequence: step.step_sequence,
+                    parent_step_id: step.parent_step_id.clone(),
+                    time_text: step.timestamp_ms.to_string(),
+                    stage_text: stage_str.to_string(),
+                    status_badge: badge.to_string(),
+                    status_color: color,
+                    title: step.title.clone(),
+                    description: step.description.clone(),
+                });
+            }
+        }
+
+        let timeline = ExplanationTimelineViewModel {
+            items: step_items,
+            selected_index: selected_step_idx,
+        };
+
+        let detail_pane = if let (Some(r), Some(idx)) = (report, selected_step_idx) {
+            r.steps.get(idx).map(|step| {
+                let parent_text = match &step.parent_step_id {
+                    None => "None".to_string(),
+                    Some(parent_id) => {
+                        if step_id_set.contains(parent_id) {
+                            parent_id.clone()
+                        } else {
+                            format!("{} (Parent step unavailable / compacted)", parent_id)
+                        }
+                    }
+                };
+
+                let stage_str = match step.stage {
+                    ExplanationStage::Observation => "Observation Ingestion",
+                    ExplanationStage::Compiler => "Compiler Normalization",
+                    ExplanationStage::Knowledge => "Canonical Record Established",
+                    ExplanationStage::Projection => "Projection Index Update",
+                    ExplanationStage::Reflection => "Reflection Finding Cycle",
+                    ExplanationStage::Recommendation => "Recommendation Resolution",
+                };
+
+                let status_str = match step.status {
+                    ExplanationStatus::Success => "✓ Success",
+                    ExplanationStatus::Warning => "⚠ Warning / Finding",
+                    ExplanationStatus::Error => "✖ Diagnostic Error",
+                    ExplanationStatus::Info => "ℹ Informational Telemetry",
+                };
+
+                let meta_list: Vec<(String, String)> = step
+                    .metadata
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+
+                ExplanationDetailPaneViewModel {
+                    step_id: step.step_id.clone(),
+                    step_sequence: step.step_sequence,
+                    parent_step_id_text: parent_text,
+                    stage_text: stage_str.to_string(),
+                    status_text: status_str.to_string(),
+                    title: step.title.clone(),
+                    description: step.description.clone(),
+                    metadata_items: meta_list,
+                }
+            })
+        } else {
+            None
+        };
+
+        Self {
+            summary,
+            timeline,
+            detail_pane,
+        }
+    }
+}

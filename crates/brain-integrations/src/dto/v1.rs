@@ -523,6 +523,16 @@ pub struct CompilerStatusReport {
     pub last_compilation_duration_ms: Option<u64>,
     /// Mode of last compilation run ("full" or "incremental"), if any.
     pub last_compilation_mode: Option<String>,
+    /// Background scheduler state machine status ("idle", "waiting", "compiling", etc.).
+    pub scheduler_state: String,
+    /// Pending coalesced dirty event keys count.
+    pub pending_dirty_count: usize,
+    /// Flag indicating whether projections are fully synchronized (`ProjectionVersion == GraphVersion`).
+    pub projection_synced: bool,
+    /// Pending event bus queue depth.
+    pub queue_depth: usize,
+    /// Subscriber processing lag in milliseconds.
+    pub subscriber_lag_ms: u64,
     /// Per-pass timing metrics list.
     pub pass_metrics: Vec<PassMetricDto>,
 }
@@ -559,4 +569,74 @@ pub struct CompilerIrSummaryDto {
     pub relations_count: usize,
     /// Top entity classifications with count tuples.
     pub top_entity_kinds: Vec<(String, usize)>,
+}
+
+/// Typed explanation pipeline stage classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExplanationStage {
+    /// Initial observation ingestion stage.
+    Observation,
+    /// Knowledge compiler pass processing stage.
+    Compiler,
+    /// Canonical knowledge record establishment stage.
+    Knowledge,
+    /// Read-model projection engine update stage.
+    Projection,
+    /// Relationship reflection and finding cycle stage.
+    Reflection,
+    /// Recommendation proposal or resolution stage.
+    Recommendation,
+}
+
+/// Typed explanation stage execution status classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExplanationStatus {
+    /// Stage completed successfully (`✓`).
+    Success,
+    /// Stage emitted warning or reflection finding (`⚠`).
+    Warning,
+    /// Stage emitted error diagnostic (`✖`).
+    Error,
+    /// Stage emitted informational telemetry (`ℹ`).
+    Info,
+}
+
+/// Version 1 DTO representing a single step in a causal explanation narrative.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExplanationStepDto {
+    /// Unique deterministic step identifier string (e.g. "step_001").
+    pub step_id: String,
+    /// Monotonic sequence number in the timeline chain.
+    pub step_sequence: u64,
+    /// Optional parent step ID establishing explicit causal origin.
+    pub parent_step_id: Option<String>,
+    /// Typed explanation pipeline stage classification.
+    pub stage: ExplanationStage,
+    /// Stage execution status classification.
+    pub status: ExplanationStatus,
+    /// Display title string.
+    pub title: String,
+    /// Stage narrative description.
+    pub description: String,
+    /// Unix timestamp in milliseconds.
+    pub timestamp_ms: u64,
+    /// Key-value metadata annotations map (presentation view).
+    pub metadata: std::collections::BTreeMap<String, String>,
+}
+
+/// Version 1 DTO for complete read-only concept causal explanation report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExplanationReport {
+    /// Target concept identifier string.
+    pub concept_id: String,
+    /// Canonical display label.
+    pub concept_label: String,
+    /// Node classification type.
+    pub node_type: String,
+    /// Ingestion creation timestamp in milliseconds.
+    pub created_at_ms: u64,
+    /// Chronologically ordered causal explanation steps.
+    pub steps: Vec<ExplanationStepDto>,
 }

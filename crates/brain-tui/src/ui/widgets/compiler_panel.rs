@@ -32,7 +32,7 @@ pub fn draw(
     has_focus: bool,
 ) {
     let border_style = if has_focus {
-        theme.accent
+        theme.border_active
     } else {
         theme.border
     };
@@ -106,17 +106,54 @@ pub fn draw(
         (0, 0)
     };
 
+    let sched_state = state
+        .status
+        .as_ref()
+        .map(|s| s.scheduler_state.clone())
+        .unwrap_or_else(|| "idle".to_string());
+
+    let pending_dirty = state
+        .status
+        .as_ref()
+        .map(|s| s.pending_dirty_count)
+        .unwrap_or(0);
+
+    let proj_synced = state
+        .status
+        .as_ref()
+        .map(|s| if s.projection_synced { "yes" } else { "no" })
+        .unwrap_or("yes");
+
     let status_lines = vec![
         Line::from(vec![
+            Span::styled(
+                "Scheduler State: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(sched_state, Style::default().fg(Color::Green)),
+            Span::raw(" | "),
+            Span::styled(
+                "Pending Dirty Events: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                pending_dirty.to_string(),
+                Style::default().fg(Color::Magenta),
+            ),
+            Span::raw(" | "),
+            Span::styled(
+                "Projection Synced: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(proj_synced, Style::default().fg(Color::Green)),
+            Span::raw(" | "),
             Span::styled(
                 "Graph Epoch: ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
             Span::styled(version_str, Style::default().fg(Color::Cyan)),
-            Span::raw(" | "),
-            Span::styled("Mode: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(last_mode, Style::default().fg(Color::Green)),
-            Span::raw(" | "),
+        ]),
+        Line::from(vec![
             Span::styled(
                 "Last Duration: ",
                 Style::default().add_modifier(Modifier::BOLD),
@@ -125,6 +162,9 @@ pub fn draw(
                 format!("{} ms", last_dur),
                 Style::default().fg(Color::Yellow),
             ),
+            Span::raw(" | "),
+            Span::styled("Last Mode: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(last_mode, Style::default().fg(Color::Green)),
         ]),
         Line::from(vec![
             Span::styled(
@@ -216,13 +256,13 @@ pub fn draw(
 
             let prefix = if selected { "> " } else { "  " };
             let style = if selected {
-                Style::default().bg(theme.selection_bg).fg(Color::White)
+                theme.primary
             } else {
                 Style::default()
             };
 
             diag_lines.push(Line::from(vec![
-                Span::styled(prefix, Style::default().fg(theme.accent)),
+                Span::styled(prefix, theme.accent),
                 Span::styled(
                     format!("[{}] ", diag.level.to_uppercase()),
                     Style::default().fg(level_color),

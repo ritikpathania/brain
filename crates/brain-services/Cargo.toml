@@ -49,3 +49,7 @@ harness = false
 name = "graph_benchmarks"
 harness = false
 
+[[bench]]
+name = "compiler_benches"
+harness = false
+

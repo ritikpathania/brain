@@ -48,6 +48,18 @@ pub enum PassId {
     RelationNormalization,
     /// Compiler contradiction pass
     CompilerContradiction,
+    /// Relation deduplication pass
+    RelationDeduplication,
+    /// Transitive relation reduction pass
+    TransitiveReduction,
+    /// Provenance compression pass
+    ProvenanceCompression,
+    /// Dead fact elimination retention pass
+    DeadFactElimination,
+    /// Unreachable entity pruning retention pass
+    UnreachableEntityPruning,
+    /// Confidence pruning retention pass
+    ConfidencePruning,
     /// Graph validation pass
     Validation,
     /// Custom pass extension
@@ -69,6 +81,12 @@ impl PassId {
             PassId::CanonicalFactSelection => "canonical_fact_selection",
             PassId::RelationNormalization => "relation_normalization",
             PassId::CompilerContradiction => "compiler_contradiction",
+            PassId::RelationDeduplication => "relation_deduplication",
+            PassId::TransitiveReduction => "transitive_reduction",
+            PassId::ProvenanceCompression => "provenance_compression",
+            PassId::DeadFactElimination => "dead_fact_elimination",
+            PassId::UnreachableEntityPruning => "unreachable_entity_pruning",
+            PassId::ConfidencePruning => "confidence_pruning",
             PassId::Validation => "validation",
             PassId::Custom(s) => s,
         }
@@ -135,6 +153,7 @@ pub struct CompilerTelemetry {
 
 impl CompilerTelemetry {
     /// Records a compilation run into atomic telemetry counters.
+    #[allow(clippy::too_many_arguments)]
     pub fn record_compilation(
         &self,
         mode: CompilationMode,
