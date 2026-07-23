@@ -55,6 +55,8 @@ pub use toolbar::Toolbar;
 
 /// Autocomplete suggestions overlay widget.
 pub mod completion;
+/// Knowledge Graph Explorer read-only inspection screen widget.
+pub mod knowledge_explorer;
 /// Command Palette overlay widget.
 pub mod palette;
 /// Modal pinned context overlay widget.
@@ -62,4 +64,5 @@ pub mod pinned_overlay;
 /// Runtime Dashboard operational control panel widget.
 pub mod runtime_dashboard;
 
+pub use knowledge_explorer::{draw_knowledge_explorer, ExplorerIntent, KnowledgeExplorerState};
 pub use runtime_dashboard::{draw_runtime_dashboard, RuntimeDashboardState};

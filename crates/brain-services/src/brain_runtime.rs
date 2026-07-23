@@ -982,6 +982,11 @@ impl BrainRuntime {
         self.sqlite_storage.get_events_after(after_sequence)
     }
 
+    /// Lists all concept nodes currently stored in the knowledge database.
+    pub fn list_nodes(&self) -> Result<Vec<brain_domain::Node>, BrainError> {
+        NodeRepository::list_all(self.sqlite_storage.as_ref())
+    }
+
     /// Inspects a node by its ID and maps all its connections to the domain-level InspectorModel.
     pub fn inspect_node(&self, id_str: &str) -> Result<InspectorModel, BrainError> {
         let node_uuid =

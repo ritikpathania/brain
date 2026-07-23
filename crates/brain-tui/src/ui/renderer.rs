@@ -168,6 +168,23 @@ impl AppRenderer {
             return;
         }
 
+        if state.mode == crate::state::TuiMode::Exploration {
+            let vm = crate::ui::widgets::view_models::KnowledgeExplorerViewModel::from_report(
+                &state.explorer_concepts,
+                state.explorer_concept_detail.as_ref(),
+                Some(state.knowledge_explorer_state.selected_concept_index),
+                Some(state.knowledge_explorer_state.selected_relation_index),
+            );
+            crate::ui::widgets::draw_knowledge_explorer(
+                f,
+                area,
+                &vm,
+                &state.knowledge_explorer_state,
+                theme,
+            );
+            return;
+        }
+
         // 1. Build Header ViewModel
         let connection_status = match state.connection_mode {
             ConnectionMode::Daemon => "[Connected: Daemon]".to_string(),

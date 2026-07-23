@@ -657,6 +657,12 @@ pub struct UiState {
     pub runtime_dashboard_state: crate::ui::widgets::runtime_dashboard::RuntimeDashboardState,
     /// Latest atomic point-in-time runtime diagnostics snapshot report.
     pub diagnostics_report: Option<brain_integrations::dto::v1::RuntimeDiagnosticsReport>,
+    /// Stateful container for KnowledgeExplorer session navigation.
+    pub knowledge_explorer_state: crate::ui::widgets::knowledge_explorer::KnowledgeExplorerState,
+    /// Concept catalog list DTOs for KnowledgeExplorer.
+    pub explorer_concepts: Vec<brain_integrations::dto::v1::ConceptSummaryDto>,
+    /// Currently focused concept detail report DTO for KnowledgeExplorer.
+    pub explorer_concept_detail: Option<brain_integrations::dto::v1::ConceptDetailReport>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -928,6 +934,10 @@ impl UiState {
             runtime_dashboard_state:
                 crate::ui::widgets::runtime_dashboard::RuntimeDashboardState::default(),
             diagnostics_report: None,
+            knowledge_explorer_state:
+                crate::ui::widgets::knowledge_explorer::KnowledgeExplorerState::default(),
+            explorer_concepts: Vec::new(),
+            explorer_concept_detail: None,
         }
     }
 
@@ -980,6 +990,10 @@ impl UiState {
             runtime_dashboard_state:
                 crate::ui::widgets::runtime_dashboard::RuntimeDashboardState::default(),
             diagnostics_report: None,
+            knowledge_explorer_state:
+                crate::ui::widgets::knowledge_explorer::KnowledgeExplorerState::default(),
+            explorer_concepts: Vec::new(),
+            explorer_concept_detail: None,
         }
     }
 

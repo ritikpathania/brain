@@ -479,3 +479,251 @@ impl RuntimeDashboardViewModel {
         }
     }
 }
+
+/// Concept item view model for ConceptListWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConceptItemViewModel {
+    /// Truncated concept ID.
+    pub id: String,
+    /// Truncated display label.
+    pub label: String,
+    /// Concept node type.
+    pub node_type: String,
+    /// Total relationships count text.
+    pub relationships_count_text: String,
+}
+
+/// Concept catalog view model for ConceptListWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConceptListViewModel {
+    /// Catalog of concept items.
+    pub items: Vec<ConceptItemViewModel>,
+    /// Selected index inside list.
+    pub selected_index: Option<usize>,
+}
+
+/// Core concept detail view model for ConceptDetailsWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConceptDetailsViewModel {
+    /// Concept identifier string.
+    pub id: String,
+    /// Canonical display label.
+    pub label: String,
+    /// Node classification type.
+    pub node_type: String,
+}
+
+/// Relationship edge item view model for RelationsWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelationItemViewModel {
+    /// Target concept ID string.
+    pub target_id: String,
+    /// Target concept display label.
+    pub target_label: String,
+    /// Target concept type.
+    pub target_type: String,
+    /// Relation classification (e.g., "works_on").
+    pub relation: String,
+    /// Edge direction ("OUTGOING" or "INCOMING").
+    pub direction: String,
+    /// Ratatui style color for direction.
+    pub direction_color: ratatui::style::Color,
+    /// Formatted confidence weight string (e.g. "0.95").
+    pub weight_text: String,
+}
+
+/// Relations list view model for RelationsWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelationsViewModel {
+    /// Deterministically sorted list of relations.
+    pub items: Vec<RelationItemViewModel>,
+    /// Selected relation cursor index.
+    pub selected_index: Option<usize>,
+}
+
+/// Property attribute view model for PropertiesWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PropertyItemViewModel {
+    /// Group classification ("System", "Canonical", "User", "Metadata").
+    pub group: String,
+    /// Attribute key name.
+    pub key: String,
+    /// Attribute string value.
+    pub value: String,
+}
+
+/// Properties list view model for PropertiesWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PropertiesViewModel {
+    /// Deterministically ordered key-value properties.
+    pub items: Vec<PropertyItemViewModel>,
+}
+
+/// Provenance metadata view model for ProvenanceWidget.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProvenanceViewModel {
+    /// Source origin classification (e.g. "Ingested", "Inferred").
+    pub source: String,
+    /// Originating compiler pass, if available.
+    pub compiler_pass: String,
+    /// Physical location reference string.
+    pub location: String,
+    /// Ingestion timestamp formatted string.
+    pub timestamp_text: String,
+    /// Formatted key-value annotations text list.
+    pub extra_info: Vec<(String, String)>,
+}
+
+/// Composite view model for KnowledgeExplorer screen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KnowledgeExplorerViewModel {
+    /// Concept list view model.
+    pub concept_list: ConceptListViewModel,
+    /// Currently focused concept details (if loaded).
+    pub details: Option<ConceptDetailsViewModel>,
+    /// Relationship edges view model.
+    pub relations: RelationsViewModel,
+    /// Properties map view model.
+    pub properties: PropertiesViewModel,
+    /// Provenance history view model.
+    pub provenance: Option<ProvenanceViewModel>,
+}
+
+impl KnowledgeExplorerViewModel {
+    /// Creates a presentation-layer `KnowledgeExplorerViewModel` with deterministic sorting rules.
+    pub fn from_report(
+        concepts: &[brain_integrations::dto::v1::ConceptSummaryDto],
+        detail: Option<&brain_integrations::dto::v1::ConceptDetailReport>,
+        selected_concept_idx: Option<usize>,
+        selected_relation_idx: Option<usize>,
+    ) -> Self {
+        use ratatui::style::Color;
+
+        let concept_items = concepts
+            .iter()
+            .map(|c| ConceptItemViewModel {
+                id: truncate_str(&c.id, 8),
+                label: truncate_str(&c.label, 20),
+                node_type: truncate_str(&c.node_type, 12),
+                relationships_count_text: c.relationships_count.to_string(),
+            })
+            .collect();
+
+        let concept_list = ConceptListViewModel {
+            items: concept_items,
+            selected_index: selected_concept_idx,
+        };
+
+        let details = detail.map(|d| ConceptDetailsViewModel {
+            id: d.id.clone(),
+            label: d.label.clone(),
+            node_type: d.node_type.clone(),
+        });
+
+        // Deterministic Relation Sorting:
+        // Outgoing -> Incoming -> Relation -> Target label
+        let mut sorted_relations = Vec::new();
+        if let Some(d) = detail {
+            let mut rel_dtos = d.relations.clone();
+            rel_dtos.sort_by(|a, b| {
+                let dir_a = if a.direction.to_lowercase().contains("out") {
+                    0
+                } else {
+                    1
+                };
+                let dir_b = if b.direction.to_lowercase().contains("out") {
+                    0
+                } else {
+                    1
+                };
+                dir_a
+                    .cmp(&dir_b)
+                    .then_with(|| a.relation.cmp(&b.relation))
+                    .then_with(|| a.target_label.cmp(&b.target_label))
+            });
+
+            for r in rel_dtos {
+                let is_out = r.direction.to_lowercase().contains("out");
+                let dir_str = if is_out { "OUTGOING" } else { "INCOMING" };
+                let dir_color = if is_out { Color::Cyan } else { Color::Green };
+
+                sorted_relations.push(RelationItemViewModel {
+                    target_id: r.target_id,
+                    target_label: truncate_str(&r.target_label, 18),
+                    target_type: truncate_str(&r.target_type, 12),
+                    relation: r.relation,
+                    direction: dir_str.to_string(),
+                    direction_color: dir_color,
+                    weight_text: format!("{:.2}", r.weight),
+                });
+            }
+        }
+
+        let relations = RelationsViewModel {
+            items: sorted_relations,
+            selected_index: selected_relation_idx,
+        };
+
+        // Deterministic Property Grouping:
+        // System -> Canonical -> User -> Metadata
+        let mut prop_items = Vec::new();
+        if let Some(d) = detail {
+            for (k, v) in &d.properties {
+                let group = if k == "id" || k.starts_with("sys_") {
+                    "System".to_string()
+                } else if k == "label" || k == "node_type" {
+                    "Canonical".to_string()
+                } else if k.starts_with("user_") {
+                    "User".to_string()
+                } else {
+                    "Metadata".to_string()
+                };
+
+                prop_items.push(PropertyItemViewModel {
+                    group,
+                    key: k.clone(),
+                    value: truncate_str(v, 30),
+                });
+            }
+            // Sort deterministically by Group order then Key name
+            prop_items.sort_by(|a, b| {
+                let g_rank = |g: &str| match g {
+                    "System" => 0,
+                    "Canonical" => 1,
+                    "User" => 2,
+                    _ => 3,
+                };
+                g_rank(&a.group)
+                    .cmp(&g_rank(&b.group))
+                    .then_with(|| a.key.cmp(&b.key))
+            });
+        }
+
+        let properties = PropertiesViewModel { items: prop_items };
+
+        let provenance = detail.map(|d| ProvenanceViewModel {
+            source: d.provenance.source.clone(),
+            compiler_pass: d
+                .provenance
+                .compiler_pass
+                .clone()
+                .unwrap_or_else(|| "None".to_string()),
+            location: d.provenance.location.clone(),
+            timestamp_text: d.provenance.timestamp_ms.to_string(),
+            extra_info: d
+                .provenance
+                .extra_info
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        });
+
+        Self {
+            concept_list,
+            details,
+            relations,
+            properties,
+            provenance,
+        }
+    }
+}

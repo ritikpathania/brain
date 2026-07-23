@@ -858,6 +858,112 @@ impl BrainApplication {
             exec_duration_ms: t.exec_duration_ms,
         }
     }
+
+    /// Returns a list of concept node summaries in the graph catalog.
+    pub async fn list_concepts(&self) -> Result<Vec<v1::ConceptSummaryDto>, ApplicationError> {
+        let nodes = self
+            .runtime
+            .list_nodes()
+            .map_err(|e| ApplicationError::Internal(format!("Failed to list concepts: {:?}", e)))?;
+
+        let mut summaries = Vec::new();
+        for node in nodes {
+            let rels_count = self
+                .runtime
+                .inspect_node(&node.id.to_string())
+                .map(|m| m.relationships.len())
+                .unwrap_or(0);
+
+            summaries.push(v1::ConceptSummaryDto {
+                id: node.id.to_string(),
+                label: node.label.clone(),
+                node_type: node.node_type.to_string(),
+                relationships_count: rels_count,
+            });
+        }
+
+        Ok(summaries)
+    }
+
+    /// Inspects a concept node by ID and returns its complete detail report.
+    pub async fn inspect_concept(
+        &self,
+        id: &str,
+    ) -> Result<Option<v1::ConceptDetailReport>, ApplicationError> {
+        let model = match self.inspect_node(id).await {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+
+        let mut relations = Vec::new();
+        for rel in model.relationships {
+            relations.push(v1::RelationDetailDto {
+                target_id: rel.target_id,
+                target_label: rel.target_label,
+                target_type: rel.target_type,
+                relation: rel.relation,
+                direction: rel.direction,
+                weight: rel.weight,
+            });
+        }
+
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert("id".to_string(), model.entity.id.clone());
+        properties.insert("label".to_string(), model.entity.label.clone());
+        properties.insert("node_type".to_string(), model.entity.node_type.clone());
+        for (k, v) in model.metadata {
+            properties.insert(k, v);
+        }
+
+        let provenance = v1::ProvenanceDetailDto {
+            source: model.provenance.source,
+            compiler_pass: model.provenance.extra_info.get("compiler_pass").cloned(),
+            location: model.provenance.location,
+            timestamp_ms: model.provenance.timestamp,
+            extra_info: model.provenance.extra_info.into_iter().collect(),
+        };
+
+        Ok(Some(v1::ConceptDetailReport {
+            id: model.entity.id,
+            label: model.entity.label,
+            node_type: model.entity.node_type,
+            properties,
+            relations,
+            provenance,
+        }))
+    }
+}
+
+/// Query interface abstraction for knowledge graph exploration.
+pub trait KnowledgeExplorerQueryService: Send + Sync {
+    /// Returns a list of concept node summaries in the graph catalog.
+    fn list_concepts(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::ConceptSummaryDto>, ApplicationError>> + Send;
+
+    /// Inspects a concept node by ID and returns its complete detail report.
+    fn inspect_concept(
+        &self,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<v1::ConceptDetailReport>, ApplicationError>>
+           + Send;
+}
+
+impl KnowledgeExplorerQueryService for BrainApplication {
+    fn list_concepts(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::ConceptSummaryDto>, ApplicationError>> + Send
+    {
+        self.list_concepts()
+    }
+
+    fn inspect_concept(
+        &self,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<v1::ConceptDetailReport>, ApplicationError>>
+           + Send {
+        self.inspect_concept(id)
+    }
 }
 
 /// Normalized DTO wrapper for successful ingestion response.

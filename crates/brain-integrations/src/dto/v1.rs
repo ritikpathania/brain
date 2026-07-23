@@ -426,3 +426,65 @@ pub struct RuntimeDiagnosticsReport {
     /// Reflection engine telemetry snapshot.
     pub reflection: ReflectionStatusReport,
 }
+
+/// Version 1 summary DTO representing a concept node in the knowledge catalog.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConceptSummaryDto {
+    /// Unique identifier string of the concept.
+    pub id: String,
+    /// Canonical display label of the concept.
+    pub label: String,
+    /// Node classification type (e.g. "Person", "System", "Topic").
+    pub node_type: String,
+    /// Count of relationship edges connected to this concept.
+    pub relationships_count: usize,
+}
+
+/// Version 1 DTO representing a relationship edge in the graph explorer.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RelationDetailDto {
+    /// Unique target concept identifier string.
+    pub target_id: String,
+    /// Target concept display label.
+    pub target_label: String,
+    /// Target concept node type.
+    pub target_type: String,
+    /// Relation type classification (e.g. "works_on", "knows").
+    pub relation: String,
+    /// Direction classification ("outgoing" or "incoming").
+    pub direction: String,
+    /// Relationship weight/confidence score between 0.0 and 1.0.
+    pub weight: f64,
+}
+
+/// Version 1 DTO representing structured provenance origin metadata for a concept.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProvenanceDetailDto {
+    /// Source origin classification (e.g. "Ingested", "Inferred", "UserAuthored").
+    pub source: String,
+    /// Originating compiler pass or rule identifier.
+    pub compiler_pass: Option<String>,
+    /// Physical location reference string (e.g. file path or URL).
+    pub location: String,
+    /// Unix timestamp in milliseconds when knowledge was established.
+    pub timestamp_ms: u64,
+    /// Extra key-value metadata annotations.
+    pub extra_info: std::collections::BTreeMap<String, String>,
+}
+
+/// Version 1 DTO for complete read-only knowledge concept inspection report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConceptDetailReport {
+    /// Unique concept identifier string.
+    pub id: String,
+    /// Canonical display label.
+    pub label: String,
+    /// Node classification type.
+    pub node_type: String,
+    /// Key-value property attributes map.
+    pub properties: std::collections::BTreeMap<String, String>,
+    /// List of directed relationship edges connected to this concept.
+    pub relations: Vec<RelationDetailDto>,
+    /// Structured origin provenance metadata.
+    pub provenance: ProvenanceDetailDto,
+}
