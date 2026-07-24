@@ -864,13 +864,16 @@ impl StartupPhase for ServicesReadyPhase {
     }
 }
 
+pub mod aggregator;
 pub mod events;
 pub mod models;
 pub mod repository;
 pub mod sqlite_repository;
 
+pub use aggregator::*;
 pub use events::*;
 pub use models::*;
 pub use repository::*;
 pub use sqlite_repository::*;
+
 
