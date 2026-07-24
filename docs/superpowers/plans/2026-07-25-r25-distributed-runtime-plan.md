@@ -31,7 +31,7 @@
 - Consumes: `JobId` from `brain_domain::jobs::JobId`
 - Produces: `WorkerDescriptor`, `Resources`, `WorkerStatus`, `WorkerRegistry`, `RegistryError`, `WorkerCandidate`
 
-- [ ] **Step 1: Write failing unit tests for WorkerRegistry with explicit timestamps**
+- [x] **Step 1: Write failing unit tests for WorkerRegistry with explicit timestamps**
 
 ```rust
 #[cfg(test)]
@@ -69,12 +69,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib distributed::registry::tests`
 Expected: FAIL with "module `distributed` not found"
 
-- [ ] **Step 3: Implement WorkerDescriptor, WorkerStatus, WorkerCandidate, and WorkerRegistry**
+- [x] **Step 3: Implement WorkerDescriptor, WorkerStatus, WorkerCandidate, and WorkerRegistry**
 
 In `crates/brain-services/src/distributed/models.rs`:
 ```rust
@@ -199,12 +199,12 @@ pub mod distributed;
 pub mod runtime;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib distributed::registry::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/distributed/
@@ -225,7 +225,7 @@ git commit -m "feat(distributed): implement WorkerDescriptor, WorkerStatus, Work
 - Consumes: `TaskId`, `ExecutionId`, `JobId`
 - Produces: `TaskLease`, `TaskAssignment`, `trait WorkerTransport`, `MockWorkerTransport`
 
-- [ ] **Step 1: Write tests for MockWorkerTransport with failure emulation**
+- [x] **Step 1: Write tests for MockWorkerTransport with failure emulation**
 
 In `crates/brain-services/tests/worker_transport_tests.rs`:
 ```rust
@@ -262,12 +262,12 @@ async fn test_mock_worker_transport_dispatch_success_and_failure() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test worker_transport_tests`
 Expected: FAIL with "cannot find type `MockWorkerTransport`"
 
-- [ ] **Step 3: Implement WorkerTransport trait and MockWorkerTransport**
+- [x] **Step 3: Implement WorkerTransport trait and MockWorkerTransport**
 
 In `crates/brain-services/src/distributed/transport.rs`:
 ```rust
@@ -383,12 +383,12 @@ pub use registry::*;
 pub use transport::*;
 ```
 
-- [ ] **Step 4: Verify transport unit tests pass**
+- [x] **Step 4: Verify transport unit tests pass**
 
 Run: `cargo test -p brain-services --test worker_transport_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/distributed/transport.rs
@@ -410,7 +410,7 @@ git commit -m "feat(distributed): implement WorkerTransport trait and configurab
 - Consumes: `WorkerCandidate`, `WorkerRegistry`
 - Produces: `trait SchedulingPolicy`, `LeastLoadedPolicy`, `WorkerScheduler`
 
-- [ ] **Step 1: Write unit tests for SchedulingPolicy using WorkerCandidate**
+- [x] **Step 1: Write unit tests for SchedulingPolicy using WorkerCandidate**
 
 In `crates/brain-services/tests/distributed_scheduler_tests.rs`:
 ```rust
@@ -461,12 +461,12 @@ fn test_least_loaded_scheduling_policy_with_candidate_view() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test distributed_scheduler_tests`
 Expected: FAIL with "cannot find type `LeastLoadedPolicy`"
 
-- [ ] **Step 3: Implement SchedulingPolicy and WorkerScheduler using Candidate view**
+- [x] **Step 3: Implement SchedulingPolicy and WorkerScheduler using Candidate view**
 
 In `crates/brain-services/src/distributed/scheduler.rs`:
 ```rust
@@ -535,12 +535,12 @@ pub use scheduler::*;
 pub use transport::*;
 ```
 
-- [ ] **Step 4: Verify scheduler unit tests pass**
+- [x] **Step 4: Verify scheduler unit tests pass**
 
 Run: `cargo test -p brain-services --test distributed_scheduler_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/distributed/scheduler.rs
@@ -594,12 +594,12 @@ fn test_ingress_gate_rejects_unhealthy_or_stale_heartbeat() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test ingress_gate_tests`
 Expected: FAIL with "cannot find type `CoordinatorIngressGate`"
 
-- [ ] **Step 3: Implement CoordinatorIngressGate with edge case validation**
+- [x] **Step 3: Implement CoordinatorIngressGate with edge case validation**
 
 In `crates/brain-services/src/distributed/ingress.rs`:
 ```rust
@@ -664,12 +664,12 @@ pub use scheduler::*;
 pub use transport::*;
 ```
 
-- [ ] **Step 4: Verify ingress gate unit tests pass**
+- [x] **Step 4: Verify ingress gate unit tests pass**
 
 Run: `cargo test -p brain-services --test ingress_gate_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/distributed/ingress.rs
