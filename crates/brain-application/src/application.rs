@@ -70,6 +70,8 @@ pub struct BrainApplication {
     last_reflection_report: Arc<parking_lot::Mutex<Option<v1::ReflectionReport>>>,
     reflection_proposals:
         Arc<parking_lot::Mutex<std::collections::HashMap<String, v1::ReflectionProposalDto>>>,
+    evolution_planner: Arc<brain_services::evolution::KnowledgeEvolutionPlanner>,
+    evolution_audit_history: Arc<parking_lot::Mutex<Vec<v1::EvolutionAuditRecordDto>>>,
 }
 
 impl BrainApplication {
@@ -104,6 +106,8 @@ impl BrainApplication {
             reflection_proposals: Arc::new(parking_lot::Mutex::new(
                 std::collections::HashMap::new(),
             )),
+            evolution_planner: Arc::new(brain_services::evolution::KnowledgeEvolutionPlanner::new()),
+            evolution_audit_history: Arc::new(parking_lot::Mutex::new(Vec::new())),
         }
     }
 
@@ -1416,6 +1420,145 @@ impl BrainApplication {
                 proposal.action_type, proposal.proposal_id, proposal.status
             ),
         })
+    }
+
+    /// Returns the active catalog of governance evolution policies.
+    pub async fn list_evolution_policies(
+        &self,
+    ) -> Result<Vec<v1::EvolutionPolicyDto>, ApplicationError> {
+        Ok(self.evolution_planner.policy_manager().list_policies())
+    }
+
+    /// Generates an immutable evolution plan targeting the current graph version.
+    pub async fn create_evolution_plan(
+        &self,
+        policy_id: &str,
+    ) -> Result<v1::EvolutionPlanDto, ApplicationError> {
+        let current_version = self.compile_status().await?.graph_version;
+        self.evolution_planner
+            .generate_plan(policy_id, current_version)
+            .ok_or_else(|| ApplicationError::Internal(format!("Unknown policy ID '{}'", policy_id)))
+    }
+
+    /// Generates a separate, side-effect-free simulation report for an evolution plan.
+    pub async fn simulate_evolution_plan(
+        &self,
+        plan_id: &str,
+    ) -> Result<v1::EvolutionSimulationReport, ApplicationError> {
+        self.evolution_planner
+            .simulate_plan(plan_id)
+            .ok_or_else(|| {
+                ApplicationError::Internal(format!(
+                    "Plan ID '{}' not found for simulation",
+                    plan_id
+                ))
+            })
+    }
+
+    /// Executes an evolution plan enforcing version-aware optimistic concurrency checks.
+    pub async fn execute_evolution_plan(
+        &self,
+        plan_id: &str,
+        expected_graph_version: u64,
+    ) -> Result<v1::EvolutionAuditRecordDto, ApplicationError> {
+        let audit_record = self
+            .evolution_planner
+            .execute_plan(plan_id, expected_graph_version);
+
+        if audit_record.outcome == v1::EvolutionExecutionOutcome::Applied {
+            self.evolution_audit_history
+                .lock()
+                .push(audit_record.clone());
+        }
+
+        Ok(audit_record)
+    }
+
+    /// Returns the audit history records of executed evolution plans.
+    pub async fn list_evolution_audit_records(
+        &self,
+    ) -> Result<Vec<v1::EvolutionAuditRecordDto>, ApplicationError> {
+        let history = self.evolution_audit_history.lock().clone();
+        Ok(history)
+    }
+}
+
+/// Service query trait for discovering knowledge evolution governance policies.
+pub trait EvolutionPolicyQueryService: Send + Sync {
+    /// Returns active governance policies.
+    fn list_evolution_policies(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::EvolutionPolicyDto>, ApplicationError>> + Send;
+}
+
+impl EvolutionPolicyQueryService for BrainApplication {
+    fn list_evolution_policies(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::EvolutionPolicyDto>, ApplicationError>> + Send
+    {
+        self.list_evolution_policies()
+    }
+}
+
+/// Service command trait for constructing, simulating, and executing evolution plans.
+pub trait EvolutionPlannerCommandService: Send + Sync {
+    /// Creates an evolution plan for a policy.
+    fn create_evolution_plan(
+        &self,
+        policy_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionPlanDto, ApplicationError>> + Send;
+
+    /// Simulates impact of an evolution plan without side effects.
+    fn simulate_evolution_plan(
+        &self,
+        plan_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionSimulationReport, ApplicationError>> + Send;
+
+    /// Executes an evolution plan using optimistic concurrency checks.
+    fn execute_evolution_plan(
+        &self,
+        plan_id: &str,
+        expected_graph_version: u64,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionAuditRecordDto, ApplicationError>> + Send;
+
+    /// Returns audit record log history.
+    fn list_evolution_audit_records(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::EvolutionAuditRecordDto>, ApplicationError>>
+           + Send;
+}
+
+impl EvolutionPlannerCommandService for BrainApplication {
+    fn create_evolution_plan(
+        &self,
+        policy_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionPlanDto, ApplicationError>> + Send
+    {
+        self.create_evolution_plan(policy_id)
+    }
+
+    fn simulate_evolution_plan(
+        &self,
+        plan_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionSimulationReport, ApplicationError>> + Send
+    {
+        self.simulate_evolution_plan(plan_id)
+    }
+
+    fn execute_evolution_plan(
+        &self,
+        plan_id: &str,
+        expected_graph_version: u64,
+    ) -> impl std::future::Future<Output = Result<v1::EvolutionAuditRecordDto, ApplicationError>> + Send
+    {
+        self.execute_evolution_plan(plan_id, expected_graph_version)
+    }
+
+    fn list_evolution_audit_records(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::EvolutionAuditRecordDto>, ApplicationError>>
+           + Send {
+        self.list_evolution_audit_records()
     }
 }
 

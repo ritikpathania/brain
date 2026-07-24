@@ -54,6 +54,8 @@ pub use projections::{
 
 /// Reference implementations for Sprint 1 event dispatch.
 pub mod event_dispatcher;
+/// Long-term knowledge governance policies and planner.
+pub mod evolution;
 /// Reference implementations for Sprint 1 knowledge evolution validator and canonicalizer.
 pub mod evolution_service;
 /// Reference implementations for Sprint 1 memory list projection structures.

@@ -730,3 +730,155 @@ pub struct ReflectionProposalActionReport {
     /// Result summary sentence.
     pub result_summary: String,
 }
+
+/// Governance policy trigger classification kind.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EvolutionTriggerKind {
+    /// Entity confidence score falls below floor threshold.
+    ConfidenceFloor,
+    /// Entity inactive for duration threshold.
+    InactivityExceeded,
+    /// High pairwise concept similarity candidate for merge.
+    HighSimilarityDuplicate,
+    /// Accumulation of superseded facts.
+    SupersededFactAccumulation,
+}
+
+/// Governance policy action classification kind.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EvolutionActionKind {
+    /// Retire non-canonical entity from active graph.
+    RetireEntity,
+    /// Merge duplicate entities into canonical node.
+    MergeEntities,
+    /// Strengthen co-occurrence edge weight.
+    StrengthenEdgeWeight,
+    /// Prune superseded facts from entity memory.
+    PruneFact,
+}
+
+/// Lifecycle status for a Knowledge Evolution Plan.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum EvolutionPlanStatus {
+    /// Draft plan generated, awaiting review/execution.
+    #[default]
+    Draft,
+    /// Plan approved for execution.
+    Approved,
+    /// Plan executed on knowledge graph runtime.
+    Executed,
+    /// Plan execution rolled back.
+    RolledBack,
+}
+
+/// Execution outcome classification for evolution plan execution.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum EvolutionExecutionOutcome {
+    /// Plan executed successfully on target graph version.
+    Applied,
+    /// Graph version conflict: current graph version shifted since plan creation.
+    PlanConflict,
+    /// Plan already executed previously (idempotent replay).
+    AlreadyExecuted,
+    /// Plan not found in catalog.
+    NotFound,
+}
+
+/// Version 1 DTO for a Knowledge Evolution Governance Policy.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvolutionPolicyDto {
+    /// Policy identifier string.
+    pub policy_id: String,
+    /// Deterministic evaluation priority index (lower number evaluated first).
+    pub priority: u32,
+    /// Human-readable policy name.
+    pub name: String,
+    /// Policy description.
+    pub description: String,
+    /// Trigger classification kind.
+    pub trigger_kind: EvolutionTriggerKind,
+    /// Action classification kind.
+    pub action_kind: EvolutionActionKind,
+    /// Whether policy automatically approves candidate plans.
+    pub auto_apply: bool,
+    /// Creation timestamp in milliseconds.
+    pub created_at_ms: u64,
+}
+
+/// Version 1 DTO for an atomic step within an evolution plan.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvolutionStepDto {
+    /// Step identifier string.
+    pub step_id: String,
+    /// Execution sequence index (1-based).
+    pub sequence: u32,
+    /// Evolution action classification.
+    pub action_kind: EvolutionActionKind,
+    /// Primary target concept ID.
+    pub target_id: String,
+    /// Secondary concept ID for merges/relationships.
+    pub secondary_id: Option<String>,
+    /// Step rationale description sentence.
+    pub description: String,
+}
+
+/// Version 1 DTO for an immutable Knowledge Evolution Plan proposal.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvolutionPlanDto {
+    /// Plan identifier string (e.g. "plan_e891a2").
+    pub plan_id: String,
+    /// Expected graph version epoch when plan was generated.
+    pub target_graph_version: u64,
+    /// Governing policy ID that generated plan.
+    pub policy_id: String,
+    /// Lifecycle status.
+    pub status: EvolutionPlanStatus,
+    /// Ordered atomic steps to execute.
+    pub steps: Vec<EvolutionStepDto>,
+    /// Creation timestamp in milliseconds.
+    pub created_at_ms: u64,
+}
+
+/// Version 1 DTO for a separate, side-effect-free Evolution Simulation Report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EvolutionSimulationReport {
+    /// Plan identifier string analyzed.
+    pub plan_id: String,
+    /// Simulation evaluation timestamp in milliseconds.
+    pub simulated_at_ms: u64,
+    /// Estimated count of entities modified/merged.
+    pub entities_affected_count: usize,
+    /// Estimated count of facts pruned/retired.
+    pub facts_retired_count: usize,
+    /// Estimated count of edges strengthened.
+    pub edges_strengthened_count: usize,
+    /// Estimated graph confidence score delta (-1.0 to +1.0).
+    pub confidence_delta: f64,
+    /// Computed risk score (0.0 to 1.0).
+    pub risk_score: f64,
+    /// Risk classification level ("LOW", "MEDIUM", "HIGH").
+    pub risk_level: String,
+    /// Concept entity IDs affected.
+    pub affected_concept_ids: Vec<String>,
+}
+
+/// Version 1 DTO for an immutable Knowledge Evolution Audit Record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvolutionAuditRecordDto {
+    /// Audit record identifier string.
+    pub audit_id: String,
+    /// Graph version epoch sequence after plan execution.
+    pub graph_version: u64,
+    /// Plan identifier executed.
+    pub plan_id: String,
+    /// Governing policy name applied.
+    pub policy_name: String,
+    /// Execution timestamp in milliseconds.
+    pub executed_at_ms: u64,
+    /// Execution outcome.
+    pub outcome: EvolutionExecutionOutcome,
+    /// Number of steps applied.
+    pub steps_applied_count: usize,
+    /// Audit log summary sentence.
+    pub summary: String,
+}

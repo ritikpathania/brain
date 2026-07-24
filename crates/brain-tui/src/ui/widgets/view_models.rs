@@ -1103,3 +1103,203 @@ impl InteractiveReflectionViewModel {
         }
     }
 }
+
+/// Presentation model for a governance policy row item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvolutionPolicyItemViewModel {
+    /// Policy ID.
+    pub policy_id: String,
+    /// Priority badge index string (e.g. "[P10]").
+    pub priority_badge: String,
+    /// Human readable name.
+    pub name: String,
+    /// Trigger classification string.
+    pub trigger_badge: String,
+    /// Action classification string.
+    pub action_badge: String,
+    /// Auto-apply indicator text ("AUTO" / "MANUAL").
+    pub auto_apply_text: String,
+}
+
+/// Presentation model for an evolution plan summary & steps breakdown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvolutionPlanViewModel {
+    /// Plan ID.
+    pub plan_id: String,
+    /// Target graph version text.
+    pub target_version_text: String,
+    /// Governing policy ID.
+    pub policy_id: String,
+    /// Status badge string (e.g. "[DRAFT]", "[EXECUTED]").
+    pub status_badge: String,
+    /// Status badge display color.
+    pub status_color: ratatui::style::Color,
+    /// Total step count string.
+    pub steps_count_text: String,
+    /// Step rationale descriptions.
+    pub step_descriptions: Vec<String>,
+}
+
+/// Presentation model for a separate evolution simulation report.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EvolutionSimulationViewModel {
+    /// Plan ID analyzed.
+    pub plan_id: String,
+    /// Entities affected text.
+    pub entities_affected_text: String,
+    /// Facts retired text.
+    pub facts_retired_text: String,
+    /// Edges strengthened text.
+    pub edges_strengthened_text: String,
+    /// Confidence delta text (e.g. "+12.0%").
+    pub confidence_delta_text: String,
+    /// Risk level badge (e.g. "[LOW RISK]").
+    pub risk_badge: String,
+    /// Risk badge color.
+    pub risk_color: ratatui::style::Color,
+}
+
+/// Presentation model for an evolution audit record history item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvolutionAuditItemViewModel {
+    /// Audit ID.
+    pub audit_id: String,
+    /// Graph version after execution text.
+    pub graph_version_text: String,
+    /// Plan ID executed.
+    pub plan_id: String,
+    /// Governing policy name.
+    pub policy_name: String,
+    /// Outcome badge (e.g. "[APPLIED]", "[CONFLICT]").
+    pub outcome_badge: String,
+    /// Outcome badge color.
+    pub outcome_color: ratatui::style::Color,
+    /// Summary sentence.
+    pub summary: String,
+}
+
+/// Top-level ViewModel composing Knowledge Evolution screen panes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct KnowledgeEvolutionViewModel {
+    /// Active governance policy item models.
+    pub policies: Vec<EvolutionPolicyItemViewModel>,
+    /// Active selected policy index.
+    pub selected_policy_index: Option<usize>,
+    /// Currently focused or generated evolution plan view model.
+    pub active_plan: Option<EvolutionPlanViewModel>,
+    /// Currently active simulation report view model.
+    pub simulation_report: Option<EvolutionSimulationViewModel>,
+    /// Historical audit record view models.
+    pub audit_history: Vec<EvolutionAuditItemViewModel>,
+}
+
+impl KnowledgeEvolutionViewModel {
+    /// Constructs `KnowledgeEvolutionViewModel` from DTO lists.
+    pub fn from_data(
+        policies: &[brain_integrations::dto::v1::EvolutionPolicyDto],
+        selected_policy_idx: Option<usize>,
+        plan: Option<&brain_integrations::dto::v1::EvolutionPlanDto>,
+        sim_report: Option<&brain_integrations::dto::v1::EvolutionSimulationReport>,
+        audit_history: &[brain_integrations::dto::v1::EvolutionAuditRecordDto],
+    ) -> Self {
+        use brain_integrations::dto::v1::{EvolutionExecutionOutcome, EvolutionPlanStatus};
+        use ratatui::style::Color;
+
+        let policy_vms = policies
+            .iter()
+            .map(|p| EvolutionPolicyItemViewModel {
+                policy_id: p.policy_id.clone(),
+                priority_badge: format!("[P{}]", p.priority),
+                name: p.name.clone(),
+                trigger_badge: format!("{:?}", p.trigger_kind),
+                action_badge: format!("{:?}", p.action_kind),
+                auto_apply_text: if p.auto_apply {
+                    "AUTO".to_string()
+                } else {
+                    "MANUAL".to_string()
+                },
+            })
+            .collect();
+
+        let plan_vm = plan.map(|p| {
+            let (status_badge, status_color) = match p.status {
+                EvolutionPlanStatus::Draft => ("[DRAFT]", Color::Yellow),
+                EvolutionPlanStatus::Approved => ("[APPROVED]", Color::Green),
+                EvolutionPlanStatus::Executed => ("[EXECUTED]", Color::Cyan),
+                EvolutionPlanStatus::RolledBack => ("[ROLLED BACK]", Color::Red),
+            };
+
+            let step_descriptions = p
+                .steps
+                .iter()
+                .map(|s| format!("{}. {}", s.sequence, s.description))
+                .collect();
+
+            EvolutionPlanViewModel {
+                plan_id: p.plan_id.clone(),
+                target_version_text: format!("Target Graph Version: v{}", p.target_graph_version),
+                policy_id: p.policy_id.clone(),
+                status_badge: status_badge.to_string(),
+                status_color,
+                steps_count_text: format!("{} steps", p.steps.len()),
+                step_descriptions,
+            }
+        });
+
+        let sim_vm = sim_report.map(|s| {
+            let (risk_badge, risk_color) = match s.risk_level.as_str() {
+                "LOW" => ("[LOW RISK]", Color::Green),
+                "MEDIUM" => ("[MEDIUM RISK]", Color::Yellow),
+                _ => ("[HIGH RISK]", Color::Red),
+            };
+
+            EvolutionSimulationViewModel {
+                plan_id: s.plan_id.clone(),
+                entities_affected_text: format!("Entities Affected: {}", s.entities_affected_count),
+                facts_retired_text: format!("Facts Retired: {}", s.facts_retired_count),
+                edges_strengthened_text: format!(
+                    "Edges Strengthened: {}",
+                    s.edges_strengthened_count
+                ),
+                confidence_delta_text: format!(
+                    "Confidence Delta: {:+.1}%",
+                    s.confidence_delta * 100.0
+                ),
+                risk_badge: risk_badge.to_string(),
+                risk_color,
+            }
+        });
+
+        let audit_vms = audit_history
+            .iter()
+            .map(|a| {
+                let (outcome_badge, outcome_color) = match a.outcome {
+                    EvolutionExecutionOutcome::Applied => ("[APPLIED]", Color::Green),
+                    EvolutionExecutionOutcome::PlanConflict => ("[CONFLICT]", Color::Red),
+                    EvolutionExecutionOutcome::AlreadyExecuted => {
+                        ("[ALREADY EXECUTED]", Color::Yellow)
+                    }
+                    EvolutionExecutionOutcome::NotFound => ("[NOT FOUND]", Color::DarkGray),
+                };
+
+                EvolutionAuditItemViewModel {
+                    audit_id: a.audit_id.clone(),
+                    graph_version_text: format!("v{}", a.graph_version),
+                    plan_id: a.plan_id.clone(),
+                    policy_name: a.policy_name.clone(),
+                    outcome_badge: outcome_badge.to_string(),
+                    outcome_color,
+                    summary: a.summary.clone(),
+                }
+            })
+            .collect();
+
+        Self {
+            policies: policy_vms,
+            selected_policy_index: selected_policy_idx,
+            active_plan: plan_vm,
+            simulation_report: sim_vm,
+            audit_history: audit_vms,
+        }
+    }
+}

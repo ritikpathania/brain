@@ -97,7 +97,8 @@ impl AppRenderer {
             }
             crate::state::TuiMode::RuntimeDashboard
             | crate::state::TuiMode::Explainability
-            | crate::state::TuiMode::InteractiveReflection => (0u16, c, 0u16),
+            | crate::state::TuiMode::InteractiveReflection
+            | crate::state::TuiMode::KnowledgeEvolution => (0u16, c, 0u16),
         };
 
         let mid_chunks = Layout::default()
@@ -214,6 +215,24 @@ impl AppRenderer {
                 area,
                 &vm,
                 &state.interactive_reflection_state,
+                theme,
+            );
+            return;
+        }
+
+        if state.mode == crate::state::TuiMode::KnowledgeEvolution {
+            let vm = crate::ui::widgets::view_models::KnowledgeEvolutionViewModel::from_data(
+                &state.evolution_policies,
+                Some(state.knowledge_evolution_state.selected_policy_index),
+                state.active_evolution_plan.as_ref(),
+                state.evolution_simulation_report.as_ref(),
+                &state.evolution_audit_history,
+            );
+            crate::ui::widgets::draw_knowledge_evolution_screen(
+                f,
+                area,
+                &vm,
+                &state.knowledge_evolution_state,
                 theme,
             );
             return;

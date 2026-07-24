@@ -514,6 +514,8 @@ pub enum TuiMode {
     Explainability,
     /// Actionable reflection proposal review and execution screen.
     InteractiveReflection,
+    /// Knowledge Evolution governance policy and planning screen.
+    KnowledgeEvolution,
 }
 
 /// Active interface overlay state.
@@ -676,6 +678,16 @@ pub struct UiState {
         crate::ui::widgets::interactive_reflection::InteractiveReflectionState,
     /// Catalog of reviewable reflection proposal DTOs.
     pub reflection_proposals: Vec<brain_integrations::dto::v1::ReflectionProposalDto>,
+    /// Stateful container for KnowledgeEvolution session navigation.
+    pub knowledge_evolution_state: crate::ui::widgets::knowledge_evolution::KnowledgeEvolutionState,
+    /// Catalog of governance evolution policies.
+    pub evolution_policies: Vec<brain_integrations::dto::v1::EvolutionPolicyDto>,
+    /// Active draft/executed evolution plan proposal.
+    pub active_evolution_plan: Option<brain_integrations::dto::v1::EvolutionPlanDto>,
+    /// Separate side-effect-free evolution simulation report.
+    pub evolution_simulation_report: Option<brain_integrations::dto::v1::EvolutionSimulationReport>,
+    /// Historical audit records log.
+    pub evolution_audit_history: Vec<brain_integrations::dto::v1::EvolutionAuditRecordDto>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -957,6 +969,12 @@ impl UiState {
             interactive_reflection_state:
                 crate::ui::widgets::interactive_reflection::InteractiveReflectionState::default(),
             reflection_proposals: Vec::new(),
+            knowledge_evolution_state:
+                crate::ui::widgets::knowledge_evolution::KnowledgeEvolutionState::default(),
+            evolution_policies: Vec::new(),
+            active_evolution_plan: None,
+            evolution_simulation_report: None,
+            evolution_audit_history: Vec::new(),
         }
     }
 
@@ -1019,6 +1037,12 @@ impl UiState {
             interactive_reflection_state:
                 crate::ui::widgets::interactive_reflection::InteractiveReflectionState::default(),
             reflection_proposals: Vec::new(),
+            knowledge_evolution_state:
+                crate::ui::widgets::knowledge_evolution::KnowledgeEvolutionState::default(),
+            evolution_policies: Vec::new(),
+            active_evolution_plan: None,
+            evolution_simulation_report: None,
+            evolution_audit_history: Vec::new(),
         }
     }
 
@@ -2106,6 +2130,7 @@ impl UiState {
             TuiMode::RuntimeDashboard => (0, c, 0),
             TuiMode::Explainability => (0, c, 0),
             TuiMode::InteractiveReflection => (0, c, 0),
+            TuiMode::KnowledgeEvolution => (0, c, 0),
         }
     }
 

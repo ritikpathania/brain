@@ -61,6 +61,8 @@ pub mod completion;
 pub mod explainability;
 /// Interactive Reflection review and proposal action screen widget.
 pub mod interactive_reflection;
+/// Knowledge Evolution governance policy & planning screen widget.
+pub mod knowledge_evolution;
 /// Knowledge Graph Explorer read-only inspection screen widget.
 pub mod knowledge_explorer;
 /// Command Palette overlay widget.
@@ -78,6 +80,10 @@ pub use explainability::{
 pub use interactive_reflection::{
     draw_interactive_reflection_screen, InteractiveReflectionIntent, InteractiveReflectionState,
     ProposalDispatchState, ReflectionProposalNavigator,
+};
+pub use knowledge_evolution::{
+    draw_knowledge_evolution_screen, KnowledgeEvolutionIntent, KnowledgeEvolutionNavigator,
+    KnowledgeEvolutionState,
 };
 pub use knowledge_explorer::{draw_knowledge_explorer, ExplorerIntent, KnowledgeExplorerState};
 pub use runtime_dashboard::{draw_runtime_dashboard, RuntimeDashboardState};
