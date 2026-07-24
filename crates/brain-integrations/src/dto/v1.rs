@@ -882,3 +882,104 @@ pub struct EvolutionAuditRecordDto {
     /// Audit log summary sentence.
     pub summary: String,
 }
+
+/// Trigger classification kind for automation rules.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AutomationTriggerKind {
+    /// Cron expression schedule tick.
+    CronSchedule,
+    /// Knowledge graph epoch interval tick.
+    EpochInterval,
+    /// Pending reflection proposals count threshold exceeded.
+    PendingProposalsThreshold,
+}
+
+/// Action classification kind for automation rules.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AutomationActionKind {
+    /// Automatically generate draft evolution plan.
+    AutoGeneratePlan,
+    /// Automatically simulate impact and execute plan.
+    AutoSimulateAndExecute,
+    /// Dispatch notification to human operator.
+    NotifyOperator,
+}
+
+/// State machine lifecycle status for queued automation execution.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum AutomationQueueStatus {
+    /// Item queued, awaiting worker execution.
+    #[default]
+    Queued,
+    /// Item processing in background worker.
+    Running,
+    /// Execution completed successfully.
+    Completed,
+    /// Execution failed after max retries.
+    Failed,
+    /// Execution cancelled by operator.
+    Cancelled,
+}
+
+/// Version 1 DTO for an Automation Orchestration Rule.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AutomationRuleDto {
+    /// Unique rule identifier string (e.g. "rule_nightly_merge").
+    pub rule_id: String,
+    /// Human-readable rule name.
+    pub name: String,
+    /// Trigger classification.
+    pub trigger_kind: AutomationTriggerKind,
+    /// Action classification.
+    pub action_kind: AutomationActionKind,
+    /// Target governance policy ID.
+    pub target_policy_id: String,
+    /// Cron expression string, if applicable (e.g. "0 2 * * *").
+    pub cron_expr: Option<String>,
+    /// Whether rule is currently active.
+    pub is_active: bool,
+    /// Last execution timestamp in milliseconds.
+    pub last_run_ms: Option<u64>,
+}
+
+/// Version 1 DTO for a queued automation execution item.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AutomationQueueItemDto {
+    /// Unique queue item identifier (e.g. "q_99a81c").
+    pub queue_id: String,
+    /// End-to-end execution traceability identifier (e.g. "exec_7721a9").
+    pub automation_execution_id: String,
+    /// Automation rule ID that produced item.
+    pub rule_id: String,
+    /// Target governance policy ID.
+    pub target_policy_id: String,
+    /// Current queue lifecycle status.
+    pub status: AutomationQueueStatus,
+    /// Current retry attempt counter.
+    pub retry_count: u32,
+    /// Scheduled creation timestamp in milliseconds.
+    pub scheduled_at_ms: u64,
+    /// Processing start timestamp in milliseconds.
+    pub started_at_ms: Option<u64>,
+    /// Processing completion timestamp in milliseconds.
+    pub completed_at_ms: Option<u64>,
+}
+
+/// Version 1 DTO for an automation execution history log record.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AutomationExecutionLogDto {
+    /// Unique log record identifier string.
+    pub log_id: String,
+    /// End-to-end execution traceability identifier.
+    pub automation_execution_id: String,
+    /// Automation rule ID executed.
+    pub rule_id: String,
+    /// Evolution plan ID generated/executed, if any.
+    pub plan_id: Option<String>,
+    /// Graph version after execution.
+    pub graph_version: u64,
+    /// Outcome summary text.
+    pub outcome_summary: String,
+    /// Execution timestamp in milliseconds.
+    pub executed_at_ms: u64,
+}

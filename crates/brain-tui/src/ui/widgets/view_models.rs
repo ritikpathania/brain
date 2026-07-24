@@ -1303,3 +1303,144 @@ impl KnowledgeEvolutionViewModel {
         }
     }
 }
+
+/// Presentation model for an automation rule item row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutomationRuleItemViewModel {
+    /// Rule ID.
+    pub rule_id: String,
+    /// Human-readable name.
+    pub name: String,
+    /// Trigger classification string.
+    pub trigger_badge: String,
+    /// Action classification string.
+    pub action_badge: String,
+    /// Active status badge ("ACTIVE" / "PAUSED").
+    pub status_badge: String,
+    /// Active status display color.
+    pub status_color: ratatui::style::Color,
+    /// Target policy ID.
+    pub target_policy_id: String,
+}
+
+/// Presentation model for a scheduled queue item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutomationQueueItemViewModel {
+    /// Queue ID.
+    pub queue_id: String,
+    /// Automation execution ID traceability string.
+    pub automation_execution_id: String,
+    /// Rule ID.
+    pub rule_id: String,
+    /// Queue status badge.
+    pub status_badge: String,
+    /// Status display color.
+    pub status_color: ratatui::style::Color,
+    /// Retry attempt counter text.
+    pub retry_count_text: String,
+}
+
+/// Presentation model for an automation execution log history item.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutomationLogItemViewModel {
+    /// Log ID.
+    pub log_id: String,
+    /// Automation execution ID traceability string.
+    pub automation_execution_id: String,
+    /// Rule ID executed.
+    pub rule_id: String,
+    /// Evolution plan ID text.
+    pub plan_id_text: String,
+    /// Graph version text.
+    pub graph_version_text: String,
+    /// Summary sentence.
+    pub summary: String,
+}
+
+/// Top-level ViewModel composing Knowledge Automation screen panes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KnowledgeAutomationViewModel {
+    /// Automation rules models.
+    pub rules: Vec<AutomationRuleItemViewModel>,
+    /// Selected rule index.
+    pub selected_rule_index: Option<usize>,
+    /// Scheduled execution queue models.
+    pub queue: Vec<AutomationQueueItemViewModel>,
+    /// Execution history log models.
+    pub logs: Vec<AutomationLogItemViewModel>,
+}
+
+impl KnowledgeAutomationViewModel {
+    /// Constructs `KnowledgeAutomationViewModel` from DTO lists.
+    pub fn from_data(
+        rules: &[brain_integrations::dto::v1::AutomationRuleDto],
+        selected_rule_idx: Option<usize>,
+        queue: &[brain_integrations::dto::v1::AutomationQueueItemDto],
+        logs: &[brain_integrations::dto::v1::AutomationExecutionLogDto],
+    ) -> Self {
+        use brain_integrations::dto::v1::AutomationQueueStatus;
+        use ratatui::style::Color;
+
+        let rule_vms = rules
+            .iter()
+            .map(|r| {
+                let (status_badge, status_color) = if r.is_active {
+                    ("[ACTIVE]", Color::Green)
+                } else {
+                    ("[PAUSED]", Color::DarkGray)
+                };
+
+                AutomationRuleItemViewModel {
+                    rule_id: r.rule_id.clone(),
+                    name: r.name.clone(),
+                    trigger_badge: format!("{:?}", r.trigger_kind),
+                    action_badge: format!("{:?}", r.action_kind),
+                    status_badge: status_badge.to_string(),
+                    status_color,
+                    target_policy_id: r.target_policy_id.clone(),
+                }
+            })
+            .collect();
+
+        let queue_vms = queue
+            .iter()
+            .map(|q| {
+                let (status_badge, status_color) = match q.status {
+                    AutomationQueueStatus::Queued => ("[QUEUED]", Color::Yellow),
+                    AutomationQueueStatus::Running => ("[RUNNING]", Color::Cyan),
+                    AutomationQueueStatus::Completed => ("[COMPLETED]", Color::Green),
+                    AutomationQueueStatus::Failed => ("[FAILED]", Color::Red),
+                    AutomationQueueStatus::Cancelled => ("[CANCELLED]", Color::DarkGray),
+                };
+
+                AutomationQueueItemViewModel {
+                    queue_id: q.queue_id.clone(),
+                    automation_execution_id: q.automation_execution_id.clone(),
+                    rule_id: q.rule_id.clone(),
+                    status_badge: status_badge.to_string(),
+                    status_color,
+                    retry_count_text: format!("retries: {}", q.retry_count),
+                }
+            })
+            .collect();
+
+        let log_vms = logs
+            .iter()
+            .map(|l| AutomationLogItemViewModel {
+                log_id: l.log_id.clone(),
+                automation_execution_id: l.automation_execution_id.clone(),
+                rule_id: l.rule_id.clone(),
+                plan_id_text: l.plan_id.clone().unwrap_or_else(|| "none".to_string()),
+                graph_version_text: format!("v{}", l.graph_version),
+                summary: l.outcome_summary.clone(),
+            })
+            .collect();
+
+        Self {
+            rules: rule_vms,
+            selected_rule_index: selected_rule_idx,
+            queue: queue_vms,
+            logs: log_vms,
+        }
+    }
+}

@@ -98,7 +98,8 @@ impl AppRenderer {
             crate::state::TuiMode::RuntimeDashboard
             | crate::state::TuiMode::Explainability
             | crate::state::TuiMode::InteractiveReflection
-            | crate::state::TuiMode::KnowledgeEvolution => (0u16, c, 0u16),
+            | crate::state::TuiMode::KnowledgeEvolution
+            | crate::state::TuiMode::KnowledgeAutomation => (0u16, c, 0u16),
         };
 
         let mid_chunks = Layout::default()
@@ -233,6 +234,23 @@ impl AppRenderer {
                 area,
                 &vm,
                 &state.knowledge_evolution_state,
+                theme,
+            );
+            return;
+        }
+
+        if state.mode == crate::state::TuiMode::KnowledgeAutomation {
+            let vm = crate::ui::widgets::view_models::KnowledgeAutomationViewModel::from_data(
+                &state.automation_rules,
+                Some(state.knowledge_automation_state.selected_rule_index),
+                &state.automation_queue,
+                &state.automation_execution_logs,
+            );
+            crate::ui::widgets::draw_knowledge_automation_screen(
+                f,
+                area,
+                &vm,
+                &state.knowledge_automation_state,
                 theme,
             );
             return;

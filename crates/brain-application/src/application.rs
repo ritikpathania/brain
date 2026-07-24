@@ -72,6 +72,7 @@ pub struct BrainApplication {
         Arc<parking_lot::Mutex<std::collections::HashMap<String, v1::ReflectionProposalDto>>>,
     evolution_planner: Arc<brain_services::evolution::KnowledgeEvolutionPlanner>,
     evolution_audit_history: Arc<parking_lot::Mutex<Vec<v1::EvolutionAuditRecordDto>>>,
+    automation_scheduler: Arc<brain_services::automation::AutomationScheduler>,
 }
 
 impl BrainApplication {
@@ -99,6 +100,9 @@ impl BrainApplication {
                 sub_manager_clone.broadcast(dto);
             }
         });
+        let planner = brain_services::evolution::KnowledgeEvolutionPlanner::new();
+        let scheduler = brain_services::automation::AutomationScheduler::new(planner.clone());
+
         Self {
             runtime,
             subscription_manager,
@@ -106,8 +110,9 @@ impl BrainApplication {
             reflection_proposals: Arc::new(parking_lot::Mutex::new(
                 std::collections::HashMap::new(),
             )),
-            evolution_planner: Arc::new(brain_services::evolution::KnowledgeEvolutionPlanner::new()),
+            evolution_planner: Arc::new(planner),
             evolution_audit_history: Arc::new(parking_lot::Mutex::new(Vec::new())),
+            automation_scheduler: Arc::new(scheduler),
         }
     }
 
@@ -1480,6 +1485,153 @@ impl BrainApplication {
     ) -> Result<Vec<v1::EvolutionAuditRecordDto>, ApplicationError> {
         let history = self.evolution_audit_history.lock().clone();
         Ok(history)
+    }
+
+    /// Returns catalog of active automation orchestration rules.
+    pub async fn list_automation_rules(
+        &self,
+    ) -> Result<Vec<v1::AutomationRuleDto>, ApplicationError> {
+        Ok(self.automation_scheduler.list_rules())
+    }
+
+    /// Returns list of scheduled or processing queue items.
+    pub async fn list_automation_queue(
+        &self,
+    ) -> Result<Vec<v1::AutomationQueueItemDto>, ApplicationError> {
+        Ok(self.automation_scheduler.list_queue())
+    }
+
+    /// Returns list of execution history logs.
+    pub async fn list_automation_execution_logs(
+        &self,
+    ) -> Result<Vec<v1::AutomationExecutionLogDto>, ApplicationError> {
+        Ok(self.automation_scheduler.list_execution_logs())
+    }
+
+    /// Toggles active status of an automation rule.
+    pub async fn toggle_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> Result<v1::AutomationRuleDto, ApplicationError> {
+        self.automation_scheduler
+            .toggle_rule(rule_id)
+            .ok_or_else(|| ApplicationError::Internal(format!("Rule '{}' not found", rule_id)))
+    }
+
+    /// Manually triggers an automation rule, queuing an execution item.
+    pub async fn trigger_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> Result<v1::AutomationQueueItemDto, ApplicationError> {
+        self.automation_scheduler
+            .trigger_rule(rule_id)
+            .ok_or_else(|| {
+                ApplicationError::Internal(format!("Failed to trigger rule '{}'", rule_id))
+            })
+    }
+
+    /// Cancels a queued automation item if not yet completed.
+    pub async fn cancel_queue_item(
+        &self,
+        queue_id: &str,
+    ) -> Result<v1::AutomationQueueItemDto, ApplicationError> {
+        self.automation_scheduler
+            .cancel_queue_item(queue_id)
+            .ok_or_else(|| {
+                ApplicationError::Internal(format!("Failed to cancel queue item '{}'", queue_id))
+            })
+    }
+}
+
+/// Service query trait for discovering automation rules, queue state, and logs.
+pub trait AutomationQueryService: Send + Sync {
+    /// Returns catalog of automation rules.
+    fn list_automation_rules(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::AutomationRuleDto>, ApplicationError>> + Send;
+
+    /// Returns scheduled automation queue items.
+    fn list_automation_queue(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::AutomationQueueItemDto>, ApplicationError>>
+           + Send;
+
+    /// Returns automation execution history logs.
+    fn list_automation_execution_logs(
+        &self,
+    ) -> impl std::future::Future<
+        Output = Result<Vec<v1::AutomationExecutionLogDto>, ApplicationError>,
+    > + Send;
+}
+
+impl AutomationQueryService for BrainApplication {
+    fn list_automation_rules(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::AutomationRuleDto>, ApplicationError>> + Send
+    {
+        self.list_automation_rules()
+    }
+
+    fn list_automation_queue(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<v1::AutomationQueueItemDto>, ApplicationError>>
+           + Send {
+        self.list_automation_queue()
+    }
+
+    fn list_automation_execution_logs(
+        &self,
+    ) -> impl std::future::Future<
+        Output = Result<Vec<v1::AutomationExecutionLogDto>, ApplicationError>,
+    > + Send {
+        self.list_automation_execution_logs()
+    }
+}
+
+/// Service command trait for controlling automation rules and queue items.
+pub trait AutomationCommandService: Send + Sync {
+    /// Toggles active status of an automation rule.
+    fn toggle_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationRuleDto, ApplicationError>> + Send;
+
+    /// Manually triggers execution of an automation rule.
+    fn trigger_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationQueueItemDto, ApplicationError>> + Send;
+
+    /// Cancels a queued execution item.
+    fn cancel_queue_item(
+        &self,
+        queue_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationQueueItemDto, ApplicationError>> + Send;
+}
+
+impl AutomationCommandService for BrainApplication {
+    fn toggle_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationRuleDto, ApplicationError>> + Send
+    {
+        self.toggle_automation_rule(rule_id)
+    }
+
+    fn trigger_automation_rule(
+        &self,
+        rule_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationQueueItemDto, ApplicationError>> + Send
+    {
+        self.trigger_automation_rule(rule_id)
+    }
+
+    fn cancel_queue_item(
+        &self,
+        queue_id: &str,
+    ) -> impl std::future::Future<Output = Result<v1::AutomationQueueItemDto, ApplicationError>> + Send
+    {
+        self.cancel_queue_item(queue_id)
     }
 }
 

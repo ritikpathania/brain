@@ -52,6 +52,8 @@ pub use projections::{
     ReducerRegistry, SearchProjectionReducer, SessionProjectionReducer, StateReducer,
 };
 
+/// Background automation orchestration rules and scheduler.
+pub mod automation;
 /// Reference implementations for Sprint 1 event dispatch.
 pub mod event_dispatcher;
 /// Long-term knowledge governance policies and planner.

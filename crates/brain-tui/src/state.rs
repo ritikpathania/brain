@@ -516,6 +516,8 @@ pub enum TuiMode {
     InteractiveReflection,
     /// Knowledge Evolution governance policy and planning screen.
     KnowledgeEvolution,
+    /// Knowledge Automation scheduled orchestration screen.
+    KnowledgeAutomation,
 }
 
 /// Active interface overlay state.
@@ -688,6 +690,15 @@ pub struct UiState {
     pub evolution_simulation_report: Option<brain_integrations::dto::v1::EvolutionSimulationReport>,
     /// Historical audit records log.
     pub evolution_audit_history: Vec<brain_integrations::dto::v1::EvolutionAuditRecordDto>,
+    /// Stateful container for KnowledgeAutomation session navigation.
+    pub knowledge_automation_state:
+        crate::ui::widgets::knowledge_automation::KnowledgeAutomationState,
+    /// Catalog of automation rules.
+    pub automation_rules: Vec<brain_integrations::dto::v1::AutomationRuleDto>,
+    /// Scheduled background execution queue items.
+    pub automation_queue: Vec<brain_integrations::dto::v1::AutomationQueueItemDto>,
+    /// Automation execution history log records.
+    pub automation_execution_logs: Vec<brain_integrations::dto::v1::AutomationExecutionLogDto>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -975,6 +986,11 @@ impl UiState {
             active_evolution_plan: None,
             evolution_simulation_report: None,
             evolution_audit_history: Vec::new(),
+            knowledge_automation_state:
+                crate::ui::widgets::knowledge_automation::KnowledgeAutomationState::default(),
+            automation_rules: Vec::new(),
+            automation_queue: Vec::new(),
+            automation_execution_logs: Vec::new(),
         }
     }
 
@@ -1043,6 +1059,11 @@ impl UiState {
             active_evolution_plan: None,
             evolution_simulation_report: None,
             evolution_audit_history: Vec::new(),
+            knowledge_automation_state:
+                crate::ui::widgets::knowledge_automation::KnowledgeAutomationState::default(),
+            automation_rules: Vec::new(),
+            automation_queue: Vec::new(),
+            automation_execution_logs: Vec::new(),
         }
     }
 
@@ -2131,6 +2152,7 @@ impl UiState {
             TuiMode::Explainability => (0, c, 0),
             TuiMode::InteractiveReflection => (0, c, 0),
             TuiMode::KnowledgeEvolution => (0, c, 0),
+            TuiMode::KnowledgeAutomation => (0, c, 0),
         }
     }
 
