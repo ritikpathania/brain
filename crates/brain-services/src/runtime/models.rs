@@ -1,6 +1,3 @@
-#![allow(missing_docs)]
-
-use brain_domain::jobs::JobId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
