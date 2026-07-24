@@ -1,35 +1,26 @@
-# Execution Runtime (R23/R24) Progress Ledger
+# Execution Runtime & Distributed Runtime Progress Ledger
 
-Plan: `docs/superpowers/plans/2026-07-25-execution-runtime-plan.md`
-Spec: `docs/superpowers/specs/2026-07-24-execution-runtime-design.md`
+Plan (R23/R24): `docs/superpowers/plans/2026-07-25-execution-runtime-plan.md`
+Spec (R23/R24): `docs/superpowers/specs/2026-07-24-execution-runtime-design.md`
+Plan (R25): `docs/superpowers/plans/2026-07-25-r25-distributed-runtime-plan.md`
+Spec (R25): `docs/superpowers/specs/2026-07-25-r25-distributed-runtime-design.md`
 
-## Status: Phase 1 (R23/R24 Engine) Complete ✅
+## Status: Milestone R25 (Distributed Runtime) Complete ✅
 
 ### Task Ledger
-- **Task 1: Core Runtime Types, Identifiers & Repository Trait (`brain-services::runtime`)** — Complete (Commit `0fff3e8`)
-  - Created `crates/brain-services/src/runtime/models.rs`, `events.rs`, `repository.rs`.
-  - Defined `ExecutionId`, `TaskId`, `ExecutionHeader`, `ExecutionFsmState`, `TaskFsmState`, `JournalEvent`, and `trait ExecutionRepository`.
-- **Task 2: SQLite Execution Repository Implementation** — Complete (Commit `1216e2f`)
-  - Implemented `SqliteExecutionRepository` providing WAL-backed persistence for `execution`, `execution_journal`, `task`, `task_dependency`, and `execution_checkpoint` tables.
-- **Task 3: Deterministic Execution Aggregator & Version Verification** — Complete (Commit `b89b5fe`)
-  - Implemented pure `ExecutionAggregator` projection verifying event sequence numbers and `event.version == expected_version`.
-- **Task 4: Recovery Engine & Replay Engine** — Complete (Commit `d722ea0`)
-  - Implemented `RecoveryEngine` for deterministic journal replay and state reconstruction.
-- **Task 5: Failure Injection & Robustness Integration Suite** — Complete (Commit `5176433`)
-  - Added crash recovery simulation, duplicate replay safety, and worker lease simulation tests.
+- **Task 1: Worker Data Models & WorkerRegistry** — Complete (Commit `cd1fdb1`)
+  - Defined `WorkerDescriptor`, `Resources`, `WorkerStatus`, `WorkerCandidate`, `WorkerRegistry`.
+  - Enforced monotonic timestamp injection and `protocol_version` validation.
+- **Task 2: WorkerTransport Trait & Configurable MockWorkerTransport** — Complete (Commit `d2fc1cc`)
+  - Implemented `TaskLease`, transient `TaskAssignment` DTO, `trait WorkerTransport`, and configurable `MockWorkerTransport`.
+- **Task 3: Pluggable SchedulingPolicy & WorkerScheduler** — Complete (Commit `29fbaaa`)
+  - Implemented `trait SchedulingPolicy`, `LeastLoadedPolicy` operating over `WorkerCandidate` view, and `WorkerScheduler`.
+- **Task 4: Coordinator Ingress Gate & Heartbeat Protocol** — Complete (Commit `1e6d023`)
+  - Implemented `CoordinatorIngressGate` validating heartbeat timestamps and worker health state.
+- **Task 5: End-to-End Distributed Runtime Integration & Failover Suite** — Complete (Commit `4d58eec`)
+  - Implemented end-to-end integration and failover recovery tests in `crates/brain-services/tests/r25_distributed_runtime_tests.rs`.
 
 ---
 
-### Workspace Build & Test Summary
+### Workspace Verification
 - `cargo check --lib -p brain-services`: **PASS** (0 errors, 0 warnings)
-- `cargo test -p brain-services --test execution_repository_tests`: **PASS**
-- `cargo test -p brain-services --test execution_aggregator_tests`: **PASS**
-- `cargo test -p brain-services --test execution_recovery_tests`: **PASS**
-- `cargo test -p brain-services --test execution_failure_injection_tests`: **PASS**
-
----
-
-### Deferred Roadmap Items (Phase 2 — Distributed Runtime R25)
-1. Multi-worker heartbeat polling loops & scheduler lock acquisition across remote nodes (`worker_id` abstraction is already lease-ready).
-2. Distributed work stealing & scheduler ownership transfer.
-3. Multi-node cluster leader election & network transport.
