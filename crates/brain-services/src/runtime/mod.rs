@@ -868,12 +868,15 @@ pub mod aggregator;
 pub mod events;
 pub mod models;
 pub mod repository;
+pub mod recovery;
 pub mod sqlite_repository;
 
 pub use aggregator::*;
 pub use events::*;
 pub use models::*;
 pub use repository::*;
+pub use recovery::*;
 pub use sqlite_repository::*;
+
 
 
