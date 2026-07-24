@@ -25,6 +25,9 @@ pub use runtime::{
     RuntimeState, StartupReport,
 };
 
+/// Distributed runtime architecture and worker registry.
+pub mod distributed;
+
 /// Agent execution pipeline and orchestration loop.
 pub mod agent;
 
