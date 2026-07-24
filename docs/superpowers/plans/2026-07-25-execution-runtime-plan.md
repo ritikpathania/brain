@@ -32,7 +32,7 @@
 - Consumes: `JobId` from `brain_domain::jobs::JobId`
 - Produces: `ExecutionId`, `TaskId`, `ExecutionHeader`, `ExecutionFsmState`, `TaskFsmState`, `JournalEvent`, `trait ExecutionRepository`
 
-- [ ] **Step 1: Write failing runtime types and repository trait unit tests**
+- [x] **Step 1: Write failing runtime types and repository trait unit tests**
 
 ```rust
 #[cfg(test)]
@@ -67,12 +67,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `cargo test -p brain-services --lib runtime::models::tests`
 Expected: FAIL with "module `runtime` not found"
 
-- [ ] **Step 3: Implement runtime models, events, and trait ExecutionRepository**
+- [x] **Step 3: Implement runtime models, events, and trait ExecutionRepository**
 
 In `crates/brain-services/src/runtime/models.rs`:
 ```rust
@@ -295,12 +295,12 @@ In `crates/brain-services/src/lib.rs`:
 pub mod runtime;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib runtime::models::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/runtime/
@@ -321,7 +321,7 @@ git commit -m "feat(services): implement core runtime models, event vocabulary, 
 - Consumes: `trait ExecutionRepository`, `JournalEvent`, `ExecutionHeader`
 - Produces: `SqliteExecutionRepository`
 
-- [ ] **Step 1: Write integration tests for SqliteExecutionRepository**
+- [x] **Step 1: Write integration tests for SqliteExecutionRepository**
 
 In `crates/brain-services/tests/execution_repository_tests.rs`:
 ```rust
@@ -356,12 +356,12 @@ fn test_sqlite_execution_repository_contract() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test execution_repository_tests`
 Expected: FAIL with "cannot find type `SqliteExecutionRepository`"
 
-- [ ] **Step 3: Implement SqliteExecutionRepository implementing ExecutionRepository**
+- [x] **Step 3: Implement SqliteExecutionRepository implementing ExecutionRepository**
 
 In `crates/brain-services/src/runtime/sqlite_repository.rs`:
 ```rust
@@ -570,12 +570,12 @@ pub use repository::*;
 pub use sqlite_repository::*;
 ```
 
-- [ ] **Step 4: Verify integration tests pass**
+- [x] **Step 4: Verify integration tests pass**
 
 Run: `cargo test -p brain-services --test execution_repository_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/runtime/
@@ -596,7 +596,7 @@ git commit -m "feat(services): implement SqliteExecutionRepository conforming to
 - Consumes: `JournalEvent`, `ExecutionHeader`
 - Produces: `ExecutionAggregator`, `ExecutionProjection`
 
-- [ ] **Step 1: Write tests for version-verified deterministic aggregator**
+- [x] **Step 1: Write tests for version-verified deterministic aggregator**
 
 In `crates/brain-services/tests/execution_aggregator_tests.rs`:
 ```rust
@@ -628,12 +628,12 @@ fn test_execution_aggregator_verifies_event_version() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test execution_aggregator_tests`
 Expected: FAIL with "cannot find type `ExecutionAggregator`"
 
-- [ ] **Step 3: Implement ExecutionAggregator with version verification**
+- [x] **Step 3: Implement ExecutionAggregator with version verification**
 
 In `crates/brain-services/src/runtime/aggregator.rs`:
 ```rust
@@ -799,12 +799,12 @@ pub use repository::*;
 pub use sqlite_repository::*;
 ```
 
-- [ ] **Step 4: Verify aggregator unit tests pass**
+- [x] **Step 4: Verify aggregator unit tests pass**
 
 Run: `cargo test -p brain-services --test execution_aggregator_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/runtime/aggregator.rs
@@ -825,7 +825,7 @@ git commit -m "feat(services): implement pure ExecutionAggregator with version v
 - Consumes: `ExecutionRepository`, `ExecutionAggregator`, `JournalEvent`
 - Produces: `RecoveryEngine`
 
-- [ ] **Step 1: Write integration tests for RecoveryEngine**
+- [x] **Step 1: Write integration tests for RecoveryEngine**
 
 In `crates/brain-services/tests/execution_recovery_tests.rs`:
 ```rust
@@ -867,12 +867,12 @@ fn test_recovery_engine_reconstructs_running_execution() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test execution_recovery_tests`
 Expected: FAIL with "cannot find type `RecoveryEngine`"
 
-- [ ] **Step 3: Implement RecoveryEngine**
+- [x] **Step 3: Implement RecoveryEngine**
 
 In `crates/brain-services/src/runtime/recovery.rs`:
 ```rust
@@ -925,12 +925,12 @@ pub use recovery::*;
 pub use sqlite_repository::*;
 ```
 
-- [ ] **Step 4: Verify recovery integration tests pass**
+- [x] **Step 4: Verify recovery integration tests pass**
 
 Run: `cargo test -p brain-services --test execution_recovery_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/runtime/recovery.rs
@@ -946,7 +946,7 @@ git commit -m "feat(services): implement RecoveryEngine for deterministic journa
 - Create: `crates/brain-services/tests/execution_failure_injection_tests.rs`
 - Test: Run full workspace test suite `cargo test --workspace`
 
-- [ ] **Step 1: Write failure injection tests (crash before/after commit, duplicate replay, lease expiry)**
+- [x] **Step 1: Write failure injection tests (crash before/after commit, duplicate replay, lease expiry)**
 
 In `crates/brain-services/tests/execution_failure_injection_tests.rs`:
 ```rust
@@ -1010,17 +1010,17 @@ fn test_failure_injection_crash_and_recovery_replay() {
 }
 ```
 
-- [ ] **Step 2: Run failure injection tests**
+- [x] **Step 2: Run failure injection tests**
 
 Run: `cargo test -p brain-services --test execution_failure_injection_tests`
 Expected: PASS
 
-- [ ] **Step 3: Run full workspace test suite**
+- [x] **Step 3: Run full workspace test suite**
 
 Run: `cargo test --workspace`
 Expected: PASS (all domain and service tests pass cleanly)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/brain-services/tests/execution_failure_injection_tests.rs
