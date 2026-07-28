@@ -1,8 +1,10 @@
+pub mod executor;
 pub mod intent_log;
 pub mod materializer;
 pub mod models;
 pub mod sqlite_intent_log;
 
+pub use executor::*;
 pub use intent_log::*;
 pub use materializer::*;
 pub use models::*;
