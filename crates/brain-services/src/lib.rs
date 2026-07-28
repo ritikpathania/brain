@@ -31,6 +31,9 @@ pub mod distributed;
 /// Worker runtime and execution engine.
 pub mod worker;
 
+/// Coordinator task orchestration pipeline.
+pub mod coordinator;
+
 /// Agent execution pipeline and orchestration loop.
 pub mod agent;
 
