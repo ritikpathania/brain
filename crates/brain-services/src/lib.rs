@@ -34,6 +34,9 @@ pub mod worker;
 /// Coordinator task orchestration pipeline.
 pub mod coordinator;
 
+/// High availability foundations & intent log WAL.
+pub mod ha;
+
 /// Agent execution pipeline and orchestration loop.
 pub mod agent;
 
@@ -53,6 +56,9 @@ pub mod query;
 
 /// Knowledge reasoning and inference engine (Phase 5 Milestone 5.2).
 pub mod reasoning;
+
+/// Planning runtime & Goal decomposition engine (Phase 7 Milestone 7.1).
+pub mod planning;
 
 /// Graph projections and utilities.
 pub mod graph;
