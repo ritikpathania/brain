@@ -1,3 +1,4 @@
+pub mod consensus;
 pub mod executor;
 pub mod intent_log;
 pub mod materializer;
@@ -5,6 +6,7 @@ pub mod models;
 pub mod replay;
 pub mod sqlite_intent_log;
 
+pub use consensus::*;
 pub use executor::*;
 pub use intent_log::*;
 pub use materializer::*;
