@@ -31,7 +31,7 @@
 - Consumes: `TaskId`, `TaskAssignment`, `TaskLease` from `runtime` and `distributed`
 - Produces: `TaskResult`, `TaskExecutionError`, `TaskExecutionEvent`, `TaskExecutionContext`
 
-- [ ] **Step 1: Write failing unit tests for TaskExecutionContext**
+- [x] **Step 1: Write failing unit tests for TaskExecutionContext**
 
 ```rust
 #[cfg(test)]
@@ -57,12 +57,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib worker::context::tests`
 Expected: FAIL with "module `worker` not found"
 
-- [ ] **Step 3: Implement TaskResult, TaskExecutionError, TaskExecutionEvent, and TaskExecutionContext**
+- [x] **Step 3: Implement TaskResult, TaskExecutionError, TaskExecutionEvent, and TaskExecutionContext**
 
 In `crates/brain-services/src/worker/models.rs`:
 ```rust
@@ -138,12 +138,12 @@ In `crates/brain-services/src/lib.rs`:
 pub mod worker;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib worker::context::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/worker/
@@ -164,7 +164,7 @@ git commit -m "feat(worker): implement TaskResult, TaskExecutionError, TaskExecu
 - Consumes: `TaskId`
 - Produces: `ArtifactKind`, `ArtifactError`, `trait ArtifactStore`, `LocalFilesystemArtifactStore`
 
-- [ ] **Step 1: Write integration tests for LocalFilesystemArtifactStore**
+- [x] **Step 1: Write integration tests for LocalFilesystemArtifactStore**
 
 In `crates/brain-services/tests/artifact_store_tests.rs`:
 ```rust
@@ -195,12 +195,12 @@ async fn test_local_filesystem_artifact_store_staging_and_publishing() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test artifact_store_tests`
 Expected: FAIL with "cannot find type `LocalFilesystemArtifactStore`"
 
-- [ ] **Step 3: Implement ArtifactKind, ArtifactStore trait, and LocalFilesystemArtifactStore**
+- [x] **Step 3: Implement ArtifactKind, ArtifactStore trait, and LocalFilesystemArtifactStore**
 
 In `crates/brain-services/src/worker/artifact.rs`:
 ```rust
@@ -290,12 +290,12 @@ pub use context::*;
 pub use models::*;
 ```
 
-- [ ] **Step 4: Verify artifact store tests pass**
+- [x] **Step 4: Verify artifact store tests pass**
 
 Run: `cargo test -p brain-services --test artifact_store_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/worker/artifact.rs
@@ -317,7 +317,7 @@ git commit -m "feat(worker): implement ArtifactKind, ArtifactStore trait, and Lo
 - Consumes: `TaskAssignment`, `TaskExecutionContext`
 - Produces: `trait TaskExecutor`, `trait TaskExecutorFactory`, `InProcessExecutor`
 
-- [ ] **Step 1: Write integration tests for InProcessExecutor with cancellation**
+- [x] **Step 1: Write integration tests for InProcessExecutor with cancellation**
 
 In `crates/brain-services/tests/in_process_executor_tests.rs`:
 ```rust
@@ -363,12 +363,12 @@ async fn test_in_process_executor_execution_and_cancellation() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test in_process_executor_tests`
 Expected: FAIL with "cannot find type `InProcessExecutor`"
 
-- [ ] **Step 3: Implement TaskExecutor trait, TaskExecutorFactory trait, and InProcessExecutor**
+- [x] **Step 3: Implement TaskExecutor trait, TaskExecutorFactory trait, and InProcessExecutor**
 
 In `crates/brain-services/src/worker/executor.rs`:
 ```rust
@@ -445,12 +445,12 @@ pub use executor::*;
 pub use models::*;
 ```
 
-- [ ] **Step 4: Verify in-process executor unit tests pass**
+- [x] **Step 4: Verify in-process executor unit tests pass**
 
 Run: `cargo test -p brain-services --test in_process_executor_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/worker/executor.rs
@@ -516,12 +516,12 @@ async fn test_timeout_and_retry_executor_decorator_composition() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test executor_decorator_tests`
 Expected: FAIL with "cannot find type `TimeoutExecutor`"
 
-- [ ] **Step 3: Implement TimeoutExecutor and RetryExecutor**
+- [x] **Step 3: Implement TimeoutExecutor and RetryExecutor**
 
 In `crates/brain-services/src/worker/decorators.rs`:
 ```rust
@@ -609,12 +609,12 @@ pub use executor::*;
 pub use models::*;
 ```
 
-- [ ] **Step 4: Verify decorator unit tests pass**
+- [x] **Step 4: Verify decorator unit tests pass**
 
 Run: `cargo test -p brain-services --test executor_decorator_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/worker/decorators.rs
@@ -685,12 +685,12 @@ async fn test_end_to_end_worker_execution_staging_and_decorators() {
 Run: `cargo test -p brain-services --test r26_worker_runtime_tests`
 Expected: PASS
 
-- [ ] **Step 3: Run full workspace check**
+- [x] **Step 3: Run full workspace check**
 
 Run: `cargo check --workspace`
 Expected: PASS (all workspace crates compile cleanly)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/brain-services/tests/r26_worker_runtime_tests.rs
