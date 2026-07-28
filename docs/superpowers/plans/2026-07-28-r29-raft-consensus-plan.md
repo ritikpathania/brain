@@ -33,7 +33,7 @@
 - Consumes: `SequenceNumber`, `EventId`, `EffectId`, `CoordinatorEffect`
 - Produces: `ReplicatedIntent`, `LocalExecutionState`, `LeadershipEvent`
 
-- [ ] **Step 1: Write failing unit tests for consensus models**
+- [x] **Step 1: Write failing unit tests for consensus models**
 
 ```rust
 #[cfg(test)]
@@ -63,12 +63,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib ha::consensus::models::tests`
 Expected: FAIL with "module `consensus` not found"
 
-- [ ] **Step 3: Implement ReplicatedIntent, LocalExecutionState, and LeadershipEvent**
+- [x] **Step 3: Implement ReplicatedIntent, LocalExecutionState, and LeadershipEvent**
 
 In `crates/brain-services/src/ha/consensus/models.rs`:
 ```rust
@@ -127,12 +127,12 @@ pub use replay::*;
 pub use sqlite_intent_log::*;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib ha::consensus::models::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/consensus/
@@ -153,7 +153,7 @@ git commit -m "feat(ha): implement ReplicatedIntent, LocalExecutionState, and Le
 - Consumes: `LeadershipEvent`
 - Produces: `LeaderLeaseManager`
 
-- [ ] **Step 1: Write unit tests for LeaderLeaseManager dual guard**
+- [x] **Step 1: Write unit tests for LeaderLeaseManager dual guard**
 
 ```rust
 #[cfg(test)]
@@ -175,12 +175,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib ha::consensus::lease_manager::tests`
 Expected: FAIL with "cannot find type `LeaderLeaseManager`"
 
-- [ ] **Step 3: Implement LeaderLeaseManager**
+- [x] **Step 3: Implement LeaderLeaseManager**
 
 In `crates/brain-services/src/ha/consensus/lease_manager.rs`:
 ```rust
@@ -243,12 +243,12 @@ pub use lease_manager::*;
 pub use models::*;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib ha::consensus::lease_manager::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/consensus/lease_manager.rs
@@ -269,7 +269,7 @@ git commit -m "feat(ha): implement LeaderLeaseManager and dual-guard lease fenci
 - Consumes: `IntentRecord`, `SequenceNumber`, `EffectId`
 - Produces: `CommitNotifier`, `RaftIntentLog`
 
-- [ ] **Step 1: Write integration tests for RaftIntentLog and CommitNotifier**
+- [x] **Step 1: Write integration tests for RaftIntentLog and CommitNotifier**
 
 In `crates/brain-services/tests/raft_consensus_tests.rs`:
 ```rust
@@ -302,12 +302,12 @@ async fn test_raft_intent_log_commit_notifier_and_status_tracking() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test raft_consensus_tests`
 Expected: FAIL with "cannot find type `MockRaftIntentLog`"
 
-- [ ] **Step 3: Implement CommitNotifier and MockRaftIntentLog**
+- [x] **Step 3: Implement CommitNotifier and MockRaftIntentLog**
 
 In `crates/brain-services/src/ha/consensus/raft_log.rs`:
 ```rust
@@ -428,12 +428,12 @@ pub use models::*;
 pub use raft_log::*;
 ```
 
-- [ ] **Step 4: Verify Raft intent log integration tests pass**
+- [x] **Step 4: Verify Raft intent log integration tests pass**
 
 Run: `cargo test -p brain-services --test raft_consensus_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/consensus/raft_log.rs
@@ -537,17 +537,17 @@ async fn test_scenario_5_network_partition_lease_expiration_aborts_effect_dispat
 }
 ```
 
-- [ ] **Step 2: Run end-to-end integration tests**
+- [x] **Step 2: Run end-to-end integration tests**
 
 Run: `cargo test -p brain-services --test r29_raft_consensus_tests`
 Expected: PASS
 
-- [ ] **Step 3: Run full workspace check**
+- [x] **Step 3: Run full workspace check**
 
 Run: `cargo check --workspace`
 Expected: PASS (all workspace crates compile cleanly)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/brain-services/tests/r29_raft_consensus_tests.rs
