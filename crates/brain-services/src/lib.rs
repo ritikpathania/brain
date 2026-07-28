@@ -28,6 +28,9 @@ pub use runtime::{
 /// Distributed runtime architecture and worker registry.
 pub mod distributed;
 
+/// Worker runtime and execution engine.
+pub mod worker;
+
 /// Agent execution pipeline and orchestration loop.
 pub mod agent;
 
@@ -44,6 +47,9 @@ pub use jobs::*;
 
 /// Query services and DTO layer.
 pub mod query;
+
+/// Knowledge reasoning and inference engine (Phase 5 Milestone 5.2).
+pub mod reasoning;
 
 /// Graph projections and utilities.
 pub mod graph;
