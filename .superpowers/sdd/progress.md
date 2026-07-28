@@ -1,24 +1,25 @@
-# Execution Runtime & Distributed Runtime Progress Ledger
+# Execution Runtime, Distributed Runtime & Worker Engine Progress Ledger
 
 Plan (R23/R24): `docs/superpowers/plans/2026-07-25-execution-runtime-plan.md`
 Spec (R23/R24): `docs/superpowers/specs/2026-07-24-execution-runtime-design.md`
 Plan (R25): `docs/superpowers/plans/2026-07-25-r25-distributed-runtime-plan.md`
 Spec (R25): `docs/superpowers/specs/2026-07-25-r25-distributed-runtime-design.md`
+Plan (R26): `docs/superpowers/plans/2026-07-28-r26-worker-runtime-plan.md`
+Spec (R26): `docs/superpowers/specs/2026-07-25-r26-worker-runtime-design.md`
 
-## Status: Milestone R25 (Distributed Runtime) Complete ✅
+## Status: Milestone R26 (Worker Runtime & Execution Engine) Complete ✅
 
 ### Task Ledger
-- **Task 1: Worker Data Models & WorkerRegistry** — Complete (Commit `cd1fdb1`)
-  - Defined `WorkerDescriptor`, `Resources`, `WorkerStatus`, `WorkerCandidate`, `WorkerRegistry`.
-  - Enforced monotonic timestamp injection and `protocol_version` validation.
-- **Task 2: WorkerTransport Trait & Configurable MockWorkerTransport** — Complete (Commit `d2fc1cc`)
-  - Implemented `TaskLease`, transient `TaskAssignment` DTO, `trait WorkerTransport`, and configurable `MockWorkerTransport`.
-- **Task 3: Pluggable SchedulingPolicy & WorkerScheduler** — Complete (Commit `29fbaaa`)
-  - Implemented `trait SchedulingPolicy`, `LeastLoadedPolicy` operating over `WorkerCandidate` view, and `WorkerScheduler`.
-- **Task 4: Coordinator Ingress Gate & Heartbeat Protocol** — Complete (Commit `1e6d023`)
-  - Implemented `CoordinatorIngressGate` validating heartbeat timestamps and worker health state.
-- **Task 5: End-to-End Distributed Runtime Integration & Failover Suite** — Complete (Commit `4d58eec`)
-  - Implemented end-to-end integration and failover recovery tests in `crates/brain-services/tests/r25_distributed_runtime_tests.rs`.
+- **Task 1: Worker Core Models & TaskExecutionContext** — Complete (Commit `228570a`)
+  - Defined `TaskResult`, `TaskExecutionError`, `TaskExecutionEvent`, and `TaskExecutionContext` with monotonic `Instant` timing.
+- **Task 2: ArtifactStore Trait & Local Staging Implementation** — Complete (Commit `0180460`)
+  - Implemented `ArtifactKind`, `trait ArtifactStore`, and `LocalFilesystemArtifactStore` for local staging.
+- **Task 3: TaskExecutor Trait, TaskExecutorFactory, & InProcessExecutor** — Complete (Commit `f169d0d`)
+  - Implemented `trait TaskExecutor`, `trait TaskExecutorFactory`, and `InProcessExecutor` with `CancellationToken` support.
+- **Task 4: Composable Executor Decorators** — Complete (Commit `415c4dc`)
+  - Implemented `TimeoutExecutor` and `RetryExecutor` composable wrappers.
+- **Task 5: End-to-End Worker Runtime & Execution Suite** — Complete (Commit `2928554`)
+  - Added end-to-end worker runtime and decorator integration tests in `crates/brain-services/tests/r26_worker_runtime_tests.rs`.
 
 ---
 
