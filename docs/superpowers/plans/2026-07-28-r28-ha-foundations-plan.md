@@ -32,7 +32,7 @@
 - Consumes: `TaskId`, `ExecutionId`, `JobId`, `TaskAssignment`, `JournalEvent`, `TaskExecutionEvent`
 - Produces: `SequenceNumber`, `EventId`, `EffectId`, `IntentStatus`, `CoordinatorDecision`, `CoordinatorEffect`, `IntentRecord`
 
-- [ ] **Step 1: Write failing unit tests for HA models and newtypes**
+- [x] **Step 1: Write failing unit tests for HA models and newtypes**
 
 ```rust
 #[cfg(test)]
@@ -61,12 +61,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib ha::models::tests`
 Expected: FAIL with "module `ha` not found"
 
-- [ ] **Step 3: Implement HA newtypes, decision/effect enums, and IntentRecord**
+- [x] **Step 3: Implement HA newtypes, decision/effect enums, and IntentRecord**
 
 In `crates/brain-services/src/ha/models.rs`:
 ```rust
@@ -137,12 +137,12 @@ In `crates/brain-services/src/lib.rs`:
 pub mod ha;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib ha::models::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/
@@ -163,7 +163,7 @@ git commit -m "feat(ha): implement SequenceNumber, EventId, EffectId, IntentStat
 - Consumes: `CoordinatorDecision`
 - Produces: `CoordinatorDecisionMaterializer`, `Vec<CoordinatorEffect>`
 
-- [ ] **Step 1: Write unit tests for CoordinatorDecisionMaterializer**
+- [x] **Step 1: Write unit tests for CoordinatorDecisionMaterializer**
 
 ```rust
 #[cfg(test)]
@@ -183,12 +183,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib ha::materializer::tests`
 Expected: FAIL with "cannot find type `CoordinatorDecisionMaterializer`"
 
-- [ ] **Step 3: Implement CoordinatorDecisionMaterializer**
+- [x] **Step 3: Implement CoordinatorDecisionMaterializer**
 
 In `crates/brain-services/src/ha/materializer.rs`:
 ```rust
@@ -222,12 +222,12 @@ pub use materializer::*;
 pub use models::*;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib ha::materializer::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/materializer.rs
@@ -249,7 +249,7 @@ git commit -m "feat(ha): implement CoordinatorDecisionMaterializer preserving ge
 - Consumes: `IntentRecord`, `SequenceNumber`, `EffectId`, `IntentStatus`
 - Produces: `trait IntentLog`, `SqliteIntentLog`, `IntentLogError`
 
-- [ ] **Step 1: Write integration tests for SqliteIntentLog**
+- [x] **Step 1: Write integration tests for SqliteIntentLog**
 
 In `crates/brain-services/tests/intent_log_tests.rs`:
 ```rust
@@ -285,12 +285,12 @@ async fn test_sqlite_intent_log_append_status_update_and_pending_scan() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test intent_log_tests`
 Expected: FAIL with "cannot find type `SqliteIntentLog`"
 
-- [ ] **Step 3: Implement IntentLog trait and SqliteIntentLog**
+- [x] **Step 3: Implement IntentLog trait and SqliteIntentLog**
 
 In `crates/brain-services/src/ha/intent_log.rs`:
 ```rust
@@ -470,12 +470,12 @@ pub use models::*;
 pub use sqlite_intent_log::*;
 ```
 
-- [ ] **Step 4: Verify intent log integration tests pass**
+- [x] **Step 4: Verify intent log integration tests pass**
 
 Run: `cargo test -p brain-services --test intent_log_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/intent_log.rs
@@ -520,12 +520,12 @@ async fn test_effect_executor_routing_and_idempotency() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test effect_executor_tests`
 Expected: FAIL with "cannot find type `MockEffectExecutor`"
 
-- [ ] **Step 3: Implement CoordinatorEffectExecutor trait and MockEffectExecutor**
+- [x] **Step 3: Implement CoordinatorEffectExecutor trait and MockEffectExecutor**
 
 In `crates/brain-services/src/ha/executor.rs`:
 ```rust
@@ -601,12 +601,12 @@ pub use models::*;
 pub use sqlite_intent_log::*;
 ```
 
-- [ ] **Step 4: Verify effect executor unit tests pass**
+- [x] **Step 4: Verify effect executor unit tests pass**
 
 Run: `cargo test -p brain-services --test effect_executor_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/executor.rs
@@ -669,12 +669,12 @@ async fn test_end_to_end_intent_replay_engine_crash_recovery() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test r28_ha_foundations_tests`
 Expected: FAIL with "cannot find type `IntentReplayEngine`"
 
-- [ ] **Step 3: Implement IntentReplayEngine**
+- [x] **Step 3: Implement IntentReplayEngine**
 
 In `crates/brain-services/src/ha/replay.rs`:
 ```rust
@@ -733,17 +733,17 @@ pub use replay::*;
 pub use sqlite_intent_log::*;
 ```
 
-- [ ] **Step 4: Verify end-to-end integration tests pass**
+- [x] **Step 4: Verify end-to-end integration tests pass**
 
 Run: `cargo test -p brain-services --test r28_ha_foundations_tests`
 Expected: PASS
 
-- [ ] **Step 5: Run full workspace check**
+- [x] **Step 5: Run full workspace check**
 
 Run: `cargo check --workspace`
 Expected: PASS (all workspace crates compile cleanly)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add crates/brain-services/src/ha/replay.rs
