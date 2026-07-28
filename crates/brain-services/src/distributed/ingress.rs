@@ -15,13 +15,15 @@ pub enum IngressError {
     Storage(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskLeaseItem {
     pub task_id: TaskId,
     pub lease_id: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorkerHeartbeat {
     pub worker_id: String,
     pub timestamp: u64,
