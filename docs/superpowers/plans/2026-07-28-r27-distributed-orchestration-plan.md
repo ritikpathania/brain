@@ -29,7 +29,7 @@
 - Consumes: `TaskId`, `ExecutionId`, `JobId`
 - Produces: `CoordinatorState`
 
-- [ ] **Step 1: Write failing unit tests for CoordinatorState**
+- [x] **Step 1: Write failing unit tests for CoordinatorState**
 
 ```rust
 #[cfg(test)]
@@ -44,12 +44,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib coordinator::state::tests`
 Expected: FAIL with "module `coordinator` not found"
 
-- [ ] **Step 3: Implement CoordinatorState**
+- [x] **Step 3: Implement CoordinatorState**
 
 In `crates/brain-services/src/coordinator/state.rs`:
 ```rust
@@ -93,12 +93,12 @@ In `crates/brain-services/src/lib.rs`:
 pub mod coordinator;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib coordinator::state::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/coordinator/
@@ -119,7 +119,7 @@ git commit -m "feat(coordinator): implement CoordinatorState aggregate root scaf
 - Consumes: `WorkerDescriptor`, `WorkerStatus`, `WorkerHeartbeat`, `TaskExecutionEvent`
 - Produces: `ExternalEvent`, `InternalEvent`, `CoordinatorEvent`
 
-- [ ] **Step 1: Write unit tests for CoordinatorEvent variants**
+- [x] **Step 1: Write unit tests for CoordinatorEvent variants**
 
 ```rust
 #[cfg(test)]
@@ -147,12 +147,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --lib coordinator::events::tests`
 Expected: FAIL with "cannot find type `ExternalEvent`"
 
-- [ ] **Step 3: Implement ExternalEvent, InternalEvent, and CoordinatorEvent**
+- [x] **Step 3: Implement ExternalEvent, InternalEvent, and CoordinatorEvent**
 
 In `crates/brain-services/src/coordinator/events.rs`:
 ```rust
@@ -217,12 +217,12 @@ pub use events::*;
 pub use state::*;
 ```
 
-- [ ] **Step 4: Verify unit tests pass**
+- [x] **Step 4: Verify unit tests pass**
 
 Run: `cargo test -p brain-services --lib coordinator::events::tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/coordinator/events.rs
@@ -243,7 +243,7 @@ git commit -m "feat(coordinator): implement ExternalEvent, InternalEvent, and Co
 - Consumes: `TaskId`, `ExecutionId`, `JobId`
 - Produces: `TaskNode`, `QueueManager`, `QueueError`
 
-- [ ] **Step 1: Write integration tests for QueueManager admission control and priority sorting**
+- [x] **Step 1: Write integration tests for QueueManager admission control and priority sorting**
 
 In `crates/brain-services/tests/queue_manager_tests.rs`:
 ```rust
@@ -273,12 +273,12 @@ fn test_queue_manager_enqueue_and_priority_sorting() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test queue_manager_tests`
 Expected: FAIL with "cannot find type `QueueManager`"
 
-- [ ] **Step 3: Implement TaskNode, QueueManager, and QueueSnapshot**
+- [x] **Step 3: Implement TaskNode, QueueManager, and QueueSnapshot**
 
 In `crates/brain-services/src/coordinator/queue.rs`:
 ```rust
@@ -382,12 +382,12 @@ pub use queue::*;
 pub use state::*;
 ```
 
-- [ ] **Step 4: Verify queue manager unit tests pass**
+- [x] **Step 4: Verify queue manager unit tests pass**
 
 Run: `cargo test -p brain-services --test queue_manager_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/coordinator/queue.rs
@@ -409,7 +409,7 @@ git commit -m "feat(coordinator): implement TaskNode, QueueManager, and QueueSna
 - Consumes: `QueueSnapshot`, `WorkerCandidate`, `SchedulingPolicy`
 - Produces: `SchedulingDecision`, `SchedulingEngine`
 
-- [ ] **Step 1: Write integration tests for SchedulingEngine**
+- [x] **Step 1: Write integration tests for SchedulingEngine**
 
 In `crates/brain-services/tests/scheduling_engine_tests.rs`:
 ```rust
@@ -461,12 +461,12 @@ fn test_scheduling_engine_pure_placement_evaluation() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
 
 Run: `cargo test -p brain-services --test scheduling_engine_tests`
 Expected: FAIL with "cannot find type `SchedulingEngine`"
 
-- [ ] **Step 3: Implement SchedulingDecision, WorkerSnapshot, and SchedulingEngine**
+- [x] **Step 3: Implement SchedulingDecision, WorkerSnapshot, and SchedulingEngine**
 
 In `crates/brain-services/src/coordinator/scheduler_engine.rs`:
 ```rust
@@ -542,12 +542,12 @@ pub use scheduler_engine::*;
 pub use state::*;
 ```
 
-- [ ] **Step 4: Verify scheduling engine unit tests pass**
+- [x] **Step 4: Verify scheduling engine unit tests pass**
 
 Run: `cargo test -p brain-services --test scheduling_engine_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/coordinator/scheduler_engine.rs
@@ -603,7 +603,7 @@ fn test_failure_detector_detects_worker_lost_and_recovery() {
 Run: `cargo test -p brain-services --test lease_and_failure_tests`
 Expected: FAIL with "cannot find type `FailureDetector`"
 
-- [ ] **Step 3: Implement LeaseManager and FailureDetector**
+- [x] **Step 3: Implement LeaseManager and FailureDetector**
 
 In `crates/brain-services/src/coordinator/lease.rs`:
 ```rust
@@ -713,12 +713,12 @@ pub use scheduler_engine::*;
 pub use state::*;
 ```
 
-- [ ] **Step 4: Verify lease & failure detector unit tests pass**
+- [x] **Step 4: Verify lease & failure detector unit tests pass**
 
 Run: `cargo test -p brain-services --test lease_and_failure_tests`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/src/coordinator/lease.rs
@@ -788,7 +788,7 @@ Expected: PASS
 Run: `cargo check --workspace`
 Expected: PASS (all workspace crates compile cleanly)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add crates/brain-services/tests/r27_distributed_orchestration_tests.rs
