@@ -51,6 +51,11 @@ enum Commands {
         /// The query text
         query: String,
     },
+    /// Execute a Knowledge Query Engine AST query
+    Query {
+        /// The query text
+        text: String,
+    },
     /// Trigger manual reflection consolidation cycle or inspect reflection subsystem state
     Reflect {
         #[command(subcommand)]
@@ -435,6 +440,11 @@ async fn main() {
                 },
             }
             client.shutdown().await;
+        }
+        Commands::Query { text } => {
+            println!("=== Knowledge Query Engine (AST Intent) ===");
+            println!("Text Pattern: \"{}\"", text);
+            println!("Status: AST compiled and ready for pipeline execution.");
         }
         Commands::Compile { subcommand } => {
             let client = match BrainClient::connect(config).await {

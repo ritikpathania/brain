@@ -983,3 +983,167 @@ pub struct AutomationExecutionLogDto {
     /// Execution timestamp in milliseconds.
     pub executed_at_ms: u64,
 }
+
+/// Version 1 DTO for candidate item in query execution results.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QueryCandidateDto {
+    /// Strongly-typed canonical entity identifier string.
+    pub entity_id: String,
+    /// Fused relevance or confidence score.
+    pub score: f32,
+}
+
+/// Version 1 DTO for knowledge query engine execution result.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct QueryResultDto {
+    /// Ranked candidate list ordered by fused score descending.
+    pub candidates: Vec<QueryCandidateDto>,
+    /// Total candidate entities discovered before limit truncation.
+    pub total_candidates: usize,
+}
+
+/// Version 1 DTO for a single reasoning trace step.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReasoningTraceStepDto {
+    /// 1-based step index.
+    pub step_index: usize,
+    /// Synthesized claim statement.
+    pub claim: String,
+    /// Step confidence score.
+    pub confidence: f32,
+}
+
+/// Version 1 DTO for evidence-derived confidence metrics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConfidenceMetricsDto {
+    /// Coverage score.
+    pub coverage_score: f32,
+    /// Candidate agreement score.
+    pub agreement_score: f32,
+    /// Contradiction penalty deduction.
+    pub contradiction_penalty: f32,
+    /// Temporal consistency score.
+    pub temporal_consistency_score: f32,
+    /// Composite confidence score.
+    pub composite_confidence: f32,
+}
+
+/// Version 1 DTO for synthesized knowledge reasoning response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct KnowledgeResponseDto {
+    /// Query execution UUID.
+    pub query_id: String,
+    /// Natural-language answer summary.
+    pub answer_summary: String,
+    /// Step-by-step reasoning trace.
+    pub reasoning_trace: Vec<ReasoningTraceStepDto>,
+    /// Primary candidates matched.
+    pub primary_candidates: Vec<QueryCandidateDto>,
+    /// Transparent confidence metrics.
+    pub confidence: ConfidenceMetricsDto,
+}
+
+/// Version 1 DTO for maintenance configuration options.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MaintenanceConfigDto {
+    /// Flag requiring explicit approval decision before execution.
+    pub require_approval: bool,
+    /// Flag enabling dry-run execution mode.
+    pub dry_run: bool,
+}
+
+/// Version 1 DTO for a maintenance stage event item.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MaintenanceStageEventDto {
+    /// Unique event ID.
+    pub event_id: String,
+    /// Event stage kind string.
+    pub kind: String,
+    /// Event message.
+    pub message: String,
+    /// Timestamp in milliseconds.
+    pub timestamp_ms: u64,
+}
+
+/// Version 1 DTO for governance approval decision.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ApprovalDecisionDto {
+    /// Decision ID.
+    pub decision_id: String,
+    /// Target plan ID.
+    pub plan_id: String,
+    /// Authorizing identity string.
+    pub approved_by: String,
+    /// Approval flag.
+    pub is_approved: bool,
+    /// Comments rationale.
+    pub comments: String,
+    /// Timestamp in milliseconds.
+    pub timestamp_ms: u64,
+}
+
+/// Version 1 DTO for operational performance metrics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OperationalMetricsDto {
+    /// Cycle duration in milliseconds.
+    pub cycle_duration_ms: u64,
+    /// Rollback occurred flag.
+    pub rollback_occurred: bool,
+    /// Failure message if cycle failed.
+    pub failure_reason: Option<String>,
+}
+
+/// Version 1 DTO for domain knowledge evolution metrics.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DomainMetricsDto {
+    /// Findings discovered count.
+    pub findings_count: usize,
+    /// Proposals compiled count.
+    pub proposals_count: usize,
+    /// Proposals applied count.
+    pub applied_count: usize,
+}
+
+/// Version 1 DTO for evolution plan execution report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EvolutionExecutionReportDto {
+    /// Report execution UUID.
+    pub report_id: String,
+    /// Target plan ID.
+    pub plan_id: String,
+    /// Final execution status string.
+    pub final_state: String,
+    /// Applied proposal IDs.
+    pub applied_proposals: Vec<String>,
+    /// Rollback status.
+    pub rollback_occurred: bool,
+    /// Duration in milliseconds.
+    pub execution_duration_ms: u64,
+}
+
+/// Version 1 DTO for structured maintenance cycle result.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MaintenanceCycleResultDto {
+    /// Unique cycle execution ID.
+    pub cycle_id: String,
+    /// Maintenance state string.
+    pub state: String,
+    /// Snapshot ID inspected.
+    pub snapshot_id: String,
+    /// Number of findings discovered.
+    pub total_findings: usize,
+    /// Number of proposals compiled.
+    pub total_proposals: usize,
+    /// Governance approval decision (if applicable).
+    pub approval_decision: Option<ApprovalDecisionDto>,
+    /// Execution report (if executed).
+    pub execution_report: Option<EvolutionExecutionReportDto>,
+    /// Stage event notifications.
+    pub stage_events: Vec<MaintenanceStageEventDto>,
+    /// Derived operational metrics.
+    pub operational_metrics: OperationalMetricsDto,
+    /// Derived domain metrics.
+    pub domain_metrics: DomainMetricsDto,
+    /// Timestamp in milliseconds.
+    pub timestamp_ms: u64,
+}

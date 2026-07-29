@@ -45,26 +45,45 @@ struct ArchitectureRule {
 const RULES: &[ArchitectureRule] = &[
     ArchitectureRule {
         subject: "brain-domain",
-        description: "brain-domain is the bottom of the dependency DAG; \
-                      it must have zero outgoing workspace dependencies so \
-                      it can never pull in async runtimes, DB engines, or \
-                      FFI modules (see AGENTS.md § DDD Invariants).",
+        description: "Invariant 1 & DDD: brain-domain is the bottom of the dependency DAG; \
+                      it must have zero outgoing workspace dependencies so it can never pull in \
+                      async runtimes, DB engines, or FFI modules.",
         forbidden_deps: &[],
         must_have_no_workspace_deps: true,
     },
     ArchitectureRule {
         subject: "brain-services",
-        description: "brain-services must not depend on any adapter crate. \
-                      Adapters are consumers of services, not providers.",
-        forbidden_deps: &["brain-*-adapter"],
+        description: "Invariant 2 & 3: brain-services must not depend on adapter or host/executable crates. \
+                      Adapters and hosts are consumers of services, not providers.",
+        forbidden_deps: &["brain-*-adapter", "brain-daemon", "brain"],
         must_have_no_workspace_deps: false,
     },
     ArchitectureRule {
         subject: "brain-application",
-        description: "brain-application is the use-case orchestration layer. \
-                      It must not depend on any adapter; adapters depend on \
-                      brain-application, not the other way around.",
-        forbidden_deps: &["brain-*-adapter"],
+        description: "Invariant 2 & 3: brain-application is the use-case orchestration layer. \
+                      It must not depend on any adapter or host/executable crates.",
+        forbidden_deps: &["brain-*-adapter", "brain-daemon", "brain"],
+        must_have_no_workspace_deps: false,
+    },
+    ArchitectureRule {
+        subject: "brain-storage",
+        description: "brain-storage is a low-level persistence driver; \
+                      it must never depend on service policy logic or host executables.",
+        forbidden_deps: &["brain-services", "brain-application", "brain-daemon", "brain"],
+        must_have_no_workspace_deps: false,
+    },
+    ArchitectureRule {
+        subject: "brain-tui",
+        description: "brain-tui is an external presentation client; \
+                      it must never depend directly on low-level storage engines or daemon binaries.",
+        forbidden_deps: &["brain-storage", "brain-daemon"],
+        must_have_no_workspace_deps: false,
+    },
+    ArchitectureRule {
+        subject: "brain-core",
+        description: "Invariant 3: brain-core is foundational; it must never depend on higher-level \
+                      services, application, or executable crates.",
+        forbidden_deps: &["brain-services", "brain-application", "brain-daemon", "brain"],
         must_have_no_workspace_deps: false,
     },
 ];

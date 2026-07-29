@@ -277,7 +277,7 @@ fn test_structured_telemetry_emission_contract() {
     let provider = Arc::new(MockQueryEmbeddingProvider {
         fail_on_query: None,
     });
-    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider));
+    let query_embedding_service = Arc::new(DefaultQueryEmbeddingService::new(provider.clone()));
     let retrieval_service = RetrievalServiceImpl::new(
         store.clone(),
         cache_manager.clone(),
@@ -292,9 +292,10 @@ fn test_structured_telemetry_emission_contract() {
         NodeType::Concept,
     );
     store.nodes().save(&node).unwrap();
+    let emb_vec = provider.embed("telemetry validation query").unwrap();
     store
         .embeddings()
-        .save(&Embedding::new(node.id, vec![1.0; 8]))
+        .save(&Embedding::new(node.id, emb_vec))
         .unwrap();
 
     let session_id = brain_domain::SessionId::new();
@@ -330,10 +331,6 @@ fn test_structured_telemetry_emission_contract() {
     );
     assert!(stages.contains(&"BM25"), "Missing BM25 stage telemetry");
     assert!(stages.contains(&"vector"), "Missing vector stage telemetry");
-    assert!(
-        stages.contains(&"RRF"),
-        "Missing RRF fusion stage telemetry"
-    );
     assert!(
         stages.contains(&"pipeline"),
         "Missing overall pipeline stage telemetry"

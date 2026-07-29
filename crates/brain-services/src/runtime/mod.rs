@@ -1,3 +1,7 @@
+/// Knowledge Runtime Orchestration Façade (Phase 5 Milestone 5.3).
+pub mod facade;
+pub use facade::*;
+
 use parking_lot::RwLock;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -124,6 +128,7 @@ pub(crate) struct RuntimeServiceLocator {
     pub tool_executor: Option<Arc<ToolExecutor>>,
     pub plugin_manager: Option<Arc<PluginManager>>,
     pub streaming_runtime: Option<Arc<crate::agent::streaming::StreamingRuntime>>,
+    pub brain_runtime: Option<Arc<crate::brain_runtime::BrainRuntime>>,
 }
 
 /// Unified composition root and lifecycle owner of the Brain Relational Engine.
@@ -135,6 +140,13 @@ pub struct ApplicationRuntime {
     state: RwLock<RuntimeState>,
     service_locator: RwLock<RuntimeServiceLocator>,
     observers: RwLock<Vec<Arc<dyn RuntimeObserver>>>,
+}
+
+impl ApplicationRuntime {
+    /// Returns reference to the internal `BrainRuntime` if initialized.
+    pub fn brain_runtime(&self) -> Option<Arc<crate::brain_runtime::BrainRuntime>> {
+        self.service_locator.read().brain_runtime.clone()
+    }
 }
 
 impl HostContext for ApplicationRuntime {
@@ -554,6 +566,7 @@ pub struct RuntimeBuilder {
     conversation_manager: Option<Arc<dyn crate::conversation::ConversationManager>>,
     tool_executor: Option<Arc<ToolExecutor>>,
     plugin_manager: Option<Arc<PluginManager>>,
+    brain_runtime: Option<Arc<crate::brain_runtime::BrainRuntime>>,
     observers: Vec<Arc<dyn RuntimeObserver>>,
 }
 
@@ -575,6 +588,7 @@ impl RuntimeBuilder {
             conversation_manager: None,
             tool_executor: None,
             plugin_manager: None,
+            brain_runtime: None,
             observers: Vec::new(),
         }
     }
@@ -597,6 +611,15 @@ impl RuntimeBuilder {
     /// Pre-injects a mock or custom database storage engine.
     pub fn with_storage(mut self, storage: Arc<SqliteStorage>) -> Self {
         self.storage = Some(storage);
+        self
+    }
+
+    /// Pre-injects a custom BrainRuntime instance.
+    pub fn with_brain_runtime(
+        mut self,
+        brain_runtime: Arc<crate::brain_runtime::BrainRuntime>,
+    ) -> Self {
+        self.brain_runtime = Some(brain_runtime);
         self
     }
 
@@ -662,6 +685,7 @@ impl RuntimeBuilder {
             tool_executor: self.tool_executor,
             plugin_manager: self.plugin_manager,
             streaming_runtime: None,
+            brain_runtime: self.brain_runtime,
         };
 
         let working_dir = self.working_dir.unwrap_or_else(|| PathBuf::from("."));
@@ -697,20 +721,32 @@ impl StartupPhase for StorageMigrationPhase {
     }
     fn execute(&self, runtime: &ApplicationRuntime) -> Result<(), BrainError> {
         let mut locator = runtime.service_locator.write();
-        if locator.storage.is_some() {
+        if locator.storage.is_some() && locator.brain_runtime.is_some() {
             return Ok(());
         }
-        let db_settings = runtime.config.database();
-        let storage = SqliteStorage::new(
-            db_settings.path(),
-            db_settings.pool_size(),
-            db_settings.enable_wal(),
-        )?;
-        locator.storage = Some(Arc::new(storage));
+
+        if let Some(brain_rt) = &locator.brain_runtime {
+            if locator.storage.is_none() {
+                locator.storage = Some(brain_rt.sqlite_storage());
+            }
+            return Ok(());
+        }
+
+        if locator.storage.is_none() {
+            let db_settings = runtime.config.database();
+            let storage = SqliteStorage::new(
+                db_settings.path(),
+                db_settings.pool_size(),
+                db_settings.enable_wal(),
+            )?;
+            locator.storage = Some(Arc::new(storage));
+        }
         Ok(())
     }
     fn rollback(&self, runtime: &ApplicationRuntime) -> Result<(), BrainError> {
-        runtime.service_locator.write().storage = None;
+        let mut locator = runtime.service_locator.write();
+        locator.storage = None;
+        locator.brain_runtime = None;
         Ok(())
     }
 }
@@ -867,16 +903,13 @@ impl StartupPhase for ServicesReadyPhase {
 pub mod aggregator;
 pub mod events;
 pub mod models;
-pub mod repository;
 pub mod recovery;
+pub mod repository;
 pub mod sqlite_repository;
 
 pub use aggregator::*;
 pub use events::*;
 pub use models::*;
-pub use repository::*;
 pub use recovery::*;
+pub use repository::*;
 pub use sqlite_repository::*;
-
-
-

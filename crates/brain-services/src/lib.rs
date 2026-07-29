@@ -122,3 +122,15 @@ pub use health_evaluator::{DerivedRuntimeHealth, HealthEvaluator};
 
 /// Knowledge Processing Pipeline (KPP) Knowledge Compiler.
 pub mod compiler;
+
+/// Deterministic graph reconciliation compiler passes and pipeline coordinator.
+pub mod reconciliation;
+pub use reconciliation::*;
+
+/// Domain lifecycle and retention policies.
+pub mod policies;
+pub use policies::*;
+
+/// Stable Application Interface DTO contracts and Handshake Negotiator (Phase H).
+pub mod protocol;
+pub use protocol::*;

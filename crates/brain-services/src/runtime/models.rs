@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -10,12 +12,24 @@ impl ExecutionId {
     }
 }
 
+impl Default for ExecutionId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TaskId(pub Uuid);
 
 impl TaskId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
+    }
+}
+
+impl Default for TaskId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -26,6 +26,7 @@ ulid = { workspace = true }
 brain-domain = { path = "../crates/brain-domain" }
 brain-integrations = { path = "../crates/brain-integrations" }
 brain-core = { path = "../crates/brain-core" }
+brain-config = { path = "../crates/brain-config" }
 brain-services = { path = "../crates/brain-services" }
 brain-application = { path = "../crates/brain-application" }
 brain-storage = { path = "../crates/brain-storage" }

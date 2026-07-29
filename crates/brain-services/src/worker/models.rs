@@ -34,9 +34,25 @@ pub enum TaskExecutionError {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TaskExecutionEvent {
-    Started { task_id: TaskId, timestamp: u64 },
-    Progress { task_id: TaskId, percentage: u8, message: Option<String> },
-    CheckpointSaved { task_id: TaskId, checkpoint_id: String },
-    Completed { task_id: TaskId, result: TaskResult },
-    Failed { task_id: TaskId, error: String },
+    Started {
+        task_id: TaskId,
+        timestamp: u64,
+    },
+    Progress {
+        task_id: TaskId,
+        percentage: u8,
+        message: Option<String>,
+    },
+    CheckpointSaved {
+        task_id: TaskId,
+        checkpoint_id: String,
+    },
+    Completed {
+        task_id: TaskId,
+        result: TaskResult,
+    },
+    Failed {
+        task_id: TaskId,
+        error: String,
+    },
 }

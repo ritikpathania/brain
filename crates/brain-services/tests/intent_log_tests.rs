@@ -24,7 +24,9 @@ async fn test_sqlite_intent_log_append_status_update_and_pending_scan() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].effect_id, effect_id);
 
-    log.update_status(effect_id, IntentStatus::Completed).await.unwrap();
+    log.update_status(effect_id, IntentStatus::Completed)
+        .await
+        .unwrap();
     let pending_after = log.scan_pending().await.unwrap();
     assert_eq!(pending_after.len(), 0);
 }

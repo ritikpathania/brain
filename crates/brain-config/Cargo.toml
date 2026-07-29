@@ -8,3 +8,7 @@ serde.workspace = true
 toml.workspace = true
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
+
+[dev-dependencies]
+brain-events = { path = "../brain-events" }
+uuid.workspace = true

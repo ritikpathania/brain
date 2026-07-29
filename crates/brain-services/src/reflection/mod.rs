@@ -5,6 +5,32 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+/// Context types for reflection execution.
+pub mod context;
+pub use context::*;
+/// Data contracts for reflection reports.
+pub mod contracts;
+/// Re-export contracts.
+pub use contracts::*;
+/// Directed acyclic graph execution dependencies for reflection tasks.
+pub mod dag;
+pub use dag::*;
+/// Input snapshot parameters for reflection.
+pub mod input;
+pub use input::*;
+/// Domain models for reflection findings.
+pub mod models;
+pub use models::*;
+/// Outcome result types for reflection passes.
+pub mod result;
+pub use result::*;
+/// Maintenance runtime routines.
+pub mod maintenance;
+pub use maintenance::*;
+/// Engine V2 runtime implementation.
+pub mod engine_v2;
+pub use engine_v2::*;
+
 /// Read-only snapshot context for reflection passes.
 pub mod snapshot;
 pub use snapshot::ReflectionSnapshot;
@@ -109,6 +135,26 @@ impl ReflectionEngine {
         Ok(findings)
     }
 }
+
+/// Reflection planner v3, executor, and scheduler.
+pub mod planner_v3;
+pub use planner_v3::*;
+
+/// Concrete schedulable reflection tasks.
+pub mod tasks;
+pub use tasks::*;
+
+/// Reflection schedule policy options.
+pub mod schedule_policy;
+pub use schedule_policy::*;
+
+/// Metrics summary aggregation for reflection runtime.
+pub mod metrics_summary;
+pub use metrics_summary::*;
+
+/// Replay engine for event streams.
+pub mod replay;
+pub use replay::*;
 
 /// Decision planner translating findings to commands.
 pub mod planner;

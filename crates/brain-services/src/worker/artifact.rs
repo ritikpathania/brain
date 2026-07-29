@@ -4,7 +4,7 @@ use crate::runtime::models::TaskId;
 use crate::worker::models::*;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -26,7 +26,12 @@ pub enum ArtifactKind {
 #[async_trait]
 pub trait ArtifactStore: Send + Sync {
     async fn stage_input(&self, input_ref: &str) -> Result<PathBuf, TaskExecutionError>;
-    async fn publish_artifact(&self, task_id: TaskId, kind: ArtifactKind, local_path: &PathBuf) -> Result<String, TaskExecutionError>;
+    async fn publish_artifact(
+        &self,
+        task_id: TaskId,
+        kind: ArtifactKind,
+        local_path: &Path,
+    ) -> Result<String, TaskExecutionError>;
 }
 
 pub struct LocalFilesystemArtifactStore {
@@ -48,12 +53,22 @@ impl ArtifactStore for LocalFilesystemArtifactStore {
         if target.exists() {
             Ok(target)
         } else {
-            Err(TaskExecutionError::ArtifactError(format!("Input file not found: {}", input_ref)))
+            Err(TaskExecutionError::ArtifactError(format!(
+                "Input file not found: {}",
+                input_ref
+            )))
         }
     }
 
-    async fn publish_artifact(&self, task_id: TaskId, kind: ArtifactKind, local_path: &PathBuf) -> Result<String, TaskExecutionError> {
-        let file_name = local_path.file_name().ok_or_else(|| TaskExecutionError::ArtifactError("Invalid filename".to_string()))?;
+    async fn publish_artifact(
+        &self,
+        task_id: TaskId,
+        kind: ArtifactKind,
+        local_path: &Path,
+    ) -> Result<String, TaskExecutionError> {
+        let file_name = local_path
+            .file_name()
+            .ok_or_else(|| TaskExecutionError::ArtifactError("Invalid filename".to_string()))?;
         let kind_dir = match kind {
             ArtifactKind::Input => "inputs",
             ArtifactKind::Output => "outputs",
@@ -62,10 +77,12 @@ impl ArtifactStore for LocalFilesystemArtifactStore {
         };
 
         let dest_dir = self.base_dir.join(kind_dir).join(task_id.0.to_string());
-        std::fs::create_dir_all(&dest_dir).map_err(|e| TaskExecutionError::ArtifactError(e.to_string()))?;
+        std::fs::create_dir_all(&dest_dir)
+            .map_err(|e| TaskExecutionError::ArtifactError(e.to_string()))?;
 
         let dest = dest_dir.join(file_name);
-        std::fs::copy(local_path, &dest).map_err(|e| TaskExecutionError::ArtifactError(e.to_string()))?;
+        std::fs::copy(local_path, &dest)
+            .map_err(|e| TaskExecutionError::ArtifactError(e.to_string()))?;
 
         let rel = format!("{}/{}/{}", kind_dir, task_id.0, file_name.to_string_lossy());
         Ok(format!("artifact://{}", rel))

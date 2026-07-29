@@ -106,7 +106,7 @@ mod tests {
         let allowlist_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("allowlist.toml");
         let allowlist = AllowList::load(&allowlist_path);
 
-        let adapter_crates = vec!["daemon_bridge", "brain"];
+        let adapter_crates = ["daemon_bridge", "brain"];
 
         for package in metadata.workspace_packages() {
             if adapter_crates.contains(&package.name.as_str()) {

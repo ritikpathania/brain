@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 
-use brain_domain::jobs::JobId;
 use crate::runtime::models::*;
+use brain_domain::jobs::JobId;
 use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 use thiserror::Error;
@@ -50,7 +50,13 @@ impl QueueManager {
         }
     }
 
-    pub fn enqueue(&mut self, task_id: TaskId, execution_id: ExecutionId, job_id: JobId, priority: u32) -> Result<(), QueueError> {
+    pub fn enqueue(
+        &mut self,
+        task_id: TaskId,
+        execution_id: ExecutionId,
+        job_id: JobId,
+        priority: u32,
+    ) -> Result<(), QueueError> {
         if self.heap.len() >= self.max_depth {
             return Err(QueueError::QueueFull(self.max_depth));
         }
@@ -81,7 +87,9 @@ impl QueueManager {
 
     pub fn snapshot(&self) -> QueueSnapshot {
         let mut sorted: Vec<TaskNode> = self.heap.iter().cloned().collect();
-        sorted.sort_by(|a, b| b.priority.cmp(&a.priority));
-        QueueSnapshot { ready_tasks: sorted }
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.priority));
+        QueueSnapshot {
+            ready_tasks: sorted,
+        }
     }
 }

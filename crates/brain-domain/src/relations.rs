@@ -12,6 +12,16 @@ pub enum Directionality {
     Undirected,
 }
 
+/// Classification of knowledge contradiction relationships.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContradictionKind {
+    /// Logical contradiction between mutually exclusive assertions.
+    Logical,
+    /// Temporal contradiction arising from chronological state changes.
+    Temporal,
+}
+
 /// Strategies to aggregate confidence weights/scores for multiple instances of a relationship.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

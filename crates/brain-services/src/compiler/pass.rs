@@ -1,31 +1,8 @@
 //! Compiler passes and pass trait definitions for the Knowledge Compiler.
 
+pub use crate::compiler::context::CompilerContext;
 use crate::compiler::diagnostics::{Diagnostic, DiagnosticKind, DiagnosticLevel};
 use crate::compiler::ir::{EntityId, KnowledgeIR};
-use brain_domain::SessionId;
-use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
-
-/// Read-only execution context supplied to compiler passes.
-#[derive(Debug, Clone)]
-pub struct CompilerContext {
-    /// Unique compilation execution ID.
-    pub compilation_id: Uuid,
-    /// Active session ID.
-    pub session_id: SessionId,
-    /// Monotonic graph version epoch counter.
-    pub graph_version: u64,
-    /// Optional read-only expanded dirty set for incremental compilation.
-    pub dirty_set: Option<std::sync::Arc<crate::compiler::dirty_set::DirtySet>>,
-    /// Minimum confidence threshold for canonical entity resolution [0.0..1.0].
-    pub min_confidence_threshold: f64,
-    /// Maximum execution time budget in milliseconds.
-    pub time_budget_ms: u64,
-    /// Cooperative cancellation token.
-    pub cancellation_token: CancellationToken,
-    /// Configurable parameters for optimization passes and retention policies.
-    pub config: crate::compiler::config::CompilerOptimizationConfig,
-}
 
 /// Abstract compiler pass transforming Knowledge IR and emitting diagnostics.
 pub trait CompilerPass: Send + Sync {

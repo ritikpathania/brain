@@ -1,3 +1,19 @@
+/// Stable two-tier retrieval contracts (Retriever, Scorer, RankPolicy, CandidateSet, EvidenceSet).
+pub mod contracts;
+pub use contracts::*;
+
+/// Concrete candidate retrievers (FtsRetriever, GraphRetriever).
+pub mod retrievers;
+pub use retrievers::*;
+
+/// Concrete feature scorers and ranking policies (ConfidenceScorer, LinearRankPolicy).
+pub mod rankers;
+pub use rankers::*;
+
+/// Deterministic Knowledge Gap Analysis (KnowledgeGapReport, GapAnalyzer).
+pub mod gap_analysis;
+pub use gap_analysis::*;
+
 /// Active weights snapshot provider abstractions.
 pub mod active_weights;
 /// Cache layers and snapshot execution management.

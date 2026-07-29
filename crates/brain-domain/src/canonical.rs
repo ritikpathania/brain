@@ -1,8 +1,26 @@
-//! Scoped lexical normalization and semantic entity canonicalization utilities.
-
 use crate::entities::NodeType;
-use crate::identifiers::NodeId;
+use crate::evidence::KnowledgeEvidence;
+use crate::identifiers::{EntityId, NodeId};
+use crate::lifecycle::KnowledgeState;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+/// Canonical entity representation with immutable identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanonicalEntity {
+    /// Immutable canonical identifier.
+    pub id: EntityId,
+    /// Preferred display name.
+    pub preferred_name: String,
+    /// Associated alias labels.
+    pub aliases: Vec<String>,
+    /// Audit history of merged entity IDs.
+    pub merge_history: Vec<EntityId>,
+    /// Associated evidence and provenance.
+    pub evidence: KnowledgeEvidence,
+    /// Current lifecycle state.
+    pub state: KnowledgeState,
+}
 
 /// Pure normalizer to clean up raw node labels.
 pub struct Normalizer;

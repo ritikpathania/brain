@@ -42,7 +42,8 @@ async fn test_scenario_2_leader_step_down_disables_effect_execution() {
 }
 
 #[tokio::test]
-async fn test_scenario_3_follower_promotion_applies_state_machine_with_zero_follower_side_effects() {
+async fn test_scenario_3_follower_promotion_applies_state_machine_with_zero_follower_side_effects()
+{
     let mock_log = Arc::new(MockRaftIntentLog::new());
     let executor = Arc::new(MockEffectExecutor::new());
 

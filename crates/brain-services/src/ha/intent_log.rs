@@ -15,7 +15,14 @@ pub enum IntentLogError {
 #[async_trait]
 pub trait IntentLog: Send + Sync {
     async fn append_record(&self, record: &IntentRecord) -> Result<(), IntentLogError>;
-    async fn update_status(&self, effect_id: EffectId, status: IntentStatus) -> Result<(), IntentLogError>;
-    async fn load_from(&self, sequence: SequenceNumber) -> Result<Vec<IntentRecord>, IntentLogError>;
+    async fn update_status(
+        &self,
+        effect_id: EffectId,
+        status: IntentStatus,
+    ) -> Result<(), IntentLogError>;
+    async fn load_from(
+        &self,
+        sequence: SequenceNumber,
+    ) -> Result<Vec<IntentRecord>, IntentLogError>;
     async fn scan_pending(&self) -> Result<Vec<IntentRecord>, IntentLogError>;
 }

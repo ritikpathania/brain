@@ -4,13 +4,21 @@ use crate::distributed::models::*;
 use crate::distributed::registry::*;
 
 pub trait SchedulingPolicy: Send + Sync {
-    fn select_worker<'a>(&self, task_priority: u32, candidates: &'a [WorkerCandidate<'a>]) -> Option<WorkerCandidate<'a>>;
+    fn select_worker<'a>(
+        &self,
+        task_priority: u32,
+        candidates: &'a [WorkerCandidate<'a>],
+    ) -> Option<WorkerCandidate<'a>>;
 }
 
 pub struct LeastLoadedPolicy;
 
 impl SchedulingPolicy for LeastLoadedPolicy {
-    fn select_worker<'a>(&self, _task_priority: u32, candidates: &'a [WorkerCandidate<'a>]) -> Option<WorkerCandidate<'a>> {
+    fn select_worker<'a>(
+        &self,
+        _task_priority: u32,
+        candidates: &'a [WorkerCandidate<'a>],
+    ) -> Option<WorkerCandidate<'a>> {
         candidates
             .iter()
             .filter(|w| w.status.is_healthy)

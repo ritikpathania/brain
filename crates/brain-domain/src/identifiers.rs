@@ -119,6 +119,48 @@ impl fmt::Display for NodeId {
     }
 }
 
+/// Strongly-typed identifier for a canonical entity.
+/// Wraps a standard `uuid::Uuid`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct EntityId(pub Uuid);
+
+impl EntityId {
+    /// Generates a new random unique `EntityId` (UUID v4).
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+impl Default for EntityId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for EntityId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for EntityId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        std::str::FromStr::from_str(s).map(Self)
+    }
+}
+
+/// Strongly-typed identifier for an observation source.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SourceId(pub String);
+
+impl fmt::Display for SourceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Strongly-typed identifier for a knowledge graph edge.
 /// Uniquely identified by its `source` node, `target` node, and the name of the `relation`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

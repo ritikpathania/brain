@@ -1,3 +1,5 @@
+//! Query filter specifications.
+
 use brain_domain::jobs::{JobOwner, JobState};
 use brain_domain::SearchDocumentKind;
 

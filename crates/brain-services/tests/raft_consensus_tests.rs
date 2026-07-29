@@ -22,6 +22,9 @@ async fn test_raft_intent_log_commit_notifier_and_status_tracking() {
     assert_eq!(committed.effect_id, effect_id);
 
     // update_status updates local execution tracker, not consensus log
-    mock_log.update_status(effect_id, IntentStatus::Completed).await.unwrap();
+    mock_log
+        .update_status(effect_id, IntentStatus::Completed)
+        .await
+        .unwrap();
     assert!(mock_log.is_locally_completed(effect_id));
 }

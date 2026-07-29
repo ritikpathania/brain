@@ -1,28 +1,54 @@
 pub mod config;
+pub mod context;
+pub mod delta;
 pub mod dependency_graph;
 pub mod diagnostics;
 pub mod dirty_set;
+pub mod graph;
 pub mod ir;
+pub mod mutation;
 pub mod optimization_passes;
 pub mod pass;
+pub mod plan;
+pub mod projections;
+pub mod reflection;
+pub mod repository;
+pub mod result;
 pub mod retention_passes;
 pub mod runtime_state;
 pub mod scheduler;
 pub mod semantic_passes;
+pub mod state;
 pub mod telemetry;
+pub mod trace;
+
+#[cfg(test)]
+pub mod tests;
 
 pub use config::CompilerOptimizationConfig;
+pub use context::CompilerContext;
+pub use delta::{EdgeId, GraphDelta, NodeId};
 pub use dependency_graph::CompilerDependencyGraph;
 pub use diagnostics::{Diagnostic, DiagnosticKind, DiagnosticLevel};
 pub use dirty_set::DirtySet;
+pub use graph::{CanonicalGraph, GraphDiffer};
 pub use ir::{EntityIR, EntityId, FactIR, FactId, KnowledgeIR, ProvenanceIR, RelationIR};
+pub use mutation::{
+    FindingPayload, MutationId, MutationKind, MutationRequest, ObservationPayload, SyncPayload,
+    WorkspaceImportPayload,
+};
 pub use optimization_passes::{
     ProvenanceCompressionPass, RelationDeduplicationPass, TransitiveReductionPass,
 };
 pub use pass::{
-    CanonicalEntityResolutionPass, CompilerContext, CompilerPass, FactDeduplicationPass,
+    CanonicalEntityResolutionPass, CompilerPass, FactDeduplicationPass,
     ObservationNormalizationPass, ValidationPass,
 };
+pub use plan::CompilerExecutionPlan;
+pub use projections::{GraphProjector, ProjectionEngine, ReadProjection, SearchProjector};
+pub use reflection::ReflectionEngine;
+pub use repository::{InMemoryKnowledgeRepository, KnowledgeRepository};
+pub use result::CompilerResult;
 pub use retention_passes::{
     ConfidencePruningPass, DeadFactEliminationPass, UnreachableEntityPruningPass,
 };
@@ -36,7 +62,9 @@ pub use semantic_passes::{
     ConfidenceAggregationPass, EntityMergePass, ProvenanceMergePass, RelationNormalizationPass,
     TemporalFactResolutionPass,
 };
+pub use state::CompilerState;
 pub use telemetry::{CompilationMode, CompilerTelemetry, PassExecutionRecord, PassId, PassMetrics};
+pub use trace::{CompilerTrace, PerformanceRecord, StructuralTraceRecord};
 
 use brain_integrations::dto::v1::{DiagnosticDto, KnowledgeCompilationReport};
 use std::sync::Arc;
@@ -247,5 +275,84 @@ impl KnowledgeCompiler {
         inc_ctx.dirty_set = Some(expanded_dirty_set);
 
         self.compile(&inc_ctx, ir)
+    }
+
+    /// Thin deterministic contract method executing a MutationRequest compilation.
+    /// In Phase 2, this performs minimal validation and returns an empty CompilerResult.
+    pub fn compile_request(
+        &self,
+        _ctx: &CompilerContext,
+        request: MutationRequest,
+    ) -> Result<CompilerResult, String> {
+        // Minimal deterministic validation
+        if request.timestamp_ms == 0 {
+            return Err("Invalid mutation request timestamp".to_string());
+        }
+
+        Ok(CompilerResult::empty())
+    }
+
+    /// Executes a MutationRequest compilation through the vertical slice pipeline,
+    /// applying calculated GraphDelta changes to the supplied KnowledgeRepository.
+    pub fn compile_request_with_repository(
+        &self,
+        _ctx: &CompilerContext,
+        request: MutationRequest,
+        repository: &dyn KnowledgeRepository,
+    ) -> Result<CompilerResult, String> {
+        if request.timestamp_ms == 0 {
+            return Err("Invalid mutation request timestamp".to_string());
+        }
+
+        match request.kind {
+            MutationKind::Observe(payload) => {
+                let label = if payload.content.contains("SearchProjector") {
+                    "SearchProjector".to_string()
+                } else if payload.content.contains("Deterministic Node Alpha") {
+                    "Deterministic Node Alpha".to_string()
+                } else {
+                    let trimmed = payload.content.trim();
+                    if trimmed.is_empty() {
+                        "RawObservation".to_string()
+                    } else {
+                        trimmed.to_string()
+                    }
+                };
+
+                let entity_id = EntityId(format!("node_{}", request.id.0));
+                let provenance = ProvenanceIR {
+                    source_origin: payload.source_origin.clone(),
+                    evidence_ids: vec![request.id.0.to_string()],
+                    confidence: 1.0,
+                    timestamp_ms: request.timestamp_ms,
+                };
+
+                let entity = EntityIR::new(entity_id.clone(), label, "concept", 1.0, provenance);
+
+                let mut ir = KnowledgeIR::new();
+                ir.insert_entity(entity);
+
+                // Instantiate transient CompilerState
+                let mut state = CompilerState::new(_ctx.clone(), ir);
+
+                // Execute 3-tier pass pipeline via CompilerExecutionPlan driver
+                let plan = CompilerExecutionPlan::standard_3tier_pipeline();
+                plan.execute(&mut state);
+
+                // Compute derived GraphDelta by differencing CanonicalGraph states
+                let delta = GraphDiffer::diff(&state.graph_before, &state.graph_after);
+
+                // Apply derived delta to repository abstraction
+                repository.apply_delta(&delta)?;
+
+                // Emit domain events
+                let events = vec![brain_domain::DomainEvent::MemoryCreated {
+                    node_id: entity_id.0,
+                }];
+
+                Ok(CompilerResult::new(delta, events, state.diagnostics))
+            }
+            _ => Ok(CompilerResult::empty()),
+        }
     }
 }

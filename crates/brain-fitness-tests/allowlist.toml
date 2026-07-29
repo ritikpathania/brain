@@ -1,0 +1,9 @@
+# Architecture Fitness Tests Exception Allowlist
+# Format:
+# [[allow]]
+# rule = "rule_name"
+# crate = "crate_name"
+# reason = "Detailed justification"
+# expires = "YYYY-MM-DD"
+
+# No exceptions active.

@@ -1,8 +1,8 @@
 #![allow(missing_docs)]
 
 use crate::distributed::models::*;
-use crate::runtime::sqlite_repository::*;
 use crate::runtime::models::TaskId;
+use crate::runtime::sqlite_repository::*;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

@@ -10,7 +10,10 @@ use std::sync::Arc;
 
 #[async_trait]
 pub trait CommitNotifier: Send + Sync {
-    async fn wait_for_commit(&self, sequence: SequenceNumber) -> Result<ReplicatedIntent, IntentLogError>;
+    async fn wait_for_commit(
+        &self,
+        sequence: SequenceNumber,
+    ) -> Result<ReplicatedIntent, IntentLogError>;
 }
 
 pub struct MockRaftIntentLog {
@@ -39,12 +42,17 @@ impl MockRaftIntentLog {
 
 #[async_trait]
 impl CommitNotifier for MockRaftIntentLog {
-    async fn wait_for_commit(&self, sequence: SequenceNumber) -> Result<ReplicatedIntent, IntentLogError> {
+    async fn wait_for_commit(
+        &self,
+        sequence: SequenceNumber,
+    ) -> Result<ReplicatedIntent, IntentLogError> {
         let recs = self.records.lock();
         recs.iter()
             .find(|r| r.sequence == sequence)
             .cloned()
-            .ok_or_else(|| IntentLogError::Storage(format!("Sequence {:?} not committed", sequence)))
+            .ok_or_else(|| {
+                IntentLogError::Storage(format!("Sequence {:?} not committed", sequence))
+            })
     }
 }
 
@@ -63,14 +71,21 @@ impl IntentLog for MockRaftIntentLog {
         Ok(())
     }
 
-    async fn update_status(&self, effect_id: EffectId, status: IntentStatus) -> Result<(), IntentLogError> {
+    async fn update_status(
+        &self,
+        effect_id: EffectId,
+        status: IntentStatus,
+    ) -> Result<(), IntentLogError> {
         if status == IntentStatus::Completed {
             self.local_completed.lock().insert(effect_id);
         }
         Ok(())
     }
 
-    async fn load_from(&self, sequence: SequenceNumber) -> Result<Vec<IntentRecord>, IntentLogError> {
+    async fn load_from(
+        &self,
+        sequence: SequenceNumber,
+    ) -> Result<Vec<IntentRecord>, IntentLogError> {
         let recs = self.records.lock();
         let completed = self.local_completed.lock();
 

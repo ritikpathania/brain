@@ -8,7 +8,10 @@ use thiserror::Error;
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum AggregatorError {
     #[error("Invalid state transition from {from:?} to {to:?}")]
-    InvalidStateTransition { from: ExecutionFsmState, to: ExecutionFsmState },
+    InvalidStateTransition {
+        from: ExecutionFsmState,
+        to: ExecutionFsmState,
+    },
     #[error("Version mismatch: expected {expected}, got {got}")]
     VersionMismatch { expected: u64, got: u64 },
 }
@@ -105,7 +108,11 @@ impl ExecutionAggregator {
                         t.status = TaskFsmState::Ready;
                     }
                 }
-                TaskEventPayload::TaskLeased { task_id, worker_id, lease_until } => {
+                TaskEventPayload::TaskLeased {
+                    task_id,
+                    worker_id,
+                    lease_until,
+                } => {
                     if let Some(t) = self.projection.tasks.get_mut(task_id) {
                         t.status = TaskFsmState::Leased;
                         t.lease_owner = Some(worker_id.clone());

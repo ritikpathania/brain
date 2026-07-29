@@ -82,7 +82,9 @@ impl MockWorkerTransport {
 impl WorkerTransport for MockWorkerTransport {
     async fn dispatch(&self, assignment: TaskAssignment) -> Result<(), TransportError> {
         if self.should_fail_dispatch.load(Ordering::SeqCst) {
-            return Err(TransportError::Network("Emulated dispatch failure".to_string()));
+            return Err(TransportError::Network(
+                "Emulated dispatch failure".to_string(),
+            ));
         }
         self.dispatched.lock().push(assignment);
         Ok(())

@@ -76,3 +76,15 @@ pub use jobs::*;
 /// Knowledge Graph self-reflection and consolidation models.
 pub mod reflection;
 pub use reflection::*;
+
+/// Knowledge lifecycle states.
+pub mod lifecycle;
+pub use lifecycle::*;
+
+/// First-class observation models and retention tiers.
+pub mod observation;
+pub use observation::*;
+
+/// Evidence and provenance containers.
+pub mod evidence;
+pub use evidence::*;

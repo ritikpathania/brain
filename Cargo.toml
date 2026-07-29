@@ -22,6 +22,7 @@ members = [
     "crates/brain-adapter-core",
     "crates/brain-a2a-adapter",
     "crates/brain-arch-tests",
+    "crates/brain-fitness-tests",
     "apps/brain",
     "xtask",
     "daemon",
@@ -48,6 +49,7 @@ default-members = [
     "crates/brain-adapter-core",
     "crates/brain-a2a-adapter",
     "crates/brain-arch-tests",
+    "crates/brain-fitness-tests",
     "apps/brain",
     "daemon",
 ]

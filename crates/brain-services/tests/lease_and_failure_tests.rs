@@ -1,5 +1,4 @@
 use brain_services::coordinator::*;
-use brain_services::runtime::*;
 
 #[test]
 fn test_failure_detector_detects_worker_lost_and_recovery() {

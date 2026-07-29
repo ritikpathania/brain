@@ -14,7 +14,10 @@ impl<R: ExecutionRepository> RecoveryEngine<R> {
         Self { repo }
     }
 
-    pub fn recover_execution(&self, execution_id: ExecutionId) -> Result<Option<ExecutionProjection>, RepositoryError> {
+    pub fn recover_execution(
+        &self,
+        execution_id: ExecutionId,
+    ) -> Result<Option<ExecutionProjection>, RepositoryError> {
         let header = match self.repo.get_execution_header(execution_id)? {
             Some(h) => h,
             None => return Ok(None),

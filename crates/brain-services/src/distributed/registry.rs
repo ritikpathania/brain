@@ -34,7 +34,12 @@ impl WorkerRegistry {
         }
     }
 
-    pub fn register(&self, descriptor: WorkerDescriptor, status: WorkerStatus, timestamp: u64) -> Result<(), RegistryError> {
+    pub fn register(
+        &self,
+        descriptor: WorkerDescriptor,
+        status: WorkerStatus,
+        timestamp: u64,
+    ) -> Result<(), RegistryError> {
         if descriptor.protocol_version != self.expected_protocol_version {
             return Err(RegistryError::IncompatibleProtocol(
                 descriptor.protocol_version,
@@ -93,7 +98,9 @@ mod tests {
             is_healthy: true,
         };
 
-        assert!(registry.register(descriptor.clone(), status.clone(), 1000).is_ok());
+        assert!(registry
+            .register(descriptor.clone(), status.clone(), 1000)
+            .is_ok());
         assert_eq!(registry.get("worker-1").unwrap().last_seen_timestamp, 1000);
 
         // Incompatible protocol version rejected

@@ -246,10 +246,14 @@ impl RequestDispatcher {
                                 archived: s.is_archived,
                             })
                             .collect();
-                        let body = serde_json::to_string(&wire).unwrap_or_else(|_| "[]".to_string());
+                        let body =
+                            serde_json::to_string(&wire).unwrap_or_else(|_| "[]".to_string());
                         Ok(ApplicationResponse::ListSessions(body))
                     }
-                    Err(e) => Err(ApplicationError::Internal(format!("list_sessions failed: {}", e))),
+                    Err(e) => Err(ApplicationError::Internal(format!(
+                        "list_sessions failed: {}",
+                        e
+                    ))),
                 }
             }
         }

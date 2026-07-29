@@ -1,6 +1,11 @@
-//! Query services and DTO layer for retrieving and composing projection read models.
+//! Query services and Knowledge Query Engine (Phase 5 Milestone 5.1).
+//!
+//! Provides read-model query services (`JobQueryService`, `SearchQueryService`, `SessionQueryService`),
+//! as well as the Knowledge Query Engine featuring declarative query AST (`KnowledgeQuery`),
+//! first-class inspectable execution plans (`ExecutionPlan`), query planner, optimizer extension points,
+//! abstract view context providers (`QueryContextProvider`), step execution (`QueryExecutor`), and reciprocal rank candidate fusion (`ReciprocalRankFusion`).
 
-/// Data transfer objects.
+/// Data transfer objects for read-model views.
 pub mod dto;
 /// Query filters and pagination specifications.
 pub mod filters;
@@ -29,3 +34,31 @@ pub use subscription::{
     SqliteSessionSubscriptionService, WatchLiveQuery,
 };
 pub use traits::{JobQueryService, SearchQueryService, SessionQueryService};
+
+/// Declarative intent AST for knowledge query engine.
+pub mod ast;
+/// Abstract view context provider trait and implementations.
+pub mod context;
+/// Query candidate structures and step executor.
+pub mod executor;
+/// Pluggable candidate fusion strategies and RRF.
+pub mod fusion;
+/// Query plan optimization passes.
+pub mod optimizer;
+/// End-to-end pipeline composition root.
+pub mod pipeline;
+/// Inspectable declarative execution plans and step types.
+pub mod plan;
+/// Declarative query planner.
+pub mod planner;
+
+pub use ast::{KnowledgeQuery, RelationFilter, TemporalRange};
+pub use context::{InMemoryQueryContext, QueryContextProvider};
+pub use executor::{Candidate, QueryExecutor, RawCandidateSet};
+pub use fusion::{FusionStrategy, QueryResult, ReciprocalRankFusion};
+pub use optimizer::{NoOpOptimizer, PlanOptimizer};
+pub use pipeline::QueryPipeline;
+pub use plan::{
+    ExecutionPlan, ExecutionStep, ExecutionStepId, GraphStep, SemanticStep, TemporalStep, TextStep,
+};
+pub use planner::QueryPlanner;

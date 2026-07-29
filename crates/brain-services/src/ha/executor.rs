@@ -17,7 +17,11 @@ pub enum EffectExecutionError {
 
 #[async_trait]
 pub trait CoordinatorEffectExecutor: Send + Sync {
-    async fn execute_effect(&self, effect_id: EffectId, effect: &CoordinatorEffect) -> Result<(), EffectExecutionError>;
+    async fn execute_effect(
+        &self,
+        effect_id: EffectId,
+        effect: &CoordinatorEffect,
+    ) -> Result<(), EffectExecutionError>;
 }
 
 pub struct MockEffectExecutor {
@@ -44,7 +48,11 @@ impl MockEffectExecutor {
 
 #[async_trait]
 impl CoordinatorEffectExecutor for MockEffectExecutor {
-    async fn execute_effect(&self, effect_id: EffectId, _effect: &CoordinatorEffect) -> Result<(), EffectExecutionError> {
+    async fn execute_effect(
+        &self,
+        effect_id: EffectId,
+        _effect: &CoordinatorEffect,
+    ) -> Result<(), EffectExecutionError> {
         let mut executed = self.executed_effects.lock();
         if executed.contains(&effect_id) {
             return Ok(()); // Idempotency check

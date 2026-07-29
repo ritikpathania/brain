@@ -42,7 +42,8 @@ impl SqliteIntentLog {
 impl IntentLog for SqliteIntentLog {
     async fn append_record(&self, record: &IntentRecord) -> Result<(), IntentLogError> {
         let conn = self.conn.lock();
-        let effect_json = serde_json::to_string(&record.effect).map_err(|e| IntentLogError::Storage(e.to_string()))?;
+        let effect_json = serde_json::to_string(&record.effect)
+            .map_err(|e| IntentLogError::Storage(e.to_string()))?;
         let status_str = match record.status {
             IntentStatus::Created => "created",
             IntentStatus::Persisted => "persisted",
@@ -66,7 +67,11 @@ impl IntentLog for SqliteIntentLog {
         Ok(())
     }
 
-    async fn update_status(&self, effect_id: EffectId, status: IntentStatus) -> Result<(), IntentLogError> {
+    async fn update_status(
+        &self,
+        effect_id: EffectId,
+        status: IntentStatus,
+    ) -> Result<(), IntentLogError> {
         let conn = self.conn.lock();
         let status_str = match status {
             IntentStatus::Created => "created",
@@ -84,7 +89,10 @@ impl IntentLog for SqliteIntentLog {
         Ok(())
     }
 
-    async fn load_from(&self, sequence: SequenceNumber) -> Result<Vec<IntentRecord>, IntentLogError> {
+    async fn load_from(
+        &self,
+        sequence: SequenceNumber,
+    ) -> Result<Vec<IntentRecord>, IntentLogError> {
         let conn = self.conn.lock();
         let mut stmt = conn
             .prepare("SELECT sequence, event_id, effect_id, created_at, effect, status FROM coordinator_intent_log WHERE sequence >= ?1 ORDER BY sequence ASC")
@@ -104,8 +112,10 @@ impl IntentLog for SqliteIntentLog {
 
         let mut records = Vec::new();
         for r in rows {
-            let (seq, ev_str, ef_str, created, eff_json, st_str) = r.map_err(|e| IntentLogError::Storage(e.to_string()))?;
-            let effect: CoordinatorEffect = serde_json::from_str(&eff_json).map_err(|e| IntentLogError::Storage(e.to_string()))?;
+            let (seq, ev_str, ef_str, created, eff_json, st_str) =
+                r.map_err(|e| IntentLogError::Storage(e.to_string()))?;
+            let effect: CoordinatorEffect = serde_json::from_str(&eff_json)
+                .map_err(|e| IntentLogError::Storage(e.to_string()))?;
             let status = match st_str.as_str() {
                 "created" => IntentStatus::Created,
                 "persisted" => IntentStatus::Persisted,

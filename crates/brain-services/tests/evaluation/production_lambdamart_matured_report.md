@@ -23,19 +23,19 @@
 
 | Parameter | Value |
 | :--- | ---: |
-| **Best Selection Epoch** | 10 |
+| **Best Selection Epoch** | 11 |
 | **Total Boosting Rounds** | 50 |
 | **Early Stopped** | 🟢 Yes (selected peak validation round) |
 | **Validation Query Ratio** | 0.20 |
-| **Average Scoring Latency** | 149.48 ns |
+| **Average Scoring Latency** | 154.62 ns |
 
 ## Gain-Based Feature Importance
 
 | Rank | Feature | Normalized Gain Importance |
 | :--- | :--- | ---: |
-| 1 | `SemanticSimilarity` | 0.5748 |
-| 2 | `Importance` | 0.2888 |
-| 3 | `LexicalSimilarity` | 0.1364 |
+| 1 | `SemanticSimilarity` | 0.5761 |
+| 2 | `Importance` | 0.2839 |
+| 3 | `LexicalSimilarity` | 0.1400 |
 | 4 | `AccessFrequency` | 0.0000 |
 | 5 | `FreshnessDecay` | 0.0000 |
 | 6 | `GraphDegree` | 0.0000 |

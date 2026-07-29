@@ -1,10 +1,10 @@
 #![allow(missing_docs)]
 
-use brain_domain::jobs::JobId;
 use crate::distributed::ingress::WorkerHeartbeat;
 use crate::distributed::models::*;
 use crate::runtime::models::*;
 use crate::worker::models::*;
+use brain_domain::jobs::JobId;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -29,24 +29,15 @@ pub enum ExternalEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum InternalEvent {
-    LeaseExpired {
-        task_id: TaskId,
-        lease_id: u64,
-    },
-    WorkerLost {
-        worker_id: String,
-    },
-    WorkerRecovered {
-        worker_id: String,
-    },
-    RetryDue {
-        task_id: TaskId,
-    },
+    LeaseExpired { task_id: TaskId, lease_id: u64 },
+    WorkerLost { worker_id: String },
+    WorkerRecovered { worker_id: String },
+    RetryDue { task_id: TaskId },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CoordinatorEvent {
-    External(ExternalEvent),
+    External(Box<ExternalEvent>),
     Internal(InternalEvent),
 }
 
@@ -67,7 +58,7 @@ mod tests {
             priority: 1,
         };
 
-        let ev = CoordinatorEvent::External(ext);
+        let ev = CoordinatorEvent::External(Box::new(ext));
         assert!(matches!(ev, CoordinatorEvent::External(_)));
     }
 }

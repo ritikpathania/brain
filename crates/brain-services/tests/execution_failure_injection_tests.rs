@@ -34,6 +34,17 @@ fn test_failure_injection_crash_and_recovery_replay() {
             execution_id: exec_id,
             version: ExecutionVersion(3),
             occurred_at: 1002,
+            payload: JournalPayload::Task(TaskEventPayload::TaskCreated {
+                task_id,
+                job_id: brain_domain::jobs::JobId(uuid::Uuid::new_v4()),
+                priority: 1,
+            }),
+        },
+        JournalEvent {
+            sequence_no: SequenceNo(4),
+            execution_id: exec_id,
+            version: ExecutionVersion(4),
+            occurred_at: 1003,
             payload: JournalPayload::Task(TaskEventPayload::TaskLeased {
                 task_id,
                 worker_id: "worker-1".to_string(),
@@ -51,7 +62,7 @@ fn test_failure_injection_crash_and_recovery_replay() {
     let recovered = engine.recover_execution(exec_id).unwrap().unwrap();
 
     assert_eq!(recovered.status, ExecutionFsmState::Running);
-    assert_eq!(recovered.version, ExecutionVersion(3));
+    assert_eq!(recovered.version, ExecutionVersion(4));
     let task_snap = recovered.tasks.get(&task_id).unwrap();
     assert_eq!(task_snap.status, TaskFsmState::Leased);
     assert_eq!(task_snap.lease_owner.as_deref(), Some("worker-1"));

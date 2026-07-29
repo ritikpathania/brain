@@ -17,6 +17,10 @@ pub mod validation;
 /// Config migration interfaces.
 pub mod migration;
 
+/// Immutable Copy-on-Write Versioned Configuration Engine (Phase G.5).
+pub mod immutable_config;
+
+pub use immutable_config::*;
 pub use loader::*;
 pub use migration::*;
 pub use schema::*;
