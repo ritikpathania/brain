@@ -4,8 +4,22 @@ use daemon_bridge::host::DaemonHost;
 async fn query_http_endpoint(path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let port = std::env::var("BRAIN_HEALTH_PORT").unwrap_or_else(|_| "8080".to_string());
     let url = format!("http://127.0.0.1:{}{}", port, path);
-    let resp = reqwest::get(&url).await?.text().await?;
-    Ok(resp)
+    let mut last_err = None;
+    for i in 0..5 {
+        match reqwest::get(&url).await {
+            Ok(resp) => {
+                let text = resp.text().await?;
+                return Ok(text);
+            }
+            Err(e) => {
+                last_err = Some(e);
+                if i < 4 {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                }
+            }
+        }
+    }
+    Err(Box::new(last_err.unwrap()))
 }
 
 async fn check_health() -> Result<(), Box<dyn std::error::Error>> {
@@ -28,9 +42,16 @@ async fn check_health() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn run_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Daemon Diagnostics ===");
-    match query_http_endpoint("/metrics/runtime").await {
+    match query_http_endpoint("/diagnostics").await {
         Ok(body) => {
-            println!("{}", body);
+            if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&body) {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json_val).unwrap_or(body)
+                );
+            } else {
+                println!("{}", body);
+            }
         }
         Err(e) => {
             println!("Diagnostics unavailable: {}", e);

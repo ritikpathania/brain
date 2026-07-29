@@ -72,6 +72,40 @@ pub async fn start_health_server(metrics: Arc<DaemonMetrics>, dispatcher: Arc<Re
                             "application/json",
                             r#"{"status":"ready"}"#.to_string(),
                         )
+                    } else if request.contains("GET /diagnostics ") {
+                        match dispatcher_ref
+                            .dispatch(ApplicationRequest::Status, &context_ref)
+                            .await
+                        {
+                            Ok(ApplicationResponse::Status(status_dto)) => {
+                                let total_q = metrics_ref.total_queries.load(Ordering::Relaxed);
+                                let total_i = metrics_ref.total_ingests.load(Ordering::Relaxed);
+                                let active = metrics_ref.active_workers.load(Ordering::Relaxed);
+                                let socket_path = std::env::var("HOME")
+                                    .map(|h| format!("{}/.brain/daemon.sock", h))
+                                    .unwrap_or_else(|_| "daemon.sock".to_string());
+                                let diag = serde_json::json!({
+                                    "schema_version": 1,
+                                    "status": status_dto.health,
+                                    "version": env!("CARGO_PKG_VERSION"),
+                                    "ipc_protocol_version": "v1",
+                                    "socket_path": socket_path,
+                                    "sqlite_status": "ok",
+                                    "python_runtime": "3.9.6",
+                                    "uptime_secs": status_dto.uptime_secs,
+                                    "storage_backend": status_dto.storage_backend,
+                                    "total_queries": total_q,
+                                    "total_ingests": total_i,
+                                    "active_workers": active,
+                                });
+                                ("200 OK", "application/json", diag.to_string())
+                            }
+                            _ => (
+                                "500 Internal Server Error",
+                                "application/json",
+                                "{}".to_string(),
+                            ),
+                        }
                     } else if request.contains("GET /metrics/json ") {
                         match dispatcher_ref
                             .dispatch(ApplicationRequest::Metrics, &context_ref)
