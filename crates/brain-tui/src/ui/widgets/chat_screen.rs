@@ -47,10 +47,15 @@ impl<'a> Screen for ChatScreen<'a> {
                 geometry.sidebar_area.width.saturating_sub(2),
                 geometry.sidebar_area.height.saturating_sub(2),
             );
+            let session_label = if self.view.session_title.is_empty() {
+                "No sessions yet".to_string()
+            } else {
+                format!("▶ {}", self.view.session_title)
+            };
             buf.set_stringn(
                 inner_rect.x,
                 inner_rect.y,
-                "• active-session",
+                &session_label,
                 inner_rect.width as usize,
                 ctx.theme.style(ThemeToken::Primary),
             );

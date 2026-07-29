@@ -392,19 +392,87 @@ impl ExecutionClient for UdsClient {
     }
 
     async fn list_sessions(&self) -> Result<Vec<SessionSummary>, BrainError> {
-        // Return a single default user session for single-user environment
-        let session = SessionSummary {
-            id: SessionId::new(),
-            title: "New Conversation".to_string(),
-            updated_at: std::time::SystemTime::now(),
-            pinned: false,
-            archived: false,
-        };
-        Ok(vec![session])
+        let mut stream =
+            UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| BrainError::Network {
+                    message: format!("list_sessions: connect failed: {}", e),
+                    url: None,
+                })?;
+
+        stream
+            .write_all(b"{\"action\":\"list_sessions\",\"payload\":\"\"}\n")
+            .await
+            .map_err(|e| BrainError::Storage {
+                message: format!("list_sessions: write failed: {}", e),
+                source: None,
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: format!("list_sessions: flush failed: {}", e),
+            source: None,
+        })?;
+
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        reader
+            .read_line(&mut line)
+            .await
+            .map_err(|e| BrainError::Storage {
+                message: format!("list_sessions: read failed: {}", e),
+                source: None,
+            })?;
+
+        #[derive(serde::Deserialize)]
+        struct Resp {
+            status: String,
+            message: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct Wire {
+            id: String,
+            title: String,
+            updated_at: u64,
+            #[serde(default)]
+            pinned: bool,
+            #[serde(default)]
+            archived: bool,
+        }
+
+        let resp: Resp = serde_json::from_str(line.trim()).map_err(|e| BrainError::Internal {
+            message: format!("list_sessions: parse error: {}", e),
+        })?;
+
+        if resp.status != "ok" {
+            return Err(BrainError::Internal {
+                message: format!("list_sessions daemon error: {}", resp.message),
+            });
+        }
+
+        let wires: Vec<Wire> = serde_json::from_str(&resp.message).unwrap_or_default();
+
+        Ok(wires
+            .into_iter()
+            .map(|w| {
+                let id =
+                    w.id.parse::<brain_domain::SessionId>()
+                        .unwrap_or_else(|_| brain_domain::SessionId::new());
+                let updated_at =
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(w.updated_at);
+                SessionSummary {
+                    id,
+                    title: w.title,
+                    updated_at,
+                    pinned: w.pinned,
+                    archived: w.archived,
+                }
+            })
+            .collect())
     }
 
     async fn load_session(&self, _id: SessionId) -> Result<Vec<Message>, BrainError> {
-        Ok(vec![])
+        Err(BrainError::Internal {
+            message: "Unsupported: historical message loading in standalone daemon".to_string(),
+        })
     }
 
     async fn delete_session(&self, _id: SessionId) -> Result<(), BrainError> {

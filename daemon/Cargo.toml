@@ -28,6 +28,7 @@ brain-integrations = { path = "../crates/brain-integrations" }
 brain-core = { path = "../crates/brain-core" }
 brain-services = { path = "../crates/brain-services" }
 brain-application = { path = "../crates/brain-application" }
+brain-storage = { path = "../crates/brain-storage" }
 reqwest = { workspace = true }
 
 [dev-dependencies]

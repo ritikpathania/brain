@@ -743,6 +743,66 @@ pub async fn handle_connection(
 
                 Some(response)
             }
+            "list_sessions" => {
+                let pool = brain_runtime.sqlite_storage().pool().clone();
+                let repo = brain_storage::SqliteSessionReadModelRepository::new(pool);
+                let response = match repo.list_all() {
+                    Ok(sessions) => {
+                        #[derive(serde::Serialize)]
+                        struct SessionWire {
+                            id: String,
+                            title: String,
+                            updated_at: u64,
+                            pinned: bool,
+                            archived: bool,
+                        }
+                        let wire: Vec<SessionWire> = sessions
+                            .into_iter()
+                            .map(|s| SessionWire {
+                                id: s.session_id.to_string(),
+                                title: s.title,
+                                updated_at: s.updated_at.0,
+                                pinned: s.is_pinned,
+                                archived: s.is_archived,
+                            })
+                            .collect();
+                        let body =
+                            serde_json::to_string(&wire).unwrap_or_else(|_| "[]".to_string());
+                        if is_versioned {
+                            ServerResponse::Response(VersionedResponse {
+                                version: "1.0".to_string(),
+                                msg_type: "Response".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "success".to_string(),
+                                body,
+                            })
+                        } else {
+                            ServerResponse::Legacy(LegacyResponse {
+                                status: "ok".to_string(),
+                                message: body,
+                            })
+                        }
+                    }
+                    Err(e) => {
+                        let msg = format!("list_sessions failed: {}", e);
+                        if is_versioned {
+                            ServerResponse::Error(VersionedError {
+                                version: "1.0".to_string(),
+                                msg_type: "Error".to_string(),
+                                id: req_id.unwrap_or(0),
+                                status: "error".to_string(),
+                                body: msg,
+                            })
+                        } else {
+                            ServerResponse::Legacy(LegacyResponse {
+                                status: "error".to_string(),
+                                message: msg,
+                            })
+                        }
+                    }
+                };
+                Some(response)
+            }
             "disconnect" => {
                 let response = if is_versioned {
                     ServerResponse::Response(VersionedResponse {
