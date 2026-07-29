@@ -18,8 +18,12 @@ fn main() {
             if p.exists() {
                 println!("cargo:rustc-link-search=framework={}", framework_dir);
                 println!("cargo:rustc-link-arg=-Wl,-rpath,{}", framework_dir);
-                
-                let py3_lib = p.join("Python3.framework").join("Versions").join("3.9").join("lib");
+
+                let py3_lib = p
+                    .join("Python3.framework")
+                    .join("Versions")
+                    .join("3.9")
+                    .join("lib");
                 if py3_lib.exists() {
                     println!("cargo:rustc-link-search=native={}", py3_lib.display());
                     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", py3_lib.display());
