@@ -584,6 +584,7 @@ fn test_search_projection() {
     // Verify search results
     let q1 = SearchQuery {
         text: "Initial".to_string(),
+        mode: Default::default(),
         kinds: None,
         limit: None,
         offset: None,
@@ -594,6 +595,7 @@ fn test_search_projection() {
 
     let q2 = SearchQuery {
         text: "Renamed".to_string(),
+        mode: Default::default(),
         kinds: None,
         limit: None,
         offset: None,
@@ -606,6 +608,7 @@ fn test_search_projection() {
     // Verify message search
     let q3 = SearchQuery {
         text: "rust".to_string(),
+        mode: Default::default(),
         kinds: Some(vec![SearchDocumentKind::Message]),
         limit: None,
         offset: None,
@@ -639,6 +642,7 @@ fn test_search_projection() {
     // Verify session and all its messages are deleted from FTS5 index
     let q_all = SearchQuery {
         text: "development".to_string(),
+        mode: Default::default(),
         kinds: None,
         limit: None,
         offset: None,

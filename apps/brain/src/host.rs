@@ -115,6 +115,29 @@ impl CLIHost {
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
         reader.read_line(&mut line).await?;
-        Ok(line.trim().to_string())
+        let trimmed = line.trim();
+
+        // Parse response JSON for clean CLI output
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if value.get("status").and_then(|s| s.as_str()) == Some("ok") {
+                if let Some(msg_str) = value.get("message").and_then(|m| m.as_str()) {
+                    if let Ok(inner) = serde_json::from_str::<serde_json::Value>(msg_str) {
+                        let event_id = inner
+                            .get("event_id")
+                            .and_then(|id| id.as_str())
+                            .unwrap_or("unknown");
+                        return Ok(format!(
+                            "✔ Ingested memory successfully (Event ID: {})",
+                            event_id
+                        ));
+                    }
+                }
+                return Ok("✔ Ingested memory successfully".to_string());
+            } else if let Some(msg) = value.get("message").and_then(|m| m.as_str()) {
+                return Ok(format!("✖ Ingest failed: {}", msg));
+            }
+        }
+
+        Ok(trimmed.to_string())
     }
 }

@@ -970,6 +970,7 @@ impl BrainRuntime {
             .fetch_add(1, Ordering::Relaxed);
         let storage_query = brain_storage::SearchQuery {
             text: query.text,
+            mode: Default::default(),
             kinds: query.kinds,
             limit: query.pagination.as_ref().and_then(|p| p.limit),
             offset: query.pagination.as_ref().and_then(|p| p.offset),

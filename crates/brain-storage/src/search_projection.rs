@@ -7,11 +7,44 @@ use brain_domain::{
 use rusqlite::params;
 use serde_json;
 
+/// Query processing evaluation mode.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SearchMode {
+    /// Sanitize natural language input and punctuation into safe FTS5 terms.
+    #[default]
+    NaturalLanguage,
+    /// Pass raw FTS boolean expression directly without sanitization.
+    FtsExpression,
+}
+
+/// Sanitizes natural language query text into safe SQLite FTS5 search terms.
+pub fn sanitize_fts5_query(query: &str) -> String {
+    let mut words = Vec::new();
+    for token in query.split_whitespace() {
+        let cleaned: String = token
+            .chars()
+            .filter(|c| {
+                !matches!(
+                    c,
+                    '?' | '*' | ':' | '"' | '^' | '(' | ')' | '{' | '}' | '+' | '-'
+                )
+            })
+            .collect();
+        if !cleaned.is_empty() {
+            words.push(format!("\"{}\"", cleaned));
+        }
+    }
+    words.join(" ")
+}
+
 /// Structured search query.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SearchQuery {
     /// The query matching text.
     pub text: String,
+    /// Query evaluation mode (defaults to NaturalLanguage).
+    pub mode: SearchMode,
     /// Optional filter by document kinds.
     pub kinds: Option<Vec<SearchDocumentKind>>,
     /// Pagination limit.
@@ -182,15 +215,18 @@ impl SqliteSearchRepository {
             source: Some(Box::new(e)),
         })?;
 
-        // FTS5 MATCH clause: query.text contains search terms
-        // If query is empty, we don't MATCH, just return empty list
-        if query.text.trim().is_empty() {
+        let search_text = match query.mode {
+            SearchMode::NaturalLanguage => sanitize_fts5_query(&query.text),
+            SearchMode::FtsExpression => query.text.clone(),
+        };
+
+        if search_text.trim().is_empty() {
             return Ok(Vec::new());
         }
 
         let mut sql = "SELECT id, kind, title, body, metadata FROM search_projection WHERE search_projection MATCH ?1".to_string();
         let mut params_vec: Vec<rusqlite::types::Value> =
-            vec![rusqlite::types::Value::Text(query.text.clone())];
+            vec![rusqlite::types::Value::Text(search_text)];
 
         let mut param_index = 2;
         if let Some(ref kinds) = query.kinds {
@@ -324,5 +360,37 @@ impl SqliteSearchRepository {
             source: Some(Box::new(e)),
         })?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sanitize_fts5_query_matrix() {
+        // Natural question with ?
+        assert_eq!(
+            sanitize_fts5_query("What database do I use?"),
+            "\"What\" \"database\" \"do\" \"I\" \"use\""
+        );
+
+        // FTS operators
+        assert_eq!(sanitize_fts5_query("NOT AND OR"), "\"NOT\" \"AND\" \"OR\"");
+
+        // Special punctuation (?, *, :, ", (), {}, +, -)
+        assert_eq!(
+            sanitize_fts5_query("server: \"Ubuntu\" * (test)+"),
+            "\"server\" \"Ubuntu\" \"test\""
+        );
+
+        // Unicode and Emojis
+        assert_eq!(
+            sanitize_fts5_query("PostgreSQL 🐘 🚀"),
+            "\"PostgreSQL\" \"🐘\" \"🚀\""
+        );
+
+        // Empty / Whitespace
+        assert_eq!(sanitize_fts5_query("   "), "");
     }
 }
