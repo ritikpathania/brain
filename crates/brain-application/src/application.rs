@@ -237,7 +237,7 @@ impl BrainApplication {
             );
             for (node, _score) in projection_result.items {
                 results.push(brain_domain::SearchDocument {
-                    id: brain_domain::SearchDocumentId::new(&node.id.to_string()),
+                    id: brain_domain::SearchDocumentId::new(node.id.to_string()),
                     kind: brain_domain::SearchDocumentKind::Retrieval,
                     title: node.label.clone(),
                     body: node.label.clone(),
