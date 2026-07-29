@@ -64,6 +64,56 @@ enum DaemonAction {
     Run,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolutionOrigin {
+    CurrentExe,
+    InstallBundle,
+    Path,
+}
+
+pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String> {
+    static CACHED: std::sync::OnceLock<Result<(PathBuf, ResolutionOrigin), String>> =
+        std::sync::OnceLock::new();
+
+    CACHED
+        .get_or_init(|| {
+            // 1. Sibling of current_exe()
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(parent) = exe_path.parent() {
+                    let sibling = parent.join("brain-daemon");
+                    if sibling.exists() && sibling.is_file() {
+                        return Ok((sibling, ResolutionOrigin::CurrentExe));
+                    }
+                }
+            }
+
+            // 2. Installed bundle directory
+            if let Some(home) = dirs::home_dir() {
+                let user_bundle = home.join(".brain").join("bin").join("brain-daemon");
+                if user_bundle.exists() && user_bundle.is_file() {
+                    return Ok((user_bundle, ResolutionOrigin::InstallBundle));
+                }
+            }
+            let sys_bundle = PathBuf::from("/usr/local/bin/brain-daemon");
+            if sys_bundle.exists() && sys_bundle.is_file() {
+                return Ok((sys_bundle, ResolutionOrigin::InstallBundle));
+            }
+
+            // 3. System PATH check
+            if let Ok(path_var) = std::env::var("PATH") {
+                for dir in std::env::split_paths(&path_var) {
+                    let candidate = dir.join("brain-daemon");
+                    if candidate.exists() && candidate.is_file() {
+                        return Ok((candidate, ResolutionOrigin::Path));
+                    }
+                }
+            }
+
+            Err("brain-daemon executable could not be found. Make sure brain-daemon is built and located alongside 'brain', in ~/.brain/bin, or in your PATH.".to_string())
+        })
+        .clone()
+}
+
 fn socket_is_alive() -> bool {
     let socket_path = dirs::home_dir()
         .map(|h| h.join(".brain").join("daemon.sock"))
@@ -73,15 +123,28 @@ fn socket_is_alive() -> bool {
 
 fn try_start_daemon() -> bool {
     println!("Starting background daemon...");
-    let result = std::process::Command::new("brain-daemon")
-        .arg("daemon")
-        .arg("start")
-        .status();
-    if result.is_ok() {
-        std::thread::sleep(std::time::Duration::from_millis(800));
-        socket_is_alive()
-    } else {
-        false
+    match resolve_daemon_executable() {
+        Ok((bin_path, origin)) => {
+            println!(
+                "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                origin,
+                bin_path.display()
+            );
+            let result = std::process::Command::new(bin_path)
+                .arg("daemon")
+                .arg("start")
+                .status();
+            if result.is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(800));
+                socket_is_alive()
+            } else {
+                false
+            }
+        }
+        Err(err) => {
+            eprintln!("{}", err);
+            false
+        }
     }
 }
 
@@ -131,19 +194,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Daemon { action }) => match action {
             Some(DaemonAction::Start) => {
-                let status = std::process::Command::new("brain-daemon")
+                let (bin_path, origin) =
+                    resolve_daemon_executable().map_err(std::io::Error::other)?;
+                println!(
+                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                    origin,
+                    bin_path.display()
+                );
+                let status = std::process::Command::new(bin_path)
                     .args(["daemon", "start"])
                     .status()?;
                 std::process::exit(status.code().unwrap_or(0));
             }
             Some(DaemonAction::Stop) => {
-                let status = std::process::Command::new("brain-daemon")
+                let (bin_path, origin) =
+                    resolve_daemon_executable().map_err(std::io::Error::other)?;
+                println!(
+                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                    origin,
+                    bin_path.display()
+                );
+                let status = std::process::Command::new(bin_path)
                     .args(["daemon", "stop"])
                     .status()?;
                 std::process::exit(status.code().unwrap_or(0));
             }
             Some(DaemonAction::Status) => {
-                let status = std::process::Command::new("brain-daemon")
+                let (bin_path, origin) =
+                    resolve_daemon_executable().map_err(std::io::Error::other)?;
+                println!(
+                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                    origin,
+                    bin_path.display()
+                );
+                let status = std::process::Command::new(bin_path)
                     .args(["daemon", "status"])
                     .status()?;
                 std::process::exit(status.code().unwrap_or(0));

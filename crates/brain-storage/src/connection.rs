@@ -11,7 +11,7 @@ pub struct SqliteConnectionCustomizer {
 
 impl r2d2::CustomizeConnection<Connection, rusqlite::Error> for SqliteConnectionCustomizer {
     fn on_acquire(&self, conn: &mut Connection) -> Result<(), rusqlite::Error> {
-        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
         if self.enable_wal {
             conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         }
@@ -72,7 +72,7 @@ pub fn init_pool(
     let timeout_ms = std::env::var("BRAIN_DATABASE_TIMEOUT_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
-        .unwrap_or(1000);
+        .unwrap_or(15000);
     let timeout = std::time::Duration::from_millis(timeout_ms);
 
     r2d2::Pool::builder()
