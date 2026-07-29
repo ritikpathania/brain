@@ -64,13 +64,21 @@ impl AppRenderer {
         area: Rect,
         state: &UiState,
     ) -> (Rect, Rect, Rect, Rect, Rect, Rect) {
+        let (header_h, prompt_h, status_h) = if area.height >= 14 {
+            (3u16, 3u16, 1u16)
+        } else if area.height >= 10 {
+            (1u16, 3u16, 1u16)
+        } else {
+            (1u16, 1u16, 0u16)
+        };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // Logo / Header
-                Constraint::Min(10),   // Mid section (Sidebar + Chat + Inspector)
-                Constraint::Length(3), // Prompt input editor
-                Constraint::Length(1), // Footer status bar
+                Constraint::Length(header_h),
+                Constraint::Min(1),
+                Constraint::Length(prompt_h),
+                Constraint::Length(status_h),
             ])
             .split(area);
 
@@ -559,5 +567,61 @@ impl AppRenderer {
 impl Default for AppRenderer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_layout_invariant_assertions_matrix() {
+        let renderer = AppRenderer::new();
+        let state = UiState::default();
+
+        let benchmarks = [(60, 20), (80, 24), (100, 30), (160, 50)];
+
+        for (w, h) in benchmarks {
+            let area = Rect::new(0, 0, w, h);
+            let (header, sidebar, chat, inspector, prompt, status) =
+                renderer.compute_layout(area, &state);
+
+            // Invariant 1: No widget exceeds terminal height or width bounds
+            assert!(
+                header.y + header.height <= area.height,
+                "Header exceeds height at {}x{}",
+                w,
+                h
+            );
+            assert!(
+                prompt.y + prompt.height <= area.height,
+                "Prompt exceeds height at {}x{}",
+                w,
+                h
+            );
+            assert!(
+                status.y + status.height <= area.height,
+                "Status exceeds height at {}x{}",
+                w,
+                h
+            );
+
+            // Invariant 2: Prompt is always visible (height > 0)
+            assert!(prompt.height > 0, "Prompt must be visible at {}x{}", w, h);
+
+            // Invariant 3: Total height does not exceed terminal height
+            let total_h = header.height
+                + chat.height.max(sidebar.height).max(inspector.height)
+                + prompt.height
+                + status.height;
+            assert!(
+                total_h <= area.height,
+                "Total layout height {} exceeds area height {} at {}x{}",
+                total_h,
+                area.height,
+                w,
+                h
+            );
+        }
     }
 }
