@@ -42,3 +42,41 @@ async fn test_uds_client_execute() {
         }
     }
 }
+
+#[tokio::test]
+async fn test_daemon_returns_error_for_unknown_action() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::UnixStream;
+
+    let path = "/Users/ritikpathania/.brain/daemon.sock";
+    if !std::path::Path::new(path).exists() {
+        println!("Skipping: daemon socket not present");
+        return;
+    }
+    let mut stream = match UnixStream::connect(path).await {
+        Ok(s) => s,
+        Err(_) => {
+            println!("Skipping: daemon unreachable");
+            return;
+        }
+    };
+
+    stream
+        .write_all(b"{\"action\":\"nonexistent_xyz\",\"payload\":\"test\"}\n")
+        .await
+        .unwrap();
+    stream.flush().await.unwrap();
+
+    let mut reader = BufReader::new(stream);
+    let mut line = String::new();
+    reader.read_line(&mut line).await.unwrap();
+
+    let resp: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
+    assert_eq!(resp["status"], "error");
+    let msg = resp["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("unknown action"),
+        "Expected 'unknown action' in error, got: {}",
+        msg
+    );
+}

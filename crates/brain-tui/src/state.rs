@@ -3228,4 +3228,16 @@ mod tests {
         let (msg, _) = state.transient_message.unwrap();
         assert_eq!(msg, "📌 Context used: Alpha");
     }
+
+    #[test]
+    fn test_report_error_sets_generation_state() {
+        let mut state = UiState::new();
+        state.update(Action::StartStream);
+        state.update(Action::ReportError("daemon rejected".to_string()));
+        assert!(
+            matches!(&state.generation_state, GenerationState::Error(msg) if msg == "daemon rejected"),
+            "Expected Error state, got {:?}",
+            state.generation_state
+        );
+    }
 }
