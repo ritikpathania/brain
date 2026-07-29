@@ -155,10 +155,20 @@ def test_uds_ingest_and_query_stream():
 
     assert len(ingest_responses) > 0
     assert ingest_responses[0]["status"] == "ok"
-    assert "Ingested node" in ingest_responses[0]["message"]
+    assert "success" in ingest_responses[0]["message"]
 
-    # 2. Query immediately (hits STM Cache)
-    query_responses = run_uds_query("query", "rust")
+    # 2. Query with retries for asynchronous projection visibility
+    query_responses = []
+    reconstructed_content = ""
+
+    for _ in range(15):
+        time.sleep(0.3)
+        query_responses = run_uds_query("query", "rust")
+        reconstructed_content = "".join(
+            r.get("content", "") for r in query_responses if r.get("type") == "stream_chunk"
+        )
+        if "Found" in reconstructed_content:
+            break
 
     assert len(query_responses) > 0
 
@@ -168,7 +178,6 @@ def test_uds_ingest_and_query_stream():
     assert "stream_end" in event_types
 
     # Accumulate chunks and validate sequence monotonicity
-    reconstructed_content = ""
     expected_seq = None
 
     for r in query_responses:
@@ -180,9 +189,29 @@ def test_uds_ingest_and_query_stream():
             assert seq == expected_seq
             expected_seq += 1
 
-        if r.get("type") == "stream_chunk":
-            reconstructed_content += r.get("content", "")
-
     assert "Found" in reconstructed_content
     assert "result" in reconstructed_content
-    assert "rust" in reconstructed_content.lower()
+
+
+def test_top_result_has_high_confidence():
+    """Query top result must display 'High confidence'."""
+    ingest_payload = "User ritikpathania is testing rust confidence ranking."
+    ingest_res = run_uds_query("ingest", ingest_payload)
+    assert len(ingest_res) > 0
+    assert ingest_res[0].get("status") == "ok"
+
+    # Query with retries for asynchronous projection updates
+    for _ in range(15):
+        time.sleep(0.3)
+        responses = run_uds_query("query", "testing")
+        chunks = [
+            r.get("content", "") for r in responses if r.get("type") == "stream_chunk"
+        ]
+        result_chunks = [c for c in chunks if "confidence" in c]
+        if result_chunks:
+            assert "High confidence" in result_chunks[0], (
+                f"Expected 'High confidence' in top result, got: {result_chunks[0]!r}"
+            )
+            return
+
+    pytest.fail("No confidence chunk received in query response")

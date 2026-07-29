@@ -331,14 +331,20 @@ pub async fn handle_connection(
                         writer.write_all(chunk_json.as_bytes()).await?;
                         writer.flush().await?;
 
-                        for node in matches {
+                        /// Minimum quality score threshold to qualify for rank-based confidence assignment.
+                        /// Scores below this threshold are labeled "Low" regardless of rank.
+                        const MIN_QUALITY_SCORE: i64 = 1;
+
+                        for (rank, node) in matches.into_iter().enumerate() {
                             seq += 1;
-                            let confidence = if node.score >= 7000 {
-                                "High"
-                            } else if node.score >= 3000 {
-                                "Medium"
-                            } else {
+                            let confidence = if node.score < MIN_QUALITY_SCORE {
                                 "Low"
+                            } else {
+                                match rank {
+                                    0 => "High",
+                                    1 => "Medium",
+                                    _ => "Low",
+                                }
                             };
 
                             let preview: String = node

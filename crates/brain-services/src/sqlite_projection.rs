@@ -93,15 +93,26 @@ impl SqliteProjectionManager {
         // Reconstruct the graph context snapshot from SQLite database transaction
         let mut graph = KnowledgeGraph::new();
         let _ = self.storage.run_transaction(&mut |tx| {
-            if let Ok(nodes) = tx.repositories().nodes().list_all() {
-                for n in nodes {
-                    graph.nodes.insert(n.id, n);
+            match tx.repositories().nodes().list_all() {
+                Ok(nodes) => {
+                    for n in nodes {
+                        graph.nodes.insert(n.id, n);
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("SqliteProjectionManager: nodes list_all failed: {}", err);
                 }
             }
-            if let Ok(edges) = tx.repositories().edges().list_all() {
-                for e in edges {
-                    let edge_id = brain_domain::EdgeId::new(e.source, e.target, e.relation.id());
-                    graph.edges.insert(edge_id, e);
+            match tx.repositories().edges().list_all() {
+                Ok(edges) => {
+                    for e in edges {
+                        let edge_id =
+                            brain_domain::EdgeId::new(e.source, e.target, e.relation.id());
+                        graph.edges.insert(edge_id, e);
+                    }
+                }
+                Err(err) => {
+                    tracing::error!("SqliteProjectionManager: edges list_all failed: {}", err);
                 }
             }
             Ok(())

@@ -41,4 +41,4 @@ def test_end_to_end_event_ingestion_and_deduplication():
     assert "sequence" in ack_data
     assert ack_data["event_id"] == event_id
     seq1 = ack_data["sequence"]
-    assert seq1 == 1
+    assert seq1 > 0

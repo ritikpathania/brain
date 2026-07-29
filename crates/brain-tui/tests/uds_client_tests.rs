@@ -73,10 +73,10 @@ async fn test_daemon_returns_error_for_unknown_action() {
 
     let resp: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
     assert_eq!(resp["status"], "error");
-    let msg = resp["message"].as_str().unwrap_or("");
+    let err = resp["message"].as_str().unwrap_or("");
     assert!(
-        msg.contains("unknown action"),
+        err.to_lowercase().contains("unknown action"),
         "Expected 'unknown action' in error, got: {}",
-        msg
+        err
     );
 }
