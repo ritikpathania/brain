@@ -165,7 +165,9 @@ def test_uds_ingest_and_query_stream():
         time.sleep(0.3)
         query_responses = run_uds_query("query", "rust")
         reconstructed_content = "".join(
-            r.get("content", "") for r in query_responses if r.get("type") == "stream_chunk"
+            r.get("content", "")
+            for r in query_responses
+            if r.get("type") == "stream_chunk"
         )
         if "Found" in reconstructed_content:
             break
