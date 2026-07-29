@@ -73,9 +73,18 @@ pub struct BrainApplication {
     evolution_planner: Arc<brain_services::evolution::KnowledgeEvolutionPlanner>,
     evolution_audit_history: Arc<parking_lot::Mutex<Vec<v1::EvolutionAuditRecordDto>>>,
     automation_scheduler: Arc<brain_services::automation::AutomationScheduler>,
+    knowledge_runtime: Arc<brain_services::runtime::KnowledgeRuntime>,
+    maintenance_runtime: Arc<brain_services::reflection::KnowledgeMaintenanceRuntime>,
+    active_maintenance_lock: Arc<tokio::sync::Mutex<()>>,
+    last_maintenance_result: Arc<parking_lot::Mutex<Option<v1::MaintenanceCycleResultDto>>>,
 }
 
 impl BrainApplication {
+    /// Returns a reference to the underlying BrainRuntime.
+    pub fn runtime(&self) -> &Arc<BrainRuntime> {
+        &self.runtime
+    }
+
     /// Crate-level stable interface version.
     pub const INTERFACE_VERSION: &'static str = "1.0.0";
 
@@ -102,6 +111,9 @@ impl BrainApplication {
         });
         let planner = brain_services::evolution::KnowledgeEvolutionPlanner::new();
         let scheduler = brain_services::automation::AutomationScheduler::new(planner.clone());
+        let knowledge_runtime = brain_services::runtime::KnowledgeRuntimeBuilder::new().build();
+        let maintenance_runtime =
+            brain_services::reflection::KnowledgeMaintenanceRuntime::default();
 
         Self {
             runtime,
@@ -113,6 +125,10 @@ impl BrainApplication {
             evolution_planner: Arc::new(planner),
             evolution_audit_history: Arc::new(parking_lot::Mutex::new(Vec::new())),
             automation_scheduler: Arc::new(scheduler),
+            knowledge_runtime: Arc::new(knowledge_runtime),
+            maintenance_runtime: Arc::new(maintenance_runtime),
+            active_maintenance_lock: Arc::new(tokio::sync::Mutex::new(())),
+            last_maintenance_result: Arc::new(parking_lot::Mutex::new(None)),
         }
     }
 
@@ -201,13 +217,37 @@ impl BrainApplication {
             });
 
         let service_query = brain_services::query::SearchQuery {
-            text: query.text,
+            text: query.text.clone(),
             kinds: mapped_kinds,
             pagination: mapped_pagination,
         };
 
         // Execute search on runtime returning SearchDocument
-        let results = self.runtime.search(service_query)?;
+        let mut results = self.runtime.search(service_query)?;
+        if results.is_empty() {
+            let search_projector = brain_services::SearchProjector;
+            let projection_query = brain_services::SearchProjectionQuery {
+                query: query.text.clone(),
+                limit: 20,
+            };
+            let projection_result = self.runtime.query_projection(
+                &search_projector,
+                &projection_query,
+                brain_core::CorrelationId::new_v4(),
+            );
+            for (node, _score) in projection_result.items {
+                results.push(brain_domain::SearchDocument {
+                    id: brain_domain::SearchDocumentId::new(&node.id.to_string()),
+                    kind: brain_domain::SearchDocumentKind::Retrieval,
+                    title: node.label.clone(),
+                    body: node.label.clone(),
+                    metadata: brain_domain::SearchMetadata::Session {
+                        archived: false,
+                        pinned: false,
+                    },
+                });
+            }
+        }
 
         context.emit_progress(2, Some(2), "Search query completed");
 
@@ -814,6 +854,239 @@ impl BrainApplication {
     ) -> Result<Option<v1::KnowledgeCompilationReport>, ApplicationError> {
         let compiler = brain_services::compiler::KnowledgeCompiler::new();
         Ok(compiler.runtime_state().latest_report())
+    }
+
+    /// Executes a declarative `KnowledgeQuery` end-to-end through the KnowledgeRuntime façade.
+    pub async fn execute_knowledge_query(
+        &self,
+        query: brain_services::query::KnowledgeQuery,
+    ) -> Result<v1::QueryResultDto, ApplicationError> {
+        let ir = brain_services::compiler::KnowledgeIR::new();
+        let ctx = brain_services::query::InMemoryQueryContext::new(&ir);
+        let req = brain_services::runtime::RuntimeRequest::new(&query, &ctx);
+
+        let result = self.knowledge_runtime.query(req);
+
+        let candidates = result
+            .candidates
+            .into_iter()
+            .map(|c| v1::QueryCandidateDto {
+                entity_id: c.entity_id.to_string(),
+                score: c.score,
+            })
+            .collect();
+
+        Ok(v1::QueryResultDto {
+            candidates,
+            total_candidates: result.total_candidates,
+        })
+    }
+
+    /// Executes end-to-end knowledge inference and reasoning over a `KnowledgeQuery` using KnowledgeRuntime façade.
+    pub async fn reason_over_knowledge(
+        &self,
+        query: brain_services::query::KnowledgeQuery,
+    ) -> Result<v1::KnowledgeResponseDto, ApplicationError> {
+        let ir = brain_services::compiler::KnowledgeIR::new();
+        let ctx = brain_services::query::InMemoryQueryContext::new(&ir);
+        let req = brain_services::runtime::RuntimeRequest::new(&query, &ctx);
+
+        let resp = self.knowledge_runtime.reason(req);
+
+        let primary_candidates = resp
+            .primary_candidates
+            .into_iter()
+            .map(|c| v1::QueryCandidateDto {
+                entity_id: c.entity_id.to_string(),
+                score: c.score,
+            })
+            .collect();
+
+        let reasoning_trace = resp
+            .reasoning_trace
+            .into_iter()
+            .map(|t| v1::ReasoningTraceStepDto {
+                step_index: t.step_index,
+                claim: t.claim,
+                confidence: t.confidence,
+            })
+            .collect();
+
+        let confidence = v1::ConfidenceMetricsDto {
+            coverage_score: resp.confidence.coverage_score,
+            agreement_score: resp.confidence.agreement_score,
+            contradiction_penalty: resp.confidence.contradiction_penalty,
+            temporal_consistency_score: resp.confidence.temporal_consistency_score,
+            composite_confidence: resp.confidence.composite_confidence,
+        };
+
+        Ok(v1::KnowledgeResponseDto {
+            query_id: resp.query_id.to_string(),
+            answer_summary: resp.answer_summary,
+            reasoning_trace,
+            primary_candidates,
+            confidence,
+        })
+    }
+
+    /// Triggers an operational background maintenance cycle through the KnowledgeMaintenanceRuntime.
+    pub async fn trigger_maintenance_cycle(
+        &self,
+        config_dto: Option<v1::MaintenanceConfigDto>,
+    ) -> Result<v1::MaintenanceCycleResultDto, ApplicationError> {
+        let _guard = self.active_maintenance_lock.try_lock().map_err(|_| {
+            ApplicationError::Validation(
+                "Another background maintenance cycle is currently active".to_string(),
+            )
+        })?;
+
+        let cfg = config_dto
+            .map(|c| brain_services::reflection::MaintenanceConfig {
+                require_approval: c.require_approval,
+                dry_run: c.dry_run,
+            })
+            .unwrap_or_default();
+
+        let runtime = brain_services::reflection::KnowledgeMaintenanceRuntime::new(cfg);
+        let input = brain_services::reflection::ReflectionInput::new(vec![], vec![], 7000);
+
+        let res = runtime
+            .run_cycle(&input)
+            .map_err(|e| ApplicationError::Internal(e.to_string()))?;
+
+        let total_findings = res.reflection_report.findings.len();
+        let total_proposals = res
+            .evolution_plan
+            .as_ref()
+            .map(|p| p.proposals.len())
+            .unwrap_or(0);
+        let applied_count = res
+            .execution_report
+            .as_ref()
+            .map(|r| r.applied_proposals.len())
+            .unwrap_or(0);
+
+        let stage_events = res
+            .events
+            .iter()
+            .map(|e| v1::MaintenanceStageEventDto {
+                event_id: e.event_id.to_string(),
+                kind: format!("{:?}", e.kind),
+                message: e.message.clone(),
+                timestamp_ms: e.timestamp_ms,
+            })
+            .collect();
+
+        let operational_metrics = v1::OperationalMetricsDto {
+            cycle_duration_ms: res
+                .execution_report
+                .as_ref()
+                .map(|r| r.execution_duration_ms)
+                .unwrap_or(0),
+            rollback_occurred: res
+                .execution_report
+                .as_ref()
+                .map(|r| r.rollback_occurred)
+                .unwrap_or(false),
+            failure_reason: None,
+        };
+
+        let domain_metrics = v1::DomainMetricsDto {
+            findings_count: total_findings,
+            proposals_count: total_proposals,
+            applied_count,
+        };
+
+        let dto = v1::MaintenanceCycleResultDto {
+            cycle_id: res.cycle_id.to_string(),
+            state: format!("{:?}", res.state),
+            snapshot_id: res.snapshot_id.to_string(),
+            total_findings,
+            total_proposals,
+            approval_decision: res.approval_decision.map(|d| v1::ApprovalDecisionDto {
+                decision_id: d.decision_id.to_string(),
+                plan_id: d.plan_id.to_string(),
+                approved_by: d.approved_by,
+                is_approved: d.is_approved,
+                comments: d.comments,
+                timestamp_ms: d.timestamp_ms,
+            }),
+            execution_report: res
+                .execution_report
+                .map(|r| v1::EvolutionExecutionReportDto {
+                    report_id: r.report_id.to_string(),
+                    plan_id: r.plan_id.to_string(),
+                    final_state: format!("{:?}", r.final_state),
+                    applied_proposals: r
+                        .applied_proposals
+                        .into_iter()
+                        .map(|p| p.to_string())
+                        .collect(),
+                    rollback_occurred: r.rollback_occurred,
+                    execution_duration_ms: r.execution_duration_ms,
+                }),
+            stage_events,
+            operational_metrics,
+            domain_metrics,
+            timestamp_ms: res.timestamp_ms,
+        };
+
+        *self.last_maintenance_result.lock() = Some(dto.clone());
+        Ok(dto)
+    }
+
+    /// Returns the latest maintenance cycle result DTO.
+    pub fn latest_maintenance_result(&self) -> Option<v1::MaintenanceCycleResultDto> {
+        self.last_maintenance_result.lock().clone()
+    }
+
+    /// Approves an evolution plan using strongly-typed PlanId and ApprovalDecisionDto.
+    pub async fn approve_maintenance_plan(
+        &self,
+        plan_id: brain_services::evolution::PlanId,
+        decision_dto: v1::ApprovalDecisionDto,
+    ) -> Result<v1::EvolutionExecutionReportDto, ApplicationError> {
+        let decision = brain_services::reflection::ApprovalDecision {
+            decision_id: uuid::Uuid::parse_str(&decision_dto.decision_id)
+                .map_err(|e| ApplicationError::Validation(e.to_string()))?,
+            plan_id,
+            approved_by: decision_dto.approved_by,
+            is_approved: decision_dto.is_approved,
+            comments: decision_dto.comments,
+            timestamp_ms: decision_dto.timestamp_ms,
+        };
+
+        if !decision.is_approved {
+            return Err(ApplicationError::Validation(format!(
+                "Plan '{}' was rejected: {}",
+                plan_id, decision.comments
+            )));
+        }
+
+        let plan = brain_services::evolution::KnowledgeEvolutionPlan {
+            plan_id,
+            proposals: vec![],
+            dependency_graph: brain_services::evolution::ProposalGraph::default(),
+            timestamp_ms: decision_dto.timestamp_ms,
+        };
+
+        let (_mutations, report) = self
+            .maintenance_runtime
+            .execute_approved_plan(&plan, &decision)
+            .map_err(|e| ApplicationError::Internal(e.to_string()))?;
+
+        Ok(v1::EvolutionExecutionReportDto {
+            report_id: report.report_id.to_string(),
+            plan_id: report.plan_id.to_string(),
+            final_state: format!("{:?}", report.final_state),
+            applied_proposals: report
+                .applied_proposals
+                .into_iter()
+                .map(|p| p.to_string())
+                .collect(),
+            rollback_occurred: report.rollback_occurred,
+            execution_duration_ms: report.execution_duration_ms,
+        })
     }
 
     /// Returns a lightweight summary DTO of compiler state.

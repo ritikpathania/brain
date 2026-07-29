@@ -65,6 +65,8 @@ pub enum ApplicationRequest {
     CompileStats,
     /// Retrieve read-only Knowledge IR structural summary
     CompileIrSummary,
+    /// List active chat sessions
+    ListSessions,
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
@@ -115,6 +117,8 @@ pub enum ApplicationResponse {
     CompileStats(v1::CompilerStatusReport),
     /// Read-only Knowledge IR structural summary
     CompileIrSummary(v1::CompilerIrSummaryDto),
+    /// Sessions list JSON string
+    ListSessions(String),
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -218,6 +222,35 @@ impl RequestDispatcher {
             ApplicationRequest::CompileIrSummary => {
                 let ir_summary = self.app.compile_ir_summary().await?;
                 Ok(ApplicationResponse::CompileIrSummary(ir_summary))
+            }
+            ApplicationRequest::ListSessions => {
+                let pool = self.app.runtime().sqlite_storage().pool().clone();
+                let repo = brain_storage::SqliteSessionReadModelRepository::new(pool);
+                match repo.list_all() {
+                    Ok(sessions) => {
+                        #[derive(serde::Serialize)]
+                        struct SessionWire {
+                            id: String,
+                            title: String,
+                            updated_at: u64,
+                            pinned: bool,
+                            archived: bool,
+                        }
+                        let wire: Vec<SessionWire> = sessions
+                            .into_iter()
+                            .map(|s| SessionWire {
+                                id: s.session_id.to_string(),
+                                title: s.title,
+                                updated_at: s.updated_at.0,
+                                pinned: s.is_pinned,
+                                archived: s.is_archived,
+                            })
+                            .collect();
+                        let body = serde_json::to_string(&wire).unwrap_or_else(|_| "[]".to_string());
+                        Ok(ApplicationResponse::ListSessions(body))
+                    }
+                    Err(e) => Err(ApplicationError::Internal(format!("list_sessions failed: {}", e))),
+                }
             }
         }
     }

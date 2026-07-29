@@ -123,12 +123,8 @@ impl ProtocolRouter {
                 let after_sequence: u64 = body.parse().unwrap_or(0);
                 Ok(Some(ApplicationRequest::Replay { after_sequence }))
             }
-            "inspect_node" => {
-                tracing::warn!("UDS Protocol Router: Received deprecated legacy action 'inspect_node'. Please upgrade client.");
-                Ok(Some(ApplicationRequest::InspectNode {
-                    id: body.to_string(),
-                }))
-            }
+            "list_sessions" | "v1/sessions/list" => Ok(Some(ApplicationRequest::ListSessions)),
+
             "handshake" | "disconnect" => Ok(None),
 
             _ => Err(format!("Unknown action '{}'", action)),

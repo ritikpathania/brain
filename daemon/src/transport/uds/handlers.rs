@@ -467,6 +467,7 @@ pub async fn handle_connection(
                     ApplicationResponse::CompileIrSummary(ir_summary) => {
                         serde_json::to_string(&ir_summary).unwrap_or_default()
                     }
+                    ApplicationResponse::ListSessions(body) => body,
                 };
 
                 let response = if is_versioned {
