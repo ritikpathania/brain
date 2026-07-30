@@ -53,7 +53,7 @@ pub struct ReflectionFindings {
 /// Composable rewrite operations representing precise modifications to the graph.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum RewriteOperation {
+pub enum V1RewriteOperation {
     /// Merge a source node into a target node, re-routing incoming/outgoing edges.
     MergeNodes {
         /// ID of node to be merged and removed.
@@ -104,11 +104,11 @@ pub enum RewriteOperation {
 
 /// Versioned and composable rewrite plan containing a series of sequential mutations.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct RewritePlan {
+pub struct V1RewritePlan {
     /// Schema version of the plan.
     pub plan_version: String,
     /// Ordered list of rewrite operations to apply.
-    pub operations: Vec<RewriteOperation>,
+    pub operations: Vec<V1RewriteOperation>,
     /// Rationale explaining the critique and why these rewrites are requested.
     pub rationale: String,
 }
@@ -162,7 +162,7 @@ impl ReflectionEngine {
     }
 }
 
-/// Pure domain Planner. Converts ReflectionFindings into a RewritePlan.
+/// Pure domain Planner. Converts ReflectionFindings into a V1RewritePlan.
 #[derive(Debug, Clone, Default)]
 pub struct Planner;
 
@@ -172,8 +172,8 @@ impl Planner {
         Self
     }
 
-    /// Forms a RewritePlan from findings.
-    pub fn plan(&self, findings: &ReflectionFindings) -> RewritePlan {
+    /// Forms a V1RewritePlan from findings.
+    pub fn plan(&self, findings: &ReflectionFindings) -> V1RewritePlan {
         let mut operations = Vec::new();
         let mut rationales = Vec::new();
 
@@ -185,7 +185,7 @@ impl Planner {
                 } => {
                     for node in nodes {
                         if node != suggested_canonical {
-                            operations.push(RewriteOperation::MergeNodes {
+                            operations.push(V1RewriteOperation::MergeNodes {
                                 source: node.clone(),
                                 target: suggested_canonical.clone(),
                             });
@@ -198,7 +198,7 @@ impl Planner {
                     target,
                     weight,
                 } => {
-                    operations.push(RewriteOperation::WeakenEdge {
+                    operations.push(V1RewriteOperation::WeakenEdge {
                         source: source.clone(),
                         target: target.clone(),
                         amount: 0.1_f32,
@@ -225,7 +225,7 @@ impl Planner {
             }
         }
 
-        RewritePlan {
+        V1RewritePlan {
             plan_version: "1.0.0".to_string(),
             operations,
             rationale: rationales.join("; "),

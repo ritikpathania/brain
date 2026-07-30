@@ -66,6 +66,8 @@ pub mod fact_version;
 pub mod events;
 /// Storage-agnostic snapshot view abstraction.
 pub mod snapshot;
+/// Declarative rewrite intent models for Reflection Engine v2.
+pub mod rewrite_plan;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -95,8 +97,10 @@ pub use references::*;
 pub use reflection::*;
 pub use relationships::*;
 pub use retrieval::*;
+pub use rewrite_plan::*;
 pub use snapshot::*;
 pub use value_objects::*;
+
 
 
 
