@@ -6,7 +6,27 @@
 
 **Architecture:** Domain models (`Entity`, `SemanticAssertion`, `FactVersion`, `TemporalWindow`, `Confidence`) in `brain-domain` expose a storage-agnostic `KnowledgeSnapshotView`. Pure reflection passes in `brain-services` analyze snapshots independently, returning `RewritePlan` intent. A deterministic `ConflictResolver` and `RewriteValidator` merge and validate plans, which are then transactionally applied to the `EventStore` by `RewriteExecutor` as immutable `FactEvent`s.
 
-**Tech Stack:** Rust (edition 2021), `serde`, `uuid`, `rusqlite`, `parking_lot`, `tokio`.
+**Tech Stack:** Rust (edition 2021), `serde`, `uuid`, `rusqlite`, `parking_lot`, `tokio`, `proptest`.
+
+## Implementation Status
+
+| Milestone | Task | Status | Commit |
+| :--- | :--- | :--- | :--- |
+| **M1** | Task 1: Domain Value Objects | ⬜ Pending | |
+| **M1** | Task 2: Core Domain Entities | ⬜ Pending | |
+| **M1** | Task 3: Snapshot Abstraction & Events | ⬜ Pending | |
+| **M1** | Task 4: Declarative Rewrite Models | ⬜ Pending | |
+| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ⬜ Pending | |
+| **M2** | Task 5: Pass Interface & Context | ⬜ Pending | |
+| **M2** | Task 6: Pass Registry & DAG Resolver | ⬜ Pending | |
+| **M2** | Task 7: Deterministic Conflict Resolver | ⬜ Pending | |
+| **M2** | Task 8: Rewrite Validator & Executor | ⬜ Pending | |
+| **M3** | Task 9: `CanonicalizationPass` | ⬜ Pending | |
+| **M3** | Task 10: `ContradictionPass` | ⬜ Pending | |
+| **M3** | Task 11: `DuplicateConsolidationPass` | ⬜ Pending | |
+| **M3** | Task 12: `StaleKnowledgePass` | ⬜ Pending | |
+| **M3** | Task 13: `ConfidenceRecalculationPass` | ⬜ Pending | |
+| **M4** | Task 14: Verification, Property Tests & Hardening | ⬜ Pending | |
 
 ## Global Constraints
 
@@ -212,15 +232,28 @@ git commit -m "feat(services): define ReflectionContext and ReflectionPass trait
 - Consumes: Task 5 pass interface
 - Produces: `PassRegistry`, `PassDAGResolver` (topological sort by `dependencies()`)
 
-- [ ] **Step 1: Write failing tests for topological pass ordering**
+- [ ] **Step 1: Write failing tests for topological pass ordering and error cases**
+
+```rust
+// crates/brain-services/tests/pass_dag_tests.rs
+#[test]
+fn test_dag_solver_cases() {
+    // 1. Independent passes
+    // 2. Branching DAG dependencies
+    // 3. Duplicate registration rejection
+    // 4. Missing dependency detection
+    // 5. Cyclic dependency detection
+}
+```
+
 - [ ] **Step 2: Run test to verify failure**
-- [ ] **Step 3: Implement topological pass DAG solver**
+- [ ] **Step 3: Implement topological pass DAG solver and error handling**
 - [ ] **Step 4: Verify test passes**
 - [ ] **Step 5: Commit**
 
 ```bash
 git add crates/brain-services/
-git commit -m "feat(services): add PassRegistry and topological DAG resolver"
+git commit -m "feat(services): add PassRegistry and topological DAG resolver with cycle & missing dependency checks"
 ```
 
 ---
@@ -372,12 +405,24 @@ git commit -m "feat(services): implement ConfidenceRecalculationPass"
 
 ## Milestone 4: Verification & Hardening (`crates/brain-services/tests/`)
 
-### Task 14: End-to-End Replay & Determinism Verification Suite (`crates/brain-services/tests/reflection_v2_e2e_tests.rs`)
+### Task 14: End-to-End Replay & Property-Based Verification Suite (`crates/brain-services/tests/reflection_v2_e2e_tests.rs`)
 
 **Files:**
 - Create: `crates/brain-services/tests/reflection_v2_e2e_tests.rs`
+- Create: `crates/brain-services/tests/reflection_proptests.rs`
 
-- [ ] **Step 1: Write end-to-end multi-pass execution and replay invariance tests**
+- [ ] **Step 1: Write property-based tests using `proptest`**
+
+```rust
+// crates/brain-services/tests/reflection_proptests.rs
+// Test invariants:
+// 1. Confidence values always strictly in [0.0, 1.0]
+// 2. TemporalWindow ordering holds (asserted_at <= observed_at, valid_from <= valid_to)
+// 3. Supersession chains remain acyclic
+// 4. Replay from event log is idempotent
+// 5. Conflict resolution output is invariant to pass input shuffle
+```
+
 - [ ] **Step 2: Run test to verify failure**
 - [ ] **Step 3: Execute full suite, verify non-mutation invariants and deterministic event replay**
 - [ ] **Step 4: Verify all workspace tests pass cleanly**
@@ -389,5 +434,5 @@ Expected: All tests PASS cleanly
 
 ```bash
 git add crates/brain-services/
-git commit -m "test(services): add comprehensive determinism and replay verification suite for Reflection Engine v2"
+git commit -m "test(services): add comprehensive proptest property tests and replay verification suite for Reflection Engine v2"
 ```
