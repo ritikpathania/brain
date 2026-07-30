@@ -30,6 +30,16 @@ pub use bound::*;
 /// Immutable logical algebra nodes.
 pub mod logical_plan;
 pub use logical_plan::*;
+/// Strongly typed query error hierarchy.
+pub mod errors;
+pub use errors::*;
+/// Query result and statistics value objects with slot-indexed binding rows.
+pub mod result;
+pub use result::*;
+/// Formatted EXPLAIN query plan output.
+pub mod explain;
+pub use explain::*;
+
 
 
 pub use inspector::{
