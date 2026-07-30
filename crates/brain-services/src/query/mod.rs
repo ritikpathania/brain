@@ -12,7 +12,14 @@ pub mod models;
 /// Atomic ProjectionSnapshot container for Phase 5 Query Facade.
 pub mod snapshot;
 
+/// Modular stateless evaluators for Phase 5 Query Facade.
+pub mod evaluators;
+/// Single thread-safe read query composition facade for Phase 5 Query Facade.
+pub mod facade;
+
 pub use errors::*;
+pub use evaluators::*;
+pub use facade::*;
 pub use models::*;
 pub use snapshot::*;
 
