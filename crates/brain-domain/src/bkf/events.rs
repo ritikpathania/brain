@@ -12,7 +12,11 @@ pub enum FactEvent {
     FactRecorded {
         /// The complete recorded fact version.
         fact: FactVersion,
+        /// Optional semantic assertion context.
+        #[serde(default)]
+        assertion: Option<SemanticAssertion>,
     },
+
     /// An existing fact version was superseded by a newer version.
     FactSuperseded {
         /// Identifier of the superseded fact version.

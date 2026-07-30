@@ -15,7 +15,9 @@ pub mod graph_adjacency;
 
 pub use checkpoint::*;
 pub use errors::*;
-pub use graph_adjacency::{EdgeRecord, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree};
+pub use graph_adjacency::{
+    EdgeRecord, GraphAdjacencyReducer, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree,
+};
 pub use id::*;
 pub use reducer::*;
 pub use watermark::*;
