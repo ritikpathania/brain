@@ -33,6 +33,14 @@ impl GraphAdjacencyReducer {
     }
 }
 
+impl crate::projection::conformance::ProjectionStateView for GraphAdjacencyReducer {
+    type State = GraphAdjacencyState;
+    fn state(&self) -> &Self::State {
+        &self.state
+    }
+}
+
+
 impl ProjectionReducer for GraphAdjacencyReducer {
     fn id(&self) -> ProjectionId {
         self.id.clone()

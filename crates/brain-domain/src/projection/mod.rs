@@ -10,12 +10,15 @@ pub mod checkpoint;
 pub mod errors;
 /// Pure domain projection reducer contract.
 pub mod reducer;
+/// Automated projection conformance testing framework.
+pub mod conformance;
 /// Graph Adjacency Projection models, state, and reducer.
 pub mod graph_adjacency;
 /// Temporal State Projection models, state, and reducer.
 pub mod temporal_state;
 
 pub use checkpoint::*;
+pub use conformance::*;
 pub use errors::*;
 pub use graph_adjacency::{
     EdgeRecord, GraphAdjacencyReducer, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree,

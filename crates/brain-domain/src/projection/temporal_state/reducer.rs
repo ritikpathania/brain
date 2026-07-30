@@ -32,6 +32,14 @@ impl TemporalStateReducer {
     }
 }
 
+impl crate::projection::conformance::ProjectionStateView for TemporalStateReducer {
+    type State = TemporalState;
+    fn state(&self) -> &Self::State {
+        &self.state
+    }
+}
+
+
 impl ProjectionReducer for TemporalStateReducer {
     fn id(&self) -> ProjectionId {
         self.id.clone()
