@@ -41,6 +41,10 @@ pub use service::ReflectionService;
 /// Reflection Engine v2 pass execution context and outcome types.
 pub mod pass_context;
 pub use pass_context::*;
+/// Reflection Engine v2 pass registry and topological DAG resolver.
+pub mod registry_dag;
+pub use registry_dag::*;
+
 
 
 /// Execution context and constraints for a reflection run.
