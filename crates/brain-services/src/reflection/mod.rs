@@ -38,6 +38,10 @@ pub use snapshot::ReflectionSnapshot;
 /// Decoupled event-driven reflection service.
 pub mod service;
 pub use service::ReflectionService;
+/// Reflection Engine v2 pass execution context and outcome types.
+pub mod pass_context;
+pub use pass_context::*;
+
 
 /// Execution context and constraints for a reflection run.
 #[derive(Debug, Clone)]
