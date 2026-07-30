@@ -58,6 +58,8 @@ pub mod references;
 pub mod relationships;
 /// User-facing context retrieval models.
 pub mod retrieval;
+/// Reflection Engine v2 domain value objects.
+pub mod value_objects;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -85,3 +87,5 @@ pub use references::*;
 pub use reflection::*;
 pub use relationships::*;
 pub use retrieval::*;
+pub use value_objects::*;
+
