@@ -71,6 +71,13 @@ pub use logical_planner::*;
 /// Logical optimizer for Phase 2 Knowledge Query Engine.
 pub mod logical_optimizer;
 pub use logical_optimizer::*;
+/// Physical plan tree models for Phase 2 Knowledge Query Engine.
+pub mod physical_plan;
+pub use physical_plan::*;
+/// Physical planner for Phase 2 Knowledge Query Engine.
+pub mod physical_planner;
+pub use physical_planner::*;
+
 
 
 
