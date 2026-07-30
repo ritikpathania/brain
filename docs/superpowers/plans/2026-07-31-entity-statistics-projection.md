@@ -19,13 +19,13 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: ProjectionStateView Trait & ProjectionConformanceSuite | ⬜ Pending | |
-| **M2** | Task 2: EntityStatistics & EntityStatisticsState | ⬜ Pending | |
-| **M2** | Task 3: EntityStatisticsReducer Implementation | ⬜ Pending | |
-| **M2 Checkpoint** | **Unit & Conformance Tests Freeze** | ⬜ Pending | |
-| **M3** | Task 4: Projection Runtime Service Export | ⬜ Pending | |
-| **M3** | Task 5: Runtime Replay Integration & Catch-Up Tests | ⬜ Pending | |
-| **M4** | Task 6: Workspace-Wide Verification | ⬜ Pending | |
+| **M1** | Task 1: ProjectionStateView Trait & ProjectionConformanceSuite | ✅ Completed | `49662a1` |
+| **M2** | Task 2: EntityStatistics & EntityStatisticsState | ✅ Completed | `60de12d` |
+| **M2** | Task 3: EntityStatisticsReducer Implementation | ✅ Completed | `71f7d46` |
+| **M2 Checkpoint** | **Unit & Conformance Tests Freeze** | ✅ Completed | `71f7d46` |
+| **M3** | Task 4: Projection Runtime Service Export | ✅ Completed | `92f0424` |
+| **M3** | Task 5: Runtime Replay Integration & Catch-Up Tests | ✅ Completed | `db9528f` |
+| **M4** | Task 6: Workspace-Wide Verification | ✅ Completed | `db9528f` |
 
 ---
 
