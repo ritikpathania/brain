@@ -15,3 +15,6 @@ pub use replay::*;
 /// Sequential projection scheduler.
 pub mod scheduler;
 pub use scheduler::*;
+/// Projection runtime facade.
+pub mod runtime;
+pub use runtime::*;
