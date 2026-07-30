@@ -45,6 +45,41 @@ impl LogicalOptimizer {
 
     /// Join Ordering Pass: Reorders joins with lexicographically stable tie-breaking.
     pub fn pass_join_ordering(plan: LogicalPlan) -> LogicalPlan {
-        plan
+        match plan {
+            LogicalPlan::Join { left, right } => {
+                let opt_left = Box::new(Self::pass_join_ordering(*left));
+                let opt_right = Box::new(Self::pass_join_ordering(*right));
+
+                let str_left = format!("{:?}", opt_left);
+                let str_right = format!("{:?}", opt_right);
+
+                // Lexicographically stable tie-breaking on equal selectivity plans
+                if str_left > str_right {
+                    LogicalPlan::Join {
+                        left: opt_right,
+                        right: opt_left,
+                    }
+                } else {
+                    LogicalPlan::Join {
+                        left: opt_left,
+                        right: opt_right,
+                    }
+                }
+            }
+            LogicalPlan::Filter { condition, input } => LogicalPlan::Filter {
+                condition,
+                input: Box::new(Self::pass_join_ordering(*input)),
+            },
+            LogicalPlan::Limit { count, input } => LogicalPlan::Limit {
+                count,
+                input: Box::new(Self::pass_join_ordering(*input)),
+            },
+            LogicalPlan::Traverse { max_depth, input } => LogicalPlan::Traverse {
+                max_depth,
+                input: Box::new(Self::pass_join_ordering(*input)),
+            },
+            other => other,
+        }
     }
+
 }
