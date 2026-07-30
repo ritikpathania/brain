@@ -3,3 +3,6 @@
 /// Projection instance container holding reducer, lifecycle state, checkpoint, and metrics.
 pub mod instance;
 pub use instance::*;
+/// Projection registry.
+pub mod registry;
+pub use registry::*;
