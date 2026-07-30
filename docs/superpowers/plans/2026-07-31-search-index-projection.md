@@ -19,12 +19,12 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: SearchToken & SearchIndexState Implementation | ⬜ Pending | |
-| **M2** | Task 2: SearchIndexReducer & Conformance Integration | ⬜ Pending | |
-| **M2 Checkpoint** | **Unit & Conformance Tests Freeze** | ⬜ Pending | |
-| **M3** | Task 3: Projection Runtime Service Export | ⬜ Pending | |
-| **M3** | Task 4: Runtime Replay Integration & Catch-Up Tests | ⬜ Pending | |
-| **M4** | Task 5: Workspace-Wide Verification | ⬜ Pending | |
+| **M1** | Task 1: SearchToken & SearchIndexState Implementation | ✅ Completed | `3761220` |
+| **M2** | Task 2: SearchIndexReducer & Conformance Integration | ✅ Completed | `1551d04` |
+| **M2 Checkpoint** | **Unit & Conformance Tests Freeze** | ✅ Completed | `1551d04` |
+| **M3** | Task 3: Projection Runtime Service Export | ✅ Completed | `52525c4` |
+| **M3** | Task 4: Runtime Replay Integration & Catch-Up Tests | ✅ Completed | `5827fcc` |
+| **M4** | Task 5: Workspace-Wide Verification | ✅ Completed | `5827fcc` |
 
 ---
 
