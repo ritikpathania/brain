@@ -17,8 +17,10 @@ Phase 5.3.1 establishes the pure, reusable **Query Processing Primitives** (`bra
    ```text
    Candidate Retrieval ──► Temporal Filter ──► Confidence Filter ──► Deterministic Sort ──► Pagination
    ```
-3. **Deterministic Tie-Breaking Sort**: Sorting guarantees 100% deterministic ordering by appending `KnowledgeEntityId` ASC as a secondary/tertiary tie-breaker whenever primary sort keys compare equal.
-4. **Strict Pagination Semantics**: Pagination slicing occurs strictly AFTER sorting. Invalid or out-of-bounds offsets (`offset > total`) return empty slices without mutating `total_matched`.
+3. **Deterministic Total Ordering**: Sorting uses stable sorting (`sort_by`) and guarantees 100% total ordering by appending `KnowledgeEntityId` ASC as a secondary/tertiary tie-breaker whenever primary sort keys compare equal.
+4. **Order Preservation**: Filtering operations (`filter_by_confidence`) strictly preserve the relative input ordering of retained candidates.
+5. **Strict Temporal Interval Semantics**: Validity checks evaluate half-open intervals `[valid_from, valid_until)` (inclusive `valid_from`, exclusive `valid_until`, `None` = unbounded future).
+6. **Strict Pagination Semantics**: Pagination slicing occurs strictly AFTER sorting. Invalid or out-of-bounds offsets (`offset > total`) return empty slices without mutating `total_matched`.
 
 ---
 
@@ -41,7 +43,7 @@ crates/brain-services/src/query/filters/
 ```rust
 use crate::query::models::{ConfidenceFilter, EntityMatch};
 
-/// Filters candidates against a ConfidenceFilter threshold.
+/// Filters candidates against a ConfidenceFilter threshold, preserving relative candidate ordering.
 pub fn filter_by_confidence(candidates: &mut Vec<EntityMatch>, filter: Option<&ConfidenceFilter>) {
     if let Some(conf_filter) = filter {
         let min_val = conf_filter.min_confidence.value();
@@ -54,7 +56,8 @@ pub fn filter_by_confidence(candidates: &mut Vec<EntityMatch>, filter: Option<&C
 ```rust
 use brain_domain::bkf::Timestamp;
 
-/// Evaluates if a validity interval [valid_from, valid_until) satisfies a target Timestamp query.
+/// Evaluates if a half-open validity interval `[valid_from, valid_until)` satisfies a target `Timestamp` query.
+/// Inclusive lower bound (`valid_from <= target_time`), exclusive upper bound (`valid_until > target_time`), `None` = unbounded.
 pub fn is_valid_at(valid_from: Timestamp, valid_until: Option<Timestamp>, target_time: Timestamp) -> bool {
     if valid_from > target_time {
         return false;
@@ -82,7 +85,7 @@ pub fn sort_matches(candidates: &mut [EntityMatch], ordering: Option<&QueryOrder
             SortField::Confidence => {
                 let a_val = a.average_confidence.value();
                 let b_val = b.average_confidence.value();
-                a_val.partial_cmp(&b_val).unwrap_or(std::cmp::Ordering::Equal)
+                a_val.total_cmp(&b_val)
             }
             SortField::Degree => {
                 let a_deg = a.graph_metadata.as_ref().map_or(0, |g| g.in_degree + g.out_degree);
@@ -90,7 +93,7 @@ pub fn sort_matches(candidates: &mut [EntityMatch], ordering: Option<&QueryOrder
                 a_deg.cmp(&b_deg)
             }
             SortField::Recency => {
-                // If recency timestamps are equal or absent, compare equal
+                // Placeholder: Recency ordering will be populated in 5.3.2 once evaluator metadata exposes timestamps.
                 std::cmp::Ordering::Equal
             }
         };
@@ -132,7 +135,7 @@ pub fn paginate_matches(candidates: Vec<EntityMatch>, pagination: &PaginationPar
 ## 4. Verification & Testing Strategy
 
 1. **Unit Tests (`crates/brain-services/tests/query_filters_tests.rs`)**:
-   - `test_filter_by_confidence_threshold`: Verifies retains items $\ge$ min_confidence.
-   - `test_is_valid_at_temporal_window`: Verifies open vs closed interval validity at timestamp.
-   - `test_sort_matches_deterministic_tie_breaking`: Verifies primary field sorting and secondary `EntityId` ASC tie-breaking.
+   - `test_filter_by_confidence_threshold_order_preservation`: Verifies retains items $\ge$ min_confidence while preserving candidate input ordering.
+   - `test_is_valid_at_half_open_interval`: Verifies half-open `[valid_from, valid_until)` interval validity at timestamp.
+   - `test_sort_matches_deterministic_tie_breaking`: Verifies primary field sorting and secondary `EntityId` ASC tie-breaking when primary sort keys compare equal.
    - `test_paginate_matches_boundary_conditions`: Verifies `offset > total`, `limit == 0`, and normal slicing behavior.
