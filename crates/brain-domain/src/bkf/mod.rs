@@ -60,6 +60,8 @@ pub mod relationships;
 pub mod retrieval;
 /// Reflection Engine v2 domain value objects.
 pub mod value_objects;
+/// Core domain entities, assertions, and versioned facts.
+pub mod fact_version;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -74,6 +76,7 @@ pub use compiler::*;
 pub use document::*;
 pub use entities::*;
 pub use errors::*;
+pub use fact_version::*;
 pub use facts::*;
 pub use ids::*;
 pub use ir::*;
@@ -88,4 +91,5 @@ pub use reflection::*;
 pub use relationships::*;
 pub use retrieval::*;
 pub use value_objects::*;
+
 
