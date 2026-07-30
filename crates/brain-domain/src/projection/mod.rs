@@ -21,7 +21,7 @@ pub mod entity_statistics;
 
 pub use checkpoint::*;
 pub use conformance::*;
-pub use entity_statistics::{EntityStatistics, EntityStatisticsState};
+pub use entity_statistics::{EntityStatistics, EntityStatisticsReducer, EntityStatisticsState};
 pub use errors::*;
 pub use graph_adjacency::{
     EdgeRecord, GraphAdjacencyReducer, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree,
