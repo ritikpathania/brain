@@ -19,10 +19,10 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Cargo.toml Configuration & Deterministic Generator | ⬜ Pending | |
-| **M2** | Task 2: Replay Throughput & Incremental Mutation Benchmarks | ⬜ Pending | |
-| **M3** | Task 3: Lookup Latency & Memory Scaling Benchmarks | ⬜ Pending | |
-| **M4** | Task 4: Workspace Verification & Compilation Check | ⬜ Pending | |
+| **M1** | Task 1: Cargo.toml Configuration & Deterministic Generator | ✅ Completed | `51f64b1` |
+| **M2** | Task 2: Replay Throughput & Incremental Mutation Benchmarks | ✅ Completed | `c447e0e` |
+| **M3** | Task 3: Lookup Latency & Memory Scaling Benchmarks | ✅ Completed | `04c457a` |
+| **M4** | Task 4: Workspace Verification & Compilation Check | ✅ Completed | `04c457a` |
 
 ---
 
