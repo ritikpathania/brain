@@ -6,3 +6,6 @@ pub use instance::*;
 /// Projection registry.
 pub mod registry;
 pub use registry::*;
+/// Storage-agnostic CheckpointStore trait and InMemoryCheckpointStore.
+pub mod store;
+pub use store::*;
