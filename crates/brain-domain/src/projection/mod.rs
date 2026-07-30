@@ -30,6 +30,6 @@ pub use graph_adjacency::{
 };
 pub use id::*;
 pub use reducer::*;
-pub use search_index::{SearchIndexState, SearchToken};
+pub use search_index::{SearchIndexReducer, SearchIndexState, SearchToken};
 pub use temporal_state::{TemporalFactId, TemporalRecord, TemporalState, TemporalStateReducer};
 pub use watermark::*;
