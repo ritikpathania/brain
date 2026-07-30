@@ -18,6 +18,8 @@ pub mod graph_adjacency;
 pub mod temporal_state;
 /// Entity Statistics Projection models, state, and reducer.
 pub mod entity_statistics;
+/// Search Index Projection models, state, and reducer.
+pub mod search_index;
 
 pub use checkpoint::*;
 pub use conformance::*;
@@ -28,5 +30,6 @@ pub use graph_adjacency::{
 };
 pub use id::*;
 pub use reducer::*;
+pub use search_index::{SearchIndexState, SearchToken};
 pub use temporal_state::{TemporalFactId, TemporalRecord, TemporalState, TemporalStateReducer};
 pub use watermark::*;
