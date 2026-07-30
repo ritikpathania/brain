@@ -4,7 +4,7 @@
 
 **Goal:** Implement Phase 3 — Projection Runtime as a pure, deterministic, event-driven state reduction and catch-up replay engine over domain events (`DomainEvent`, `FactEvent`, `EventEnvelope`).
 
-**Architecture:** A layered runtime architecture. Pure domain contracts (`ProjectionId`, `ProjectionVersion`, `Watermark`, `Checkpoint`, `ProjectionLifecycle`, `ProjectionReducer`, `ProjectionError`) live in `brain-domain::projection` with zero external dependencies. Runtime orchestration, projection instances (`ProjectionInstance`), registry (`ProjectionRegistry`), atomic checkpoint store (`CheckpointStore`), catch-up replay (`ReplayEngine`), sequential scheduling (`SequentialProjectionScheduler`), and recovery live in `brain-services::projection`.
+**Architecture:** A layered runtime architecture. Pure domain contracts (`ProjectionId`, `ProjectionVersion`, `Watermark`, `Checkpoint`, `ProjectionReducer`, `ProjectionError`) live in `brain-domain::projection` with zero external dependencies. Runtime orchestration, projection instances (`ProjectionInstance`), lifecycle state (`ProjectionLifecycle`), registry (`ProjectionRegistry`), atomic checkpoint store (`CheckpointStore`), catch-up replay engine (`ReplayEngine`), sequential scheduling (`SequentialProjectionScheduler`), and graceful shutdown live in `brain-services::projection`.
 
 **Tech Stack:** Rust (edition 2021), `serde`, `uuid`, `tokio_util::sync::CancellationToken`.
 
@@ -21,52 +21,48 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Projection Identifier, Watermark & Lifecycle | ⬜ Pending | |
+| **M1** | Task 1: Projection Identifier & Watermark Models | ⬜ Pending | |
 | **M1** | Task 2: Checkpoint, Error Hierarchy & Reducer Trait | ⬜ Pending | |
 | **M1 Checkpoint** | **Public API Review & Interface Freeze** | ⬜ Pending | |
-| **M2** | Task 3: Projection Instance Container | ⬜ Pending | |
+| **M2** | Task 3: Projection Instance & Lifecycle State Container | ⬜ Pending | |
 | **M2** | Task 4: Projection Registry | ⬜ Pending | |
 | **M3** | Task 5: Atomic Checkpoint Store & Persistence | ⬜ Pending | |
-| **M4** | Task 6: Catch-Up Replay Engine | ⬜ Pending | |
+| **M4** | Task 6: Event Iterator Replay Engine | ⬜ Pending | |
 | **M4** | Task 7: Sequential Projection Scheduler | ⬜ Pending | |
-| **M5** | Task 8: Projection Runtime Facade | ⬜ Pending | |
+| **M5** | Task 8: Projection Runtime Facade & Graceful Shutdown | ⬜ Pending | |
 | **M6** | Task 9: Replay Invariants, Interruption Recovery & Verification | ⬜ Pending | |
 
 ---
 
-### Task 1: Projection Identifier, Watermark & Lifecycle
+### Task 1: Projection Identifier & Watermark Models
 
 **Files:**
 - Create: `crates/brain-domain/src/projection/id.rs`
 - Create: `crates/brain-domain/src/projection/watermark.rs`
-- Create: `crates/brain-domain/src/projection/lifecycle.rs`
 - Create: `crates/brain-domain/tests/projection_id_tests.rs`
 - Modify: `crates/brain-domain/src/projection/mod.rs`
 - Modify: `crates/brain-domain/src/lib.rs`
 
 **Interfaces:**
 - Consumes: `serde`
-- Produces: `ProjectionId`, `ProjectionVersion`, `Watermark`, `ProjectionLifecycle`
+- Produces: `ProjectionId`, `ProjectionVersion`, `Watermark`
 
 - [ ] **Step 1: Write failing test**
 
 ```rust
 // crates/brain-domain/tests/projection_id_tests.rs
 use brain_domain::projection::id::*;
-use brain_domain::projection::lifecycle::*;
 use brain_domain::projection::watermark::*;
 
 #[test]
-fn test_projection_id_watermark_lifecycle() {
+fn test_projection_id_and_watermark() {
     let id = ProjectionId::new("graph_adjacency");
     let version = ProjectionVersion(1);
     let watermark = Watermark(100);
-    let state = ProjectionLifecycle::Live;
 
     assert_eq!(id.as_str(), "graph_adjacency");
     assert_eq!(version.0, 1);
     assert_eq!(watermark.0, 100);
-    assert_eq!(state, ProjectionLifecycle::Live);
 }
 ```
 
@@ -117,32 +113,7 @@ use serde::{Deserialize, Serialize};
 pub struct Watermark(pub u64);
 ```
 
-```rust
-// crates/brain-domain/src/projection/lifecycle.rs
-//! Projection runtime lifecycle states.
-
-use serde::{Deserialize, Serialize};
-
-/// Explicit lifecycle states of a projection instance.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ProjectionLifecycle {
-    /// Registered in runtime but not initialized.
-    Registered,
-    /// Loading checkpoint or preparing storage.
-    Initializing,
-    /// Performing catch-up event replay.
-    Replaying,
-    /// Processing live event stream.
-    Live,
-    /// Gracefully stopping.
-    Stopping,
-    /// Terminated/stopped.
-    Stopped,
-}
-```
-
-Create `crates/brain-domain/src/projection/mod.rs` re-exporting `id`, `watermark`, `lifecycle`, and export `pub mod projection; pub use projection::*;` in `crates/brain-domain/src/lib.rs`.
+Create `crates/brain-domain/src/projection/mod.rs` re-exporting `id` and `watermark`, and export `pub mod projection; pub use projection::*;` in `crates/brain-domain/src/lib.rs`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -154,7 +125,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/brain-domain/ && git commit -m "feat(domain): add ProjectionId, ProjectionVersion, Watermark, and ProjectionLifecycle"
+git add crates/brain-domain/ && git commit -m "feat(domain): add ProjectionId, ProjectionVersion, and Watermark"
 ```
 
 ---
@@ -331,7 +302,7 @@ git add crates/brain-domain/ && git commit -m "feat(domain): add Checkpoint, Pro
 
 ---
 
-### Task 3: Projection Instance Container (`crates/brain-services/src/projection/instance.rs`)
+### Task 3: Projection Instance & Lifecycle State Container (`crates/brain-services/src/projection/instance.rs`)
 
 **Files:**
 - Create: `crates/brain-services/src/projection/instance.rs`
@@ -339,8 +310,8 @@ git add crates/brain-domain/ && git commit -m "feat(domain): add Checkpoint, Pro
 - Modify: `crates/brain-services/src/projection/mod.rs`
 
 **Interfaces:**
-- Consumes: `ProjectionReducer`, `ProjectionLifecycle`, `Checkpoint`
-- Produces: `ProjectionInstance` container (`lifecycle`, `checkpoint`, `metrics`, `apply_event`)
+- Consumes: `ProjectionReducer`, `Checkpoint`
+- Produces: `ProjectionLifecycle` (`Registered`, `Initializing`, `Replaying`, `Live`, `Stopping`, `Stopped`), `ProjectionMetrics`, `ProjectionInstance` container (`lifecycle`, `checkpoint`, `metrics`, `apply_event`)
 
 - [ ] **Step 1: Write failing test**
 
@@ -380,13 +351,32 @@ Expected: FAIL with `unresolved import brain_services::projection::instance`.
 
 ```rust
 // crates/brain-services/src/projection/instance.rs
-//! Projection instance container holding reducer, lifecycle, checkpoint, and telemetry metrics.
+//! Projection instance container holding reducer, lifecycle state, checkpoint, and telemetry metrics.
 
 use brain_domain::bkf::Timestamp;
 use brain_domain::projection::*;
 use brain_events::EventEnvelope;
+use serde::{Deserialize, Serialize};
 
-/// Runtime metrics for projection.
+/// Explicit lifecycle states of a projection instance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProjectionLifecycle {
+    /// Registered in runtime but not initialized.
+    Registered,
+    /// Loading checkpoint or preparing storage.
+    Initializing,
+    /// Performing catch-up event replay.
+    Replaying,
+    /// Processing live event stream.
+    Live,
+    /// Gracefully stopping.
+    Stopping,
+    /// Terminated/stopped.
+    Stopped,
+}
+
+/// Dedicated runtime metrics for projection instance.
 #[derive(Debug, Clone, Default)]
 pub struct ProjectionMetrics {
     /// Total events processed.
@@ -445,6 +435,11 @@ impl ProjectionInstance {
         &self.checkpoint
     }
 
+    /// Returns runtime metrics.
+    pub fn metrics(&self) -> &ProjectionMetrics {
+        &self.metrics
+    }
+
     /// Applies event and updates watermark.
     pub fn apply_event(&mut self, event: &EventEnvelope, seq: u64) -> Result<(), ProjectionError> {
         self.reducer.apply_event(event)?;
@@ -467,7 +462,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionInstance container with lifecycle and checkpoint metadata"
+git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionInstance container with ProjectionLifecycle and ProjectionMetrics"
 ```
 
 ---
@@ -476,17 +471,17 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Proje
 
 **Files:**
 - Create: `crates/brain-services/src/projection/registry.rs`
-- Create: `crates/brain-services/tests/projection_registry_v2_tests.rs`
+- Create: `crates/brain-services/tests/projection_registry_tests.rs`
 - Modify: `crates/brain-services/src/projection/mod.rs`
 
 **Interfaces:**
 - Consumes: `ProjectionId`, `ProjectionInstance`
-- Produces: `ProjectionRegistryV2` (`register`, `get`, `get_mut`, `list_instances`)
+- Produces: `ProjectionRegistry` (`register`, `get`, `get_mut`, `instances_mut`)
 
 - [ ] **Step 1: Write failing test**
 
 ```rust
-// crates/brain-services/tests/projection_registry_v2_tests.rs
+// crates/brain-services/tests/projection_registry_tests.rs
 use brain_domain::projection::*;
 use brain_events::EventEnvelope;
 use brain_services::projection::instance::*;
@@ -502,7 +497,7 @@ impl ProjectionReducer for MockReducer {
 
 #[test]
 fn test_projection_registry_register_and_retrieve() {
-    let mut registry = ProjectionRegistryV2::new();
+    let mut registry = ProjectionRegistry::new();
     let instance = ProjectionInstance::new(Box::new(MockReducer("p1".to_string())));
 
     registry.register(instance).unwrap();
@@ -513,7 +508,7 @@ fn test_projection_registry_register_and_retrieve() {
 - [ ] **Step 2: Run test to verify failure**
 
 ```bash
-DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/Library/Frameworks cargo test -p brain-services --test projection_registry_v2_tests
+DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/Library/Frameworks cargo test -p brain-services --test projection_registry_tests
 ```
 Expected: FAIL with `unresolved import brain_services::projection::registry`.
 
@@ -529,12 +524,12 @@ use std::collections::HashMap;
 
 /// Registry managing active ProjectionInstance entries.
 #[derive(Default)]
-pub struct ProjectionRegistryV2 {
+pub struct ProjectionRegistry {
     instances: HashMap<ProjectionId, ProjectionInstance>,
 }
 
-impl ProjectionRegistryV2 {
-    /// Creates a new ProjectionRegistryV2.
+impl ProjectionRegistry {
+    /// Creates a new ProjectionRegistry.
     pub fn new() -> Self {
         Self::default()
     }
@@ -561,7 +556,7 @@ impl ProjectionRegistryV2 {
         self.instances.get_mut(id)
     }
 
-    /// Returns iterator over instances.
+    /// Returns iterator over mutable instances.
     pub fn instances_mut(&mut self) -> impl Iterator<Item = &mut ProjectionInstance> {
         self.instances.values_mut()
     }
@@ -573,14 +568,14 @@ Re-export `registry` in `crates/brain-services/src/projection/mod.rs`.
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/Library/Frameworks cargo test -p brain-services --test projection_registry_v2_tests
+DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/Library/Frameworks cargo test -p brain-services --test projection_registry_tests
 ```
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionRegistryV2 managing instances"
+git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionRegistry managing instances"
 ```
 
 ---
@@ -695,7 +690,7 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Check
 
 ---
 
-### Task 6: Catch-Up Replay Engine (`crates/brain-services/src/projection/replay.rs`)
+### Task 6: Event Iterator Replay Engine (`crates/brain-services/src/projection/replay.rs`)
 
 **Files:**
 - Create: `crates/brain-services/src/projection/replay.rs`
@@ -703,8 +698,8 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Check
 - Modify: `crates/brain-services/src/projection/mod.rs`
 
 **Interfaces:**
-- Consumes: `ProjectionInstance`, `EventEnvelope`, `Watermark`
-- Produces: `ReplayEngine::replay_catchup(instance, events, target_watermark)`
+- Consumes: `ProjectionInstance`, `EventEnvelope`, `Watermark`, abstract event iterator
+- Produces: `ReplayEngine::replay_catchup(instance, event_iter, target_watermark)`
 
 - [ ] **Step 1: Write failing test**
 
@@ -730,11 +725,12 @@ impl ProjectionReducer for MockReducer {
 }
 
 #[test]
-fn test_replay_engine_catchup() {
+fn test_replay_engine_catchup_with_iterator() {
     let reducer = Box::new(MockReducer(0));
     let mut instance = ProjectionInstance::new(reducer);
 
-    ReplayEngine::replay_catchup(&mut instance, &[], Watermark(0)).unwrap();
+    let empty_events: Vec<EventEnvelope> = vec![];
+    ReplayEngine::replay_catchup(&mut instance, empty_events.iter(), Watermark(0)).unwrap();
     assert_eq!(instance.lifecycle(), ProjectionLifecycle::Live);
 }
 ```
@@ -750,7 +746,7 @@ Expected: FAIL with `unresolved import brain_services::projection::replay`.
 
 ```rust
 // crates/brain-services/src/projection/replay.rs
-//! Deterministic catch-up replay engine.
+//! Deterministic catch-up replay engine driven by abstract event iterators.
 
 use crate::projection::instance::*;
 use brain_domain::projection::*;
@@ -760,12 +756,15 @@ use brain_events::EventEnvelope;
 pub struct ReplayEngine;
 
 impl ReplayEngine {
-    /// Replays events to catch up a projection to target watermark.
-    pub fn replay_catchup(
+    /// Replays events from an abstract iterator to catch up a projection to target watermark.
+    pub fn replay_catchup<'a, I>(
         instance: &mut ProjectionInstance,
-        events: &[EventEnvelope],
+        event_iter: I,
         target_watermark: Watermark,
-    ) -> Result<(), ProjectionError> {
+    ) -> Result<(), ProjectionError>
+    where
+        I: Iterator<Item = &'a EventEnvelope>,
+    {
         let current_wm = instance.checkpoint().watermark;
         if current_wm >= target_watermark {
             instance.set_lifecycle(ProjectionLifecycle::Live);
@@ -773,7 +772,7 @@ impl ReplayEngine {
         }
 
         instance.set_lifecycle(ProjectionLifecycle::Replaying);
-        for (idx, event) in events.iter().enumerate() {
+        for (idx, event) in event_iter.enumerate() {
             let seq = current_wm.0 + idx as u64 + 1;
             if seq > target_watermark.0 {
                 break;
@@ -799,7 +798,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/brain-services/ && git commit -m "feat(services): implement ReplayEngine for catch-up rebuilding"
+git add crates/brain-services/ && git commit -m "feat(services): implement ReplayEngine driving catch-up from abstract event iterators"
 ```
 
 ---
@@ -812,7 +811,7 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Repla
 - Modify: `crates/brain-services/src/projection/mod.rs`
 
 **Interfaces:**
-- Consumes: `ProjectionRegistryV2`, `EventEnvelope`
+- Consumes: `ProjectionRegistry`, `EventEnvelope`
 - Produces: `ProjectionScheduler` trait, `SequentialProjectionScheduler`
 
 - [ ] **Step 1: Write failing test**
@@ -841,7 +840,7 @@ impl ProjectionReducer for MockReducer {
 
 #[test]
 fn test_sequential_scheduler_dispatches_events() {
-    let mut registry = ProjectionRegistryV2::new();
+    let mut registry = ProjectionRegistry::new();
     let instance = ProjectionInstance::new(Box::new(MockReducer(0)));
     registry.register(instance).unwrap();
 
@@ -872,7 +871,7 @@ pub trait ProjectionScheduler: Send + Sync {
     /// Dispatches a single event sequentially across registered projections.
     fn dispatch_event(
         &mut self,
-        registry: &mut ProjectionRegistryV2,
+        registry: &mut ProjectionRegistry,
         event: &EventEnvelope,
         seq: u64,
     ) -> Result<(), ProjectionError>;
@@ -892,7 +891,7 @@ impl SequentialProjectionScheduler {
 impl ProjectionScheduler for SequentialProjectionScheduler {
     fn dispatch_event(
         &mut self,
-        registry: &mut ProjectionRegistryV2,
+        registry: &mut ProjectionRegistry,
         event: &EventEnvelope,
         seq: u64,
     ) -> Result<(), ProjectionError> {
@@ -921,7 +920,7 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Proje
 
 ---
 
-### Task 8: Projection Runtime Facade (`crates/brain-services/src/projection/runtime.rs`)
+### Task 8: Projection Runtime Facade & Graceful Shutdown (`crates/brain-services/src/projection/runtime.rs`)
 
 **Files:**
 - Create: `crates/brain-services/src/projection/runtime.rs`
@@ -929,7 +928,7 @@ git add crates/brain-services/ && git commit -m "feat(services): implement Proje
 - Modify: `crates/brain-services/src/projection/mod.rs`
 
 **Interfaces:**
-- Consumes: `ProjectionRegistryV2`, `CheckpointStore`, `ProjectionScheduler`, `ReplayEngine`
+- Consumes: `ProjectionRegistry`, `CheckpointStore`, `ProjectionScheduler`, `ReplayEngine`
 - Produces: `ProjectionRuntimeV2` (`register_projection`, `dispatch_event`, `catchup_all`, `shutdown`)
 
 - [ ] **Step 1: Write failing test**
@@ -957,7 +956,7 @@ impl ProjectionReducer for MockReducer {
 }
 
 #[test]
-fn test_projection_runtime_lifecycle() {
+fn test_projection_runtime_graceful_shutdown() {
     let store = Box::new(InMemoryCheckpointStore::new());
     let mut runtime = ProjectionRuntimeV2::new(store);
 
@@ -965,6 +964,7 @@ fn test_projection_runtime_lifecycle() {
     runtime.register_projection(instance).unwrap();
 
     runtime.dispatch_event(&EventEnvelope::default(), 1).unwrap();
+    runtime.shutdown().unwrap();
 }
 ```
 
@@ -979,7 +979,7 @@ Expected: FAIL with `unresolved import brain_services::projection::runtime`.
 
 ```rust
 // crates/brain-services/src/projection/runtime.rs
-//! ProjectionRuntimeV2 facade orchestrating registration, replay, scheduling, and atomic checkpoint persistence.
+//! ProjectionRuntimeV2 facade orchestrating registration, replay, scheduling, atomic checkpoint persistence, and graceful shutdown.
 
 use crate::projection::instance::*;
 use crate::projection::registry::*;
@@ -991,18 +991,20 @@ use brain_events::EventEnvelope;
 
 /// Facade managing Phase 3 Projection Runtime operations.
 pub struct ProjectionRuntimeV2 {
-    registry: ProjectionRegistryV2,
+    registry: ProjectionRegistry,
     store: Box<dyn CheckpointStore>,
     scheduler: SequentialProjectionScheduler,
+    running: bool,
 }
 
 impl ProjectionRuntimeV2 {
     /// Creates a new ProjectionRuntimeV2 with a CheckpointStore.
     pub fn new(store: Box<dyn CheckpointStore>) -> Self {
         Self {
-            registry: ProjectionRegistryV2::new(),
+            registry: ProjectionRegistry::new(),
             store,
             scheduler: SequentialProjectionScheduler::new(),
+            running: true,
         }
     }
 
@@ -1013,6 +1015,12 @@ impl ProjectionRuntimeV2 {
 
     /// Dispatches an event live to registered projections and persists checkpoints.
     pub fn dispatch_event(&mut self, event: &EventEnvelope, seq: u64) -> Result<(), ProjectionError> {
+        if !self.running {
+            return Err(ProjectionError::ReducerFailed {
+                message: "Runtime is stopped".to_string(),
+            });
+        }
+
         self.scheduler.dispatch_event(&mut self.registry, event, seq)?;
         for instance in self.registry.instances_mut() {
             self.store.save_checkpoint_atomic(instance.checkpoint())?;
@@ -1020,11 +1028,24 @@ impl ProjectionRuntimeV2 {
         Ok(())
     }
 
-    /// Catches up all projections to target watermark.
-    pub fn catchup_all(&mut self, events: &[EventEnvelope], target_watermark: Watermark) -> Result<(), ProjectionError> {
+    /// Catches up all projections to target watermark from event iterator.
+    pub fn catchup_all<'a, I>(&mut self, event_iter: I, target_watermark: Watermark) -> Result<(), ProjectionError>
+    where
+        I: Iterator<Item = &'a EventEnvelope> + Clone,
+    {
         for instance in self.registry.instances_mut() {
-            ReplayEngine::replay_catchup(instance, events, target_watermark)?;
+            ReplayEngine::replay_catchup(instance, event_iter.clone(), target_watermark)?;
             self.store.save_checkpoint_atomic(instance.checkpoint())?;
+        }
+        Ok(())
+    }
+
+    /// Executes graceful shutdown sequence: stop accepting events -> persist checkpoints -> set state to Stopped.
+    pub fn shutdown(&mut self) -> Result<(), ProjectionError> {
+        self.running = false;
+        for instance in self.registry.instances_mut() {
+            self.store.save_checkpoint_atomic(instance.checkpoint())?;
+            instance.set_lifecycle(ProjectionLifecycle::Stopped);
         }
         Ok(())
     }
@@ -1043,7 +1064,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionRuntimeV2 facade orchestrating dispatch, replay, and checkpoint persistence"
+git add crates/brain-services/ && git commit -m "feat(services): implement ProjectionRuntimeV2 facade with graceful shutdown sequence"
 ```
 
 ---
@@ -1090,7 +1111,7 @@ fn test_replay_equivalence_and_interruption_recovery() {
     runtime.register_projection(instance).unwrap();
 
     let events = vec![EventEnvelope::default(), EventEnvelope::default()];
-    runtime.catchup_all(&events, Watermark(2)).unwrap();
+    runtime.catchup_all(events.iter(), Watermark(2)).unwrap();
 }
 ```
 
