@@ -62,6 +62,10 @@ pub mod retrieval;
 pub mod value_objects;
 /// Core domain entities, assertions, and versioned facts.
 pub mod fact_version;
+/// Domain event definitions for facts.
+pub mod events;
+/// Storage-agnostic snapshot view abstraction.
+pub mod snapshot;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -76,6 +80,7 @@ pub use compiler::*;
 pub use document::*;
 pub use entities::*;
 pub use errors::*;
+pub use events::*;
 pub use fact_version::*;
 pub use facts::*;
 pub use ids::*;
@@ -90,6 +95,8 @@ pub use references::*;
 pub use reflection::*;
 pub use relationships::*;
 pub use retrieval::*;
+pub use snapshot::*;
 pub use value_objects::*;
+
 
 
