@@ -19,5 +19,8 @@ fn test_end_to_end_query_plan_snapshot_determinism() {
     let explain = ExplainFormatter::format(&opt_logical, &physical);
 
     assert!(explain.logical_plan_str.contains("Filter"));
-    assert!(explain.physical_plan_str.contains("PhysicalFilter") || explain.physical_plan_str.contains("Limit"));
+    assert!(
+        explain.physical_plan_str.contains("PhysicalFilter")
+            || explain.physical_plan_str.contains("Limit")
+    );
 }

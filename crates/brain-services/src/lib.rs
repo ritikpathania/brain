@@ -68,9 +68,13 @@ pub mod graph;
 /// Unified stateful projections engine.
 pub mod projections;
 pub use projections::{
-    JobProjectionReducer, ProjectionId, ProjectionNotificationBus, ProjectionRunner,
+    JobProjectionReducer, ProjectionId as LegacyProjectionId, ProjectionNotificationBus, ProjectionRunner,
     ReducerRegistry, SearchProjectionReducer, SessionProjectionReducer, StateReducer,
 };
+
+/// Phase 3 Projection Runtime engine.
+pub mod projection;
+
 
 /// Background automation orchestration rules and scheduler.
 pub mod automation;

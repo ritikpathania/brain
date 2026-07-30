@@ -9,17 +9,27 @@ struct MockSnapshotWithFacts {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotWithFacts {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &self.facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.facts
+    }
 }
 
 #[test]
 fn property_test_query_execution_determinism() {
     let snapshot = MockSnapshotWithFacts { facts: vec![] };
     let plan = PhysicalPlan {
-        root: PhysicalPlanNode::Scan { target: ScanTarget::ActiveFacts },
+        root: PhysicalPlanNode::Scan {
+            target: ScanTarget::ActiveFacts,
+        },
     };
 
     let config1 = ExecutionConfig::new();
@@ -38,7 +48,9 @@ fn property_test_query_execution_determinism() {
 fn property_test_batch_size_invariance() {
     let snapshot = MockSnapshotWithFacts { facts: vec![] };
     let plan = PhysicalPlan {
-        root: PhysicalPlanNode::Scan { target: ScanTarget::ActiveFacts },
+        root: PhysicalPlanNode::Scan {
+            target: ScanTarget::ActiveFacts,
+        },
     };
 
     let mut config1 = ExecutionConfig::new();

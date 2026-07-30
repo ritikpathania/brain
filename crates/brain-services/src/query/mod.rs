@@ -89,4 +89,3 @@ pub use execution_engine::*;
 /// Explain plan formatter for Phase 2 Knowledge Query Engine.
 pub mod explain_formatter;
 pub use explain_formatter::*;
-
