@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Unified Query Models & Error Hierarchy | ⬜ Pending | |
-| **M1 Checkpoint** | **Unit & Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: Unified Query Models & Error Hierarchy | ✅ Completed | `6f17017` |
+| **M1 Checkpoint** | **Unit & Contract Verification** | ✅ Completed | `6f17017` |
 
 ---
 
