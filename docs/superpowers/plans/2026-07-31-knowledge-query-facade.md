@@ -19,9 +19,9 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: `arc-swap` Dependency & `ProjectionSnapshot` Container | ⬜ Pending | |
-| **M2** | Task 2: Stateless Evaluators & `KnowledgeQueryFacade` Integration | ⬜ Pending | |
-| **M2 Checkpoint** | **Integration & Concurrency Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: `arc-swap` Dependency & `ProjectionSnapshot` Container | ✅ Completed | `cfb903d` |
+| **M2** | Task 2: Stateless Evaluators & `KnowledgeQueryFacade` Integration | ✅ Completed | `1f53bf5` |
+| **M2 Checkpoint** | **Integration & Concurrency Contract Verification** | ✅ Completed | `1f53bf5` |
 
 ---
 
