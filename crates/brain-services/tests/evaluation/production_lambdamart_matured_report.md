@@ -27,14 +27,14 @@
 | **Total Boosting Rounds** | 50 |
 | **Early Stopped** | 🟢 Yes (selected peak validation round) |
 | **Validation Query Ratio** | 0.20 |
-| **Average Scoring Latency** | 40.27 ns |
+| **Average Scoring Latency** | 41.77 ns |
 
 ## Gain-Based Feature Importance
 
 | Rank | Feature | Normalized Gain Importance |
 | :--- | :--- | ---: |
-| 1 | `SemanticSimilarity` | 0.6211 |
-| 2 | `Importance` | 0.3789 |
+| 1 | `SemanticSimilarity` | 0.6585 |
+| 2 | `Importance` | 0.3415 |
 | 3 | `AccessFrequency` | 0.0000 |
 | 4 | `FreshnessDecay` | 0.0000 |
 | 5 | `GraphDegree` | 0.0000 |
