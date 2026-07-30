@@ -10,18 +10,18 @@
 ## 1. Executive Summary & Goals
 
 The **Projection Performance & Benchmarking Suite** establishes continuous statistical performance regression testing over all four Phase 4 domain read models (`GraphAdjacencyReducer`, `TemporalStateReducer`, `EntityStatisticsReducer`, and `SearchIndexReducer`) using Criterion:
-- **Replay Throughput Group (`events/sec`)**: Evaluates scaling over deterministic streams of 1,000, 10,000, 50,000, and 100,000 `FactEvent`s.
+- **Replay Throughput Group (`events/sec`)**: Evaluates scaling over deterministic streams of 1,000, 10,000, 50,000, and 100,000 generator iterations (measuring throughput over actual emitted `events.len()`).
 - **Incremental Mutation Latency Group ($O(1)$ mutation timing)**: Measures single-event latency for `FactRecorded`, `FactSuperseded`, and `FactArchived` operations.
 - **Lookup Latency Group ($O(1)$ query timing)**: Measures node neighbor traversal, point-in-time temporal state lookups, entity statistics retrieval, and symmetric search posting lookups.
-- **Memory Scaling Group (State footprint per event)**: Reports exact element and map counts across 10k, 50k, and 100k streams.
+- **Memory Scaling Group (State footprint per event)**: Reports explicit named metrics: active facts, entities, adjacency edges, indexed tokens, posting-list entries, and estimated bytes per active fact across 10k, 50k, and 100k streams.
 
-All performance tests live in `crates/brain-domain/benches/projection_benchmarks.rs` and remain strictly separate from deterministic correctness tests (`cargo test`).
+All performance tests live in `crates/brain-domain/benches/projection_benchmarks.rs` and remain strictly separate from deterministic correctness tests (`cargo test`). Replay throughput intentionally measures reducer construction, event replay, and final materialized state (excluding runtime orchestration, storage checkpoints, and IPC).
 
 ---
 
 ## 2. Deterministic Event Stream Generator
 
-The synthetic stream generator emits a 100% reproducible sequence of valid `FactEvent`s with realistic lifecycle proportions (80% `FactRecorded`, 15% `FactSuperseded`, 5% `FactArchived`) enforcing valid BKF ordering:
+The synthetic stream generator emits a 100% reproducible sequence of valid `FactEvent`s with realistic lifecycle proportions (80% `FactRecorded`, 15% `FactSuperseded`, 5% `FactArchived`) enforcing valid BKF ordering. `count` specifies generator loop iterations; throughput measures `events.len()`:
 
 ```rust
 use brain_domain::bkf::events::*;
@@ -201,7 +201,7 @@ Measures per-event latency for `FactRecorded`, `FactSuperseded`, and `FactArchiv
 Measures lookup time for `out_edges`, `facts_at`, `get` statistics, and `search_entities`/`search_facts`.
 
 ### 4. Memory Scaling (`bench_memory_scaling`)
-Reports state element counts and footprint metrics for 10k, 50k, and 100k streams.
+Reports active facts, entities, adjacency edges, indexed tokens, posting-list entries, and estimated bytes per active fact across 10k, 50k, and 100k streams.
 
 ---
 
