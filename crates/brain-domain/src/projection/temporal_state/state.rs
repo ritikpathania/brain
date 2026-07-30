@@ -14,6 +14,15 @@ pub struct TemporalState {
 }
 
 impl TemporalState {
+    /// Returns total count of temporal records.
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    /// Returns true if no temporal records exist.
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
     /// Returns all currently active fact IDs for an entity.
     pub fn active_facts(&self, entity: &KnowledgeEntityId) -> &[TemporalFactId] {
         self.active.get(entity).map(|v| v.as_slice()).unwrap_or(&[])

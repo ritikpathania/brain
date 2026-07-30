@@ -14,6 +14,15 @@ pub struct GraphAdjacencyState {
 }
 
 impl GraphAdjacencyState {
+    /// Returns total count of indexed edges.
+    pub fn len(&self) -> usize {
+        self.edges.len()
+    }
+
+    /// Returns true if no edges are indexed.
+    pub fn is_empty(&self) -> bool {
+        self.edges.is_empty()
+    }
     /// Returns outgoing edge IDs for node.
     pub fn neighbors_out(&self, node: &GraphNodeId) -> &[GraphEdgeId] {
         self.out_edges.get(node).map(|v| v.as_slice()).unwrap_or(&[])

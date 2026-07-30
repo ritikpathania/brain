@@ -2,6 +2,7 @@
 
 use brain_domain::bkf::events::*;
 use brain_domain::bkf::*;
+use brain_domain::identifiers::*;
 use brain_domain::projection::entity_statistics::*;
 use brain_domain::projection::graph_adjacency::*;
 use brain_domain::projection::search_index::*;
@@ -238,9 +239,93 @@ fn bench_incremental_mutation_latency(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_lookup_latency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("lookup_latency");
+    let events = generate_deterministic_event_stream(10_000, 1_000);
+
+    let mut adj_reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+    let mut temp_reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
+    let mut stats_reducer = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
+    let mut search_reducer = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+
+    for ev in &events {
+        let _ = adj_reducer.apply_event(ev);
+        let _ = temp_reducer.apply_event(ev);
+        let _ = stats_reducer.apply_event(ev);
+        let _ = search_reducer.apply_event(ev);
+    }
+
+    let target_node = GraphNodeId(EntityId(Uuid::from_u128(1)));
+    let target_entity = KnowledgeEntityId(Uuid::from_u128(1));
+    let fixed_time = Timestamp(UNIX_EPOCH + Duration::from_secs(1_700_000_000));
+
+    group.bench_function("graph_adj_out_edges", |b| {
+        b.iter(|| {
+            black_box(adj_reducer.state().neighbors_out(black_box(&target_node)));
+        });
+    });
+
+    group.bench_function("temporal_facts_at", |b| {
+        b.iter(|| {
+            black_box(temp_reducer.state().facts_at(black_box(&target_entity), black_box(fixed_time)));
+        });
+    });
+
+    group.bench_function("entity_stats_get", |b| {
+        b.iter(|| {
+            black_box(stats_reducer.state().get(black_box(&target_entity)));
+        });
+    });
+
+    group.bench_function("search_index_query", |b| {
+        b.iter(|| {
+            black_box(search_reducer.state().search_entities(black_box("00000000")));
+        });
+    });
+
+    group.finish();
+}
+
+/// Measures structural state element counts across scale factors (element counts, not allocator profiling).
+fn bench_memory_scaling(c: &mut Criterion) {
+    let mut group = c.benchmark_group("memory_scaling");
+    let scales = [10_000, 50_000, 100_000];
+
+    for &scale in &scales {
+        let events = generate_deterministic_event_stream(scale, 1_000);
+
+        group.bench_with_input(BenchmarkId::new("structural_element_counts", scale), &events, |b, evs| {
+            b.iter(|| {
+                let mut adj = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+                let mut temp = TemporalStateReducer::new(ProjectionId::new("temp"), ProjectionVersion(1));
+                let mut stats = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
+                let mut search = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+
+                for ev in black_box(evs) {
+                    let _ = adj.apply_event(ev);
+                    let _ = temp.apply_event(ev);
+                    let _ = stats.apply_event(ev);
+                    let _ = search.apply_event(ev);
+                }
+
+                black_box((
+                    adj.state().len(),
+                    temp.state().len(),
+                    stats.state().len(),
+                    search.state().len(),
+                ))
+            });
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_replay_throughput,
-    bench_incremental_mutation_latency
+    bench_incremental_mutation_latency,
+    bench_lookup_latency,
+    bench_memory_scaling
 );
 criterion_main!(benches);
