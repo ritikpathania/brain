@@ -20,5 +20,6 @@ pub mod runtime;
 pub use runtime::*;
 
 /// Re-export Phase 4 domain projections.
+pub use brain_domain::projection::entity_statistics;
 pub use brain_domain::projection::graph_adjacency;
 pub use brain_domain::projection::temporal_state;
