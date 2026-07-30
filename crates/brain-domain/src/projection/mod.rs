@@ -16,9 +16,12 @@ pub mod conformance;
 pub mod graph_adjacency;
 /// Temporal State Projection models, state, and reducer.
 pub mod temporal_state;
+/// Entity Statistics Projection models, state, and reducer.
+pub mod entity_statistics;
 
 pub use checkpoint::*;
 pub use conformance::*;
+pub use entity_statistics::{EntityStatistics, EntityStatisticsState};
 pub use errors::*;
 pub use graph_adjacency::{
     EdgeRecord, GraphAdjacencyReducer, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree,
