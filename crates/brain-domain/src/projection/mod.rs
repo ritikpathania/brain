@@ -12,6 +12,8 @@ pub mod errors;
 pub mod reducer;
 /// Graph Adjacency Projection models, state, and reducer.
 pub mod graph_adjacency;
+/// Temporal State Projection models, state, and reducer.
+pub mod temporal_state;
 
 pub use checkpoint::*;
 pub use errors::*;
@@ -20,4 +22,5 @@ pub use graph_adjacency::{
 };
 pub use id::*;
 pub use reducer::*;
+pub use temporal_state::{TemporalFactId, TemporalRecord, TemporalState};
 pub use watermark::*;
