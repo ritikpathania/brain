@@ -5,6 +5,14 @@
 //! first-class inspectable execution plans (`ExecutionPlan`), query planner, optimizer extension points,
 //! abstract view context providers (`QueryContextProvider`), step execution (`QueryExecutor`), and reciprocal rank candidate fusion (`ReciprocalRankFusion`).
 
+/// Strongly-typed Query Errors for Phase 5 Query Facade.
+pub mod errors;
+/// Unified Query Models for Phase 5 Query Facade.
+pub mod models;
+
+pub use errors::*;
+pub use models::*;
+
 /// Data transfer objects for read-model views.
 pub mod dto;
 /// Query filters and pagination specifications.
