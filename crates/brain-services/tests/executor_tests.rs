@@ -5,10 +5,18 @@ use uuid::Uuid;
 struct MockEmptySnapshot;
 
 impl KnowledgeSnapshotView for MockEmptySnapshot {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &[] }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &[]
+    }
 }
 
 #[test]
@@ -81,7 +89,11 @@ fn test_lowering_operations_to_fact_events() {
     let events = V2RewriteExecutor::lower_plan_to_events(&plan).unwrap();
     assert_eq!(events.len(), 2);
     match &events[0] {
-        FactEvent::FactSuperseded { old_fact_id, new_fact_id, .. } => {
+        FactEvent::FactSuperseded {
+            old_fact_id,
+            new_fact_id,
+            ..
+        } => {
             assert_eq!(*old_fact_id, id1);
             assert_eq!(*new_fact_id, id2);
         }

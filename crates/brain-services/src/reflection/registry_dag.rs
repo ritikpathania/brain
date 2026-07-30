@@ -23,7 +23,10 @@ impl PassRegistryV2 {
     pub fn register(&mut self, pass: Box<dyn V2ReflectionPass>) -> Result<(), String> {
         let id = pass.id();
         if self.passes.contains_key(&id) {
-            return Err(format!("Pass with ID '{}' is already registered", id.as_str()));
+            return Err(format!(
+                "Pass with ID '{}' is already registered",
+                id.as_str()
+            ));
         }
         self.passes.insert(id, Arc::from(pass));
         Ok(())
@@ -97,7 +100,9 @@ impl PassRegistryV2 {
         }
 
         if sorted_ids.len() != self.passes.len() {
-            return Err("Cyclic dependency detected among registered reflection passes".to_string());
+            return Err(
+                "Cyclic dependency detected among registered reflection passes".to_string(),
+            );
         }
 
         let result = sorted_ids

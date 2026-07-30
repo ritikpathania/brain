@@ -43,7 +43,7 @@ impl V2ReflectionPass for V2DuplicateConsolidationPass {
             }
 
             // Sort by fact ID string for deterministic canonical target selection
-            facts.sort_by(|a, b| a.id.0.to_string().cmp(&b.id.0.to_string()));
+            facts.sort_by_key(|a| a.id.0.to_string());
 
             let target = facts[0];
             let sources: Vec<FactVersionId> = facts[1..].iter().map(|f| f.id).collect();

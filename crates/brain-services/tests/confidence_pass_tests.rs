@@ -9,10 +9,18 @@ struct MockSnapshotForConfidence {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotForConfidence {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &self.active_facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.active_facts
+    }
 }
 
 #[test]

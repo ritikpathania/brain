@@ -38,7 +38,7 @@ impl V2ReflectionPass for V2ConfidenceRecalculationPass {
             if lineage_count >= 2 {
                 let boost = 0.2_f32;
                 let new_score = (fact.confidence.value() + boost).min(1.0);
-                
+
                 if (new_score - fact.confidence.value()).abs() >= 0.05 {
                     let mut updated_fact = fact.clone();
                     updated_fact.id = FactVersionId(Uuid::new_v4());
@@ -66,7 +66,10 @@ impl V2ReflectionPass for V2ConfidenceRecalculationPass {
         let plan = RewritePlan {
             pass_id: self.id(),
             reason: RewriteReason::ConfidenceIncrease,
-            rationale: format!("Recalculated confidence for {} corroborated facts", ops.len()),
+            rationale: format!(
+                "Recalculated confidence for {} corroborated facts",
+                ops.len()
+            ),
             execution_cost: ops.len() as u32,
             operations: ops,
         };

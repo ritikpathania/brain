@@ -159,6 +159,7 @@ async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
 #[tokio::test]
 async fn test_runtime_startup_phase_failure_rollback() {
     pyo3::prepare_freethreaded_python();
+    std::env::set_var("BRAIN_DATABASE_TIMEOUT_MS", "500");
 
     // Set invalid directory path to cause StorageMigrationPhase to fail during SqliteStorage::new
     let db_path = "/invalid_directory_path_12345/non_existent.db";

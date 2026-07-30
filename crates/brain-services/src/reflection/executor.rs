@@ -31,13 +31,11 @@ impl RewriteValidator {
                 RewriteOperation::MergeFacts {
                     source_fact_ids,
                     target_fact_id,
-                } => {
-                    if source_fact_ids.contains(target_fact_id) {
-                        return Err(format!(
-                            "Invalid plan: Target fact {} cannot be in source merge list",
-                            target_fact_id.0
-                        ));
-                    }
+                } if source_fact_ids.contains(target_fact_id) => {
+                    return Err(format!(
+                        "Invalid plan: Target fact {} cannot be in source merge list",
+                        target_fact_id.0
+                    ));
                 }
                 _ => {}
             }
@@ -112,8 +110,8 @@ impl V2RewriteExecutor {
         RewriteValidator::validate(plan, snapshot)
             .map_err(|e| BrainError::Validation { message: e })?;
 
-        let events = Self::lower_plan_to_events(plan)
-            .map_err(|e| BrainError::Validation { message: e })?;
+        let events =
+            Self::lower_plan_to_events(plan).map_err(|e| BrainError::Validation { message: e })?;
 
         self.storage.run_transaction(&mut |_tx| {
             // Transactional event log append & read model projection update

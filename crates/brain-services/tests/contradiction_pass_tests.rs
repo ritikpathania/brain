@@ -12,10 +12,18 @@ struct MockSnapshotWithContradiction {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotWithContradiction {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &self.assertions }
-    fn predicates(&self) -> &[Predicate] { &self.predicates }
-    fn active_facts(&self) -> &[FactVersion] { &self.active_facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &self.assertions
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &self.predicates
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.active_facts
+    }
 }
 
 #[test]
@@ -67,7 +75,9 @@ fn test_contradiction_pass_detects_exclusive_predicate_conflict() {
         temporal: TemporalWindow::new(t1, t1, t1, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "u1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "u1".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -80,7 +90,9 @@ fn test_contradiction_pass_detects_exclusive_predicate_conflict() {
         temporal: TemporalWindow::new(t2, t2, t2, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "u1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "u1".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -103,7 +115,11 @@ fn test_contradiction_pass_detects_exclusive_predicate_conflict() {
     assert_eq!(outcome.plan.operations.len(), 1);
 
     match &outcome.plan.operations[0] {
-        RewriteOperation::SupersedeFact { old_fact_id, new_fact_id, closed_at } => {
+        RewriteOperation::SupersedeFact {
+            old_fact_id,
+            new_fact_id,
+            closed_at,
+        } => {
             assert_eq!(*old_fact_id, fact1.id);
             assert_eq!(*new_fact_id, fact2.id);
             assert_eq!(*closed_at, t2);

@@ -3,8 +3,8 @@ use brain_services::reflection::conflict_resolver::*;
 use brain_services::reflection::executor::*;
 use brain_services::reflection::pass_context::*;
 use brain_services::reflection::passes::canonicalization::*;
-use brain_services::reflection::passes::contradiction::*;
 use brain_services::reflection::passes::confidence_recalculation::*;
+use brain_services::reflection::passes::contradiction::*;
 use brain_services::reflection::passes::duplicate_consolidation::*;
 use brain_services::reflection::passes::stale_knowledge::*;
 use brain_services::reflection::registry_dag::*;
@@ -18,10 +18,18 @@ struct FullSnapshot {
 }
 
 impl KnowledgeSnapshotView for FullSnapshot {
-    fn entities(&self) -> &[KnowledgeEntity] { &self.entities }
-    fn assertions(&self) -> &[SemanticAssertion] { &self.assertions }
-    fn predicates(&self) -> &[Predicate] { &self.predicates }
-    fn active_facts(&self) -> &[FactVersion] { &self.active_facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &self.entities
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &self.assertions
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &self.predicates
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.active_facts
+    }
 }
 
 #[test]
@@ -29,9 +37,13 @@ fn test_end_to_end_v2_reflection_pipeline() {
     let mut registry = PassRegistryV2::new();
     registry.register(Box::new(CanonicalizationPass)).unwrap();
     registry.register(Box::new(V2ContradictionPass)).unwrap();
-    registry.register(Box::new(V2DuplicateConsolidationPass)).unwrap();
+    registry
+        .register(Box::new(V2DuplicateConsolidationPass))
+        .unwrap();
     registry.register(Box::new(V2StaleKnowledgePass)).unwrap();
-    registry.register(Box::new(V2ConfidenceRecalculationPass)).unwrap();
+    registry
+        .register(Box::new(V2ConfidenceRecalculationPass))
+        .unwrap();
 
     let passes = registry.resolve_execution_order().unwrap();
     assert_eq!(passes.len(), 5);

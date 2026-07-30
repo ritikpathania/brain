@@ -5,10 +5,18 @@ use tokio_util::sync::CancellationToken;
 struct MockSnapshot;
 
 impl KnowledgeSnapshotView for MockSnapshot {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &[] }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &[]
+    }
 }
 
 struct TestNoOpPass;

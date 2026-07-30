@@ -9,11 +9,9 @@ pub use duplicate::DuplicateDetectionPass;
 pub mod duplicate_consolidation;
 pub use duplicate_consolidation::*;
 
-
 /// Property contradiction detection pass.
 pub mod contradiction;
 pub use contradiction::{ContradictionPass, V2ContradictionPass};
-
 
 /// Link suggestion (transitive inference) pass.
 pub mod link_suggestion;
@@ -30,6 +28,3 @@ pub use stale_knowledge::*;
 /// Lineage confidence recalculation pass v2.
 pub mod confidence_recalculation;
 pub use confidence_recalculation::*;
-
-
-

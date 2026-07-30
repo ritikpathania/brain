@@ -12,10 +12,18 @@ struct MockSnapshotWithDuplicates {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotWithDuplicates {
-    fn entities(&self) -> &[KnowledgeEntity] { &self.entities }
-    fn assertions(&self) -> &[SemanticAssertion] { &self.assertions }
-    fn predicates(&self) -> &[Predicate] { &self.predicates }
-    fn active_facts(&self) -> &[FactVersion] { &self.active_facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &self.entities
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &self.assertions
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &self.predicates
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.active_facts
+    }
 }
 
 #[test]
@@ -42,7 +50,9 @@ fn test_duplicate_consolidation_identifies_duplicate_facts() {
         temporal: TemporalWindow::new(t1, t1, t1, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "u1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "u1".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -55,7 +65,9 @@ fn test_duplicate_consolidation_identifies_duplicate_facts() {
         temporal: TemporalWindow::new(t1, t1, t1, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "u1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "u1".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -79,7 +91,10 @@ fn test_duplicate_consolidation_identifies_duplicate_facts() {
     assert_eq!(outcome.plan.operations.len(), 1);
 
     match &outcome.plan.operations[0] {
-        RewriteOperation::MergeFacts { source_fact_ids, target_fact_id } => {
+        RewriteOperation::MergeFacts {
+            source_fact_ids,
+            target_fact_id,
+        } => {
             assert_eq!(source_fact_ids.len(), 1);
             assert!(*target_fact_id == id1 || *target_fact_id == id2);
         }

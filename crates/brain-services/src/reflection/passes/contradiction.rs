@@ -54,7 +54,10 @@ mod legacy {
                     let label_a = node_a.label.to_lowercase();
                     let label_b = node_b.label.to_lowercase();
 
-                    if label_a == label_b || label_a.contains(&label_b) || label_b.contains(&label_a) {
+                    if label_a == label_b
+                        || label_a.contains(&label_b)
+                        || label_b.contains(&label_a)
+                    {
                         for (key, val_a) in &node_a.properties {
                             if let Some(val_b) = node_b.properties.get(key) {
                                 if val_a != val_b {
@@ -116,11 +119,8 @@ impl V2ReflectionPass for V2ContradictionPass {
         }
 
         // 2. Map assertion IDs to assertions
-        let assertions_by_id: HashMap<AssertionId, &SemanticAssertion> = snapshot
-            .assertions()
-            .iter()
-            .map(|a| (a.id, a))
-            .collect();
+        let assertions_by_id: HashMap<AssertionId, &SemanticAssertion> =
+            snapshot.assertions().iter().map(|a| (a.id, a)).collect();
 
         // 3. Group active facts by (subject, predicate)
         let mut grouped_facts: HashMap<(KnowledgeEntityId, PredicateId), Vec<&FactVersion>> =
@@ -146,7 +146,7 @@ impl V2ReflectionPass for V2ContradictionPass {
             }
 
             // Sort facts by valid_from timestamp (newest last)
-            facts.sort_by(|a, b| a.temporal.valid_from.cmp(&b.temporal.valid_from));
+            facts.sort_by_key(|a| a.temporal.valid_from);
 
             let newest_fact = facts.last().unwrap();
 

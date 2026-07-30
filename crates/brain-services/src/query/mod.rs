@@ -62,3 +62,7 @@ pub use plan::{
     ExecutionPlan, ExecutionStep, ExecutionStepId, GraphStep, SemanticStep, TemporalStep, TextStep,
 };
 pub use planner::QueryPlanner;
+/// Semantic binder for Phase 2 Knowledge Query Engine.
+pub mod semantic_binder;
+pub use semantic_binder::*;
+

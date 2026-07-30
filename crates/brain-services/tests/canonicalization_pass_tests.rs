@@ -9,10 +9,18 @@ struct MockSnapshotWithUnnormalizedEntity {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotWithUnnormalizedEntity {
-    fn entities(&self) -> &[KnowledgeEntity] { &self.entities }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &[] }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &self.entities
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &[]
+    }
 }
 
 #[test]

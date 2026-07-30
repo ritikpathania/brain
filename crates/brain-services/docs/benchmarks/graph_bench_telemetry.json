@@ -1,0 +1,232 @@
+{
+  "metadata": {
+    "cpu_info": "Apple M2",
+    "git_commit": "8ee43f4",
+    "os": "macos",
+    "profile": "debug",
+    "rust_version": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "timestamp": "2026-07-30T08:08:03.737606+00:00"
+  },
+  "runs": [
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 1,
+      "graph_depth": 0,
+      "graph_size": 100,
+      "heap_allocated_bytes": 3885,
+      "heap_allocation_count": 14,
+      "single_run_ms": 0.157583
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 2,
+      "graph_depth": 1,
+      "graph_size": 100,
+      "heap_allocated_bytes": 6316,
+      "heap_allocation_count": 36,
+      "single_run_ms": 0.1415
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 3,
+      "graph_depth": 2,
+      "graph_size": 100,
+      "heap_allocated_bytes": 7465,
+      "heap_allocation_count": 59,
+      "single_run_ms": 0.13549999999999998
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 4,
+      "graph_depth": 3,
+      "graph_size": 100,
+      "heap_allocated_bytes": 10870,
+      "heap_allocation_count": 85,
+      "single_run_ms": 0.1625
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 1,
+      "graph_depth": 0,
+      "graph_size": 1000,
+      "heap_allocated_bytes": 3885,
+      "heap_allocation_count": 14,
+      "single_run_ms": 0.188834
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 2,
+      "graph_depth": 1,
+      "graph_size": 1000,
+      "heap_allocated_bytes": 6316,
+      "heap_allocation_count": 36,
+      "single_run_ms": 0.14575
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 3,
+      "graph_depth": 2,
+      "graph_size": 1000,
+      "heap_allocated_bytes": 7465,
+      "heap_allocation_count": 59,
+      "single_run_ms": 0.15475
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 4,
+      "graph_depth": 3,
+      "graph_size": 1000,
+      "heap_allocated_bytes": 10870,
+      "heap_allocation_count": 85,
+      "single_run_ms": 0.179042
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 1,
+      "graph_depth": 0,
+      "graph_size": 10000,
+      "heap_allocated_bytes": 3885,
+      "heap_allocation_count": 14,
+      "single_run_ms": 0.274167
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 2,
+      "graph_depth": 1,
+      "graph_size": 10000,
+      "heap_allocated_bytes": 6316,
+      "heap_allocation_count": 36,
+      "single_run_ms": 0.140542
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 3,
+      "graph_depth": 2,
+      "graph_size": 10000,
+      "heap_allocated_bytes": 7465,
+      "heap_allocation_count": 59,
+      "single_run_ms": 0.14583400000000002
+    },
+    {
+      "benchmark": "graph_retrieval",
+      "candidate_count": 4,
+      "graph_depth": 3,
+      "graph_size": 10000,
+      "heap_allocated_bytes": 10870,
+      "heap_allocation_count": 85,
+      "single_run_ms": 0.1815
+    },
+    {
+      "benchmark": "relationship_expansion",
+      "expansion_count": 11,
+      "heap_allocated_bytes": 24420,
+      "heap_allocation_count": 240,
+      "node_count": 11,
+      "single_run_ms": 0.282417,
+      "spoke_count": 10
+    },
+    {
+      "benchmark": "relationship_expansion",
+      "expansion_count": 51,
+      "heap_allocated_bytes": 116900,
+      "heap_allocation_count": 1164,
+      "node_count": 51,
+      "single_run_ms": 1.051583,
+      "spoke_count": 50
+    },
+    {
+      "benchmark": "relationship_expansion",
+      "expansion_count": 101,
+      "heap_allocated_bytes": 234740,
+      "heap_allocation_count": 2316,
+      "node_count": 101,
+      "single_run_ms": 2.094417,
+      "spoke_count": 100
+    },
+    {
+      "benchmark": "relationship_expansion",
+      "expansion_count": 501,
+      "heap_allocated_bytes": 1105780,
+      "heap_allocation_count": 11520,
+      "node_count": 501,
+      "single_run_ms": 10.207625,
+      "spoke_count": 500
+    },
+    {
+      "benchmark": "relationship_expansion",
+      "expansion_count": 1001,
+      "heap_allocated_bytes": 2212500,
+      "heap_allocation_count": 23022,
+      "node_count": 1001,
+      "single_run_ms": 20.698375000000002,
+      "spoke_count": 1000
+    },
+    {
+      "benchmark": "neighborhood_projector",
+      "depth": 2,
+      "graph_size": 100,
+      "heap_allocated_bytes": 15718,
+      "heap_allocation_count": 119,
+      "result_edges": 2,
+      "result_nodes": 3,
+      "single_run_ms": 0.08762500000000001
+    },
+    {
+      "benchmark": "neighborhood_projector",
+      "depth": 2,
+      "graph_size": 1000,
+      "heap_allocated_bytes": 202134,
+      "heap_allocation_count": 1024,
+      "result_edges": 2,
+      "result_nodes": 3,
+      "single_run_ms": 0.8785000000000001
+    },
+    {
+      "benchmark": "neighborhood_projector",
+      "depth": 2,
+      "graph_size": 10000,
+      "heap_allocated_bytes": 1665710,
+      "heap_allocation_count": 10027,
+      "result_edges": 2,
+      "result_nodes": 3,
+      "single_run_ms": 8.207334
+    },
+    {
+      "benchmark": "neighborhood_projector",
+      "depth": 2,
+      "graph_size": 100000,
+      "heap_allocated_bytes": 13950006,
+      "heap_allocation_count": 100029,
+      "result_edges": 2,
+      "result_nodes": 3,
+      "single_run_ms": 81.675625
+    },
+    {
+      "benchmark": "temporal_projection_current",
+      "heap_allocated_bytes": 7108,
+      "heap_allocation_count": 5,
+      "projected_edges": 0,
+      "projected_nodes": 0,
+      "single_run_ms": 0.0575,
+      "temporal_edge_count": 100
+    },
+    {
+      "benchmark": "temporal_projection_current",
+      "heap_allocated_bytes": 58204,
+      "heap_allocation_count": 8,
+      "projected_edges": 0,
+      "projected_nodes": 0,
+      "single_run_ms": 0.575708,
+      "temporal_edge_count": 1000
+    },
+    {
+      "benchmark": "temporal_projection_current",
+      "heap_allocated_bytes": 466804,
+      "heap_allocation_count": 11,
+      "projected_edges": 0,
+      "projected_nodes": 0,
+      "single_run_ms": 5.976541999999999,
+      "temporal_edge_count": 10000
+    }
+  ]
+}

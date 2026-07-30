@@ -10,10 +10,18 @@ struct MockSnapshotWithExpiredFact {
 }
 
 impl KnowledgeSnapshotView for MockSnapshotWithExpiredFact {
-    fn entities(&self) -> &[KnowledgeEntity] { &[] }
-    fn assertions(&self) -> &[SemanticAssertion] { &[] }
-    fn predicates(&self) -> &[Predicate] { &[] }
-    fn active_facts(&self) -> &[FactVersion] { &self.active_facts }
+    fn entities(&self) -> &[KnowledgeEntity] {
+        &[]
+    }
+    fn assertions(&self) -> &[SemanticAssertion] {
+        &[]
+    }
+    fn predicates(&self) -> &[Predicate] {
+        &[]
+    }
+    fn active_facts(&self) -> &[FactVersion] {
+        &self.active_facts
+    }
 }
 
 #[test]
@@ -40,7 +48,9 @@ fn test_stale_knowledge_identifies_expired_temporal_windows() {
         temporal: TemporalWindow::new(t_past, t_past, t_past, Some(t_expired)).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "u1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "u1".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -61,7 +71,10 @@ fn test_stale_knowledge_identifies_expired_temporal_windows() {
     assert_eq!(outcome.plan.operations.len(), 1);
 
     match &outcome.plan.operations[0] {
-        RewriteOperation::ArchiveFact { fact_id: target_id, archived_at } => {
+        RewriteOperation::ArchiveFact {
+            fact_id: target_id,
+            archived_at,
+        } => {
             assert_eq!(*target_id, fact_id);
             assert_eq!(*archived_at, t_now);
         }

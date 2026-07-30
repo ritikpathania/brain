@@ -26,7 +26,7 @@ impl V2ReflectionPass for CanonicalizationPass {
         for entity in snapshot.entities() {
             let raw_name = entity.name.as_str();
             let normalized = raw_name.trim();
-            
+
             // Capitalize first letter if lowercased
             let mut chars = normalized.chars();
             let canonical_name = match chars.next() {
