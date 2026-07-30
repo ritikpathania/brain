@@ -20,12 +20,12 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: TemporalFactId, TemporalRecord, and TemporalState | ⬜ Pending | |
-| **M1** | Task 2: TemporalStateReducer Implementation | ⬜ Pending | |
-| **M1 Checkpoint** | **Unit & Invariant Tests Freeze** | ⬜ Pending | |
-| **M2** | Task 3: Projection Runtime Service Export | ⬜ Pending | |
-| **M2** | Task 4: Runtime Replay Integration & Catch-Up Tests | ⬜ Pending | |
-| **M3** | Task 5: Workspace-Wide Verification | ⬜ Pending | |
+| **M1** | Task 1: TemporalFactId, TemporalRecord, and TemporalState | ✅ Completed | `da77a9f` |
+| **M1** | Task 2: TemporalStateReducer Implementation | ✅ Completed | `7dc1f0e` |
+| **M1 Checkpoint** | **Unit & Invariant Tests Freeze** | ✅ Completed | `7dc1f0e` |
+| **M2** | Task 3: Projection Runtime Service Export | ✅ Completed | `2c7355b` |
+| **M2** | Task 4: Runtime Replay Integration & Catch-Up Tests | ✅ Completed | `91c10f3` |
+| **M3** | Task 5: Workspace-Wide Verification | ✅ Completed | `91c10f3` |
 
 ---
 
