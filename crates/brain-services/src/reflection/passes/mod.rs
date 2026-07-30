@@ -27,4 +27,9 @@ pub use synthesis::SynthesisPass;
 pub mod stale_knowledge;
 pub use stale_knowledge::*;
 
+/// Lineage confidence recalculation pass v2.
+pub mod confidence_recalculation;
+pub use confidence_recalculation::*;
+
+
 
