@@ -9,11 +9,12 @@
 
 ## 1. Executive Summary & Goals
 
-The **Search Index Projection** is a pure domain read model (`SearchIndexState`, `SearchIndexReducer`) that materializes an in-memory exact normalized lexical inverted search index over active facts and entities in $O(1)$ time:
+The **Search Index Projection** is a pure domain read model (`SearchIndexState`, `SearchIndexReducer`) that materializes an in-memory exact normalized lexical inverted search index over active facts and entity references in $O(1)$ time:
 - **Lexical Tokenization**: `SearchToken` wrapping lowercased, ASCII-punctuation-split tokens.
 - **Posting Lists**: `token_to_entities` mapping tokens to active matching `KnowledgeEntityId`s, and `token_to_facts` mapping tokens to active matching `FactVersionId`s.
 - **Fact Ownership & Reference Counting**: `fact_tokens` tracking token frequencies per `FactVersionId`, and `entity_token_refcounts` tracking token reference counts per `KnowledgeEntityId` for exact $O(1)$ incremental posting list pruning when facts are superseded or archived.
-- **Symmetric Query API**: `search_entities(query)` and `search_facts(query)` tokenizing input queries identically to indexing and returning matched entities and facts.
+- **Symmetric Query API**: `search_entities(query)` and `search_facts(query)` tokenizing input queries identically to indexing and returning matched entities and facts using `OR` (union) semantics across query tokens. (AND matching, phrase search, BM25 ranking, and fuzzy n-grams are explicitly out of scope for Phase 4.4).
+- **Indexing Boundary**: Indexes active `AssertionTarget::Value` (text/scalar literals) and `AssertionTarget::Entity` (identifier representation). Semantic entity labels and alias joins are out of scope for Phase 4.4.
 
 Additionally, `SearchIndexReducer` implements `ProjectionStateView` and is verified via `ProjectionConformanceSuite`.
 
@@ -76,7 +77,7 @@ pub struct SearchIndexState {
 }
 
 impl SearchIndexState {
-    /// Symmetric search returning active entity IDs matching any token in the query string.
+    /// Symmetric search returning active entity IDs matching any token in the query string (OR semantics).
     pub fn search_entities(&self, query: &str) -> HashSet<KnowledgeEntityId> {
         let tokens = SearchToken::tokenize(query);
         let mut results = HashSet::new();
@@ -88,7 +89,7 @@ impl SearchIndexState {
         results
     }
 
-    /// Symmetric search returning active fact version IDs matching any token in the query string.
+    /// Symmetric search returning active fact version IDs matching any token in the query string (OR semantics).
     pub fn search_facts(&self, query: &str) -> HashSet<FactVersionId> {
         let tokens = SearchToken::tokenize(query);
         let mut results = HashSet::new();
@@ -110,7 +111,7 @@ impl SearchIndexState {
         self.token_to_facts.is_empty()
     }
 
-    /// Internal helper extracting lexical tokens from semantic assertion content (literal values and text).
+    /// Internal helper extracting lexical tokens from semantic assertion content.
     fn extract_fact_tokens(assertion: &SemanticAssertion) -> Vec<SearchToken> {
         let mut text_parts = Vec::new();
         match &assertion.object {
@@ -272,7 +273,7 @@ impl ProjectionReducer for SearchIndexReducer {
 ### 2. Search Index Unit & Invariant Tests (`crates/brain-domain/tests/search_index_tests.rs`)
 - `test_search_index_tokenization_and_symmetric_query`
 - `test_search_index_record_supersede_archive_lifecycle`
-- `test_search_index_duplicate_event_idempotency`
+- `test_search_index_duplicate_event_idempotency` (testing duplicate `record_fact` and duplicate `remove_active_fact`)
 
 ### 3. Service Runtime Integration Tests (`crates/brain-services/tests/search_index_runtime_tests.rs`)
 - `test_search_index_runtime_replay_equivalence`
