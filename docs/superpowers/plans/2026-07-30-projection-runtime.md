@@ -21,16 +21,16 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Projection Identifier & Watermark Models | ⬜ Pending | |
-| **M1** | Task 2: Checkpoint, Error Hierarchy & Reducer Trait | ⬜ Pending | |
-| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ⬜ Pending | |
-| **M2** | Task 3: Projection Instance & Lifecycle State Container | ⬜ Pending | |
-| **M2** | Task 4: Projection Registry | ⬜ Pending | |
-| **M3** | Task 5: Atomic Checkpoint Store & Persistence | ⬜ Pending | |
-| **M4** | Task 6: Event Iterator Replay Engine | ⬜ Pending | |
-| **M4** | Task 7: Sequential Projection Scheduler | ⬜ Pending | |
-| **M5** | Task 8: Projection Runtime Facade & Graceful Shutdown | ⬜ Pending | |
-| **M6** | Task 9: Replay Invariants, Interruption Recovery & Verification | ⬜ Pending | |
+| **M1** | Task 1: Projection Identifier & Watermark Models | ✅ Completed | `7292bb5` |
+| **M1** | Task 2: Checkpoint, Error Hierarchy & Reducer Trait | ✅ Completed | `5ca7ffa` |
+| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ✅ Completed | `5ca7ffa` |
+| **M2** | Task 3: Projection Instance & Lifecycle State Container | ✅ Completed | `954861a` |
+| **M2** | Task 4: Projection Registry | ✅ Completed | `436d399` |
+| **M3** | Task 5: Atomic Checkpoint Store & Persistence | ✅ Completed | `a7d456c` |
+| **M4** | Task 6: Event Iterator Replay Engine | ✅ Completed | `1c192f4` |
+| **M4** | Task 7: Sequential Projection Scheduler | ✅ Completed | `86b9389` |
+| **M5** | Task 8: Projection Runtime Facade & Graceful Shutdown | ✅ Completed | `364fbb9` |
+| **M6** | Task 9: Replay Invariants, Interruption Recovery & Verification | ✅ Completed | `cd20921` |
 
 ---
 
