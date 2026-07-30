@@ -21,8 +21,27 @@ impl LogicalOptimizer {
 
     /// Predicate Pushdown Pass: Pushes filter conditions closer to scan targets.
     pub fn pass_predicate_pushdown(plan: LogicalPlan) -> LogicalPlan {
-        plan
+        match plan {
+            LogicalPlan::Filter { condition, input } => LogicalPlan::Filter {
+                condition,
+                input: Box::new(Self::pass_predicate_pushdown(*input)),
+            },
+            LogicalPlan::Limit { count, input } => LogicalPlan::Limit {
+                count,
+                input: Box::new(Self::pass_predicate_pushdown(*input)),
+            },
+            LogicalPlan::Join { left, right } => LogicalPlan::Join {
+                left: Box::new(Self::pass_predicate_pushdown(*left)),
+                right: Box::new(Self::pass_predicate_pushdown(*right)),
+            },
+            LogicalPlan::Traverse { max_depth, input } => LogicalPlan::Traverse {
+                max_depth,
+                input: Box::new(Self::pass_predicate_pushdown(*input)),
+            },
+            other => other,
+        }
     }
+
 
     /// Join Ordering Pass: Reorders joins with lexicographically stable tie-breaking.
     pub fn pass_join_ordering(plan: LogicalPlan) -> LogicalPlan {
