@@ -1,3 +1,7 @@
+/// Canonicalization text normalization pass.
+pub mod canonicalization;
+pub use canonicalization::CanonicalizationPass;
+
 /// Duplicate concept node detection pass.
 pub mod duplicate;
 pub use duplicate::DuplicateDetectionPass;
@@ -13,3 +17,4 @@ pub use link_suggestion::LinkSuggestionPass;
 /// Synthesis cluster consolidation pass.
 pub mod synthesis;
 pub use synthesis::SynthesisPass;
+
