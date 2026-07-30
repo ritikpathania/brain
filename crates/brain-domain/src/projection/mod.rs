@@ -1,4 +1,4 @@
-//! Phase 3 Projection Runtime domain models, traits, and value objects.
+//! Phase 3 & 4 Projection Runtime domain models, traits, and value objects.
 
 /// Projection identifier and version models.
 pub mod id;
@@ -10,9 +10,12 @@ pub mod checkpoint;
 pub mod errors;
 /// Pure domain projection reducer contract.
 pub mod reducer;
+/// Graph Adjacency Projection models, state, and reducer.
+pub mod graph_adjacency;
 
 pub use checkpoint::*;
 pub use errors::*;
+pub use graph_adjacency::{EdgeRecord, GraphAdjacencyState, GraphEdgeId, GraphNodeId, NodeDegree};
 pub use id::*;
 pub use reducer::*;
 pub use watermark::*;
