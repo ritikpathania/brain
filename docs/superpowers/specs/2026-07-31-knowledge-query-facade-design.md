@@ -12,9 +12,10 @@
 Phase 5.2 constructs the **`KnowledgeQueryFacade`** and atomic **`ProjectionSnapshot`** container in `brain-services::query`. It establishes a single, thread-safe composition read point over all four Phase 4 read models (`GraphAdjacencyState`, `TemporalState`, `EntityStatisticsState`, and `SearchIndexState`).
 
 ### Core Architectural Invariants:
-1. **Atomic Cross-Projection Snapshot**: A single immutable `ProjectionSnapshot` owns shared `Arc` references to all 4 read models and the snapshot's watermark (`Watermark`), ensuring 100% watermark consistency across all queries.
-2. **Lock-Free Zero-Copy Read Operations**: `KnowledgeQueryFacade` maintains an `ArcSwap<ProjectionSnapshot>` (or `Arc<RwLock<ProjectionSnapshot>>`), enabling zero-copy reader loads without reader-writer lock contention.
-3. **Stateless Query Evaluators**: Query evaluation logic is decoupled into stateless evaluator functions in `src/query/evaluators/`, taking `(&ProjectionSnapshot, &Query)` and returning `Result<QueryFacadeResult, QueryError>`.
+1. **Atomic Cross-Projection Snapshot**: A single immutable `ProjectionSnapshot` owns encapsulated `Arc` references to all 4 read models and the snapshot's watermark (`Watermark`), ensuring 100% watermark consistency across all queries.
+2. **Lock-Free Zero-Copy Read Operations**: `KnowledgeQueryFacade` maintains an `ArcSwap<ProjectionSnapshot>`, enabling zero-copy reader loads without reader-writer lock contention.
+3. **Publication Immutability**: `ProjectionSnapshot` instances are strictly immutable after publication. Catch-up updates build a new `ProjectionSnapshot` and publish via atomic `ArcSwap::store(...)`.
+4. **Stateless Query Evaluators**: Query evaluation logic is decoupled into stateless evaluator functions in `src/query/evaluators/`, taking `(&ProjectionSnapshot, &Query)` and returning `Result<QueryFacadeResult, QueryError>`.
 
 ---
 
@@ -48,13 +49,13 @@ use brain_domain::projection::Watermark;
 use std::sync::Arc;
 
 /// Atomic, immutable snapshot of all four domain read models and stream watermark.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectionSnapshot {
-    pub graph_adjacency: Arc<GraphAdjacencyState>,
-    pub temporal_state: Arc<TemporalState>,
-    pub entity_statistics: Arc<EntityStatisticsState>,
-    pub search_index: Arc<SearchIndexState>,
-    pub watermark: Watermark,
+    graph_adjacency: Arc<GraphAdjacencyState>,
+    temporal_state: Arc<TemporalState>,
+    entity_statistics: Arc<EntityStatisticsState>,
+    search_index: Arc<SearchIndexState>,
+    watermark: Watermark,
 }
 
 impl ProjectionSnapshot {
@@ -73,6 +74,42 @@ impl ProjectionSnapshot {
             search_index,
             watermark,
         }
+    }
+
+    /// Constructs an empty bootstrap ProjectionSnapshot.
+    pub fn empty(watermark: Watermark) -> Self {
+        Self {
+            graph_adjacency: Arc::new(GraphAdjacencyState::default()),
+            temporal_state: Arc::new(TemporalState::default()),
+            entity_statistics: Arc::new(EntityStatisticsState::default()),
+            search_index: Arc::new(SearchIndexState::default()),
+            watermark,
+        }
+    }
+
+    /// Accessor for Graph Adjacency read model.
+    pub fn graph(&self) -> &Arc<GraphAdjacencyState> {
+        &self.graph_adjacency
+    }
+
+    /// Accessor for Temporal State read model.
+    pub fn temporal(&self) -> &Arc<TemporalState> {
+        &self.temporal_state
+    }
+
+    /// Accessor for Entity Statistics read model.
+    pub fn statistics(&self) -> &Arc<EntityStatisticsState> {
+        &self.entity_statistics
+    }
+
+    /// Accessor for Search Index read model.
+    pub fn search(&self) -> &Arc<SearchIndexState> {
+        &self.search_index
+    }
+
+    /// Accessor for Snapshot Watermark.
+    pub fn watermark(&self) -> Watermark {
+        self.watermark
     }
 }
 ```
@@ -93,12 +130,6 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct KnowledgeQueryFacade {
     snapshot: ArcSwap<ProjectionSnapshot>,
-}
-
-impl Default for KnowledgeQueryFacade {
-    fn default() -> Self {
-        Self::new(Arc::new(ProjectionSnapshot::default()))
-    }
 }
 
 impl KnowledgeQueryFacade {
@@ -153,3 +184,4 @@ impl KnowledgeQueryFacade {
    - Verifies `ArcSwap` atomic snapshot updates (`update_snapshot`).
    - Verifies zero-copy snapshot loads (`active_snapshot`).
    - Verifies evaluator delegation for neighborhood, temporal, search, and hybrid queries.
+   - Verifies concurrent reader/writer safety: reader A holding snapshot X remains consistent when writer publishes snapshot Y, while reader B reads Y.
