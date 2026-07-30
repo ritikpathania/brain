@@ -23,3 +23,8 @@ pub use link_suggestion::LinkSuggestionPass;
 pub mod synthesis;
 pub use synthesis::SynthesisPass;
 
+/// Stale temporal window knowledge archiving pass v2.
+pub mod stale_knowledge;
+pub use stale_knowledge::*;
+
+
