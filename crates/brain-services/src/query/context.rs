@@ -104,3 +104,78 @@ impl<'a> QueryContextProvider for InMemoryQueryContext<'a> {
         candidates
     }
 }
+
+/// Execution budget limits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionBudget {
+    /// Maximum rows processed limit.
+    pub max_rows: usize,
+    /// Maximum batches processed limit.
+    pub max_batches: usize,
+    /// Maximum memory bytes limit.
+    pub max_memory: usize,
+}
+
+impl Default for ExecutionBudget {
+    fn default() -> Self {
+        Self {
+            max_rows: 10_000,
+            max_batches: 1_000,
+            max_memory: 64 * 1024 * 1024,
+        }
+    }
+}
+
+/// Immutable execution configuration settings.
+#[derive(Debug, Clone)]
+pub struct ExecutionConfig {
+    /// Unique query execution ID.
+    pub query_id: uuid::Uuid,
+    /// Vector batch capacity size.
+    pub batch_size: usize,
+    /// Execution budget limits.
+    pub budget: ExecutionBudget,
+}
+
+impl ExecutionConfig {
+    /// Creates a new ExecutionConfig with defaults.
+    pub fn new() -> Self {
+        Self {
+            query_id: uuid::Uuid::new_v4(),
+            batch_size: 100,
+            budget: ExecutionBudget::default(),
+        }
+    }
+}
+
+impl Default for ExecutionConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Mutable execution runtime state and telemetry collectors.
+#[derive(Debug, Clone)]
+pub struct ExecutionState {
+    /// Cancellation token.
+    pub cancellation_token: tokio_util::sync::CancellationToken,
+    /// Total rows scanned across all operators.
+    pub total_rows_scanned: usize,
+}
+
+impl ExecutionState {
+    /// Creates a new ExecutionState with defaults.
+    pub fn new() -> Self {
+        Self {
+            cancellation_token: tokio_util::sync::CancellationToken::new(),
+            total_rows_scanned: 0,
+        }
+    }
+}
+
+impl Default for ExecutionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
