@@ -20,12 +20,12 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: NodeId, EdgeId, EdgeRecord, NodeDegree & GraphAdjacencyState | ⬜ Pending | |
-| **M1** | Task 2: GraphAdjacencyReducer Implementation | ⬜ Pending | |
-| **M1 Checkpoint** | **Unit & Invariant Tests Freeze** | ⬜ Pending | |
-| **M2** | Task 3: Projection Runtime Service Export | ⬜ Pending | |
-| **M2** | Task 4: Runtime Replay Integration & Catch-Up Tests | ⬜ Pending | |
-| **M3** | Task 5: Workspace-Wide Verification | ⬜ Pending | |
+| **M1** | Task 1: NodeId, EdgeId, EdgeRecord, NodeDegree & GraphAdjacencyState | ✅ Completed | `a25e326` |
+| **M1** | Task 2: GraphAdjacencyReducer Implementation | ✅ Completed | `5f8fa90` |
+| **M1 Checkpoint** | **Unit & Invariant Tests Freeze** | ✅ Completed | `5f8fa90` |
+| **M2** | Task 3: Projection Runtime Service Export | ✅ Completed | `501c959` |
+| **M2** | Task 4: Runtime Replay Integration & Catch-Up Tests | ✅ Completed | `3a7c903` |
+| **M3** | Task 5: Workspace-Wide Verification | ✅ Completed | `cd20921` |
 
 ---
 
