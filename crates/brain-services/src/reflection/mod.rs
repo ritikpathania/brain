@@ -47,6 +47,10 @@ pub use registry_dag::*;
 /// Deterministic conflict resolver for reflection rewrite plans.
 pub mod conflict_resolver;
 pub use conflict_resolver::*;
+/// Rewrite validator and transactional event executor.
+pub mod executor;
+pub use executor::*;
+
 
 
 
