@@ -5,6 +5,8 @@ use crate::validation::{AffectedElement, ValidationDiagnostic, ValidationReport}
 
 /// Graph metrics and connected component algorithms.
 pub mod analytics;
+/// Phase 2 Knowledge Query AST builder and pattern models.
+pub mod ast;
 /// Explanation expansion and reasoning queries.
 pub mod explanation;
 /// Consolidated single-turn inspector queries.
@@ -15,12 +17,19 @@ pub mod path;
 pub mod temporal_explanation;
 /// Diagnostic and validation report filters.
 pub mod validation;
-/// Phase 2 Knowledge Query AST builder and pattern models.
-pub mod ast;
 pub use ast::*;
 /// Phase 2 Knowledge Query filter expression models.
 pub mod filters;
 pub use filters::*;
+/// Typed domain scan target enum for snapshot sources.
+pub mod scan_target;
+pub use scan_target::*;
+/// Semantic bound query representation with numerical SlotId indexing.
+pub mod bound;
+pub use bound::*;
+/// Immutable logical algebra nodes.
+pub mod logical_plan;
+pub use logical_plan::*;
 
 
 pub use inspector::{
