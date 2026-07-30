@@ -19,7 +19,9 @@ fn test_rewrite_plan_construction() {
         temporal: window,
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "user1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "user1".to_string(),
+            },
             derived_from: vec![],
         },
     };

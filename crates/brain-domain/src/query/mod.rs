@@ -15,6 +15,13 @@ pub mod path;
 pub mod temporal_explanation;
 /// Diagnostic and validation report filters.
 pub mod validation;
+/// Phase 2 Knowledge Query AST builder and pattern models.
+pub mod ast;
+pub use ast::*;
+/// Phase 2 Knowledge Query filter expression models.
+pub mod filters;
+pub use filters::*;
+
 
 pub use inspector::{
     ActivityLogEntry, InspectorModel, ProvenanceDTO, RelationshipDTO, RetrievalExplanationDTO,

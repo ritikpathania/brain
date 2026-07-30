@@ -36,6 +36,10 @@ pub mod document;
 pub mod entities;
 /// Validation and structural errors.
 pub mod errors;
+/// Domain event definitions for facts.
+pub mod events;
+/// Core domain entities, assertions, and versioned facts.
+pub mod fact_version;
 /// RDF-like factual assertions.
 pub mod facts;
 /// Strongly-typed identifiers.
@@ -58,16 +62,12 @@ pub mod references;
 pub mod relationships;
 /// User-facing context retrieval models.
 pub mod retrieval;
-/// Reflection Engine v2 domain value objects.
-pub mod value_objects;
-/// Core domain entities, assertions, and versioned facts.
-pub mod fact_version;
-/// Domain event definitions for facts.
-pub mod events;
-/// Storage-agnostic snapshot view abstraction.
-pub mod snapshot;
 /// Declarative rewrite intent models for Reflection Engine v2.
 pub mod rewrite_plan;
+/// Storage-agnostic snapshot view abstraction.
+pub mod snapshot;
+/// Reflection Engine v2 domain value objects.
+pub mod value_objects;
 
 /// Incremental storage and formatting projections.
 mod projection;
@@ -100,7 +100,3 @@ pub use retrieval::*;
 pub use rewrite_plan::*;
 pub use snapshot::*;
 pub use value_objects::*;
-
-
-
-

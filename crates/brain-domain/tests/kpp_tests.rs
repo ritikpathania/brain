@@ -247,7 +247,7 @@ fn test_architecture_audit_optimizer_correctness() {
 fn test_reflection_engine_and_planner() {
     use brain_domain::bkf::{
         CompiledKnowledge, FindingItem, IREdge, IRNode, KnowledgeLifecycle, KnowledgeValidity,
-        KnowledgeVersionState, Planner, ReflectionEngine, RewriteOperation,
+        KnowledgeVersionState, Planner, ReflectionEngine,
     };
 
     // 1. Create a CompiledKnowledge that has:
@@ -326,7 +326,7 @@ fn test_reflection_engine_and_planner() {
     assert!(!plan.rationale.is_empty());
 
     let has_merge_op = plan.operations.iter().any(|op| match op {
-        RewriteOperation::MergeNodes { source, target } => {
+        V1RewriteOperation::MergeNodes { source, target } => {
             (source == "node-sqlite" && target == "node-sqlite-dup")
                 || (source == "node-sqlite-dup" && target == "node-sqlite")
         }
@@ -334,7 +334,7 @@ fn test_reflection_engine_and_planner() {
     });
 
     let has_weaken_op = plan.operations.iter().any(|op| match op {
-        RewriteOperation::WeakenEdge { source, target, .. } => {
+        V1RewriteOperation::WeakenEdge { source, target, .. } => {
             source == "node-sqlite" && target == "node-postgres"
         }
         _ => false,

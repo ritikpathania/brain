@@ -60,7 +60,9 @@ fn test_fact_event_variants() {
         temporal: window,
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "user1".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "user1".to_string(),
+            },
             derived_from: vec![],
         },
     };

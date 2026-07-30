@@ -24,7 +24,10 @@ impl Confidence {
         if (0.0..=1.0).contains(&value) {
             Ok(Self(value))
         } else {
-            Err(format!("Confidence value {} must be between 0.0 and 1.0", value))
+            Err(format!(
+                "Confidence value {} must be between 0.0 and 1.0",
+                value
+            ))
         }
     }
 
