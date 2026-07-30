@@ -8,11 +8,11 @@ The **Graph Adjacency Projection** is a pure, event-driven domain read model tha
 - **Domain/Service Separation**: `GraphAdjacencyState`, `NodeId`, `EdgeId`, `EdgeRecord`, and `GraphAdjacencyReducer` live in `brain-domain` with zero external dependencies.
 - **Normalized Dual-Index Topology**: `out_edges` and `in_edges` map `NodeId -> Vec<EdgeId>`, while edge payloads exist once in `edges: HashMap<EdgeId, EdgeRecord>`.
 - **$O(1)$ Directional Traversals**: Both incoming and outgoing neighbor lookups execute in $O(1)$ hash table time.
+- **Deterministic Adjacency Ordering**: The order of `EdgeId`s in every adjacency list is strictly deterministic, determined solely by canonical event sequence.
+- **Idempotent Duplicate Insertion**: Re-recording an existing `EdgeId` is idempotently ignored.
+- **Empty Key Pruning**: Deleting the final edge targeting or originating from a node removes the empty `NodeId` map key to keep state canonical.
+- **Encapsulated Read APIs**: Access to adjacency data is encapsulated through domain query methods (`neighbors_out`, `neighbors_in`, `degree`, `edge`).
 - **Pure Replay Transparent Reducer**: `GraphAdjacencyReducer` implements `ProjectionReducer` with zero knowledge of storage, scheduling, or replay mode.
-- **Incremental Event Mutations**:
-  - `FactRecorded`: Inserts `EdgeRecord`, appends `EdgeId` to source `out_edges` and target `in_edges`, updates `NodeDegree`.
-  - `FactSuperseded` / `FactArchived`: Removes `EdgeId` from adjacency lists, removes `EdgeRecord`, updates `NodeDegree`.
-  - `reset()`: Flushes all graph maps back to empty state.
 
 ---
 
@@ -64,10 +64,80 @@ pub struct NodeDegree {
 /// In-memory graph adjacency state.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GraphAdjacencyState {
-    pub out_edges: HashMap<NodeId, Vec<EdgeId>>,
-    pub in_edges: HashMap<NodeId, Vec<EdgeId>>,
-    pub edges: HashMap<EdgeId, EdgeRecord>,
-    pub degrees: HashMap<NodeId, NodeDegree>,
+    out_edges: HashMap<NodeId, Vec<EdgeId>>,
+    in_edges: HashMap<NodeId, Vec<EdgeId>>,
+    edges: HashMap<EdgeId, EdgeRecord>,
+    degrees: HashMap<NodeId, NodeDegree>,
+}
+
+impl GraphAdjacencyState {
+    /// Returns outgoing edge IDs for node.
+    pub fn neighbors_out(&self, node: &NodeId) -> &[EdgeId] {
+        self.out_edges.get(node).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    /// Returns incoming edge IDs for node.
+    pub fn neighbors_in(&self, node: &NodeId) -> &[EdgeId] {
+        self.in_edges.get(node).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    /// Returns node degree stats.
+    pub fn degree(&self, node: &NodeId) -> NodeDegree {
+        self.degrees.get(node).copied().unwrap_or_default()
+    }
+
+    /// Returns edge record by EdgeId.
+    pub fn edge(&self, id: &EdgeId) -> Option<&EdgeRecord> {
+        self.edges.get(id)
+    }
+
+    /// Internal helper inserting edge record atomically.
+    pub fn insert_edge(&mut self, record: EdgeRecord) {
+        if self.edges.contains_key(&record.id) {
+            return; // Idempotent ignore
+        }
+        let edge_id = record.id.clone();
+        let source = record.source.clone();
+        let target = record.target.clone();
+
+        self.edges.insert(edge_id.clone(), record);
+        self.out_edges.entry(source.clone()).or_default().push(edge_id.clone());
+        self.in_edges.entry(target.clone()).or_default().push(edge_id);
+
+        self.degrees.entry(source).or_default().out_degree += 1;
+        self.degrees.entry(target).or_default().in_degree += 1;
+    }
+
+    /// Internal helper removing edge record atomically with empty key pruning.
+    pub fn remove_edge(&mut self, edge_id: &EdgeId) {
+        if let Some(record) = self.edges.remove(edge_id) {
+            if let Some(out_list) = self.out_edges.get_mut(&record.source) {
+                out_list.retain(|id| id != edge_id);
+                if out_list.is_empty() {
+                    self.out_edges.remove(&record.source);
+                }
+            }
+            if let Some(in_list) = self.in_edges.get_mut(&record.target) {
+                in_list.retain(|id| id != edge_id);
+                if in_list.is_empty() {
+                    self.in_edges.remove(&record.target);
+                }
+            }
+
+            if let Some(deg) = self.degrees.get_mut(&record.source) {
+                deg.out_degree = deg.out_degree.saturating_sub(1);
+                if deg.out_degree == 0 && deg.in_degree == 0 {
+                    self.degrees.remove(&record.source);
+                }
+            }
+            if let Some(deg) = self.degrees.get_mut(&record.target) {
+                deg.in_degree = deg.in_degree.saturating_sub(1);
+                if deg.out_degree == 0 && deg.in_degree == 0 {
+                    self.degrees.remove(&record.target);
+                }
+            }
+        }
+    }
 }
 ```
 
@@ -91,41 +161,22 @@ impl ProjectionReducer for GraphAdjacencyReducer {
             FactEvent::FactRecorded { fact } => {
                 let edge_id = EdgeId(fact.id.clone());
                 let source = NodeId(fact.entity_id.clone());
-                // Extract target from fact value if it references an entity
                 if let Some(target_entity) = fact.value.as_entity_id() {
                     let target = NodeId(target_entity.clone());
                     let record = EdgeRecord {
-                        id: edge_id.clone(),
-                        source: source.clone(),
-                        target: target.clone(),
+                        id: edge_id,
+                        source,
+                        target,
                         predicate: fact.predicate_id.clone(),
                         confidence: fact.confidence,
                         temporal: fact.validity,
                     };
-                    self.state.edges.insert(edge_id.clone(), record);
-                    self.state.out_edges.entry(source.clone()).or_default().push(edge_id.clone());
-                    self.state.in_edges.entry(target.clone()).or_default().push(edge_id);
-
-                    self.state.degrees.entry(source).or_default().out_degree += 1;
-                    self.state.degrees.entry(target).or_default().in_degree += 1;
+                    self.state.insert_edge(record);
                 }
             }
             FactEvent::FactSuperseded { old_fact_id, .. } | FactEvent::FactArchived { fact_id: old_fact_id, .. } => {
                 let edge_id = EdgeId(old_fact_id.clone());
-                if let Some(record) = self.state.edges.remove(&edge_id) {
-                    if let Some(out_list) = self.state.out_edges.get_mut(&record.source) {
-                        out_list.retain(|id| id != &edge_id);
-                    }
-                    if let Some(in_list) = self.state.in_edges.get_mut(&record.target) {
-                        in_list.retain(|id| id != &edge_id);
-                    }
-                    if let Some(deg) = self.state.degrees.get_mut(&record.source) {
-                        deg.out_degree = deg.out_degree.saturating_sub(1);
-                    }
-                    if let Some(deg) = self.state.degrees.get_mut(&record.target) {
-                        deg.in_degree = deg.in_degree.saturating_sub(1);
-                    }
-                }
+                self.state.remove_edge(&edge_id);
             }
         }
         Ok(())
@@ -146,8 +197,9 @@ impl ProjectionReducer for GraphAdjacencyReducer {
 ## 4. Verification & Testing Strategy
 
 1. **Unit & Invariant Tests (`crates/brain-domain/tests/graph_adjacency_tests.rs`)**:
-   - `test_graph_adjacency_insert_and_directional_lookup`: Verifies $O(1)$ outgoing/incoming neighbor queries.
-   - `test_graph_adjacency_supersede_and_archive_removal`: Verifies correct edge removal and degree decrements.
+   - `test_graph_adjacency_insert_and_directional_lookup`: Verifies $O(1)$ outgoing/incoming neighbor queries and read APIs (`neighbors_out`, `neighbors_in`, `degree`, `edge`).
+   - `test_graph_adjacency_supersede_and_archive_removal`: Verifies correct edge removal, degree decrements, and empty map key pruning.
+   - `test_graph_adjacency_idempotent_duplicate_insertion`: Verifies duplicate insertion is safely ignored.
    - `test_graph_adjacency_reset_flushes_all_state`: Verifies complete state reset.
 2. **Projection Runtime Integration (`crates/brain-services/tests/graph_adjacency_runtime_tests.rs`)**:
    - Integrates `GraphAdjacencyReducer` with `ProjectionRuntime` and `ReplayEngine`.
