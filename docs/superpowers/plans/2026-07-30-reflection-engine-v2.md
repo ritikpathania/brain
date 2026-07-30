@@ -12,21 +12,21 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Domain Value Objects | ⬜ Pending | |
-| **M1** | Task 2: Core Domain Entities | ⬜ Pending | |
-| **M1** | Task 3: Snapshot Abstraction & Events | ⬜ Pending | |
-| **M1** | Task 4: Declarative Rewrite Models | ⬜ Pending | |
-| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ⬜ Pending | |
-| **M2** | Task 5: Pass Interface & Context | ⬜ Pending | |
-| **M2** | Task 6: Pass Registry & DAG Resolver | ⬜ Pending | |
-| **M2** | Task 7: Deterministic Conflict Resolver | ⬜ Pending | |
-| **M2** | Task 8: Rewrite Validator & Executor | ⬜ Pending | |
-| **M3** | Task 9: `CanonicalizationPass` | ⬜ Pending | |
-| **M3** | Task 10: `ContradictionPass` | ⬜ Pending | |
-| **M3** | Task 11: `DuplicateConsolidationPass` | ⬜ Pending | |
-| **M3** | Task 12: `StaleKnowledgePass` | ⬜ Pending | |
-| **M3** | Task 13: `ConfidenceRecalculationPass` | ⬜ Pending | |
-| **M4** | Task 14: Verification, Property Tests & Hardening | ⬜ Pending | |
+| **M1** | Task 1: Domain Value Objects | ✅ Completed | `1f6ceae` |
+| **M1** | Task 2: Core Domain Entities | ✅ Completed | `9f9357a` |
+| **M1** | Task 3: Snapshot Abstraction & Events | ✅ Completed | `d73a694` |
+| **M1** | Task 4: Declarative Rewrite Models | ✅ Completed | `27c53d6` |
+| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ✅ Completed | `27c53d6` |
+| **M2** | Task 5: Pass Interface & Context | ✅ Completed | `de8b7f4` |
+| **M2** | Task 6: Pass Registry & DAG Resolver | ✅ Completed | `936f740` |
+| **M2** | Task 7: Deterministic Conflict Resolver | ✅ Completed | `aadf0cb` |
+| **M2** | Task 8: Rewrite Validator & Executor | ✅ Completed | `8a23195` |
+| **M3** | Task 9: `CanonicalizationPass` | ✅ Completed | `95e0be8` |
+| **M3** | Task 10: `ContradictionPass` | ✅ Completed | `befa276` |
+| **M3** | Task 11: `DuplicateConsolidationPass` | ✅ Completed | `e424388` |
+| **M3** | Task 12: `StaleKnowledgePass` | ✅ Completed | `2692de3` |
+| **M3** | Task 13: `ConfidenceRecalculationPass` | ✅ Completed | `348338c` |
+| **M4** | Task 14: Verification, Property Tests & Hardening | ✅ Completed | `9c0c70a` |
 
 ## Global Constraints
 
