@@ -70,6 +70,11 @@ You can start the background daemon process and TUI interface using the standard
 ```bash
 # Compile and start the background daemon
 make dev
+
+# Note: The `brain` CLI automatically resolves `brain-daemon` from:
+# 1. Sibling binary directory (target/debug or installation bin)
+# 2. ~/.brain/bin/ or /usr/local/bin/
+# 3. System PATH
 ```
 
 ---

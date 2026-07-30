@@ -1,6 +1,6 @@
 use crate::connection::init_pool;
 use crate::event_log::EventLogRepository;
-use crate::migrations::run_migrations;
+use crate::migrations::MigrationRunner;
 use brain_core::errors::BrainError;
 use brain_core::repositories::{
     ConfigRepository, EdgeRepository, EmbeddingRepository, NodeRepository, RepositorySet,
@@ -30,7 +30,7 @@ impl SqliteStorage {
             message: format!("Failed to get connection for migrations: {}", e),
             source: Some(Box::new(e)),
         })?;
-        run_migrations(&mut conn)?;
+        MigrationRunner::run_migrations(&mut conn)?;
         Ok(Self { pool })
     }
 

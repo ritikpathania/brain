@@ -122,14 +122,18 @@ fn socket_is_alive() -> bool {
 }
 
 fn try_start_daemon() -> bool {
-    println!("Starting background daemon...");
+    if std::env::var("BRAIN_DEBUG").is_ok() {
+        eprintln!("[daemon resolver] Starting background daemon...");
+    }
     match resolve_daemon_executable() {
         Ok((bin_path, origin)) => {
-            println!(
-                "[daemon resolver] Resolved daemon binary from {:?} ({})",
-                origin,
-                bin_path.display()
-            );
+            if std::env::var("BRAIN_DEBUG").is_ok() {
+                eprintln!(
+                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                    origin,
+                    bin_path.display()
+                );
+            }
             let result = std::process::Command::new(bin_path)
                 .arg("daemon")
                 .arg("start")
@@ -196,11 +200,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(DaemonAction::Start) => {
                 let (bin_path, origin) =
                     resolve_daemon_executable().map_err(std::io::Error::other)?;
-                println!(
-                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
-                    origin,
-                    bin_path.display()
-                );
+                if std::env::var("BRAIN_DEBUG").is_ok() {
+                    eprintln!(
+                        "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                        origin,
+                        bin_path.display()
+                    );
+                }
                 let status = std::process::Command::new(bin_path)
                     .args(["daemon", "start"])
                     .status()?;
@@ -209,11 +215,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(DaemonAction::Stop) => {
                 let (bin_path, origin) =
                     resolve_daemon_executable().map_err(std::io::Error::other)?;
-                println!(
-                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
-                    origin,
-                    bin_path.display()
-                );
+                if std::env::var("BRAIN_DEBUG").is_ok() {
+                    eprintln!(
+                        "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                        origin,
+                        bin_path.display()
+                    );
+                }
                 let status = std::process::Command::new(bin_path)
                     .args(["daemon", "stop"])
                     .status()?;
@@ -222,11 +230,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(DaemonAction::Status) => {
                 let (bin_path, origin) =
                     resolve_daemon_executable().map_err(std::io::Error::other)?;
-                println!(
-                    "[daemon resolver] Resolved daemon binary from {:?} ({})",
-                    origin,
-                    bin_path.display()
-                );
+                if std::env::var("BRAIN_DEBUG").is_ok() {
+                    eprintln!(
+                        "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                        origin,
+                        bin_path.display()
+                    );
+                }
                 let status = std::process::Command::new(bin_path)
                     .args(["daemon", "status"])
                     .status()?;

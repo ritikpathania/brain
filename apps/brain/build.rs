@@ -11,18 +11,22 @@ fn main() {
         ];
 
         for framework_dir in candidate_framework_dirs {
-            if Path::new(framework_dir).exists() {
+            let p = Path::new(framework_dir);
+            if p.exists() {
                 println!("cargo:rustc-link-search=framework={}", framework_dir);
                 println!("cargo:rustc-link-arg=-Wl,-rpath,{}", framework_dir);
 
-                let py3_lib = Path::new(framework_dir)
-                    .join("Python3.framework")
-                    .join("Versions")
-                    .join("3.9")
-                    .join("lib");
-                if py3_lib.exists() {
-                    println!("cargo:rustc-link-search=native={}", py3_lib.display());
-                    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", py3_lib.display());
+                let versions_dir = p.join("Python3.framework").join("Versions");
+                if versions_dir.exists() {
+                    if let Ok(entries) = std::fs::read_dir(&versions_dir) {
+                        for entry in entries.flatten() {
+                            let lib_path = entry.path().join("lib");
+                            if lib_path.exists() {
+                                println!("cargo:rustc-link-search=native={}", lib_path.display());
+                                println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_path.display());
+                            }
+                        }
+                    }
                 }
             }
         }

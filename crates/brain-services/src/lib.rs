@@ -2,6 +2,8 @@
 
 #![deny(missing_docs)]
 
+/// Operational diagnostics service assembling system health reports.
+pub mod diagnostics;
 /// Data Transfer Object (DTO) mapping functions.
 pub mod mapper;
 /// Core memory retrieval services, DTO mapper, and orchestration pipeline.

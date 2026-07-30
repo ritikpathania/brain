@@ -63,6 +63,7 @@ async fn test_a2a_handshake_and_message() {
         id: Some(serde_json::json!(2)),
     };
     let search_res = adapter.handle_request(search_req).await.unwrap();
+    println!("search_res: {:?}", search_res);
     assert_eq!(search_res.id, serde_json::json!(2));
     assert!(search_res.error.is_none());
 

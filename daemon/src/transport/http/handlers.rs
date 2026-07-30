@@ -78,27 +78,65 @@ pub async fn start_health_server(metrics: Arc<DaemonMetrics>, dispatcher: Arc<Re
                             .await
                         {
                             Ok(ApplicationResponse::Status(status_dto)) => {
+                                struct DaemonStorageProvider {
+                                    backend: String,
+                                }
+                                impl brain_services::diagnostics::StorageMetricsProvider for DaemonStorageProvider {
+                                    fn storage_backend(&self) -> String {
+                                        self.backend.clone()
+                                    }
+                                    fn sqlite_status(&self) -> String {
+                                        "ok".to_string()
+                                    }
+                                }
+
+                                struct DaemonWorkerProvider {
+                                    total_q: u64,
+                                    total_i: u64,
+                                    active: u64,
+                                    uptime: u64,
+                                }
+                                impl brain_services::diagnostics::WorkerMetricsProvider for DaemonWorkerProvider {
+                                    fn total_queries(&self) -> u64 {
+                                        self.total_q
+                                    }
+                                    fn total_ingests(&self) -> u64 {
+                                        self.total_i
+                                    }
+                                    fn active_workers(&self) -> u64 {
+                                        self.active
+                                    }
+                                    fn uptime_secs(&self) -> u64 {
+                                        self.uptime
+                                    }
+                                }
+
                                 let total_q = metrics_ref.total_queries.load(Ordering::Relaxed);
                                 let total_i = metrics_ref.total_ingests.load(Ordering::Relaxed);
                                 let active = metrics_ref.active_workers.load(Ordering::Relaxed);
-                                let socket_path = std::env::var("HOME")
-                                    .map(|h| format!("{}/.brain/daemon.sock", h))
-                                    .unwrap_or_else(|_| "daemon.sock".to_string());
-                                let diag = serde_json::json!({
-                                    "schema_version": 1,
-                                    "status": status_dto.health,
-                                    "version": env!("CARGO_PKG_VERSION"),
-                                    "ipc_protocol_version": "v1",
-                                    "socket_path": socket_path,
-                                    "sqlite_status": "ok",
-                                    "python_runtime": "3.9.6",
-                                    "uptime_secs": status_dto.uptime_secs,
-                                    "storage_backend": status_dto.storage_backend,
-                                    "total_queries": total_q,
-                                    "total_ingests": total_i,
-                                    "active_workers": active,
-                                });
-                                ("200 OK", "application/json", diag.to_string())
+
+                                let storage_provider = DaemonStorageProvider {
+                                    backend: status_dto.storage_backend,
+                                };
+                                let worker_provider = DaemonWorkerProvider {
+                                    total_q,
+                                    total_i,
+                                    active,
+                                    uptime: status_dto.uptime_secs,
+                                };
+                                let config_provider =
+                                    brain_services::diagnostics::DefaultConfigProvider;
+
+                                let service = brain_services::diagnostics::DiagnosticsService::new(
+                                    storage_provider,
+                                    worker_provider,
+                                    config_provider,
+                                );
+                                let report = service
+                                    .generate_report(&status_dto.health, env!("CARGO_PKG_VERSION"));
+                                let response_body =
+                                    serde_json::to_string(&report).unwrap_or_default();
+                                ("200 OK", "application/json", response_body)
                             }
                             _ => (
                                 "500 Internal Server Error",

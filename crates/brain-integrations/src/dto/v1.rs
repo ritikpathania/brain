@@ -13,6 +13,35 @@ pub struct Status {
     pub health: String,
 }
 
+/// Version 1 DTO for versioned system health diagnostics report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SystemDiagnosticsReport {
+    /// Schema version integer (e.g. 1).
+    pub schema_version: u32,
+    /// System health status string ("healthy", "unhealthy").
+    pub status: String,
+    /// Engine build version string.
+    pub version: String,
+    /// IPC protocol specification version.
+    pub ipc_protocol_version: String,
+    /// Resolved Unix Domain Socket path.
+    pub socket_path: String,
+    /// SQLite storage connection health status.
+    pub sqlite_status: String,
+    /// Python runtime environment version.
+    pub python_runtime: Option<String>,
+    /// Engine uptime in seconds.
+    pub uptime_secs: u64,
+    /// Storage backend identifier string.
+    pub storage_backend: String,
+    /// Total client queries processed.
+    pub total_queries: u64,
+    /// Total client ingests processed.
+    pub total_ingests: u64,
+    /// Active worker tasks count.
+    pub active_workers: u64,
+}
+
 /// Version 1 DTO for runtime metrics.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Metrics {

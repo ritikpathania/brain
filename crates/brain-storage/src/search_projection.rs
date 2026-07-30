@@ -61,6 +61,9 @@ pub struct SqliteSearchRepository {
 impl SqliteSearchRepository {
     /// Creates a new `SqliteSearchRepository` instance.
     pub fn new(pool: r2d2::Pool<crate::connection::SqliteConnectionManager>) -> Self {
+        if let Ok(mut conn) = pool.get() {
+            let _ = crate::migrations::MigrationRunner::run_migrations(&mut conn);
+        }
         Self { pool }
     }
 
@@ -169,9 +172,16 @@ impl SqliteSearchRepository {
                 source: Some(Box::new(e)),
             })?;
 
+        let session_id_opt = match &doc.metadata {
+            brain_domain::SearchMetadata::Message { session_id, .. } => {
+                Some(session_id.0.to_string())
+            }
+            _ => None,
+        };
+
         conn.execute(
-            "INSERT INTO search_projection (id, kind, title, body, metadata, updated_sequence) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![id_str, kind_str, doc.title, doc.body, metadata_str, sequence],
+            "INSERT INTO search_projection (id, kind, title, body, metadata, updated_sequence, session_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![id_str, kind_str, doc.title, doc.body, metadata_str, sequence, session_id_opt],
         )
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to save search document: {}", e),
@@ -350,10 +360,11 @@ impl SqliteSearchRepository {
         conn: &rusqlite::Connection,
         session_id: &SessionId,
     ) -> Result<(), BrainError> {
-        let like_pattern = format!("%\"session_id\":\"{}\"%", session_id.0);
+        let sess_str = session_id.0.to_string();
+        let like_pattern = format!("%\"session_id\":\"{}\"%", sess_str);
         conn.execute(
-            "DELETE FROM search_projection WHERE kind = 'message' AND metadata LIKE ?1",
-            params![like_pattern],
+            "DELETE FROM search_projection WHERE kind = 'message' AND (session_id = ?1 OR (session_id IS NULL AND metadata LIKE ?2))",
+            params![sess_str, like_pattern],
         )
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to delete messages by session: {}", e),
