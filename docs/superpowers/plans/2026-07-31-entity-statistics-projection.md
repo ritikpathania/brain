@@ -88,7 +88,8 @@ fn test_graph_adjacency_conformance() {
     };
 
     ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
-    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer, &event);
+    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
+    ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
 
 #[test]
@@ -125,7 +126,8 @@ fn test_temporal_state_conformance() {
     };
 
     ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
-    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer, &event);
+    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
+    ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
 ```
 
@@ -298,6 +300,8 @@ fn test_entity_statistics_record_supersede_archive_lifecycle() {
         object: AssertionTarget::Entity(KnowledgeEntityId(Uuid::new_v4())),
     };
 
+    // Test record_fact & duplicate record idempotency
+    state.record_fact(&fact1, &assertion1);
     state.record_fact(&fact1, &assertion1);
 
     let stats = state.get(&entity_id).unwrap();
@@ -306,7 +310,9 @@ fn test_entity_statistics_record_supersede_archive_lifecycle() {
     assert_eq!(stats.unique_predicates_count, 1);
     assert!((stats.average_confidence() - 0.8).abs() < 1e-4);
 
+    // Test duplicate archive_fact idempotency
     let t20 = Timestamp::now();
+    state.archive_fact(&fact_id1, t20);
     state.archive_fact(&fact_id1, t20);
 
     let stats_after = state.get(&entity_id).unwrap();
@@ -314,6 +320,7 @@ fn test_entity_statistics_record_supersede_archive_lifecycle() {
     assert_eq!(stats_after.archived_facts_count, 1);
     assert_eq!(stats_after.unique_predicates_count, 0);
     assert_eq!(stats_after.average_confidence(), 0.0);
+    assert_eq!(stats_after.active_confidence_sum, 0.0);
 }
 ```
 
@@ -480,6 +487,7 @@ impl EntityStatisticsState {
                 _ => {}
             }
 
+            let mut remove_entity_pred_map = false;
             if let Some(pred_counts) = self.predicate_refcounts.get_mut(&meta.entity_id) {
                 if let Some(cnt) = pred_counts.get_mut(&meta.predicate_id) {
                     *cnt = cnt.saturating_sub(1);
@@ -488,6 +496,12 @@ impl EntityStatisticsState {
                         stats.unique_predicates_count = stats.unique_predicates_count.saturating_sub(1);
                     }
                 }
+                if pred_counts.is_empty() {
+                    remove_entity_pred_map = true;
+                }
+            }
+            if remove_entity_pred_map {
+                self.predicate_refcounts.remove(&meta.entity_id);
             }
         }
     }
@@ -561,7 +575,8 @@ fn test_entity_statistics_conformance() {
     };
 
     ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
-    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer, &event);
+    ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
+    ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
 ```
 
