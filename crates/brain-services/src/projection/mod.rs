@@ -9,3 +9,6 @@ pub use registry::*;
 /// Storage-agnostic CheckpointStore trait and InMemoryCheckpointStore.
 pub mod store;
 pub use store::*;
+/// Catch-up replay engine.
+pub mod replay;
+pub use replay::*;
