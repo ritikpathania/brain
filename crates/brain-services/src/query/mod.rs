@@ -80,6 +80,10 @@ pub use physical_planner::*;
 /// Vectorized batch container for Phase 2 Knowledge Query Engine.
 pub mod batch;
 pub use batch::*;
+/// Physical batch operators for Phase 2 Knowledge Query Engine.
+pub mod operators;
+pub use operators::*;
+
 
 
 
