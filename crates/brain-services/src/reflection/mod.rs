@@ -44,6 +44,10 @@ pub use pass_context::*;
 /// Reflection Engine v2 pass registry and topological DAG resolver.
 pub mod registry_dag;
 pub use registry_dag::*;
+/// Deterministic conflict resolver for reflection rewrite plans.
+pub mod conflict_resolver;
+pub use conflict_resolver::*;
+
 
 
 
