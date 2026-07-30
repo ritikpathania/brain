@@ -6,3 +6,6 @@ pub use models::{TemporalFactId, TemporalRecord};
 /// In-memory temporal state.
 pub mod state;
 pub use state::TemporalState;
+/// Pure domain reducer for Temporal State Projection.
+pub mod reducer;
+pub use reducer::TemporalStateReducer;

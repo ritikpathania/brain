@@ -211,7 +211,10 @@ pub enum FactLifecycle {
     Verified,
     /// Archived cold-storage fact.
     Archived,
+    /// Superseded fact replaced by a newer version.
+    Superseded,
 }
+
 
 /// Immutable versioned assertion record.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

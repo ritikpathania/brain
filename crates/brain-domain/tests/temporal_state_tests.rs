@@ -1,5 +1,7 @@
+use brain_domain::bkf::events::*;
 use brain_domain::bkf::*;
 use brain_domain::projection::temporal_state::*;
+use brain_domain::projection::*;
 use std::time::{Duration, SystemTime};
 use uuid::Uuid;
 
@@ -49,4 +51,77 @@ fn test_temporal_state_record_insert_close_and_point_in_time_lookup() {
     assert_eq!(state.facts_at(&entity_id, ts(10)).len(), 1);
     assert_eq!(state.facts_at(&entity_id, ts(19)).len(), 1);
     assert!(state.facts_at(&entity_id, ts(20)).is_empty());
+}
+
+#[test]
+fn test_temporal_state_reducer_event_application_and_reset() {
+    let mut reducer = TemporalStateReducer::new(ProjectionId::new("temporal_state"), ProjectionVersion(1));
+    let fact_id1 = FactVersionId(Uuid::new_v4());
+    let fact_id2 = FactVersionId(Uuid::new_v4());
+    let assertion_id1 = AssertionId(Uuid::new_v4());
+    let assertion_id2 = AssertionId(Uuid::new_v4());
+    let entity_id = KnowledgeEntityId(Uuid::new_v4());
+    let now = Timestamp::now();
+
+    let fact1 = FactVersion {
+        id: fact_id1.clone(),
+        assertion_id: assertion_id1,
+        lifecycle: FactLifecycle::Verified,
+        confidence: Confidence::new(1.0).unwrap(),
+        temporal: TemporalWindow::new(now, now, now, None).unwrap(),
+        supersedes: None,
+        provenance: FactProvenance {
+            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            derived_from: vec![],
+        },
+    };
+
+    let assertion1 = SemanticAssertion {
+        id: assertion_id1,
+        kind: AssertionKind::Relationship,
+        subject: entity_id,
+        predicate: PredicateId(Uuid::new_v4()),
+        object: AssertionTarget::Entity(KnowledgeEntityId(Uuid::new_v4())),
+    };
+
+    let record_event1 = FactEvent::FactRecorded {
+        fact: fact1,
+        assertion: Some(assertion1),
+    };
+    reducer.apply_event(&record_event1).unwrap();
+
+    let fact2 = FactVersion {
+        id: fact_id2.clone(),
+        assertion_id: assertion_id2,
+        lifecycle: FactLifecycle::Verified,
+        confidence: Confidence::new(1.0).unwrap(),
+        temporal: TemporalWindow::new(now, now, now, None).unwrap(),
+        supersedes: Some(fact_id1.clone()),
+        provenance: FactProvenance {
+            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            derived_from: vec![],
+        },
+    };
+
+    let assertion2 = SemanticAssertion {
+        id: assertion_id2,
+        kind: AssertionKind::Relationship,
+        subject: entity_id,
+        predicate: PredicateId(Uuid::new_v4()),
+        object: AssertionTarget::Entity(KnowledgeEntityId(Uuid::new_v4())),
+    };
+
+    let record_event2 = FactEvent::FactRecorded {
+        fact: fact2,
+        assertion: Some(assertion2),
+    };
+    reducer.apply_event(&record_event2).unwrap();
+
+    // Verify previous_version lineage preservation
+    let rec2 = reducer.state().record(&TemporalFactId(fact_id2)).unwrap();
+    assert_eq!(rec2.previous_version, Some(fact_id1.clone()));
+
+    // Test reset() empties state
+    reducer.reset().unwrap();
+    assert!(reducer.state().timeline(&entity_id).is_empty());
 }

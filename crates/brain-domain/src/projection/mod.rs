@@ -22,5 +22,5 @@ pub use graph_adjacency::{
 };
 pub use id::*;
 pub use reducer::*;
-pub use temporal_state::{TemporalFactId, TemporalRecord, TemporalState};
+pub use temporal_state::{TemporalFactId, TemporalRecord, TemporalState, TemporalStateReducer};
 pub use watermark::*;
