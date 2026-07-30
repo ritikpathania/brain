@@ -12,3 +12,6 @@ pub use store::*;
 /// Catch-up replay engine.
 pub mod replay;
 pub use replay::*;
+/// Sequential projection scheduler.
+pub mod scheduler;
+pub use scheduler::*;
