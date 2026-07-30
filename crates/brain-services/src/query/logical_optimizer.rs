@@ -42,7 +42,6 @@ impl LogicalOptimizer {
         }
     }
 
-
     /// Join Ordering Pass: Reorders joins with lexicographically stable tie-breaking.
     pub fn pass_join_ordering(plan: LogicalPlan) -> LogicalPlan {
         match plan {
@@ -81,5 +80,4 @@ impl LogicalOptimizer {
             other => other,
         }
     }
-
 }

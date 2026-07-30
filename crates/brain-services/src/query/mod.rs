@@ -83,9 +83,10 @@ pub use batch::*;
 /// Physical batch operators for Phase 2 Knowledge Query Engine.
 pub mod operators;
 pub use operators::*;
-
-
-
-
-
+/// Physical execution engine for Phase 2 Knowledge Query Engine.
+pub mod execution_engine;
+pub use execution_engine::*;
+/// Explain plan formatter for Phase 2 Knowledge Query Engine.
+pub mod explain_formatter;
+pub use explain_formatter::*;
 
