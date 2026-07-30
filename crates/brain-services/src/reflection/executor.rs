@@ -61,8 +61,12 @@ impl V2RewriteExecutor {
         for op in &plan.operations {
             match op {
                 RewriteOperation::RecordFact(fact) => {
-                    events.push(FactEvent::FactRecorded { fact: fact.clone() });
+                    events.push(FactEvent::FactRecorded {
+                        fact: fact.clone(),
+                        assertion: None,
+                    });
                 }
+
                 RewriteOperation::SupersedeFact {
                     old_fact_id,
                     new_fact_id,
