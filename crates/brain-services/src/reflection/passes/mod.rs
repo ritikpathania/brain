@@ -8,7 +8,8 @@ pub use duplicate::DuplicateDetectionPass;
 
 /// Property contradiction detection pass.
 pub mod contradiction;
-pub use contradiction::ContradictionPass;
+pub use contradiction::{ContradictionPass, V2ContradictionPass};
+
 
 /// Link suggestion (transitive inference) pass.
 pub mod link_suggestion;
