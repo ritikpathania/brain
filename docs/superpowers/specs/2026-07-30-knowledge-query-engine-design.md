@@ -5,9 +5,10 @@
 The **Knowledge Query Engine** provides a pure, deterministic, storage-agnostic semantic query layer over `KnowledgeSnapshotView`. It compiles typed query requests into a **Bound Query**, generates an immutable **Logical Plan**, optimizes it via a rule-based pass pipeline, lowers it into an explicit **Physical Plan**, and executes it using a **Pull-Scheduled Batch Execution Engine**.
 
 ### Architectural Invariants & Core Rules
-- **Zero External Dependencies in Domain**: `brain-domain::query` contains AST, Bound Query, Logical Plan, Query Result value objects, and typed `QueryError` hierarchy with zero async runtimes, storage drivers, or execution dependencies.
-- **Storage Independence**: All physical scan operators query exclusively via `KnowledgeSnapshotView`. No direct access to SQLite, DuckDB, or raw event logs.
+- **Zero External Dependencies in Domain**: `brain-domain::query` contains AST, Bound Query, Logical Plan, Query Result value objects, slot-indexed binding models, and typed `QueryError` hierarchy with zero async runtimes, storage drivers, or execution dependencies.
+- **Storage Independence**: All physical scan operators query exclusively via `KnowledgeSnapshotView` over typed `ScanTarget` enums. No direct access to SQLite, DuckDB, or raw event logs.
 - **Deterministic Execution**: Given identical `KnowledgeSnapshotView` and query parameters, physical execution produces bitwise-identical `QueryResult`s, `QueryStatistics`, and `ExecutionStatistics`. Join ordering tie-breaks are lexicographically stable.
+- **Indexed Variable Slots (`SlotId`)**: Variables resolve to zero-allocation numerical `SlotId(usize)` offsets during semantic binding. `BindingRow` holds a `Vec<Option<QueryValue>>` indexed by `SlotId`.
 - **Root-Driven Pull-Scheduled Batch Processing**: Data flows through the physical operator tree in opaque vectorized batches (`BindingBatch`), scheduled top-down by root operators to support early termination (`LIMIT`) and cancellation.
 - **Compiler Stage Separation**: Explicit boundaries between Semantic Binding, Logical Planning, Logical Optimization, Physical Planning, and Physical Execution.
 
@@ -27,7 +28,7 @@ The **Knowledge Query Engine** provides a pure, deterministic, storage-agnostic 
                      (brain-services::query::semantic_binder)
                                          │
                                          ▼
-                                    Bound Query
+                             Bound Query & Binding Schema
                            (brain-domain::query::bound)
                                          │
                                          ▼
@@ -76,23 +77,27 @@ The **Knowledge Query Engine** provides a pure, deterministic, storage-agnostic 
   - `QueryVar`: Variable identifier (e.g. `?person`, `?city`).
   - `Pattern`: Pattern expression (e.g. `Pattern::triple(subject, predicate, object)`).
 - **`bound.rs`**: Semantic binding representation.
-  - `BoundQuery`: Validated query AST with resolved variable bindings, canonicalized predicate names, and alias scope mappings.
+  - `SlotId`: Strongly typed numerical slot offset (`SlotId(pub usize)`).
+  - `BindingSchema`: Maps `QueryVar` to `SlotId`.
+  - `BoundQuery`: Validated query AST with resolved `BindingSchema`, canonicalized predicate names, and variable slot assignments.
+- **`scan_target.rs`**: Typed domain scan target enum.
+  - `ScanTarget`: `ActiveFacts`, `HistoricalFacts`, `Entities`, `Assertions`, `Predicates`.
 - **`logical_plan.rs`**: Immutable logical algebra nodes.
-  - `LogicalPlan`: Enum containing `Scan`, `Filter`, `Join`, `Traverse`, `TemporalWindowFilter`, `Project`, `Limit`, `Sort` (extensible for future `Aggregate`, `Distinct`, `Union`, `Exists`, `OptionalMatch`).
+  - `LogicalPlan`: Enum containing `Scan { target: ScanTarget }`, `Filter`, `Join`, `Traverse`, `TemporalWindowFilter`, `Project`, `Limit`, `Sort` (extensible for future `Aggregate`, `Distinct`, `Union`, `Exists`, `OptionalMatch`).
 - **`filters.rs`**: Predicate expressions over entity names, kinds, literal values, and confidence bounds.
 - **`temporal.rs`**: Point-in-time (`at(timestamp)`), window (`between(start, end)`), active (`active()`), and historical (`historical()`) visibility filters.
 - **`traversal.rs`**: Graph traversal specifiers: `neighbors(entity)`, `shortest_path(from, to, max_depth)`, and `lineage(fact)`.
 - **`errors.rs`**: Strongly typed `QueryError` and `QueryExecutionError` hierarchy.
 - **`result.rs`**: Immutable query response value objects.
-  - `QueryResult`: Contains `bindings: Vec<BindingRow>`, `statistics: QueryStatistics`, and `execution_statistics: ExecutionStatistics`.
-  - `BindingRow`: Map of `QueryVar -> QueryValue` (where `QueryValue` is `Entity(KnowledgeEntity)`, `Fact(FactVersion)`, or `Literal(LiteralValue)`).
+  - `QueryResult`: Contains `schema: BindingSchema`, `bindings: Vec<BindingRow>`, `statistics: QueryStatistics`, and `execution_statistics: ExecutionStatistics`.
+  - `BindingRow`: Compact `Vec<Option<QueryValue>>` indexed by `SlotId`.
   - `QueryStatistics`: Logical result metadata (result count, logical plan depth, traversal depth, pattern count).
   - `ExecutionStatistics`: Runtime metrics (rows scanned, total batches, execution `Duration`, memory bytes, `OperatorMetrics` list).
 - **`explain.rs`**: Formatted `ExplainPlan` output containing `logical_plan_str` and `physical_plan_str`.
 
 ### 3.2 `crates/brain-services/src/query/` (Planner, Optimizer & Execution Engine)
 
-- **`semantic_binder.rs`**: Validates AST variables, checks scope, canonicalizes predicate names, and emits `BoundQuery`.
+- **`semantic_binder.rs`**: Validates AST variables, assigns `SlotId`s into `BindingSchema`, checks scope, canonicalizes predicate names, and emits `BoundQuery`.
 - **`logical_planner.rs`**: Translates `BoundQuery` into `LogicalPlan`.
 - **`logical_optimizer.rs`**: Executes a deterministic multi-pass rule pipeline:
   1. `NormalizationPass`: Standardizes expression trees.
@@ -103,11 +108,12 @@ The **Knowledge Query Engine** provides a pure, deterministic, storage-agnostic 
   6. `JoinOrderingPass`: Reorders joins based on pattern selectivity (lexicographically stable tie-breaking).
 - **`physical_planner.rs`**: Selects physical operators and constructs `PhysicalPlan`.
 - **`physical_plan.rs`**: Immutable tree representation of physical operators ready for execution or `EXPLAIN`.
-- **`context.rs`**: `QueryExecutionContext` containing `query_id`, `cancellation_token`, `batch_size`, `execution_budget`, `execution_mode`, `feature_flags`, and telemetry collectors.
-- **`batch.rs`**: `BindingBatch` opaque vector batch structure supporting `append`, `clear`, `len`, `capacity`, `is_empty`, and iteration.
-- **`execution_engine.rs`**: Drives `PhysicalPlan` execution against `KnowledgeSnapshotView` and `QueryExecutionContext`.
+- **`context.rs`**: Split into immutable `ExecutionConfig` (`query_id`, `batch_size`, `execution_budget`, `execution_mode`, `feature_flags`) and mutable `ExecutionState` (`cancellation_token`, telemetry collectors).
+- **`batch.rs`**: `BindingBatch` opaque vector batch structure supporting `append`, `clear`, `len`, `capacity`, `is_empty`, and iteration over `BindingRow`s.
+- **`execution_engine.rs`**: Drives `PhysicalPlan` execution against `KnowledgeSnapshotView`, wrapping operators with duration timing.
+- **`explain_formatter.rs`**: Formatter generating readable text for `EXPLAIN` queries.
 - **`operators/`**: Extensible physical operators implementing `PhysicalOperator`:
-  - `ScanOperator`: Scans entities, assertions, or active facts from `KnowledgeSnapshotView`.
+  - `ScanOperator`: Scans entities, assertions, or active facts from `KnowledgeSnapshotView` over typed `ScanTarget`.
   - `FilterOperator`: Evaluates boolean expressions over `BindingBatch`.
   - `JoinOperator`: Executes joins across batches (strategy selected by Physical Planner).
   - `TraverseOperator`: BFS/DFS path expansion across graph edges.
@@ -133,11 +139,12 @@ pub trait PhysicalOperator: Send + Sync {
     fn next_batch(
         &mut self,
         snapshot: &dyn KnowledgeSnapshotView,
-        ctx: &mut QueryExecutionContext,
+        config: &ExecutionConfig,
+        state: &mut ExecutionState,
         output: &mut BindingBatch,
     ) -> Result<BatchStatus, QueryExecutionError>;
 
-    /// Returns runtime telemetry metrics for this operator.
+    /// Returns row and batch metrics for this operator.
     fn metrics(&self) -> OperatorMetrics;
 }
 ```
@@ -147,13 +154,14 @@ pub trait PhysicalOperator: Send + Sync {
 ## 5. Verification & Testing Strategy
 
 1. **Unit Tests (`brain-domain` & `brain-services`)**:
-   - Semantic Binder validation & error reporting (duplicate variables, unknown predicates).
+   - Semantic Binder validation & slot assignment (`SlotId`).
    - Logical Planner translation correctness.
    - Individual Optimizer Rule Pass transformations.
    - Physical Operator batch evaluation in isolation.
-2. **Snapshot Tests (`crates/brain-services/tests/query_snapshot_tests.rs`)**:
-   - `LogicalPlan` snapshot verification (verifying AST -> LogicalPlan transformations remain identical).
-   - `PhysicalPlan` snapshot verification (verifying LogicalPlan -> PhysicalPlan selection remains identical).
+2. **Planner Invariant & Snapshot Tests (`crates/brain-services/tests/query_snapshot_tests.rs`)**:
+   - Planner idempotence and logical plan determinism.
+   - `LogicalPlan` snapshot verification.
+   - `PhysicalPlan` snapshot verification.
    - `EXPLAIN` format snapshot verification.
 3. **Integration Tests (`crates/brain-services/tests/query_engine_tests.rs`)**:
    - End-to-end multi-pattern graph query execution against populated `KnowledgeSnapshotView`.
