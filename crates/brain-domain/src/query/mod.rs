@@ -40,8 +40,6 @@ pub use result::*;
 pub mod explain;
 pub use explain::*;
 
-
-
 pub use inspector::{
     ActivityLogEntry, InspectorModel, ProvenanceDTO, RelationshipDTO, RetrievalExplanationDTO,
 };

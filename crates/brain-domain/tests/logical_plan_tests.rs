@@ -14,7 +14,12 @@ fn test_logical_plan_tree() {
     match limit {
         LogicalPlan::Limit { count, input } => {
             assert_eq!(count, 10);
-            assert!(matches!(*input, LogicalPlan::Scan { target: ScanTarget::ActiveFacts }));
+            assert!(matches!(
+                *input,
+                LogicalPlan::Scan {
+                    target: ScanTarget::ActiveFacts
+                }
+            ));
         }
         _ => panic!("Expected Limit plan"),
     }

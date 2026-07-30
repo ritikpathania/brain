@@ -10,7 +10,10 @@ fn test_query_result_slot_indexing() {
     let slot_x = schema.get_or_create_slot(&QueryVar::new("x"));
 
     let mut row = BindingRow::with_capacity(1);
-    row.set(slot_x, QueryValue::Literal(brain_domain::bkf::LiteralValue::String("test".to_string())));
+    row.set(
+        slot_x,
+        QueryValue::Literal(brain_domain::bkf::LiteralValue::String("test".to_string())),
+    );
 
     let result = QueryResult {
         schema,

@@ -21,20 +21,20 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: AST Builder & Filter Expressions | ⬜ Pending | |
-| **M1** | Task 2: ScanTarget Enum, Bound Query & Logical Plan Models | ⬜ Pending | |
-| **M1** | Task 3: Error Hierarchy, Slot Indexing & Results Models | ⬜ Pending | |
-| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ⬜ Pending | |
-| **M2** | Task 4: Semantic Binder | ⬜ Pending | |
-| **M2** | Task 5: Logical Planner | ⬜ Pending | |
-| **M3** | Task 6A: Optimizer Framework & Normalization Pass | ⬜ Pending | |
-| **M3** | Task 6B: Predicate Pushdown Pass | ⬜ Pending | |
-| **M3** | Task 6C: Join Ordering Pass (Stable Tie-Break) | ⬜ Pending | |
-| **M4** | Task 7: Planner Invariants & Plan Snapshot Testing | ⬜ Pending | |
-| **M5** | Task 8: Physical Planner & Physical Plan | ⬜ Pending | |
-| **M5** | Task 9: Physical Batch Operators | ⬜ Pending | |
-| **M6** | Task 10: Execution Config/State & Opaque Batch | ⬜ Pending | |
-| **M6** | Task 11: Execution Engine & EXPLAIN Formatter | ⬜ Pending | |
+| **M1** | Task 1: AST Builder & Filter Expressions | ✅ Completed | `2670d59` |
+| **M1** | Task 2: ScanTarget Enum, Bound Query & Logical Plan Models | ✅ Completed | `894390b` |
+| **M1** | Task 3: Error Hierarchy, Slot Indexing & Results Models | ✅ Completed | `c33839c` |
+| **M1 Checkpoint** | **Public API Review & Interface Freeze** | ✅ Completed | `c33839c` |
+| **M2** | Task 4: Semantic Binder | ✅ Completed | `d1c9fa1` |
+| **M2** | Task 5: Logical Planner | ✅ Completed | `4fc3bf9` |
+| **M3** | Task 6A: Optimizer Framework & Normalization Pass | ✅ Completed | `83616b0` |
+| **M3** | Task 6B: Predicate Pushdown Pass | ✅ Completed | `9fe0af1` |
+| **M3** | Task 6C: Join Ordering Pass (Stable Tie-Break) | ✅ Completed | `ffe203d` |
+| **M4** | Task 7: Planner Invariants & Plan Snapshot Testing | ✅ Completed | `c856b92` |
+| **M5** | Task 8: Physical Planner & Physical Plan | ✅ Completed | `4d76315` |
+| **M5** | Task 9: Physical Batch Operators | ✅ Completed | `1dd863b` |
+| **M6** | Task 10: Execution Config/State & Opaque Batch | ✅ Completed | `813ea91` |
+| **M6** | Task 11: Execution Engine & EXPLAIN Formatter | ✅ Completed | `21b6dac` |
 | **M7** | Task 12: Integration, Property Tests & Verification | ⬜ Pending | |
 
 ---
