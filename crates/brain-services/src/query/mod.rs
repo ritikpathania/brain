@@ -65,4 +65,8 @@ pub use planner::QueryPlanner;
 /// Semantic binder for Phase 2 Knowledge Query Engine.
 pub mod semantic_binder;
 pub use semantic_binder::*;
+/// Logical planner for Phase 2 Knowledge Query Engine.
+pub mod logical_planner;
+pub use logical_planner::*;
+
 
