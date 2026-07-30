@@ -34,6 +34,7 @@ EntityStatisticsState (Normalized Read Model)
 - **Zero Subsystem Dependencies**: `brain-domain` contains zero async runtimes, logger setups, database engines, or network modules.
 - **Replay & Checkpoint Ignorant**: `EntityStatisticsReducer` is completely unaware of replay execution or storage checkpoints.
 - **Single-Writer Safety**: All state updates are deterministic and strictly sequential per event sequence number.
+- **Floating-Point Equality Determinism**: Exact `PartialEq` state equality in `ProjectionConformanceSuite` assumes canonical event sequence order.
 
 ---
 
@@ -143,6 +144,8 @@ impl EntityStatistics {
 ---
 
 ## 5. In-Memory State & Normalized Indices (`crates/brain-domain/src/projection/entity_statistics/state.rs`)
+
+> **Note on Private Implementation Details**: `ActiveFactMetadata`, `active_facts`, and `predicate_refcounts` are derived internal indices whose sole purpose is updating public statistics efficiently. They are not exposed in the external public API.
 
 ```rust
 /// Internal metadata tracked per active fact version for state updates upon supersession/archival.
@@ -339,6 +342,7 @@ impl ProjectionReducer for EntityStatisticsReducer {
 ### 2. Entity Statistics Unit & Invariant Tests (`crates/brain-domain/tests/entity_statistics_tests.rs`)
 - `test_entity_statistics_record_supersede_archive_lifecycle`
 - `test_entity_statistics_unique_predicates_and_average_confidence`
+- `test_entity_statistics_idempotency_duplicate_events` (testing duplicate `FactRecorded`, `FactSuperseded`, and `FactArchived` after metadata removal)
 - `test_entity_statistics_invariants`
 
 ### 3. Service Runtime Integration Tests (`crates/brain-services/tests/entity_statistics_runtime_tests.rs`)
