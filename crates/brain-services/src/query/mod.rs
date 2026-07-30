@@ -68,5 +68,9 @@ pub use semantic_binder::*;
 /// Logical planner for Phase 2 Knowledge Query Engine.
 pub mod logical_planner;
 pub use logical_planner::*;
+/// Logical optimizer for Phase 2 Knowledge Query Engine.
+pub mod logical_optimizer;
+pub use logical_optimizer::*;
+
 
 
