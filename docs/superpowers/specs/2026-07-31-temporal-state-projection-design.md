@@ -36,6 +36,7 @@ TemporalState (Normalized Read Model)
 - **Zero Subsystem Dependencies**: `brain-domain` contains zero async runtimes, logger setups, database engines, or network modules.
 - **Replay & Checkpoint Ignorant**: `TemporalStateReducer` is completely unaware of replay execution, storage checkpoints, or network transport.
 - **Single-Writer Safety**: All state updates are deterministic and strictly sequential per event sequence number.
+- **Runtime Ordering Assumption**: This projection assumes `FactEvent`s are delivered in canonical event sequence order by the `ProjectionRuntime`.
 
 ---
 
@@ -90,7 +91,7 @@ impl TemporalRecord {
 pub struct TemporalState {
     /// Single source of truth for canonical temporal records.
     records: HashMap<TemporalFactId, TemporalRecord>,
-    /// Primary timeline index mapping each entity to its chronological list of fact IDs.
+    /// Primary timeline index mapping each entity to its chronological list of fact IDs (append-only).
     entity_timelines: HashMap<KnowledgeEntityId, Vec<TemporalFactId>>,
     /// Fast current-state index mapping each entity to its currently active fact IDs.
     active: HashMap<KnowledgeEntityId, Vec<TemporalFactId>>,
@@ -219,6 +220,7 @@ impl ProjectionReducer for TemporalStateReducer {
     fn apply_event(&mut self, event: &FactEvent) -> Result<(), ProjectionError> {
         match event {
             FactEvent::FactRecorded { fact, assertion } => {
+                // Intentionally skip facts that do not carry semantic subject assertion context
                 if let Some(assert) = assertion {
                     let fact_id = TemporalFactId(fact.id.clone());
                     let record = TemporalRecord {
@@ -259,13 +261,23 @@ impl ProjectionReducer for TemporalStateReducer {
 
 1. **Active Interval Consistency**: Every fact in `active` map has `valid_until == None` and `is_active() == true`.
 2. **Interval Monotonicity**: `closed_at >= valid_from` for all closed intervals.
-3. **Empty Key Pruning**: When an entity's active fact vector becomes empty, the `KnowledgeEntityId` key is removed from `active`.
-4. **Deterministic Timeline Order**: Entity timelines store `TemporalFactId`s strictly in canonical event sequence order.
-5. **Replay Equivalence**: Replaying identical `FactEvent` streams yields 100% bitwise-identical `TemporalState`.
+3. **Append-Only Entity Timelines**: Entity timelines are append-only; existing entries are never reordered or removed.
+4. **Empty Key Pruning**: When an entity's active fact vector becomes empty, the `KnowledgeEntityId` key is removed from `active`.
+5. **Deterministic Timeline Order**: Entity timelines store `TemporalFactId`s strictly in canonical event sequence order.
+6. **Replay Equivalence**: Replaying identical `FactEvent` streams yields 100% bitwise-identical `TemporalState`.
 
 ---
 
-## 7. Verification & Testing Plan
+## 7. Out of Scope
+
+The following capabilities are explicitly deferred to maintain a focused Phase 4.2 scope:
+- Global predicate timeline indices (`PredicateId` timelines across all entities).
+- Bitemporal indices (`valid_time` vs `system_time`).
+- Specialized temporal analytics or interval tree search indices.
+
+---
+
+## 8. Verification & Testing Plan
 
 ### Unit & Invariant Tests (`crates/brain-domain/tests/temporal_state_tests.rs`)
 - `test_temporal_state_record_insert_and_active_lookup`
