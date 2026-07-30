@@ -5,6 +5,10 @@ pub use canonicalization::CanonicalizationPass;
 /// Duplicate concept node detection pass.
 pub mod duplicate;
 pub use duplicate::DuplicateDetectionPass;
+/// Duplicate fact version consolidation pass v2.
+pub mod duplicate_consolidation;
+pub use duplicate_consolidation::*;
+
 
 /// Property contradiction detection pass.
 pub mod contradiction;
