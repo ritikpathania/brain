@@ -9,9 +9,12 @@
 pub mod errors;
 /// Unified Query Models for Phase 5 Query Facade.
 pub mod models;
+/// Atomic ProjectionSnapshot container for Phase 5 Query Facade.
+pub mod snapshot;
 
 pub use errors::*;
 pub use models::*;
+pub use snapshot::*;
 
 /// Data transfer objects for read-model views.
 pub mod dto;
