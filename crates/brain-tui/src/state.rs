@@ -1164,7 +1164,39 @@ impl UiState {
         let prev_messages = self.active_messages.clone();
         let res = self.update_internal(action);
         self.update_message_revisions(&prev_messages);
+        self.sync_slash_completion();
         res
+    }
+
+    /// Synchronizes the visibility and query of the slash completion popup based on editor buffer.
+    pub fn sync_slash_completion(&mut self) {
+        if self.focus == FocusRegion::Editor {
+            let text = self.editor.text();
+            if text.starts_with('/') && !text.contains(' ') {
+                if self.slash_completion.dismissed_query.as_deref() == Some(text.as_str()) {
+                    self.slash_completion.visible = false;
+                    return;
+                }
+                self.slash_completion.dismissed_query = None;
+                let matches_count =
+                    crate::ui::command::completion::SlashCompletionEngine::matches(&text).count();
+                if matches_count > 0 {
+                    self.slash_completion.visible = true;
+                    self.slash_completion.query = text.to_string();
+                    if self.slash_completion.selected_index >= matches_count {
+                        self.slash_completion.selected_index = 0;
+                    }
+                } else {
+                    self.slash_completion.visible = false;
+                }
+            } else {
+                self.slash_completion.visible = false;
+                self.slash_completion.dismissed_query = None;
+            }
+        } else {
+            self.slash_completion.visible = false;
+            self.slash_completion.dismissed_query = None;
+        }
     }
 
     fn update_message_revisions(&mut self, prev_messages: &[brain_domain::Message]) {

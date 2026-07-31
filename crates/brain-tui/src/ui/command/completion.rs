@@ -11,6 +11,8 @@ pub struct SlashCompletionState {
     pub selected_index: usize,
     /// Cached query string representing the slice of prompt text being autocompleted.
     pub query: String,
+    /// Optional query snapshot that was explicitly dismissed by Esc key.
+    pub dismissed_query: Option<String>,
 }
 
 impl SlashCompletionState {
@@ -20,6 +22,7 @@ impl SlashCompletionState {
             visible: false,
             selected_index: 0,
             query: String::new(),
+            dismissed_query: None,
         }
     }
 }

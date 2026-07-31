@@ -561,6 +561,16 @@ impl AppRenderer {
                 theme,
             );
         }
+
+        // 9. Draw Slash Completion popup overlay if visible
+        let slash_state = state.slash_completion();
+        if slash_state.visible {
+            let popup_h = 8u16;
+            let popup_w = prompt_area.width.min(50);
+            let popup_y = prompt_area.y.saturating_sub(popup_h);
+            let popup_area = Rect::new(prompt_area.x, popup_y, popup_w, popup_h);
+            crate::ui::widgets::completion::draw(f, popup_area, slash_state, theme);
+        }
     }
 }
 

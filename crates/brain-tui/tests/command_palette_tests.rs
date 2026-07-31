@@ -611,3 +611,51 @@ fn test_command_palette_widget_rendering() {
         })
         .unwrap();
 }
+
+#[test]
+fn test_app_renderer_draws_slash_completion_popup() {
+    use brain_tui::state::{Action, FocusRegion, UiState};
+    use brain_tui::ui::renderer::AppRenderer;
+    use brain_tui::ui::theme::dark_theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    let theme = dark_theme();
+    let renderer = AppRenderer::new();
+    let mut state = UiState {
+        focus: FocusRegion::Editor,
+        ..Default::default()
+    };
+
+    // Type /t into the editor
+    state.update(Action::InsertChar('/'));
+    state.update(Action::InsertChar('t'));
+
+    assert!(state.slash_completion().visible);
+    assert_eq!(state.slash_completion().query, "/t");
+
+    let backend = TestBackend::new(110, 32);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal
+        .draw(|f| {
+            renderer.draw(f, f.size(), &state, theme);
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let content = buffer
+        .content()
+        .iter()
+        .map(|c| c.symbol())
+        .collect::<String>();
+
+    assert!(
+        content.contains("Commands"),
+        "Buffer should contain 'Commands' title"
+    );
+    assert!(
+        content.contains("/theme"),
+        "Buffer should contain '/theme' suggestion"
+    );
+}

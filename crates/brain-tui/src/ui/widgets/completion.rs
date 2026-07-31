@@ -3,7 +3,7 @@
 use crate::ui::command::completion::{SlashCompletionEngine, SlashCompletionState};
 use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
+use ratatui::widgets::{Clear, List, ListItem};
 use ratatui::Frame;
 
 /// Renders the floating slash command autocompletion popup list.
@@ -29,11 +29,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &SlashCompletionState, theme: 
         })
         .collect();
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(theme.border_active)
-        .title(" Commands ");
+    let block = theme.panel(" Commands ", true);
 
     let list = List::new(items).block(block).style(theme.text);
 
