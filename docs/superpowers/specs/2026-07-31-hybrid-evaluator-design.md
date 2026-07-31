@@ -12,17 +12,21 @@
 Phase 5.3.4 implements the **`HybridEvaluator`** (`brain-services::query::evaluators::hybrid`). The evaluator composes multi-modal retrieval by combining lexical candidate search (`LexicalSearchQuery`) and graph neighborhood expansion (`NeighborhoodQuery`), merging candidates and metadata deterministically, and running candidates through our canonical query processing pipeline.
 
 ### Core Architectural Invariants:
-1. **Composition Over Duplication**: `HybridEvaluator` delegates candidate discovery to internal evaluation logic of lexical search and neighborhood expansion without duplicating traversal or index searching algorithms.
+1. **Composition Over Duplication**: `HybridEvaluator` delegates candidate discovery to modular retrieval helpers (`retrieve_lexical_candidates` and `retrieve_neighborhood_candidates`) without duplicating index search or BFS graph traversal code.
 2. **Deterministic Candidate Fusion**: Discovered candidates from lexical and graph sources are merged into a deterministic `BTreeMap<KnowledgeEntityId, EntityMatch>` keyed by entity ID.
-3. **Metadata Merging & Preservation**: When an entity is discovered by both retrieval paths:
-   - `search_metadata`: Preserved from lexical candidate (containing `matched_terms`).
-   - `graph_metadata`: Preserved from graph neighborhood candidate (`in_degree`, `out_degree`).
-   - `active_facts_count` & `average_confidence`: Enriched uniformly from `snapshot.statistics().get(entity_id)`.
-4. **Idempotent Empty Query Handling**: If both lexical query string is empty and root entity is absent, `HybridEvaluator` returns `Ok(QueryFacadeResult)` with `matches = []` and `total_matched = 0`.
-5. **Canonical Pipeline Execution**:
+3. **Exhaustive Field Merge Rules**:
+   | EntityMatch Field | Merge Rule |
+   | :--- | :--- |
+   | `entity_id` | Unique key for fusion |
+   | `search_metadata` | Preserved from lexical candidate pass (if present) |
+   | `graph_metadata` | Preserved from graph neighborhood candidate pass (if present) |
+   | `active_facts_count` | Enriched uniformly from `snapshot.statistics().get(entity_id)` |
+   | `average_confidence` | Enriched uniformly from `snapshot.statistics().get(entity_id)` |
+4. **Post-Fusion Temporal Filtering**: Temporal Mode filtering is executed strictly AFTER candidate fusion:
    ```text
-   Lexical + Neighborhood Discovery ──► Candidate Fusion & Merging ──► Temporal Filter ──► Confidence Filter ──► Deterministic Sort ──► Pagination
+   Multi-Modal Retrieval ──► Candidate Fusion ──► Temporal Filter ──► Confidence Filter ──► Deterministic Sort ──► Pagination
    ```
+5. **Retrieval Order Independence**: Candidate fusion produces identical output regardless of the order in which lexical or graph candidate passes are executed.
 
 ---
 
@@ -49,7 +53,7 @@ impl HybridEvaluator {
     ) -> Result<QueryFacadeResult, QueryError> {
         let mut candidates_map: BTreeMap<KnowledgeEntityId, EntityMatch> = BTreeMap::new();
 
-        // 1. Lexical Retrieval Candidate Pass (if query_string is non-empty)
+        // 1. Lexical Candidate Retrieval
         if let Some(ref text) = query.query_text {
             let mut tokens = SearchToken::tokenize(text);
             if !tokens.is_empty() {
@@ -95,7 +99,7 @@ impl HybridEvaluator {
             }
         }
 
-        // 2. Graph Neighborhood Expansion Candidate Pass (if root_entity is provided)
+        // 2. Graph Neighborhood Candidate Retrieval & Fusion
         if let Some(ref root_entity) = query.root_entity {
             let max_hops = query.max_hops.unwrap_or(1);
             let root_node_id = GraphNodeId(EntityId(root_entity.0));
@@ -120,7 +124,7 @@ impl HybridEvaluator {
                         |s| Confidence::new(s.average_confidence()).unwrap_or_else(|_| Confidence::new(0.0).unwrap()),
                     );
 
-                    // Merge candidate into candidates_map
+                    // Merge metadata exhaustive rules
                     candidates_map
                         .entry(curr_entity.clone())
                         .and_modify(|existing| {
@@ -168,10 +172,9 @@ impl HybridEvaluator {
             }
         }
 
-        // 3. Pipeline Execution (Temporal Filter -> Confidence Filter -> Ordering -> Paginate)
+        // 3. Post-Fusion Pipeline Execution (Temporal Filter -> Confidence Filter -> Ordering -> Paginate)
         let mut candidates: Vec<EntityMatch> = candidates_map.into_values().collect();
 
-        // Apply TemporalMode filtering
         candidates.retain(|candidate| match query.temporal_mode {
             TemporalMode::CurrentActive => candidate.active_facts_count > 0,
             TemporalMode::ValidAt(at_ts) => !snapshot.temporal().facts_at(&candidate.entity_id, at_ts).is_empty(),
@@ -206,6 +209,7 @@ impl HybridEvaluator {
 1. **Unit & Contract Tests (`crates/brain-services/tests/hybrid_evaluator_tests.rs`)**:
    - `test_hybrid_lexical_only_retrieval`: Verifies hybrid query with only `query_text` populated.
    - `test_hybrid_neighborhood_only_retrieval`: Verifies hybrid query with only `root_entity` populated.
-   - `test_hybrid_multi_modal_fusion_and_metadata_merge`: Verifies entity found by both lexical search and graph expansion has both `search_metadata` and `graph_metadata` merged.
-   - `test_hybrid_temporal_and_confidence_filter`: Verifies temporal mode filtering and confidence thresholding across merged candidates.
+   - `test_hybrid_multi_modal_fusion_and_metadata_merge`: Verifies entity found by both lexical search and graph expansion has both `search_metadata` and `graph_metadata` merged cleanly without duplicates.
+   - `test_hybrid_retrieval_order_independence`: Verifies fusion output is identical regardless of pass order.
+   - `test_hybrid_temporal_and_confidence_filter`: Verifies post-fusion temporal mode filtering and confidence thresholding.
    - `test_hybrid_deterministic_ordering_and_pagination`: Verifies candidate sorting and pagination slicing over merged candidate sets.
