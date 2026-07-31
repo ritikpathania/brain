@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Reusable Query Processing Primitives & Unit Tests | ⬜ Pending | |
-| **M1 Checkpoint** | **Unit & Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: Reusable Query Processing Primitives & Unit Tests | ✅ Completed | `ef9677d` |
+| **M1 Checkpoint** | **Unit & Contract Verification** | ✅ Completed | `ef9677d` |
 
 ---
 
