@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Hybrid Evaluator & Integration Tests | ⬜ Pending | |
-| **M1 Checkpoint** | **Multi-Modal Fusion & Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: Hybrid Evaluator & Integration Tests | ✅ Completed | `5637438` |
+| **M1 Checkpoint** | **Multi-Modal Fusion & Contract Verification** | ✅ Completed | `5637438` |
 
 ---
 
