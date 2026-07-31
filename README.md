@@ -53,7 +53,7 @@ cargo run --bin brain ui
 
 ### Option A: Install via Cargo
 ```bash
-cargo install --path apps/brain
+cargo install --path apps/brain --bin brain
 ```
 
 ### Option B: Build from Source
