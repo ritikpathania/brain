@@ -9,16 +9,17 @@
 
 ## 1. Executive Summary & Semantic Contract
 
-Phase 5.3.3 implements the **`SearchEvaluator`** (`brain-services::query::evaluators::search`). The evaluator tokenizes query text using domain `SearchToken::tokenize`, performs posting list lookups against `snapshot.search()`, enriches candidates with `SearchMetadata` (unique matched tokens and lexical score), `GraphMetadata`, and entity statistics, and passes candidates through our canonical query processing pipeline.
+Phase 5.3.3 implements the **`SearchEvaluator`** (`brain-services::query::evaluators::search`). The evaluator tokenizes query text using domain `SearchToken::tokenize`, deduplicates query tokens, performs posting list lookups against `snapshot.search()`, computes per-entity matched tokens and initial lexical relevance scores (`matched_tokens.len() as f64`), enriches candidates with `SearchMetadata`, `GraphMetadata`, and entity statistics, and passes candidates through our canonical query processing pipeline.
 
 ### Core Architectural Invariants:
-1. **Tokenization Semantics**: Tokenization uses domain `SearchToken::tokenize(&query.query_text)`. Duplicate query terms (`"rust rust rust"`) are deduplicated.
-2. **Idempotent Empty Query Handling**: Empty, whitespace-only, or punctuation-only queries producing zero valid tokens return `Ok(QueryFacadeResult)` with `matches = []` and `total_matched = 0`.
-3. **Lexical Score Computation**: Candidate `SearchMetadata` is populated with `matched_tokens` (unique matching token strings) and `score` (`matched_tokens.len() as f64`).
-4. **Deterministic Fallback Invariant**: If entity statistics are absent, `active_facts_count` defaults to `0` and `average_confidence` defaults to `Confidence::new(0.0).unwrap()`.
-5. **Canonical Pipeline Execution**:
+1. **Tokenization & Immediate Deduplication**: Tokenization uses domain `SearchToken::tokenize(&query.query_text)` and deduplicates query tokens immediately before posting lookups.
+2. **Per-Entity Matched Tokens**: `SearchMetadata.matched_tokens` records only the unique query tokens that *actually matched* that specific entity, rather than echoing the full query.
+3. **Initial Lexical Scoring Heuristic**: Candidate `SearchMetadata.score` is calculated as `matched_tokens.len() as f64`, providing a transparent lexical relevance score.
+4. **Idempotent Empty Query Handling**: Empty, whitespace-only, or punctuation-only queries producing zero valid tokens return `Ok(QueryFacadeResult)` with `matches = []` and `total_matched = 0`.
+5. **Deterministic Fallback Invariant**: If entity statistics are absent, `active_facts_count` defaults to `0` and `average_confidence` defaults to `Confidence::new(0.0).unwrap()`.
+6. **Canonical Pipeline Execution**:
    ```text
-   Lexical Posting Retrieval ──► Metadata Enrichment ──► Temporal Filter ──► Confidence Filter ──► Deterministic Sort ──► Pagination
+   Lexical Posting Retrieval ──► Per-Entity Match Enrichment ──► Temporal Filter ──► Confidence Filter ──► Deterministic Sort ──► Pagination
    ```
 
 ---
@@ -34,6 +35,7 @@ use brain_domain::bkf::*;
 use brain_domain::projection::graph_adjacency::GraphNodeId;
 use brain_domain::projection::search_index::SearchToken;
 use brain_domain::EntityId;
+use std::collections::HashSet;
 
 pub struct SearchEvaluator;
 
@@ -43,7 +45,7 @@ impl SearchEvaluator {
         snapshot: &ProjectionSnapshot,
         query: &LexicalSearchQuery,
     ) -> Result<QueryFacadeResult, QueryError> {
-        let tokens = SearchToken::tokenize(&query.query_text);
+        let mut tokens = SearchToken::tokenize(&query.query_text);
         if tokens.is_empty() {
             return Ok(QueryFacadeResult {
                 matches: vec![],
@@ -54,6 +56,10 @@ impl SearchEvaluator {
                 },
             });
         }
+
+        // Deduplicate query tokens
+        let mut seen_tokens = HashSet::new();
+        tokens.retain(|t| seen_tokens.insert(t.as_str().to_string()));
 
         // 1. Lexical Candidate Retrieval
         let discovered_entities = snapshot.search().search_entities(&tokens);
@@ -68,7 +74,7 @@ impl SearchEvaluator {
             });
         }
 
-        // 2. Metadata Enrichment & Temporal Filtering
+        // 2. Metadata Enrichment & Per-Entity Match Calculation
         let mut candidates = Vec::with_capacity(discovered_entities.len());
         for entity_id in discovered_entities {
             let node_id = GraphNodeId(EntityId(entity_id.0));
@@ -88,7 +94,15 @@ impl SearchEvaluator {
             };
 
             if satisfies_temporal {
-                let matched_tokens: Vec<String> = tokens.iter().map(|t| t.as_str().to_string()).collect();
+                // Find actual matching tokens for this entity
+                let mut matched_tokens = Vec::new();
+                for token in &tokens {
+                    let token_entities = snapshot.search().search_entities(&[token.clone()]);
+                    if token_entities.contains(&entity_id) {
+                        matched_tokens.push(token.as_str().to_string());
+                    }
+                }
+
                 let score = matched_tokens.len() as f64;
 
                 candidates.push(EntityMatch {
@@ -136,6 +150,8 @@ impl SearchEvaluator {
 1. **Unit & Contract Tests (`crates/brain-services/tests/search_evaluator_tests.rs`)**:
    - `test_search_empty_and_whitespace_query`: Verifies empty or whitespace query returns empty matches without error.
    - `test_search_single_and_multi_token_match`: Verifies lexical token matching and `SearchMetadata` score computation.
-   - `test_search_duplicate_query_tokens`: Verifies `"rust rust rust"` is deduplicated and produces single score count.
+   - `test_search_duplicate_query_tokens`: Verifies `"rust rust rust"` is deduplicated before posting lookup.
+   - `test_search_partial_token_matches`: Verifies partial vs full matching tokens generate distinct `matched_tokens` and `score` values.
+   - `test_search_no_statistics_fallback`: Verifies indexed entity with missing statistics receives `active_facts_count = 0` and `average_confidence = 0.0`.
    - `test_search_temporal_and_confidence_filter`: Verifies candidate temporal filtering and confidence thresholding.
    - `test_search_ordering_and_pagination`: Verifies candidate ordering and pagination slicing.
