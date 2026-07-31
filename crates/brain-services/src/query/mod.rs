@@ -18,7 +18,6 @@ pub mod evaluators;
 pub mod facade;
 
 pub use errors::*;
-pub use evaluators::*;
 pub use facade::*;
 pub use models::*;
 pub use snapshot::*;

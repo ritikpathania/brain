@@ -1,4 +1,4 @@
-//! Query filter specifications.
+//! Read-model query filter DTO specifications.
 
 use brain_domain::jobs::{JobOwner, JobState};
 use brain_domain::SearchDocumentKind;
