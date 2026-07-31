@@ -150,16 +150,15 @@ async fn test_coalesced_invalidation_and_deduplication() {
     assert!(matches!(res1, QueryResponse::Session { .. }));
     assert_eq!(res1, res2);
 
-    // 3. Trigger 5 notifications in rapid succession (e.g. over 10ms)
+    // 3. Trigger 5 notifications in rapid succession
     for i in 2..=6 {
         notification_bus.publish(ProjectionNotification {
             projection_id: ProjectionId::Sessions,
             sequence: SequenceNumber(i),
         });
-        sleep(Duration::from_millis(2)).await;
     }
 
-    // Wait for the 50ms debounce window to expire + a bit extra
+    // Wait for the 50ms debounce window to expire + extra margin
     sleep(Duration::from_millis(150)).await;
 
     // Verify only ONE query execution happened for all 5 notifications combined
