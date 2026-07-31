@@ -88,6 +88,38 @@ impl Theme {
             error,
         }
     }
+
+    /// Constructs a standardized TUI panel block with rounded borders, padded title, and theme styling.
+    pub fn panel<'a>(&self, title: &str, has_focus: bool) -> ratatui::widgets::Block<'a> {
+        let border_style = if has_focus {
+            self.border_active
+        } else {
+            self.border
+        };
+        let mut block = ratatui::widgets::Block::default()
+            .borders(ratatui::widgets::Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .border_style(border_style);
+
+        let trimmed = title.trim();
+        if !trimmed.is_empty() {
+            block = block.title(format!(" {} ", trimmed));
+        }
+        block
+    }
+
+    /// Constructs a standardized TUI input container block with rounded borders and theme styling.
+    pub fn input<'a>(&self, has_focus: bool) -> ratatui::widgets::Block<'a> {
+        let border_style = if has_focus {
+            self.border_active
+        } else {
+            self.border
+        };
+        ratatui::widgets::Block::default()
+            .borders(ratatui::widgets::Borders::ALL)
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .border_style(border_style)
+    }
 }
 
 impl ActiveTheme for Theme {

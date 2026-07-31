@@ -3,7 +3,7 @@ use brain_integrations::dto::v1::{ReflectionFindingDto, ReflectionReport, Reflec
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
 
 /// State wrapper for the TUI Reflection Panel widget.
@@ -37,6 +37,7 @@ pub fn draw(
     let outer_block = Block::default()
         .title(format!(" Reflection Subsystem Inspector{} ", title_suffix))
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(border_style);
 
     let inner_area = outer_block.inner(area);
@@ -139,6 +140,7 @@ pub fn draw(
     let status_block = Block::default()
         .title(" Scheduler Telemetry ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(Paragraph::new(status_lines).block(status_block), chunks[0]);
 
@@ -189,6 +191,7 @@ pub fn draw(
             state.active_findings.len()
         ))
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(
         Paragraph::new(finding_lines).block(findings_block),
@@ -246,6 +249,7 @@ pub fn draw(
     let decisions_block = Block::default()
         .title(" Executed Commands & Decision Log ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(
         Paragraph::new(decision_lines).block(decisions_block),

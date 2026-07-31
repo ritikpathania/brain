@@ -5,7 +5,7 @@ use brain_integrations::dto::v1::{
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
 
 /// State model for the TUI Knowledge Compiler Inspection Panel widget.
@@ -41,6 +41,7 @@ pub fn draw(
     let outer_block = Block::default()
         .title(format!(" Knowledge Compiler Inspector{} ", title_suffix))
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(border_style);
 
     let inner_area = outer_block.inner(area);
@@ -191,6 +192,7 @@ pub fn draw(
     let header_block = Block::default()
         .title(" Telemetry Overview ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(Paragraph::new(status_lines).block(header_block), chunks[0]);
 
@@ -232,6 +234,7 @@ pub fn draw(
     let pass_block = Block::default()
         .title(" Pass Execution Timings ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(
         Paragraph::new(pass_lines).block(pass_block),
@@ -278,6 +281,7 @@ pub fn draw(
             state.diagnostics.len()
         ))
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border);
     f.render_widget(
         Paragraph::new(diag_lines).block(diag_block),

@@ -3,7 +3,7 @@ use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
 
 /// Stateless drawing function for the interactive Knowledge Inspector widget.
@@ -15,17 +15,8 @@ pub fn draw(
     has_focus: bool,
     is_pinned: bool,
 ) {
-    let title_suffix = if has_focus { " (Active Focus) " } else { "" };
-    let border_style = if has_focus {
-        theme.accent
-    } else {
-        theme.border
-    };
-
-    let block = Block::default()
-        .title(format!(" Knowledge Inspector{} ", title_suffix))
-        .borders(Borders::ALL)
-        .border_style(border_style);
+    let title_suffix = if has_focus { " (Active Focus)" } else { "" };
+    let block = theme.panel(&format!("Knowledge Inspector{}", title_suffix), has_focus);
 
     let inner_area = block.inner(area);
     let max_width = inner_area.width as usize;

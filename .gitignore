@@ -85,6 +85,7 @@ cli/tests/captures/
 cli/tests/rigorous_test_results.json
 
 # Generated contract artifacts
+docs-*.json
 generated/contracts/
 temp_generated/
 

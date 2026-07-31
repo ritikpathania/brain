@@ -3,7 +3,7 @@ use crate::ui::interaction::sidebar::{SessionFilter, SidebarMode};
 use crate::ui::render::UnicodeSupport;
 use crate::ui::theme::Theme;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{List, ListItem, Paragraph};
 use ratatui::Frame;
 
 /// ViewModel carrying session list, selection, filters, and editor states.
@@ -79,21 +79,12 @@ pub fn draw(
     theme: &Theme,
     unicode: UnicodeSupport,
 ) {
-    let border_style = if view.has_focus {
-        theme.border_active
-    } else {
-        theme.border
-    };
-
     let title = match view.filter {
         SessionFilter::Active => " Sessions (Active) ",
         SessionFilter::Archived => " Sessions (Archived) ",
     };
 
-    let block = Block::default()
-        .title(title)
-        .borders(Borders::ALL)
-        .border_style(border_style);
+    let block = theme.panel(title, view.has_focus);
 
     let inner_area = block.inner(area);
 

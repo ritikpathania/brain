@@ -6,7 +6,7 @@ use crate::ui::widgets::view_models::{
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Row, Table};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
 
 /// Active panel focus inside the Explainability screen.
@@ -82,6 +82,7 @@ pub fn draw_explanation_summary_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" CONCEPT EXPLAINABILITY SUMMARY ")
         .border_style(theme.border);
 
@@ -144,6 +145,7 @@ pub fn draw_explanation_timeline_widget(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" CHRONOLOGICAL CAUSAL TIMELINE ")
         .border_style(border_style);
 
@@ -222,6 +224,7 @@ pub fn draw_explanation_detail_widget(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" STAGE EXECUTION DETAILS ")
         .border_style(border_style);
 

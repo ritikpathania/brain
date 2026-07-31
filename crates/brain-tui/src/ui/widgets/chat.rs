@@ -3,7 +3,7 @@ use crate::ui::theme::Theme;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
 
 /// Individual visual line element carrying slicing details.
@@ -29,10 +29,7 @@ pub struct ChatView {
 
 /// Renders the scrollable message window viewport in the center.
 pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
-    let block = Block::default()
-        .title(view.title.as_str())
-        .borders(Borders::ALL)
-        .border_style(theme.border);
+    let block = theme.panel(view.title.as_str(), false);
 
     let mut items = Vec::new();
     for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {

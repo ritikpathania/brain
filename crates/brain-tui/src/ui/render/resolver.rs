@@ -38,15 +38,15 @@ impl BorderResolver {
     pub fn resolve(caps: &EffectiveCapabilities) -> BorderGlyphs {
         if caps.unicode == UnicodeSupport::Full {
             BorderGlyphs {
-                top_left: "┌",
+                top_left: "╭",
                 top_mid: "┬",
-                top_right: "┐",
+                top_right: "╮",
                 mid_left: "├",
                 mid_mid: "┼",
                 mid_right: "┤",
-                bottom_left: "└",
+                bottom_left: "╰",
                 bottom_mid: "┴",
-                bottom_right: "┘",
+                bottom_right: "╯",
                 vertical: "│",
                 horizontal: "─",
             }

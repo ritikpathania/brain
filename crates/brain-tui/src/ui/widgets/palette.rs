@@ -3,7 +3,7 @@
 use crate::ui::command::palette::{CommandPaletteState, PaletteStage};
 use crate::ui::theme::Theme;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
 
 /// Renders the modal centered Command Palette overlay.
@@ -14,6 +14,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
     let block = Block::default()
         .title(" Command Palette ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border_active);
 
     // Split the modal area into input query bar (height 3) and search results list area (remaining)

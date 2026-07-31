@@ -4,7 +4,7 @@ use crate::ui::widgets::view_models::KnowledgeAutomationViewModel;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Row, Table};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
 
 /// Active panel focus within Knowledge Automation screen.
@@ -107,6 +107,7 @@ pub fn draw_automation_rules_list(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" AUTOMATION ORCHESTRATION RULES ")
         .border_style(border_style);
 
@@ -185,6 +186,7 @@ pub fn draw_automation_queue_timeline(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" SCHEDULED EXECUTION QUEUE ")
         .border_style(border_style);
 
@@ -254,6 +256,7 @@ pub fn draw_automation_execution_logs(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" AUTOMATION EXECUTION HISTORY LOG ")
         .border_style(border_style);
 

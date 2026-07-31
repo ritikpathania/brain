@@ -1,7 +1,7 @@
 use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Stylize;
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 /// ViewModel carrying immutable presentation data for the Header widget.
@@ -26,9 +26,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &HeaderView, theme: &Theme) {
         theme.inactive
     };
 
-    let title_block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(theme.border);
+    let title_block = theme.panel("", false);
 
     let mut spans = vec![
         ratatui::text::Span::styled(format!(" {} ", view.title), theme.header),

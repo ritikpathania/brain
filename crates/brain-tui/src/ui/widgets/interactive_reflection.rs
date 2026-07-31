@@ -7,7 +7,7 @@ use brain_integrations::dto::v1::ReflectionProposalStatus;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Row, Table};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Row, Table};
 use ratatui::Frame;
 
 /// Lightweight proposal command dispatch state machine.
@@ -148,6 +148,7 @@ pub fn draw_reflection_proposals_list(
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(title)
         .border_style(border_style);
 
@@ -232,6 +233,7 @@ pub fn draw_reflection_proposal_detail(
     };
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" PROPOSAL EXECUTION BREAKDOWN ")
         .border_style(border_style);
 
@@ -313,6 +315,7 @@ pub fn draw_reflection_confirmation_modal(
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(format!(
             " CONFIRM PROPOSAL ACTION: {} ",
             action_name.to_uppercase()

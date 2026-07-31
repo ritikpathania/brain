@@ -51,6 +51,8 @@ When writing or modifying Terminal User Interface (TUI) components in the `crate
    - Favor themed layout containers over raw text or box primitives. This ensures semantic style encapsulation.
    - Design layouts to dynamically resize (`SIGWINCH`) using flexbox properties (`flex-grow`, `flex-shrink`) and percentage widths instead of hardcoded column widths.
    - Handle compact terminal widths (< 80 columns) gracefully by simplifying or hiding sidebar panels.
+4. **Panel Borders**:
+   - Standard interactive panels, popups, and transient modals use `BorderType::Rounded` when `UnicodeSupport::Full` is available. ASCII fallbacks (`+`, `-`, `|`) are preserved for compatibility.
 
 ## CLI TUI Testing & Verification
 

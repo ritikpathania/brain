@@ -4,7 +4,7 @@ use crate::state::PinnedNode;
 use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Stylize;
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 
 /// Renders the Pinned Context list as a modal overlay centered in the area.
 pub fn draw(
@@ -30,6 +30,7 @@ pub fn draw(
     // 2. Draw border container
     let overlay_block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(theme.border_active)
         .title(" 📌 Pinned Context ")
         .title_alignment(Alignment::Center);

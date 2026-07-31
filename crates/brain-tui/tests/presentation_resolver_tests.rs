@@ -13,7 +13,7 @@ fn test_border_glyph_resolution() {
 
     capabilities.unicode = UnicodeSupport::Full;
     let glyphs = BorderResolver::resolve(&capabilities);
-    assert_eq!(glyphs.top_left, "┌");
+    assert_eq!(glyphs.top_left, "╭");
     assert_eq!(glyphs.top_mid, "┬");
     assert_eq!(glyphs.vertical, "│");
 

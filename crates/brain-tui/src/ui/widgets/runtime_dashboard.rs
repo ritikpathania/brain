@@ -6,7 +6,7 @@ use crate::ui::widgets::view_models::{
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Row, Table};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
 
 /// Stateful container struct for RuntimeDashboard navigation state.
@@ -50,6 +50,7 @@ pub fn draw_health_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" ENGINE HEALTH & SYSTEM OVERVIEW ")
         .border_style(theme.border);
 
@@ -85,6 +86,7 @@ pub fn draw_orchestrator_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" ORCHESTRATOR DISPATCHER ")
         .border_style(theme.border);
 
@@ -129,6 +131,7 @@ pub fn draw_projection_lag_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" PROJECTION ENGINE LAG ")
         .border_style(theme.border);
 
@@ -183,6 +186,7 @@ pub fn draw_reflection_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" REFLECTION ENGINE METRICS ")
         .border_style(theme.border);
 
@@ -221,6 +225,7 @@ pub fn draw_task_history_widget(
 ) {
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .title(" TASK EXECUTION TRACE HISTORY (Scrollable: ↑/↓, j/k) ")
         .border_style(theme.border);
 
