@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Lexical Search Evaluator & Integration Tests | ⬜ Pending | |
-| **M1 Checkpoint** | **Lexical Posting & Match Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: Lexical Search Evaluator & Integration Tests | ✅ Completed | `06ac9ca` |
+| **M1 Checkpoint** | **Lexical Posting & Match Contract Verification** | ✅ Completed | `06ac9ca` |
 
 ---
 
