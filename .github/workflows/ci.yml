@@ -82,10 +82,29 @@ jobs:
           uv run --no-sync ty check
           uv run --no-sync pyrefly check
 
+  docs-and-contracts:
+    name: Docs & Contract Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Verify Contracts
+        run: cargo xtask verify-contracts
+
+      - name: Verify Documentation Governance
+        run: cargo xtask docs all
+
   test-and-bench:
     name: Tests & Benchmark Compiles (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: lint-and-format
+    needs: [lint-and-format, docs-and-contracts]
     env:
       PYO3_PYTHON: python3
     strategy:

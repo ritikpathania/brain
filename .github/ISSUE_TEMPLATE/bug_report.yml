@@ -1,0 +1,56 @@
+name: 🐛 Bug Report
+description: Create a report to help us fix a bug or unexpected behavior in Brain.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please provide as much detail as possible so we can reproduce and fix the bug.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: E.g., The daemon panics when receiving a stream_chunk with invalid sequence number.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps To Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Start daemon: `brain daemon start`
+        2. Run client: `brain query "test"`
+        3. Observe crash or error log
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment & System Info
+      description: Provide version information.
+      placeholder: |
+        - OS: macOS / Ubuntu 24.04
+        - Rust version: `rustc --version`
+        - Brain version / commit: `brain --version`
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Stack Traces
+      description: Paste any error outputs or backtraces (`RUST_BACKTRACE=1`).
+      render: shell

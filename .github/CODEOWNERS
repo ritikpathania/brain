@@ -1,0 +1,17 @@
+# Codeowners for Brain Workspace
+
+# Default codeowners for all files
+*       @ritikpathania
+
+# Core Rust crates
+/crates/brain-domain/      @ritikpathania
+/crates/brain-services/    @ritikpathania
+/crates/brain-storage/     @ritikpathania
+/crates/brain-tui/         @ritikpathania
+
+# Python & Daemon
+/daemon/                   @ritikpathania
+/sdks/python/              @ritikpathania
+
+# Documentation & Architecture
+/docs/                     @ritikpathania

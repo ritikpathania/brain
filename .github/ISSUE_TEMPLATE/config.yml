@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/ritikpathania/brain/discussions
+    about: Ask questions, share ideas, or discuss architecture.
+  - name: Documentation Index
+    url: https://github.com/ritikpathania/brain/blob/main/docs/README.md
+    about: Read system specifications, protocol references, and guides.
