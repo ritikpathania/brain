@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Query Conformance & Replay Equivalence Test Suite | ⬜ Pending | |
-| **M1 Checkpoint** | **Architectural Contract Gate Verification** | ⬜ Pending | |
+| **M1** | Task 1: Query Conformance & Replay Equivalence Test Suite | ✅ Completed | `e62e60d` |
+| **M1 Checkpoint** | **Architectural Contract Gate Verification** | ✅ Completed | `e62e60d` |
 
 ---
 
