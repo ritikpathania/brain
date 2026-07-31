@@ -14,18 +14,7 @@ Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domai
 
 ## 🖥️ Terminal UI Preview
 
-```text
-┌─ Brain Relational Memory Engine [v1.0.0] ───────────────────────────────────────────┐
-│ [Sessions]       │ > search "knowledge compiler"                                    │
-│                  │ ─────────────────────────────────────────────────────────────────│
-│ • main-session   │ 1. [0.94] Knowledge Compiler (6-Pass Reconciliation Engine)      │
-│ • refactor-v2    │    Canonicalizes ontology graph nodes, facts, and edges.         │
-│ • debug-tui      │ 2. [0.88] SearchProjector (SQLite FTS5 + Vector BLOB Fusion)     │
-│                  │    Hybrid keyword and vector retrieval read-model projection.    │
-│                  │ ─────────────────────────────────────────────────────────────────│
-│ [Ctrl+P] Palette │ [Ctrl+C] Exit │ [Tab] Switch Panel │ [Status] Daemon: Connected  │
-└─────────────────────────────────────────────────────────────────────────────────────┘
-```
+![Brain Terminal UI Console](docs/assets/brain_tui_preview.png)
 
 ---
 
