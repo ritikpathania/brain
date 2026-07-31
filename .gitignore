@@ -35,12 +35,18 @@ __pycache__/
 *.dylib
 .pytest_cache/
 .ruff_cache/
+.ty_cache/
 .hypothesis/
 .mypy_cache/
 .coverage
 htmlcov/
 .tox/
 .nox/
+
+# Daemon Runtime & Sockets
+.brain/
+*.sock
+*.pid
 
 
 # Rust/Cargo
