@@ -12,14 +12,64 @@ Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domai
 
 ---
 
-## 🌟 Key Features
+## 🖥️ Terminal UI Preview
 
-* **Single Composition Root**: `BrainRuntime` encapsulates database transactions, projections, event dispatching, and background reflection passes.
-* **Hybrid Retrieval Engine**: Fused SQLite FTS5 lexical matching + vector similarity projections for sub-millisecond query retrieval.
-* **6-Pass Knowledge Compiler**: Deterministic reconciliation passes for ontology graph entities, facts, and relationships.
-* **Stateless IPC Listener**: Newline-delimited UDS socket protocol with framed streaming and sequence monotonic guarantees.
-* **Ratatui Terminal Interface**: Native console UI with typewriter queue streaming, command palette (`Ctrl+P`), and rich theme tokens.
-* **Observability & Health**: Embedded HTTP diagnostics server exposing Prometheus `/metrics` and `/health` endpoints.
+```text
+┌─ Brain Relational Memory Engine [v1.0.0] ────────────────────────────────────────┐
+│ [Sessions]     │ > search "knowledge compiler"                                    │
+│                │ ─────────────────────────────────────────────────────────────────│
+│ • main-session │ 1. [0.94] Knowledge Compiler (6-Pass Reconciliation Engine)     │
+│ • refactor-v2  │    Canonicalizes ontology graph nodes, facts, and edges.         │
+│ • debug-tui    │ 2. [0.88] SearchProjector (SQLite FTS5 + Vector BLOB Fusion)    │
+│                │    Hybrid keyword and vector retrieval read-model projection.    │
+│                │ ─────────────────────────────────────────────────────────────────│
+│ [Ctrl+P] Palette │ [Ctrl+C] Exit │ [Tab] Switch Panel │ [Status] Daemon: Connected│
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ⚡ 30-Second Quick Start
+
+Get up and running in under 30 seconds:
+
+```bash
+# 1. Build and start background daemon
+cargo run --bin brain daemon start
+
+# 2. Ingest an observation into relational memory
+cargo run --bin brain ingest "Knowledge compiler reconciles graph facts transactionally"
+
+# 3. Query memory graph projections
+cargo run --bin brain query "compiler"
+
+# 4. Launch interactive Terminal UI console
+cargo run --bin brain ui
+```
+
+---
+
+## 📦 Installation Options
+
+### Option A: Install via Cargo
+```bash
+cargo install --path apps/brain
+```
+
+### Option B: Build from Source
+```bash
+# Clone the repository
+git clone https://github.com/ritikpathania/brain.git
+cd brain
+
+# Initialize dependencies and build binaries
+make setup
+make build-daemon
+make build-brain
+```
+
+### Option C: Download Pre-Built Binaries
+Download ready-to-run release binaries (`brain-linux-x86_64`, `brain-macos-arm64`) directly from [GitHub Releases](https://github.com/ritikpathania/brain/releases).
 
 ---
 
@@ -47,46 +97,12 @@ graph TD
 
 ---
 
-## ⚡ Quick Start (5 Minutes)
+## 💻 Code Usage Example
 
-### Prerequisites
-- **Rust Toolchain**: `rustc 1.80+` and `cargo`
-- **Python**: `3.12+` with [`uv`](https://github.com/astral-sh/uv)
-
-### 1. Build Binaries
-```bash
-# Clone the repository
-git clone https://github.com/ritikpathania/brain.git
-cd brain
-
-# Install dependencies and build daemon & CLI binaries
-make setup
-make build-daemon
-make build-brain
-```
-
-### 2. Start Daemon & Console
-```bash
-# Start background daemon process
-./target/debug/brain daemon start
-
-# Check runtime health
-./target/debug/brain health
-
-# Launch interactive Terminal UI
-./target/debug/brain ui
-```
-
----
-
-## 💻 Example Usage
-
-### Running the Rust Example
 ```bash
 PYO3_PYTHON=daemon/.venv/bin/python cargo run --example basic_usage -p brain-services
 ```
 
-### Programmatic Rust API
 ```rust
 use brain_services::BrainRuntime;
 
@@ -106,14 +122,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 📊 Benchmark Summary
 
-Evaluated on Apple M-Series & Linux (Ubuntu 24.04):
+CI continuously benchmarks query latencies, ingestion throughput, and typewriter drain performance.
 
-| Metric | Measured Baseline | Target SLA | Status |
-| :--- | :--- | :--- | :--- |
-| **Search Projection Query Latency** | `0.14 ms` | `< 5.0 ms` | ⚡ PASS |
-| **Observation Ingestion Rate** | `14,200 obs/sec` | `> 5,000 obs/sec` | ⚡ PASS |
-| **Typewriter Render Drain Latency** | `0.014 ms` | `< 1.0 ms` | ⚡ PASS |
-| **IPC Frame Serialization Roundtrip** | `0.038 ms` | `< 0.5 ms` | ⚡ PASS |
+> **Test Hardware Baseline**: Apple M-Series (ARM64) / x86_64 Linux (Ubuntu 24.04), Rust 1.80+.
+
+* **Search Projection Latency**: Sub-millisecond read-model execution (`< 0.5 ms`).
+* **Ingestion Throughput**: High-rate transactional observation writes (`> 10,000 obs/sec`).
+* **Typewriter Frame Drain**: Smooth UI queue rendering (`< 0.05 ms`).
+
+*For full methodology, benchmark suites, and live telemetry reports, see **[docs/benchmarks/benchmark_report.md](docs/benchmarks/benchmark_report.md)**.*
 
 ---
 
@@ -123,7 +140,7 @@ Evaluated on Apple M-Series & Linux (Ubuntu 24.04):
 * **[Installation Guide](docs/guides/installation.md)**: Extended setup and build options.
 * **[Architecture Specification](docs/architecture/overview.md)**: Deep dive into runtime lifecycle and components.
 * **[IPC Wire Protocol Specification](docs/reference/protocol.md)**: UDS socket frames and JSON RPC protocol.
-* **[Release Notes](docs/product/release_notes_v1.md)**: v1.0.0 feature breakdown and release milestones.
+* **[Release Checklist & Guide](docs/guides/release-checklist.md)**: Comprehensive release checklist and repository settings.
 
 ---
 

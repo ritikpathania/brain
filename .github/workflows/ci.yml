@@ -54,6 +54,22 @@ jobs:
           cd daemon
           uv run --no-sync ruff check .
 
+  msrv-check:
+    name: MSRV Check (Rust 1.80.0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust MSRV
+        uses: dtolnay/rust-toolchain@1.80.0
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Workspace MSRV
+        run: cargo check --workspace --all-targets
+
   type-check:
     name: Type Checking
     runs-on: ubuntu-latest
@@ -104,7 +120,7 @@ jobs:
   test-and-bench:
     name: Tests & Benchmark Compiles (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [lint-and-format, docs-and-contracts]
+    needs: [lint-and-format, msrv-check, docs-and-contracts]
     env:
       PYO3_PYTHON: python3
     strategy:

@@ -15,7 +15,7 @@ applies_to: v0.8+
 
 ## Prerequisites
 Ensure the following are installed and available on your system `PATH`:
-- **Rust (Cargo)**: Rust toolchain (version >= 1.75).
+- **Rust (Cargo)**: Rust toolchain (MSRV >= 1.80.0).
 - **Python (>= 3.10)**: For out-of-band semantic NLP extraction.
 - **`uv`**: Fast Python package manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
 

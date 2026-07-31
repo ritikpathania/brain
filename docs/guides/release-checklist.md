@@ -62,3 +62,15 @@ This document lists the official quality checks and acceptance criteria required
 - [ ] **Rendering Latency**: Draw frame time remains below 66 ms even under virtualized rendering with heavy markdown streams.
 - [ ] **Graceful Cancellation**: Pressing `Esc` or `Ctrl+C` during an active query terminates the daemon execution channel immediately and flushes the typewriter queue without delay.
 - [ ] **Memory Overhead**: RSS usage of the TUI process remains stable during session switching and long conversations.
+
+---
+
+## 6. GitHub Repository Settings & Pre-Release Checklist
+- [ ] **GitHub Discussions**: Enabled under **Settings → Features → Discussions**.
+- [ ] **Security Advisories**: Enabled under **Settings → Code security and analysis → Private vulnerability reporting**.
+- [ ] **Dependabot Alerts & Updates**: Enabled for Cargo (`Cargo.toml`) and Python (`daemon/uv.lock`).
+- [ ] **Branch Protection Rules**: Protect `main` branch requiring `CI / Tests & Benchmark Compiles` passing before merge.
+- [ ] **Repository Topics**: Set topics (`rust`, `ai-agent`, `sqlite`, `fts5`, `vector-search`, `tui`, `ratatui`).
+- [ ] **Social Preview Image**: Uploaded Open Graph image under **Settings → General → Social Preview**.
+- [ ] **GitHub Release Assets**: Build matrix releases uploaded (`brain-linux-x86_64`, `brain-macos-arm64`).
+

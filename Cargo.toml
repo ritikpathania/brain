@@ -54,6 +54,13 @@ default-members = [
     "daemon",
 ]
 
+[workspace.package]
+rust-version = "1.80.0"
+edition = "2021"
+license = "MIT"
+authors = ["Ritik Pathania"]
+repository = "https://github.com/ritikpathania/brain"
+
 
 
 [workspace.dependencies]
