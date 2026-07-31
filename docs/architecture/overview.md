@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Architecture Overview
 
 This document provides a detailed breakdown of the active architecture of the Brain Relational Memory Engine, detailing the core components, their lifecycles, transaction flows, and architectural invariants.

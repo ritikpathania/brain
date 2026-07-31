@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Graph Protocol Specification
 
 This document defines the formal protocol contracts and constraints governing the Knowledge Graph model, extraction layers, repository storage engine, and query traversals in the Brain system.

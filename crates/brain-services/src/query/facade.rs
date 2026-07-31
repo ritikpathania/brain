@@ -33,7 +33,10 @@ impl KnowledgeQueryFacade {
     }
 
     /// Evaluates a node neighborhood graph traversal query.
-    pub fn query_neighborhood(&self, query: &NeighborhoodQuery) -> Result<QueryFacadeResult, QueryError> {
+    pub fn query_neighborhood(
+        &self,
+        query: &NeighborhoodQuery,
+    ) -> Result<QueryFacadeResult, QueryError> {
         let start = Instant::now();
         let snapshot = self.active_snapshot();
         let mut result = NeighborhoodEvaluator::evaluate(&snapshot, query)?;
@@ -42,7 +45,10 @@ impl KnowledgeQueryFacade {
     }
 
     /// Evaluates a point-in-time entity state query.
-    pub fn query_point_in_time(&self, query: &PointInTimeQuery) -> Result<QueryFacadeResult, QueryError> {
+    pub fn query_point_in_time(
+        &self,
+        query: &PointInTimeQuery,
+    ) -> Result<QueryFacadeResult, QueryError> {
         let start = Instant::now();
         let snapshot = self.active_snapshot();
         let mut result = TemporalEvaluator::evaluate(&snapshot, query)?;
@@ -51,7 +57,10 @@ impl KnowledgeQueryFacade {
     }
 
     /// Evaluates a lexical search query.
-    pub fn query_search(&self, query: &LexicalSearchQuery) -> Result<QueryFacadeResult, QueryError> {
+    pub fn query_search(
+        &self,
+        query: &LexicalSearchQuery,
+    ) -> Result<QueryFacadeResult, QueryError> {
         let start = Instant::now();
         let snapshot = self.active_snapshot();
         let mut result = SearchEvaluator::evaluate(&snapshot, query)?;

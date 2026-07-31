@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Brain Architectural Glossary
 
 > **Status**: Single Source of Truth  

@@ -49,10 +49,17 @@ impl ProjectionReducer for EntityStatisticsReducer {
                     self.state.record_fact(fact, assert);
                 }
             }
-            FactEvent::FactSuperseded { old_fact_id, superseded_at, .. } => {
+            FactEvent::FactSuperseded {
+                old_fact_id,
+                superseded_at,
+                ..
+            } => {
                 self.state.supersede_fact(old_fact_id, *superseded_at);
             }
-            FactEvent::FactArchived { fact_id, archived_at } => {
+            FactEvent::FactArchived {
+                fact_id,
+                archived_at,
+            } => {
                 self.state.archive_fact(fact_id, *archived_at);
             }
         }

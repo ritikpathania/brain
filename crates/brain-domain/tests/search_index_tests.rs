@@ -14,41 +14,45 @@ fn test_search_index_tokenization_and_symmetric_query() {
     let now = Timestamp::now();
 
     let fact1 = FactVersion {
-        id: fact_id1.clone(),
+        id: fact_id1,
         assertion_id: assertion_id1,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
     let assertion1 = SemanticAssertion {
         id: assertion_id1,
         kind: AssertionKind::Relationship,
-        subject: entity_id1.clone(),
+        subject: entity_id1,
         predicate: PredicateId(Uuid::new_v4()),
         object: AssertionTarget::Value(LiteralValue::String("Rust Knowledge Graph".to_string())),
     };
 
     let fact2 = FactVersion {
-        id: fact_id2.clone(),
+        id: fact_id2,
         assertion_id: assertion_id2,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
     let assertion2 = SemanticAssertion {
         id: assertion_id2,
         kind: AssertionKind::Relationship,
-        subject: entity_id2.clone(),
+        subject: entity_id2,
         predicate: PredicateId(Uuid::new_v4()),
         object: AssertionTarget::Value(LiteralValue::String("Compiler Optimization".to_string())),
     };

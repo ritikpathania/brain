@@ -12,21 +12,21 @@ fn test_filter_by_confidence_threshold_order_preservation() {
 
     let mut candidates = vec![
         EntityMatch {
-            entity_id: e1.clone(),
+            entity_id: e1,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.9).unwrap(),
             graph_metadata: None,
             search_metadata: None,
         },
         EntityMatch {
-            entity_id: e2.clone(),
+            entity_id: e2,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.5).unwrap(),
             graph_metadata: None,
             search_metadata: None,
         },
         EntityMatch {
-            entity_id: e3.clone(),
+            entity_id: e3,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.85).unwrap(),
             graph_metadata: None,
@@ -73,21 +73,21 @@ fn test_sort_matches_deterministic_tie_breaking() {
 
     let mut candidates = vec![
         EntityMatch {
-            entity_id: e_b.clone(),
+            entity_id: e_b,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.9).unwrap(),
             graph_metadata: None,
             search_metadata: None,
         },
         EntityMatch {
-            entity_id: e_a.clone(),
+            entity_id: e_a,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.9).unwrap(),
             graph_metadata: None,
             search_metadata: None,
         },
         EntityMatch {
-            entity_id: e_c.clone(),
+            entity_id: e_c,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.9).unwrap(),
             graph_metadata: None,
@@ -115,14 +115,14 @@ fn test_paginate_matches_boundary_conditions() {
 
     let candidates = vec![
         EntityMatch {
-            entity_id: e1.clone(),
+            entity_id: e1,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.9).unwrap(),
             graph_metadata: None,
             search_metadata: None,
         },
         EntityMatch {
-            entity_id: e2.clone(),
+            entity_id: e2,
             active_facts_count: 1,
             average_confidence: Confidence::new(0.8).unwrap(),
             graph_metadata: None,
@@ -130,18 +130,36 @@ fn test_paginate_matches_boundary_conditions() {
         },
     ];
 
-    let (res, total) = paginate_matches(&candidates, &PaginationParams { limit: 1, offset: 0 });
+    let (res, total) = paginate_matches(
+        &candidates,
+        &PaginationParams {
+            limit: 1,
+            offset: 0,
+        },
+    );
     assert_eq!(total, 2);
     assert_eq!(res.len(), 1);
     assert_eq!(res[0].entity_id, e1);
 
     // Offset equal to total
-    let (res_eq, total_eq) = paginate_matches(&candidates, &PaginationParams { limit: 10, offset: 2 });
+    let (res_eq, total_eq) = paginate_matches(
+        &candidates,
+        &PaginationParams {
+            limit: 10,
+            offset: 2,
+        },
+    );
     assert_eq!(total_eq, 2);
     assert!(res_eq.is_empty());
 
     // Offset out of bounds (offset > total)
-    let (res_oob, total_oob) = paginate_matches(&candidates, &PaginationParams { limit: 10, offset: 5 });
+    let (res_oob, total_oob) = paginate_matches(
+        &candidates,
+        &PaginationParams {
+            limit: 10,
+            offset: 5,
+        },
+    );
     assert_eq!(total_oob, 2);
     assert!(res_oob.is_empty());
 }

@@ -25,7 +25,10 @@ impl GraphAdjacencyState {
     }
     /// Returns outgoing edge IDs for node.
     pub fn neighbors_out(&self, node: &GraphNodeId) -> &[GraphEdgeId] {
-        self.out_edges.get(node).map(|v| v.as_slice()).unwrap_or(&[])
+        self.out_edges
+            .get(node)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
     }
 
     /// Returns incoming edge IDs for node.
@@ -53,8 +56,14 @@ impl GraphAdjacencyState {
         let target = record.target.clone();
 
         self.edges.insert(edge_id.clone(), record);
-        self.out_edges.entry(source.clone()).or_default().push(edge_id.clone());
-        self.in_edges.entry(target.clone()).or_default().push(edge_id);
+        self.out_edges
+            .entry(source.clone())
+            .or_default()
+            .push(edge_id.clone());
+        self.in_edges
+            .entry(target.clone())
+            .or_default()
+            .push(edge_id);
 
         self.degrees.entry(source).or_default().out_degree += 1;
         self.degrees.entry(target).or_default().in_degree += 1;

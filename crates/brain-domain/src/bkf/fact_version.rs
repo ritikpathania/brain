@@ -215,7 +215,6 @@ pub enum FactLifecycle {
     Superseded,
 }
 
-
 /// Immutable versioned assertion record.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FactVersion {

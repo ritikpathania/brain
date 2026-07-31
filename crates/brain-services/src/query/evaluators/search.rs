@@ -64,14 +64,16 @@ impl SearchEvaluator {
             let stats = snapshot.statistics().get(&entity_id);
 
             let active_facts_count = stats.map_or(0, |s| s.active_facts_count);
-            let average_confidence = stats.map_or(
-                Confidence::new(0.0).unwrap(),
-                |s| Confidence::new(s.average_confidence()).unwrap_or_else(|_| Confidence::new(0.0).unwrap()),
-            );
+            let average_confidence = stats.map_or(Confidence::new(0.0).unwrap(), |s| {
+                Confidence::new(s.average_confidence())
+                    .unwrap_or_else(|_| Confidence::new(0.0).unwrap())
+            });
 
             let satisfies_temporal = match query.temporal_mode {
                 TemporalMode::CurrentActive => active_facts_count > 0 || stats.is_none(),
-                TemporalMode::ValidAt(at_ts) => !snapshot.temporal().facts_at(&entity_id, at_ts).is_empty(),
+                TemporalMode::ValidAt(at_ts) => {
+                    !snapshot.temporal().facts_at(&entity_id, at_ts).is_empty()
+                }
                 TemporalMode::AllHistorical => true,
             };
 

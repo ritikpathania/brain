@@ -5,8 +5,12 @@ use brain_services::projection::replay::*;
 
 struct MockReducer(usize);
 impl ProjectionReducer for MockReducer {
-    fn id(&self) -> ProjectionId { ProjectionId::new("mock") }
-    fn version(&self) -> ProjectionVersion { ProjectionVersion(1) }
+    fn id(&self) -> ProjectionId {
+        ProjectionId::new("mock")
+    }
+    fn version(&self) -> ProjectionVersion {
+        ProjectionVersion(1)
+    }
     fn apply_event(&mut self, _event: &FactEvent) -> Result<(), ProjectionError> {
         self.0 += 1;
         Ok(())

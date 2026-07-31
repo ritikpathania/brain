@@ -8,8 +8,12 @@ use uuid::Uuid;
 
 struct CountingReducer(u64);
 impl ProjectionReducer for CountingReducer {
-    fn id(&self) -> ProjectionId { ProjectionId::new("counting") }
-    fn version(&self) -> ProjectionVersion { ProjectionVersion(1) }
+    fn id(&self) -> ProjectionId {
+        ProjectionId::new("counting")
+    }
+    fn version(&self) -> ProjectionVersion {
+        ProjectionVersion(1)
+    }
     fn apply_event(&mut self, _event: &FactEvent) -> Result<(), ProjectionError> {
         self.0 += 1;
         Ok(())
@@ -29,7 +33,7 @@ fn dummy_event() -> FactEvent {
 
 #[test]
 fn test_replay_equivalence_invariant() {
-    let events = vec![dummy_event(), dummy_event(), dummy_event()];
+    let events = [dummy_event(), dummy_event(), dummy_event()];
 
     // Live path
     let store_live = Box::new(InMemoryCheckpointStore::new());
@@ -46,12 +50,14 @@ fn test_replay_equivalence_invariant() {
     let mut runtime_replay = ProjectionRuntime::new(store_replay);
     let instance_replay = ProjectionInstance::new(Box::new(CountingReducer(0)));
     runtime_replay.register_projection(instance_replay).unwrap();
-    runtime_replay.catchup_all(events.iter(), Watermark(3)).unwrap();
+    runtime_replay
+        .catchup_all(events.iter(), Watermark(3))
+        .unwrap();
 }
 
 #[test]
 fn test_repeated_interruption_recovery_invariant() {
-    let events = vec![dummy_event(), dummy_event(), dummy_event(), dummy_event()];
+    let events = [dummy_event(), dummy_event(), dummy_event(), dummy_event()];
 
     let store = Box::new(InMemoryCheckpointStore::new());
     let mut runtime = ProjectionRuntime::new(store);
@@ -59,7 +65,9 @@ fn test_repeated_interruption_recovery_invariant() {
     runtime.register_projection(instance).unwrap();
 
     // Partial catchup 1
-    runtime.catchup_all(events.iter().take(2), Watermark(2)).unwrap();
+    runtime
+        .catchup_all(events.iter().take(2), Watermark(2))
+        .unwrap();
 
     // Partial catchup 2 (restart from 2 to 4)
     runtime.catchup_all(events.iter(), Watermark(4)).unwrap();

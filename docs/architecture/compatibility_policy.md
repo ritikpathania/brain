@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Compatibility & Versioning Policy
 
 This document defines the compatibility matrix, versioning lifecycle, and deprecation policies for the Brain memory engine across all layer boundaries (Core Runtime, Protocol Adapters, and client SDKs).

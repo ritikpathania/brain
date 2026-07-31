@@ -17,8 +17,14 @@ pub fn sort_matches(candidates: &mut [EntityMatch], ordering: Option<&QueryOrder
                 a_val.total_cmp(&b_val)
             }
             SortField::Degree => {
-                let a_deg = a.graph_metadata.as_ref().map_or(0, |g| g.in_degree + g.out_degree);
-                let b_deg = b.graph_metadata.as_ref().map_or(0, |g| g.in_degree + g.out_degree);
+                let a_deg = a
+                    .graph_metadata
+                    .as_ref()
+                    .map_or(0, |g| g.in_degree + g.out_degree);
+                let b_deg = b
+                    .graph_metadata
+                    .as_ref()
+                    .map_or(0, |g| g.in_degree + g.out_degree);
                 a_deg.cmp(&b_deg)
             }
             SortField::Recency => {

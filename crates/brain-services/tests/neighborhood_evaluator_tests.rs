@@ -10,19 +10,29 @@ use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 use uuid::Uuid;
 
-fn setup_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, KnowledgeEntityId, KnowledgeEntityId, Arc<ProjectionSnapshot>) {
+fn setup_test_snapshot() -> (
+    KnowledgeEntityId,
+    KnowledgeEntityId,
+    KnowledgeEntityId,
+    KnowledgeEntityId,
+    Arc<ProjectionSnapshot>,
+) {
     let e_a = KnowledgeEntityId(Uuid::from_u128(10));
     let e_b = KnowledgeEntityId(Uuid::from_u128(20));
     let e_c = KnowledgeEntityId(Uuid::from_u128(30));
     let e_d = KnowledgeEntityId(Uuid::from_u128(40));
 
-    let mut adj_reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
-    let mut temp_reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
-    let mut stats_reducer = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
-    let mut search_reducer = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+    let mut adj_reducer =
+        GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+    let mut temp_reducer =
+        TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
+    let mut stats_reducer =
+        EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
+    let mut search_reducer =
+        SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
 
     let now = Timestamp(UNIX_EPOCH + Duration::from_secs(1_700_000_000));
-    
+
     // A -> B (conf 0.9)
     let f1 = FactVersionId(Uuid::new_v4());
     let a1 = AssertionId(Uuid::new_v4());
@@ -35,16 +45,18 @@ fn setup_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, KnowledgeEnti
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a1,
             kind: AssertionKind::Relationship,
-            subject: e_a.clone(),
+            subject: e_a,
             predicate: PredicateId(Uuid::new_v4()),
-            object: AssertionTarget::Entity(e_b.clone()),
+            object: AssertionTarget::Entity(e_b),
         }),
     };
 
@@ -60,16 +72,18 @@ fn setup_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, KnowledgeEnti
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a2,
             kind: AssertionKind::Relationship,
-            subject: e_b.clone(),
+            subject: e_b,
             predicate: PredicateId(Uuid::new_v4()),
-            object: AssertionTarget::Entity(e_c.clone()),
+            object: AssertionTarget::Entity(e_c),
         }),
     };
 
@@ -85,16 +99,18 @@ fn setup_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, KnowledgeEnti
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a3,
             kind: AssertionKind::Relationship,
-            subject: e_c.clone(),
+            subject: e_c,
             predicate: PredicateId(Uuid::new_v4()),
-            object: AssertionTarget::Entity(e_d.clone()),
+            object: AssertionTarget::Entity(e_d),
         }),
     };
 
@@ -122,7 +138,7 @@ fn test_neighborhood_max_hops_zero_and_boundary() {
 
     // max_hops = 0 -> returns only root_entity
     let query_zero = NeighborhoodQuery {
-        root_entity: e_a.clone(),
+        root_entity: e_a,
         max_hops: 0,
         temporal_mode: TemporalMode::AllHistorical,
         confidence_filter: None,
@@ -135,7 +151,7 @@ fn test_neighborhood_max_hops_zero_and_boundary() {
 
     // max_hops = 1 -> discovers e_a, e_b
     let query_one = NeighborhoodQuery {
-        root_entity: e_a.clone(),
+        root_entity: e_a,
         max_hops: 1,
         temporal_mode: TemporalMode::AllHistorical,
         confidence_filter: None,
@@ -149,7 +165,7 @@ fn test_neighborhood_max_hops_zero_and_boundary() {
 
     // max_hops = 3 -> discovers e_a, e_b, e_c, e_d (sorted by confidence DESC: e_a 0.9, e_b 0.85, e_c 0.80, e_d 0.0)
     let query_three = NeighborhoodQuery {
-        root_entity: e_a.clone(),
+        root_entity: e_a,
         max_hops: 3,
         temporal_mode: TemporalMode::AllHistorical,
         confidence_filter: None,

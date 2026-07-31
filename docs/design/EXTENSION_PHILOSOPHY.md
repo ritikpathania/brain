@@ -46,7 +46,7 @@ To maintain the TUI's clean presentation layer:
 
 ### 2.2. Adding a Theme
 To support new visual skins (e.g., retro green phosphor, high-contrast light):
-1. **Constructor Instantiation**: Open [theme.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/src/ui/theme.rs) and write a new instantiation function (e.g., `pub fn classic_retro() -> Self`).
+1. **Constructor Instantiation**: Open [theme/mod.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/src/ui/theme/mod.rs) and write a new instantiation function (e.g., `pub fn classic_retro() -> Self`).
 2. **Contract Boundaries**: Do not add new styling parameters to the `Theme` struct unless a brand-new component type is designed. If styling is missing, map it to an existing semantic token (e.g., map a warning background to `Warning`).
 
 ### 2.3. Adding Animations

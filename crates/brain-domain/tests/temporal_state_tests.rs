@@ -20,8 +20,8 @@ fn test_temporal_state_record_insert_close_and_point_in_time_lookup() {
 
     let record = TemporalRecord {
         id: fact_id.clone(),
-        entity_id: entity_id.clone(),
-        predicate_id: predicate_id.clone(),
+        entity_id,
+        predicate_id,
         valid_from: t10,
         valid_until: None,
         lifecycle: FactLifecycle::Verified,
@@ -31,8 +31,11 @@ fn test_temporal_state_record_insert_close_and_point_in_time_lookup() {
 
     // Test insert and active status
     state.insert_record(record.clone());
-    assert_eq!(state.active_facts(&entity_id), &[fact_id.clone()]);
-    assert_eq!(state.timeline(&entity_id), &[fact_id.clone()]);
+    assert_eq!(
+        state.active_facts(&entity_id),
+        std::slice::from_ref(&fact_id)
+    );
+    assert_eq!(state.timeline(&entity_id), std::slice::from_ref(&fact_id));
     assert!(state.is_active(&fact_id));
 
     // Test duplicate insertion idempotency
@@ -55,7 +58,8 @@ fn test_temporal_state_record_insert_close_and_point_in_time_lookup() {
 
 #[test]
 fn test_temporal_state_reducer_event_application_and_reset() {
-    let mut reducer = TemporalStateReducer::new(ProjectionId::new("temporal_state"), ProjectionVersion(1));
+    let mut reducer =
+        TemporalStateReducer::new(ProjectionId::new("temporal_state"), ProjectionVersion(1));
     let fact_id1 = FactVersionId(Uuid::new_v4());
     let fact_id2 = FactVersionId(Uuid::new_v4());
     let assertion_id1 = AssertionId(Uuid::new_v4());
@@ -64,14 +68,16 @@ fn test_temporal_state_reducer_event_application_and_reset() {
     let now = Timestamp::now();
 
     let fact1 = FactVersion {
-        id: fact_id1.clone(),
+        id: fact_id1,
         assertion_id: assertion_id1,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -91,14 +97,16 @@ fn test_temporal_state_reducer_event_application_and_reset() {
     reducer.apply_event(&record_event1).unwrap();
 
     let fact2 = FactVersion {
-        id: fact_id2.clone(),
+        id: fact_id2,
         assertion_id: assertion_id2,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
-        supersedes: Some(fact_id1.clone()),
+        supersedes: Some(fact_id1),
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -119,7 +127,7 @@ fn test_temporal_state_reducer_event_application_and_reset() {
 
     // Verify previous_version lineage preservation
     let rec2 = reducer.state().record(&TemporalFactId(fact_id2)).unwrap();
-    assert_eq!(rec2.previous_version, Some(fact_id1.clone()));
+    assert_eq!(rec2.previous_version, Some(fact_id1));
 
     // Test reset() empties state
     reducer.reset().unwrap();

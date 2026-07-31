@@ -39,7 +39,6 @@ impl crate::projection::conformance::ProjectionStateView for TemporalStateReduce
     }
 }
 
-
 impl ProjectionReducer for TemporalStateReducer {
     fn id(&self) -> ProjectionId {
         self.id.clone()
@@ -53,7 +52,7 @@ impl ProjectionReducer for TemporalStateReducer {
         match event {
             FactEvent::FactRecorded { fact, assertion } => {
                 if let Some(assert) = assertion {
-                    let fact_id = TemporalFactId(fact.id.clone());
+                    let fact_id = TemporalFactId(fact.id);
                     let record = TemporalRecord {
                         id: fact_id,
                         entity_id: assert.subject,
@@ -67,13 +66,22 @@ impl ProjectionReducer for TemporalStateReducer {
                     self.state.insert_record(record);
                 }
             }
-            FactEvent::FactSuperseded { old_fact_id, superseded_at, .. } => {
-                let old_id = TemporalFactId(old_fact_id.clone());
-                self.state.close_interval(&old_id, *superseded_at, FactLifecycle::Superseded);
+            FactEvent::FactSuperseded {
+                old_fact_id,
+                superseded_at,
+                ..
+            } => {
+                let old_id = TemporalFactId(*old_fact_id);
+                self.state
+                    .close_interval(&old_id, *superseded_at, FactLifecycle::Superseded);
             }
-            FactEvent::FactArchived { fact_id, archived_at } => {
-                let archived_id = TemporalFactId(fact_id.clone());
-                self.state.close_interval(&archived_id, *archived_at, FactLifecycle::Archived);
+            FactEvent::FactArchived {
+                fact_id,
+                archived_at,
+            } => {
+                let archived_id = TemporalFactId(*fact_id);
+                self.state
+                    .close_interval(&archived_id, *archived_at, FactLifecycle::Archived);
             }
         }
         Ok(())

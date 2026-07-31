@@ -1,3 +1,12 @@
+---
+status: active
+owner: tui
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # TUI Architecture & Stable UI Invariants
 
 This document defines the architectural boundaries, structural invariants, and stable contracts governing the BRAIN v2 Terminal User Interface (TUI). These design rules must be preserved during all subsequent development sprints.

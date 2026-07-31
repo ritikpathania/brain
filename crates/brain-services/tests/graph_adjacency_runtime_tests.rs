@@ -26,14 +26,16 @@ fn test_graph_adjacency_runtime_replay_equivalence() {
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -46,7 +48,7 @@ fn test_graph_adjacency_runtime_replay_equivalence() {
         object: AssertionTarget::Entity(target_entity),
     };
 
-    let events = vec![FactEvent::FactRecorded {
+    let events = [FactEvent::FactRecorded {
         fact,
         assertion: Some(assertion),
     }];
@@ -75,14 +77,16 @@ fn test_graph_adjacency_mixed_event_sequence_and_degree_invariants() {
     let now = Timestamp::now();
 
     let fact1 = FactVersion {
-        id: fact_id1.clone(),
+        id: fact_id1,
         assertion_id: assertion_id1,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -95,14 +99,16 @@ fn test_graph_adjacency_mixed_event_sequence_and_degree_invariants() {
     };
 
     let fact2 = FactVersion {
-        id: fact_id2.clone(),
+        id: fact_id2,
         assertion_id: assertion_id2,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -114,16 +120,22 @@ fn test_graph_adjacency_mixed_event_sequence_and_degree_invariants() {
         object: AssertionTarget::Entity(e3),
     };
 
-    let events = vec![
-        FactEvent::FactRecorded { fact: fact1, assertion: Some(assertion1) },
-        FactEvent::FactRecorded { fact: fact2, assertion: Some(assertion2) },
+    let events = [
+        FactEvent::FactRecorded {
+            fact: fact1,
+            assertion: Some(assertion1),
+        },
+        FactEvent::FactRecorded {
+            fact: fact2,
+            assertion: Some(assertion2),
+        },
         FactEvent::FactSuperseded {
-            old_fact_id: fact_id1.clone(),
-            new_fact_id: fact_id2.clone(),
+            old_fact_id: fact_id1,
+            new_fact_id: fact_id2,
             superseded_at: now,
         },
         FactEvent::FactArchived {
-            fact_id: fact_id2.clone(),
+            fact_id: fact_id2,
             archived_at: now,
         },
     ];

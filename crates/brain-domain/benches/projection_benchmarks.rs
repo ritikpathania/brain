@@ -14,7 +14,10 @@ use uuid::Uuid;
 
 /// Generates a 100% deterministic synthetic stream of FactEvents with realistic lifecycle distribution:
 /// 80% FactRecorded, 15% FactSuperseded (emits FactRecorded for new_fact before superseding old_fact), 5% FactArchived.
-pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usize) -> Vec<FactEvent> {
+pub fn generate_deterministic_event_stream(
+    count: usize,
+    entity_cardinality: usize,
+) -> Vec<FactEvent> {
     let mut events = Vec::with_capacity(count * 2);
     let fixed_time = Timestamp(UNIX_EPOCH + Duration::from_secs(1_700_000_000));
 
@@ -31,17 +34,19 @@ pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usi
             let (old_id, subject, predicate_id) = active_facts.pop().unwrap();
             let new_id = FactVersionId(Uuid::from_u128(i as u128 + 1_000_000));
             let assertion_id = AssertionId(Uuid::from_u128(i as u128 + 5_000_000));
-            let target = entities[(i + 2) % entities.len()].clone();
+            let target = entities[(i + 2) % entities.len()];
 
             let new_fact = FactVersion {
-                id: new_id.clone(),
+                id: new_id,
                 assertion_id,
                 lifecycle: FactLifecycle::Verified,
                 confidence: Confidence::new(0.95).unwrap(),
                 temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None).unwrap(),
-                supersedes: Some(old_id.clone()),
+                supersedes: Some(old_id),
                 provenance: FactProvenance {
-                    source: FactProvenanceSource::Manual { user_id: "bench_runner".to_string() },
+                    source: FactProvenanceSource::Manual {
+                        user_id: "bench_runner".to_string(),
+                    },
                     derived_from: vec![],
                 },
             };
@@ -49,8 +54,8 @@ pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usi
             let new_assertion = SemanticAssertion {
                 id: assertion_id,
                 kind: AssertionKind::Relationship,
-                subject: subject.clone(),
-                predicate: predicate_id.clone(),
+                subject,
+                predicate: predicate_id,
                 object: AssertionTarget::Entity(target),
             };
 
@@ -59,7 +64,7 @@ pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usi
                 assertion: Some(new_assertion),
             });
 
-            active_facts.push((new_id.clone(), subject, predicate_id));
+            active_facts.push((new_id, subject, predicate_id));
 
             events.push(FactEvent::FactSuperseded {
                 old_fact_id: old_id,
@@ -73,13 +78,13 @@ pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usi
                 archived_at: fixed_time,
             });
         } else {
-            let subject = entities[i % entities.len()].clone();
-            let target = entities[(i + 1) % entities.len()].clone();
+            let subject = entities[i % entities.len()];
+            let target = entities[(i + 1) % entities.len()];
             let fact_id = FactVersionId(Uuid::from_u128(i as u128 + 1_000_000));
             let assertion_id = AssertionId(Uuid::from_u128(i as u128 + 5_000_000));
             let predicate_id = PredicateId(Uuid::from_u128((i % 20) as u128 + 100));
 
-            active_facts.push((fact_id.clone(), subject.clone(), predicate_id.clone()));
+            active_facts.push((fact_id, subject, predicate_id));
 
             let fact = FactVersion {
                 id: fact_id,
@@ -89,7 +94,9 @@ pub fn generate_deterministic_event_stream(count: usize, entity_cardinality: usi
                 temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None).unwrap(),
                 supersedes: None,
                 provenance: FactProvenance {
-                    source: FactProvenanceSource::Manual { user_id: "bench_runner".to_string() },
+                    source: FactProvenanceSource::Manual {
+                        user_id: "bench_runner".to_string(),
+                    },
                     derived_from: vec![],
                 },
             };
@@ -120,45 +127,69 @@ fn bench_replay_throughput(c: &mut Criterion) {
         let events = generate_deterministic_event_stream(scale, 1_000);
         group.throughput(Throughput::Elements(events.len() as u64));
 
-        group.bench_with_input(BenchmarkId::new("graph_adjacency", scale), &events, |b, evs| {
-            b.iter(|| {
-                let mut reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
-                for ev in black_box(evs) {
-                    let _ = reducer.apply_event(ev);
-                }
-                black_box(reducer);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("graph_adjacency", scale),
+            &events,
+            |b, evs| {
+                b.iter(|| {
+                    let mut reducer =
+                        GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+                    for ev in black_box(evs) {
+                        let _ = reducer.apply_event(ev);
+                    }
+                    black_box(reducer);
+                });
+            },
+        );
 
-        group.bench_with_input(BenchmarkId::new("temporal_state", scale), &events, |b, evs| {
-            b.iter(|| {
-                let mut reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
-                for ev in black_box(evs) {
-                    let _ = reducer.apply_event(ev);
-                }
-                black_box(reducer);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("temporal_state", scale),
+            &events,
+            |b, evs| {
+                b.iter(|| {
+                    let mut reducer = TemporalStateReducer::new(
+                        ProjectionId::new("temporal"),
+                        ProjectionVersion(1),
+                    );
+                    for ev in black_box(evs) {
+                        let _ = reducer.apply_event(ev);
+                    }
+                    black_box(reducer);
+                });
+            },
+        );
 
-        group.bench_with_input(BenchmarkId::new("entity_statistics", scale), &events, |b, evs| {
-            b.iter(|| {
-                let mut reducer = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
-                for ev in black_box(evs) {
-                    let _ = reducer.apply_event(ev);
-                }
-                black_box(reducer);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("entity_statistics", scale),
+            &events,
+            |b, evs| {
+                b.iter(|| {
+                    let mut reducer = EntityStatisticsReducer::new(
+                        ProjectionId::new("stats"),
+                        ProjectionVersion(1),
+                    );
+                    for ev in black_box(evs) {
+                        let _ = reducer.apply_event(ev);
+                    }
+                    black_box(reducer);
+                });
+            },
+        );
 
-        group.bench_with_input(BenchmarkId::new("search_index", scale), &events, |b, evs| {
-            b.iter(|| {
-                let mut reducer = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
-                for ev in black_box(evs) {
-                    let _ = reducer.apply_event(ev);
-                }
-                black_box(reducer);
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("search_index", scale),
+            &events,
+            |b, evs| {
+                b.iter(|| {
+                    let mut reducer =
+                        SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+                    for ev in black_box(evs) {
+                        let _ = reducer.apply_event(ev);
+                    }
+                    black_box(reducer);
+                });
+            },
+        );
     }
 
     group.finish();
@@ -171,7 +202,8 @@ fn bench_incremental_mutation_latency(c: &mut Criterion) {
     let target = KnowledgeEntityId(Uuid::from_u128(2));
 
     group.bench_function("fact_recorded_graph", |b| {
-        let mut reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+        let mut reducer =
+            GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
         let mut i = 0u128;
         b.iter(|| {
             i += 1;
@@ -183,19 +215,22 @@ fn bench_incremental_mutation_latency(c: &mut Criterion) {
                     assertion_id,
                     lifecycle: FactLifecycle::Verified,
                     confidence: Confidence::new(0.9).unwrap(),
-                    temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None).unwrap(),
+                    temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None)
+                        .unwrap(),
                     supersedes: None,
                     provenance: FactProvenance {
-                        source: FactProvenanceSource::Manual { user_id: "bench".to_string() },
+                        source: FactProvenanceSource::Manual {
+                            user_id: "bench".to_string(),
+                        },
                         derived_from: vec![],
                     },
                 },
                 assertion: Some(SemanticAssertion {
                     id: assertion_id,
                     kind: AssertionKind::Relationship,
-                    subject: subject.clone(),
+                    subject,
                     predicate: PredicateId(Uuid::from_u128(100)),
-                    object: AssertionTarget::Entity(target.clone()),
+                    object: AssertionTarget::Entity(target),
                 }),
             };
             let _ = reducer.apply_event(black_box(&event));
@@ -204,7 +239,8 @@ fn bench_incremental_mutation_latency(c: &mut Criterion) {
     });
 
     group.bench_function("fact_recorded_temporal", |b| {
-        let mut reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
+        let mut reducer =
+            TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
         let mut i = 0u128;
         b.iter(|| {
             i += 1;
@@ -216,19 +252,22 @@ fn bench_incremental_mutation_latency(c: &mut Criterion) {
                     assertion_id,
                     lifecycle: FactLifecycle::Verified,
                     confidence: Confidence::new(0.9).unwrap(),
-                    temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None).unwrap(),
+                    temporal: TemporalWindow::new(fixed_time, fixed_time, fixed_time, None)
+                        .unwrap(),
                     supersedes: None,
                     provenance: FactProvenance {
-                        source: FactProvenanceSource::Manual { user_id: "bench".to_string() },
+                        source: FactProvenanceSource::Manual {
+                            user_id: "bench".to_string(),
+                        },
                         derived_from: vec![],
                     },
                 },
                 assertion: Some(SemanticAssertion {
                     id: assertion_id,
                     kind: AssertionKind::Relationship,
-                    subject: subject.clone(),
+                    subject,
                     predicate: PredicateId(Uuid::from_u128(100)),
-                    object: AssertionTarget::Entity(target.clone()),
+                    object: AssertionTarget::Entity(target),
                 }),
             };
             let _ = reducer.apply_event(black_box(&event));
@@ -243,10 +282,14 @@ fn bench_lookup_latency(c: &mut Criterion) {
     let mut group = c.benchmark_group("lookup_latency");
     let events = generate_deterministic_event_stream(10_000, 1_000);
 
-    let mut adj_reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
-    let mut temp_reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
-    let mut stats_reducer = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
-    let mut search_reducer = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+    let mut adj_reducer =
+        GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+    let mut temp_reducer =
+        TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
+    let mut stats_reducer =
+        EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
+    let mut search_reducer =
+        SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
 
     for ev in &events {
         let _ = adj_reducer.apply_event(ev);
@@ -267,7 +310,11 @@ fn bench_lookup_latency(c: &mut Criterion) {
 
     group.bench_function("temporal_facts_at", |b| {
         b.iter(|| {
-            black_box(temp_reducer.state().facts_at(black_box(&target_entity), black_box(fixed_time)));
+            black_box(
+                temp_reducer
+                    .state()
+                    .facts_at(black_box(&target_entity), black_box(fixed_time)),
+            );
         });
     });
 
@@ -279,7 +326,11 @@ fn bench_lookup_latency(c: &mut Criterion) {
 
     group.bench_function("search_index_query", |b| {
         b.iter(|| {
-            black_box(search_reducer.state().search_entities(black_box("00000000")));
+            black_box(
+                search_reducer
+                    .state()
+                    .search_entities(black_box("00000000")),
+            );
         });
     });
 
@@ -294,28 +345,38 @@ fn bench_memory_scaling(c: &mut Criterion) {
     for &scale in &scales {
         let events = generate_deterministic_event_stream(scale, 1_000);
 
-        group.bench_with_input(BenchmarkId::new("structural_element_counts", scale), &events, |b, evs| {
-            b.iter(|| {
-                let mut adj = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
-                let mut temp = TemporalStateReducer::new(ProjectionId::new("temp"), ProjectionVersion(1));
-                let mut stats = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
-                let mut search = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+        group.bench_with_input(
+            BenchmarkId::new("structural_element_counts", scale),
+            &events,
+            |b, evs| {
+                b.iter(|| {
+                    let mut adj =
+                        GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+                    let mut temp =
+                        TemporalStateReducer::new(ProjectionId::new("temp"), ProjectionVersion(1));
+                    let mut stats = EntityStatisticsReducer::new(
+                        ProjectionId::new("stats"),
+                        ProjectionVersion(1),
+                    );
+                    let mut search =
+                        SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
 
-                for ev in black_box(evs) {
-                    let _ = adj.apply_event(ev);
-                    let _ = temp.apply_event(ev);
-                    let _ = stats.apply_event(ev);
-                    let _ = search.apply_event(ev);
-                }
+                    for ev in black_box(evs) {
+                        let _ = adj.apply_event(ev);
+                        let _ = temp.apply_event(ev);
+                        let _ = stats.apply_event(ev);
+                        let _ = search.apply_event(ev);
+                    }
 
-                black_box((
-                    adj.state().len(),
-                    temp.state().len(),
-                    stats.state().len(),
-                    search.state().len(),
-                ))
-            });
-        });
+                    black_box((
+                        adj.state().len(),
+                        temp.state().len(),
+                        stats.state().len(),
+                        search.state().len(),
+                    ))
+                });
+            },
+        );
     }
 
     group.finish();

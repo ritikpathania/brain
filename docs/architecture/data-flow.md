@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Data Flow and Sequences
 
 This document provides a canonical reference for the internal data flow, layers, components, and execution sequences in the Brain Relational Memory Engine as of v0.8.

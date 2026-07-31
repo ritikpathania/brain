@@ -67,7 +67,10 @@ fn test_fact_event_variants() {
         },
     };
 
-    let recorded = FactEvent::FactRecorded { fact: fact.clone(), assertion: None };
+    let recorded = FactEvent::FactRecorded {
+        fact: fact.clone(),
+        assertion: None,
+    };
     let _superseded = FactEvent::FactSuperseded {
         old_fact_id: id1,
         new_fact_id: id2,
@@ -82,5 +85,4 @@ fn test_fact_event_variants() {
         FactEvent::FactRecorded { fact: f, .. } => assert_eq!(f.id, id1),
         _ => panic!("Expected FactRecorded"),
     }
-
 }

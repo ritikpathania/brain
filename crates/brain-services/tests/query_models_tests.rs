@@ -9,7 +9,7 @@ fn test_query_models_and_defaults() {
 
     let query = HybridSearchQuery {
         query_string: "rust graph".to_string(),
-        root_entity: Some(entity_id.clone()),
+        root_entity: Some(entity_id),
         temporal_mode: TemporalMode::ValidAt(now),
         confidence_filter: Some(ConfidenceFilter {
             min_confidence: Confidence::new(0.8).unwrap(),

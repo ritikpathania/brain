@@ -75,8 +75,6 @@ pub use projections::{
 /// Phase 3 Projection Runtime engine.
 pub mod projection;
 
-
-
 /// Background automation orchestration rules and scheduler.
 pub mod automation;
 /// Reference implementations for Sprint 1 event dispatch.

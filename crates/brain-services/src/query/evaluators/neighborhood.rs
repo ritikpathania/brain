@@ -14,7 +14,10 @@ pub struct NeighborhoodEvaluator;
 
 impl NeighborhoodEvaluator {
     /// Collects deduplicated, sorted adjacent neighbor entity IDs for a graph node.
-    fn collect_neighbors(snapshot: &ProjectionSnapshot, node_id: &GraphNodeId) -> Vec<KnowledgeEntityId> {
+    fn collect_neighbors(
+        snapshot: &ProjectionSnapshot,
+        node_id: &GraphNodeId,
+    ) -> Vec<KnowledgeEntityId> {
         let mut neighbors = Vec::new();
         for edge_id in snapshot.graph().neighbors_out(node_id) {
             if let Some(edge) = snapshot.graph().edge(edge_id) {
@@ -28,7 +31,7 @@ impl NeighborhoodEvaluator {
         }
 
         // Sort and deduplicate for deterministic traversal ordering
-        neighbors.sort_by(|a, b| a.0.cmp(&b.0));
+        neighbors.sort_by_key(|a| a.0);
         neighbors.dedup();
         neighbors
     }
@@ -59,18 +62,18 @@ impl NeighborhoodEvaluator {
         let mut queue: VecDeque<(KnowledgeEntityId, usize)> = VecDeque::new();
         let mut discovered: Vec<KnowledgeEntityId> = Vec::new();
 
-        queue.push_back((query.root_entity.clone(), 0));
-        visited.insert(query.root_entity.clone());
+        queue.push_back((query.root_entity, 0));
+        visited.insert(query.root_entity);
 
         while let Some((curr_entity, depth)) = queue.pop_front() {
-            discovered.push(curr_entity.clone());
+            discovered.push(curr_entity);
 
             if depth < query.max_hops {
                 let node_id = GraphNodeId(EntityId(curr_entity.0));
                 let neighbors = Self::collect_neighbors(snapshot, &node_id);
 
                 for neighbor in neighbors {
-                    if visited.insert(neighbor.clone()) {
+                    if visited.insert(neighbor) {
                         queue.push_back((neighbor, depth + 1));
                     }
                 }
@@ -85,14 +88,16 @@ impl NeighborhoodEvaluator {
             let stats = snapshot.statistics().get(&entity_id);
 
             let active_facts_count = stats.map_or(0, |s| s.active_facts_count);
-            let average_confidence = stats.map_or(
-                Confidence::new(0.0).unwrap(),
-                |s| Confidence::new(s.average_confidence()).unwrap_or_else(|_| Confidence::new(0.0).unwrap()),
-            );
+            let average_confidence = stats.map_or(Confidence::new(0.0).unwrap(), |s| {
+                Confidence::new(s.average_confidence())
+                    .unwrap_or_else(|_| Confidence::new(0.0).unwrap())
+            });
 
             let satisfies_temporal = match query.temporal_mode {
                 TemporalMode::CurrentActive => active_facts_count > 0 || stats.is_none(),
-                TemporalMode::ValidAt(at_ts) => !snapshot.temporal().facts_at(&entity_id, at_ts).is_empty(),
+                TemporalMode::ValidAt(at_ts) => {
+                    !snapshot.temporal().facts_at(&entity_id, at_ts).is_empty()
+                }
                 TemporalMode::AllHistorical => true,
             };
 

@@ -1,3 +1,14 @@
+---
+status: active
+owner: cli
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
+# Terminal & CLI UX Design Comparison
+
 # Executive Summary  
 Each of the four AI coding CLIs – Gemini CLI, Antigravity CLI, Codex CLI, and Claude Code CLI – offers a unique terminal UX for interactive, agentic coding help. Gemini and Codex lean on chat-driven interfaces with prompts and multi-step plans, Antigravity emphasizes a keyboard-driven TUI with menus and async workflows, and Claude Code combines chat UX with extensive background-task support. All of them provide discoverable commands (launch, resume, update, etc.), help systems, and interactive feedback, but they differ in style and polish. For example, Gemini CLI starts with an ASCII “GEMINI” splash and tip list before accepting `>` prompts, whereas Antigravity CLI uses menu screens and spinners for login and mode selection. Codex CLI runs in an alternate-screen TUI showing chat messages and checklists (see Fig. 5 below). Claude Code CLI offers a chat interface with `/`-slash commands and rich session management (resume, background jobs, etc.). 
 

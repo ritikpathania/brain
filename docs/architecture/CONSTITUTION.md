@@ -1,4 +1,13 @@
-# Brain Architecture Constitution
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
+# Architecture Constitution of Brain Engine
 
 > **Status**: Frozen (Normative Baseline)  
 > **Authority**: Timeless System Identity
@@ -25,19 +34,19 @@ The three foundational axioms represent the core invariants of Brain's design:
 
 ## 3. The 4-Layer Dependency Hierarchy
 
-Dependencies flow **strictly downward**. No layer may skip intermediate layers or import modules from a higher layer:
+Dependencies flow **strictly downward**. `brain-domain` sits at the bottom of the dependency tree with zero external or workspace dependencies:
 
 ```text
-1. Application Layer    (Adapters: UDS, MCP, ACP, REST, SDK | TUI | CLI)
-         │
-         ▼
-2. Runtime Layer        (BrainRuntime | KnowledgeCompiler | CapabilityRegistry)
-         │
-         ▼
-3. Domain Layer         (Observations | Knowledge | Provenance | Identifiers | Rules)
-         │
-         ▼
-4. Infrastructure Layer (SQLite | SQLCipher | Local FS | Hardware Tracing)
+1. Application Layer       (Adapters: UDS, MCP, ACP, REST, SDK | TUI | CLI)
+            │
+            ▼
+2. Runtime / Service Layer (BrainRuntime | KnowledgeCompiler | Services)
+            │
+            ▼
+3. Infrastructure Layer    (SQLite Store | Projections | Event Log | FS)
+            │
+            ▼
+4. Domain Layer            (Entities | Aggregates | Value Objects | Events)
 ```
 
 ---

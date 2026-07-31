@@ -30,14 +30,25 @@ Brain uses a top-down architectural governance model. New design proposals, feat
 
 Start here to understand the structural design and guidelines:
 
+* **[CONSTITUTION.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/CONSTITUTION.md)** — Frozen normative baseline, 3 axioms, and 4-layer dependency model.
 * **[PHILOSOPHY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/PHILOSOPHY.md)** — Core design axioms, derived consequences, and architectural identity.
 * **[STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md)** — Stability contracts for frozen, extensible, and experimental code.
+* **[ARCHITECTURE_INVARIANTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/ARCHITECTURE_INVARIANTS.md)** — Foundational testable engineering invariants.
+* **[GOVERNANCE.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GOVERNANCE.md)** — Architectural governance policy and change procedures.
+* **[SPECIFICATION.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/SPECIFICATION.md)** — Versioned system reference specification.
+* **[GLOSSARY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GLOSSARY.md)** — System glossary and domain vocabulary definitions.
+* **[FITNESS_TESTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/FITNESS_TESTS.md)** — Automated fitness test specification.
+* **[STABLE_UI_INVARIANTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABLE_UI_INVARIANTS.md)** — TUI structural invariants.
+* **[compatibility_policy.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/compatibility_policy.md)** — Versioning and compatibility matrix.
+* **[execution_platform_governance.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/execution_platform_governance.md)** — Execution platform governance rules.
+* **[runtime_api_stability.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/runtime_api_stability.md)** — API stability contract classification.
 * **[overview.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)** — Canonical technical reference guide to the Brain runtime.
 * **[data-flow.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/data-flow.md)** — Documentation of internal data pathways, layers, and component execution sequence diagrams.
 * **[principles.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/principles.md)** — Enduring rules of the system architecture.
 * **[contract-lifecycle.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md)** — Explanation of the DTO contract lifecycle.
 * **[GRAPH_SPEC.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md)** — Specification governing the Knowledge Graph schema and constraints.
 * **[relations.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md)** — Canonical design specification for relationship semantics and the declarative taxonomy.
+* **[rfc/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/README.md)** — Requests for Comments (RFC-001 to RFC-012).
 
 ---
 
@@ -71,6 +82,7 @@ flowchart TD
 ### ADR Stability Index
 
 ### Foundational Invariants (Expected Stability: Long-term)
+* **[ADR-001: Knowledge Runtime Evolution Model](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-001-knowledge-runtime-evolution-model.md)** (Accepted) — Invariants governing identity, provenance monotonicity, and reflection purity.
 * **[ADR-010: Domain Boundaries](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)** (Accepted) — Isolates `brain-domain` rules from `brain-services` infrastructure.
 * **[ADR-011: Immutable Snapshots](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-011-immutable-snapshots.md)** (Accepted) — Configs and weights snapshotting for thread-safety and auditability.
 * **[ADR-012: Value Objects](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-012-value-objects.md)** (Accepted) — Wrap floats/strings in validated types to exclude illegal state representation.

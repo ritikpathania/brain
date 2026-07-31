@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Immutable domain event capturing facts recorded, superseded, or archived.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum FactEvent {
     /// A new fact version was recorded.
     FactRecorded {

@@ -28,7 +28,8 @@ impl InMemoryCheckpointStore {
 
 impl CheckpointStore for InMemoryCheckpointStore {
     fn save_checkpoint_atomic(&mut self, checkpoint: &Checkpoint) -> Result<(), ProjectionError> {
-        self.checkpoints.insert(checkpoint.projection_id.clone(), checkpoint.clone());
+        self.checkpoints
+            .insert(checkpoint.projection_id.clone(), checkpoint.clone());
         Ok(())
     }
 

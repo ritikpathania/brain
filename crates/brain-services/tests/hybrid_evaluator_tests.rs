@@ -10,15 +10,24 @@ use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 use uuid::Uuid;
 
-fn setup_hybrid_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, KnowledgeEntityId, Arc<ProjectionSnapshot>) {
+fn setup_hybrid_test_snapshot() -> (
+    KnowledgeEntityId,
+    KnowledgeEntityId,
+    KnowledgeEntityId,
+    Arc<ProjectionSnapshot>,
+) {
     let e_a = KnowledgeEntityId(Uuid::from_u128(100));
     let e_b = KnowledgeEntityId(Uuid::from_u128(200));
     let e_c = KnowledgeEntityId(Uuid::from_u128(300));
 
-    let mut adj_reducer = GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
-    let mut temp_reducer = TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
-    let mut stats_reducer = EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
-    let mut search_reducer = SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
+    let mut adj_reducer =
+        GraphAdjacencyReducer::new(ProjectionId::new("adj"), ProjectionVersion(1));
+    let mut temp_reducer =
+        TemporalStateReducer::new(ProjectionId::new("temporal"), ProjectionVersion(1));
+    let mut stats_reducer =
+        EntityStatisticsReducer::new(ProjectionId::new("stats"), ProjectionVersion(1));
+    let mut search_reducer =
+        SearchIndexReducer::new(ProjectionId::new("search"), ProjectionVersion(1));
 
     let now = Timestamp(UNIX_EPOCH + Duration::from_secs(1_700_000_000));
 
@@ -34,16 +43,18 @@ fn setup_hybrid_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, Knowle
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a1,
             kind: AssertionKind::Relationship,
-            subject: e_a.clone(),
+            subject: e_a,
             predicate: PredicateId(Uuid::new_v4()),
-            object: AssertionTarget::Entity(e_b.clone()),
+            object: AssertionTarget::Entity(e_b),
         }),
     };
 
@@ -59,14 +70,16 @@ fn setup_hybrid_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, Knowle
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a2,
             kind: AssertionKind::Attribute,
-            subject: e_a.clone(),
+            subject: e_a,
             predicate: PredicateId(Uuid::new_v4()),
             object: AssertionTarget::Value(LiteralValue::String("graph database".to_string())),
         }),
@@ -84,14 +97,16 @@ fn setup_hybrid_test_snapshot() -> (KnowledgeEntityId, KnowledgeEntityId, Knowle
             temporal: TemporalWindow::new(now, now, now, None).unwrap(),
             supersedes: None,
             provenance: FactProvenance {
-                source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+                source: FactProvenanceSource::Manual {
+                    user_id: "test".to_string(),
+                },
                 derived_from: vec![],
             },
         },
         assertion: Some(SemanticAssertion {
             id: a3,
             kind: AssertionKind::Attribute,
-            subject: e_c.clone(),
+            subject: e_c,
             predicate: PredicateId(Uuid::new_v4()),
             object: AssertionTarget::Value(LiteralValue::String("relational database".to_string())),
         }),
@@ -122,7 +137,7 @@ fn test_hybrid_multi_modal_fusion_and_metadata_merge() {
     // Query combines search query_string "graph" AND root_entity e_a
     let query_hybrid = HybridSearchQuery {
         query_string: "graph".to_string(),
-        root_entity: Some(e_a.clone()),
+        root_entity: Some(e_a),
         temporal_mode: TemporalMode::AllHistorical,
         confidence_filter: None,
         ordering: None,
@@ -137,7 +152,10 @@ fn test_hybrid_multi_modal_fusion_and_metadata_merge() {
     let match_a = res.matches.iter().find(|m| m.entity_id == e_a).unwrap();
     assert!(match_a.search_metadata.is_some());
     assert!(match_a.graph_metadata.is_some());
-    assert_eq!(match_a.search_metadata.as_ref().unwrap().matched_terms, vec!["graph"]);
+    assert_eq!(
+        match_a.search_metadata.as_ref().unwrap().matched_terms,
+        vec!["graph"]
+    );
 
     // Entity B was found by graph expansion only -> graph_metadata present, search_metadata None
     let match_b = res.matches.iter().find(|m| m.entity_id == e_b).unwrap();
@@ -166,7 +184,7 @@ fn test_hybrid_lexical_only_and_neighborhood_only() {
     // Neighborhood only (query_string: "")
     let query_neigh = HybridSearchQuery {
         query_string: "".to_string(),
-        root_entity: Some(e_a.clone()),
+        root_entity: Some(e_a),
         temporal_mode: TemporalMode::AllHistorical,
         confidence_filter: None,
         ordering: None,

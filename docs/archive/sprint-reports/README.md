@@ -1,5 +1,8 @@
-# Archived Sprint Reports & Walkthroughs
+# Historical Sprint Reports Index
 
-This folder contains the historical sprint reports, plans, and walkthrough logs generated during the migration process.
+This directory contains historical sprint retrospectives, execution plans, and architectural design notes grouped by calendar quarter under `docs/archive/sprint-reports/`.
 
-These documents are preserved for archival reference only. For the current, active design, refer to the root documentation page.
+## Quarterly Catalogs
+
+* **[2026-Q2/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/sprint-reports/2026-Q2/)**: Q2 2026 sprint reports (Adaptive memory, Ratatui migration plans, workflow graphs).
+* **[2026-Q3/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/sprint-reports/2026-Q3/)**: Q3 2026 sprint reports (Sessions epic, command routing, temporal ranking, observability, composition root).

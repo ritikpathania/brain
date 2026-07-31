@@ -61,7 +61,10 @@ pub struct PaginationParams {
 
 impl Default for PaginationParams {
     fn default() -> Self {
-        Self { limit: 50, offset: 0 }
+        Self {
+            limit: 50,
+            offset: 0,
+        }
     }
 }
 

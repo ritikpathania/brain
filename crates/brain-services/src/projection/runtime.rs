@@ -28,7 +28,10 @@ impl ProjectionRuntime {
     }
 
     /// Registers a projection instance.
-    pub fn register_projection(&mut self, instance: ProjectionInstance) -> Result<(), ProjectionError> {
+    pub fn register_projection(
+        &mut self,
+        instance: ProjectionInstance,
+    ) -> Result<(), ProjectionError> {
         self.registry.register(instance)
     }
 
@@ -40,7 +43,8 @@ impl ProjectionRuntime {
             });
         }
 
-        self.scheduler.dispatch_event(&mut self.registry, event, seq)?;
+        self.scheduler
+            .dispatch_event(&mut self.registry, event, seq)?;
         for instance in self.registry.instances_mut() {
             self.store.save_checkpoint_atomic(instance.checkpoint())?;
         }
@@ -48,7 +52,11 @@ impl ProjectionRuntime {
     }
 
     /// Catches up all projections to target watermark from event iterator.
-    pub fn catchup_all<'a, I>(&mut self, event_iter: I, target_watermark: Watermark) -> Result<(), ProjectionError>
+    pub fn catchup_all<'a, I>(
+        &mut self,
+        event_iter: I,
+        target_watermark: Watermark,
+    ) -> Result<(), ProjectionError>
     where
         I: Iterator<Item = &'a FactEvent> + Clone,
     {

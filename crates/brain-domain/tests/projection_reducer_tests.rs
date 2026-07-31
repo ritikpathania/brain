@@ -8,8 +8,12 @@ struct DummyReducer {
 }
 
 impl ProjectionReducer for DummyReducer {
-    fn id(&self) -> ProjectionId { self.id.clone() }
-    fn version(&self) -> ProjectionVersion { self.version }
+    fn id(&self) -> ProjectionId {
+        self.id.clone()
+    }
+    fn version(&self) -> ProjectionVersion {
+        self.version
+    }
     fn apply_event(&mut self, _event: &FactEvent) -> Result<(), ProjectionError> {
         self.count += 1;
         Ok(())

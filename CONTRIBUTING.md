@@ -12,7 +12,7 @@ To maintain code quality, consistency, and performance across both the Rust engi
 - **Formatting**: Always format code using `cargo fmt` prior to committing.
 - **Diagnostics & Warnings**: All code must compile with zero warnings under `cargo clippy --all-targets -- -D warnings`.
 - **CLI TUI Components**: 
-  - When editing terminal components in `crates/brain-tui/`, use the design token primitives detailed in **[DESIGN.md](file:///Users/ritikpathania/Developer/PyCharm/brain/DESIGN.md)**.
+  - When editing terminal components in `crates/brain-tui/`, use the design token primitives detailed in **[THEME_TOKENS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/THEME_TOKENS.md)** and **[TUI_DESIGN_SYSTEM.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/TUI_DESIGN_SYSTEM.md)**.
   - Never hardcode hexadecimal, RGB, or ANSI escape colors; always reference theme-based tokens.
 
 ### Python Codebase (Semantic Daemon)
@@ -45,7 +45,7 @@ We follow a structured Git and review workflow to ensure code health and prevent
    - Write clean, imperative commit messages (e.g., `feat: implement vector search strategy`, `docs: reorder reference manuals`).
    - Keep commits granular. Separate general documentation moves from structural code or design spec revisions.
 4. **Documentation Invariants**:
-   - Every feature PR must update the project-level walkthrough at **[WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md)** and register any new documents in the **[Documentation Index](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/README.md)**.
+   - Every feature PR must register new documentation files in the **[Documentation Index](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/README.md)** and comply with **[GOVERNANCE.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/governance/GOVERNANCE.md)**.
 
 ---
 

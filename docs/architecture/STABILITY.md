@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Architectural Stability Guide
 
 This document defines the stability contracts and extension boundaries of the Standalone Relational Memory Engine (`brain`). It acts as a guide for contributors, clarifying which subsystems are frozen infrastructure versus which are extensible or experimental.

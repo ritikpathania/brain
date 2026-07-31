@@ -12,14 +12,16 @@ fn test_entity_statistics_record_supersede_archive_lifecycle() {
     let t10 = Timestamp::now();
 
     let fact1 = FactVersion {
-        id: fact_id1.clone(),
+        id: fact_id1,
         assertion_id: assertion_id1,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(0.8).unwrap(),
         temporal: TemporalWindow::new(t10, t10, t10, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -27,8 +29,8 @@ fn test_entity_statistics_record_supersede_archive_lifecycle() {
     let assertion1 = SemanticAssertion {
         id: assertion_id1,
         kind: AssertionKind::Relationship,
-        subject: entity_id.clone(),
-        predicate: pred_id1.clone(),
+        subject: entity_id,
+        predicate: pred_id1,
         object: AssertionTarget::Entity(KnowledgeEntityId(Uuid::new_v4())),
     };
 

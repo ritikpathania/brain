@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 #[test]
 fn test_graph_adjacency_reducer_event_application() {
-    let mut reducer = GraphAdjacencyReducer::new(ProjectionId::new("graph_adj"), ProjectionVersion(1));
+    let mut reducer =
+        GraphAdjacencyReducer::new(ProjectionId::new("graph_adj"), ProjectionVersion(1));
     let fact_id = FactVersionId(Uuid::new_v4());
     let assertion_id = AssertionId(Uuid::new_v4());
     let source_entity = KnowledgeEntityId(Uuid::new_v4());
@@ -15,14 +16,16 @@ fn test_graph_adjacency_reducer_event_application() {
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };

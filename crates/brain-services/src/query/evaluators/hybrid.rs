@@ -59,11 +59,11 @@ impl HybridEvaluator {
         let mut queue: VecDeque<(KnowledgeEntityId, usize)> = VecDeque::new();
         let mut discovered: Vec<KnowledgeEntityId> = Vec::new();
 
-        queue.push_back((root_entity.clone(), 0));
-        visited.insert(root_entity.clone());
+        queue.push_back((*root_entity, 0));
+        visited.insert(*root_entity);
 
         while let Some((curr_entity, depth)) = queue.pop_front() {
-            discovered.push(curr_entity.clone());
+            discovered.push(curr_entity);
 
             if depth < max_hops {
                 let node_id = GraphNodeId(EntityId(curr_entity.0));
@@ -79,11 +79,11 @@ impl HybridEvaluator {
                     }
                 }
 
-                neighbors.sort_by(|a, b| a.0.cmp(&b.0));
+                neighbors.sort_by_key(|a| a.0);
                 neighbors.dedup();
 
                 for neighbor in neighbors {
-                    if visited.insert(neighbor.clone()) {
+                    if visited.insert(neighbor) {
                         queue.push_back((neighbor, depth + 1));
                     }
                 }
@@ -109,13 +109,13 @@ impl HybridEvaluator {
                 let stats = snapshot.statistics().get(&entity_id);
 
                 let active_facts_count = stats.map_or(0, |s| s.active_facts_count);
-                let average_confidence = stats.map_or(
-                    Confidence::new(0.0).unwrap(),
-                    |s| Confidence::new(s.average_confidence()).unwrap_or_else(|_| Confidence::new(0.0).unwrap()),
-                );
+                let average_confidence = stats.map_or(Confidence::new(0.0).unwrap(), |s| {
+                    Confidence::new(s.average_confidence())
+                        .unwrap_or_else(|_| Confidence::new(0.0).unwrap())
+                });
 
                 candidates_map.insert(
-                    entity_id.clone(),
+                    entity_id,
                     EntityMatch {
                         entity_id,
                         active_facts_count,
@@ -139,14 +139,14 @@ impl HybridEvaluator {
                 let stats = snapshot.statistics().get(&curr_entity);
 
                 let active_facts_count = stats.map_or(0, |s| s.active_facts_count);
-                let average_confidence = stats.map_or(
-                    Confidence::new(0.0).unwrap(),
-                    |s| Confidence::new(s.average_confidence()).unwrap_or_else(|_| Confidence::new(0.0).unwrap()),
-                );
+                let average_confidence = stats.map_or(Confidence::new(0.0).unwrap(), |s| {
+                    Confidence::new(s.average_confidence())
+                        .unwrap_or_else(|_| Confidence::new(0.0).unwrap())
+                });
 
                 // Merge metadata blocks exhaustively
                 candidates_map
-                    .entry(curr_entity.clone())
+                    .entry(curr_entity)
                     .and_modify(|existing| {
                         if existing.graph_metadata.is_none() {
                             existing.graph_metadata = Some(GraphMetadata {
@@ -172,8 +172,14 @@ impl HybridEvaluator {
         let mut candidates: Vec<EntityMatch> = candidates_map.into_values().collect();
 
         candidates.retain(|candidate| match query.temporal_mode {
-            TemporalMode::CurrentActive => candidate.active_facts_count > 0 || snapshot.statistics().get(&candidate.entity_id).is_none(),
-            TemporalMode::ValidAt(at_ts) => !snapshot.temporal().facts_at(&candidate.entity_id, at_ts).is_empty(),
+            TemporalMode::CurrentActive => {
+                candidate.active_facts_count > 0
+                    || snapshot.statistics().get(&candidate.entity_id).is_none()
+            }
+            TemporalMode::ValidAt(at_ts) => !snapshot
+                .temporal()
+                .facts_at(&candidate.entity_id, at_ts)
+                .is_empty(),
             TemporalMode::AllHistorical => true,
         });
 
@@ -183,7 +189,10 @@ impl HybridEvaluator {
             field: SortField::Confidence,
             direction: SortDirection::Descending,
         };
-        sort_matches(&mut candidates, query.ordering.as_ref().or(Some(&default_ordering)));
+        sort_matches(
+            &mut candidates,
+            query.ordering.as_ref().or(Some(&default_ordering)),
+        );
         let (paginated, total_matched) = paginate_matches(&candidates, &query.pagination);
 
         Ok(QueryFacadeResult {

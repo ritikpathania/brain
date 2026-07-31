@@ -42,36 +42,39 @@ impl EntityStatisticsState {
             return;
         }
 
-        let entity_id = assertion.subject.clone();
-        let predicate_id = assertion.predicate.clone();
+        let entity_id = assertion.subject;
+        let predicate_id = assertion.predicate;
         let confidence_val = fact.confidence.value() as f64;
         let recorded_at = fact.temporal.valid_from;
 
         self.active_facts.insert(
-            fact.id.clone(),
+            fact.id,
             ActiveFactMetadata {
-                entity_id: entity_id.clone(),
-                predicate_id: predicate_id.clone(),
+                entity_id,
+                predicate_id,
                 confidence: confidence_val,
             },
         );
 
-        let pred_counts = self.predicate_refcounts.entry(entity_id.clone()).or_default();
+        let pred_counts = self.predicate_refcounts.entry(entity_id).or_default();
         let refcount = pred_counts.entry(predicate_id).or_default();
         let is_new_predicate = *refcount == 0;
         *refcount += 1;
 
-        let stats = self.entities.entry(entity_id.clone()).or_insert_with(|| EntityStatistics {
-            entity_id,
-            total_fact_versions: 0,
-            superseded_facts_count: 0,
-            archived_facts_count: 0,
-            active_facts_count: 0,
-            unique_predicates_count: 0,
-            first_observed_at: recorded_at,
-            last_updated_at: recorded_at,
-            active_confidence_sum: 0.0,
-        });
+        let stats = self
+            .entities
+            .entry(entity_id)
+            .or_insert_with(|| EntityStatistics {
+                entity_id,
+                total_fact_versions: 0,
+                superseded_facts_count: 0,
+                archived_facts_count: 0,
+                active_facts_count: 0,
+                unique_predicates_count: 0,
+                first_observed_at: recorded_at,
+                last_updated_at: recorded_at,
+                active_confidence_sum: 0.0,
+            });
 
         stats.total_fact_versions += 1;
         stats.active_facts_count += 1;
@@ -96,7 +99,12 @@ impl EntityStatisticsState {
         }
     }
 
-    fn remove_active_metadata(&mut self, meta: ActiveFactMetadata, event_time: Timestamp, reason: FactLifecycle) {
+    fn remove_active_metadata(
+        &mut self,
+        meta: ActiveFactMetadata,
+        event_time: Timestamp,
+        reason: FactLifecycle,
+    ) {
         if let Some(stats) = self.entities.get_mut(&meta.entity_id) {
             stats.active_facts_count = stats.active_facts_count.saturating_sub(1);
             stats.active_confidence_sum = (stats.active_confidence_sum - meta.confidence).max(0.0);
@@ -114,7 +122,8 @@ impl EntityStatisticsState {
                     *cnt = cnt.saturating_sub(1);
                     if *cnt == 0 {
                         pred_counts.remove(&meta.predicate_id);
-                        stats.unique_predicates_count = stats.unique_predicates_count.saturating_sub(1);
+                        stats.unique_predicates_count =
+                            stats.unique_predicates_count.saturating_sub(1);
                     }
                 }
                 if pred_counts.is_empty() {

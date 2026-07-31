@@ -40,7 +40,6 @@ impl crate::projection::conformance::ProjectionStateView for GraphAdjacencyReduc
     }
 }
 
-
 impl ProjectionReducer for GraphAdjacencyReducer {
     fn id(&self) -> ProjectionId {
         self.id.clone()
@@ -53,7 +52,7 @@ impl ProjectionReducer for GraphAdjacencyReducer {
     fn apply_event(&mut self, event: &FactEvent) -> Result<(), ProjectionError> {
         match event {
             FactEvent::FactRecorded { fact, assertion } => {
-                let edge_id = GraphEdgeId(fact.id.clone());
+                let edge_id = GraphEdgeId(fact.id);
                 if let Some(assert) = assertion {
                     let source = GraphNodeId(EntityId(assert.subject.0));
                     if let AssertionTarget::Entity(target_id) = &assert.object {
@@ -62,7 +61,7 @@ impl ProjectionReducer for GraphAdjacencyReducer {
                             id: edge_id,
                             source,
                             target,
-                            predicate: assert.predicate.clone(),
+                            predicate: assert.predicate,
                             confidence: fact.confidence,
                             temporal: fact.temporal.clone(),
                         };
@@ -71,8 +70,11 @@ impl ProjectionReducer for GraphAdjacencyReducer {
                 }
             }
             FactEvent::FactSuperseded { old_fact_id, .. }
-            | FactEvent::FactArchived { fact_id: old_fact_id, .. } => {
-                let edge_id = GraphEdgeId(old_fact_id.clone());
+            | FactEvent::FactArchived {
+                fact_id: old_fact_id,
+                ..
+            } => {
+                let edge_id = GraphEdgeId(*old_fact_id);
                 self.state.remove_edge(&edge_id);
             }
         }

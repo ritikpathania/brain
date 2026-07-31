@@ -1,10 +1,19 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Plugin API Specification
 
 The daemon supports dynamic plugin extensions written in Python or compiled in Rust.
 
 ## 1. Rust Trait Interfaces
 
-Defined in `daemon/src/plugins/traits.rs`. Key traits include:
+Defined in `crates/brain-plugins/src/lib.rs`. Key traits include:
 
 ```rust
 pub trait LlmProvider: Send + Sync {

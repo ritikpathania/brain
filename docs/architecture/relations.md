@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Relationship Semantics and Declarative Taxonomy Specification
 
 This document defines the canonical specification for graph relationship ontology, registry validation, and edge creation rules within the Brain relational memory engine.

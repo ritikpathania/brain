@@ -4,10 +4,18 @@ use brain_services::projection::instance::*;
 
 struct MockReducer;
 impl ProjectionReducer for MockReducer {
-    fn id(&self) -> ProjectionId { ProjectionId::new("mock") }
-    fn version(&self) -> ProjectionVersion { ProjectionVersion(1) }
-    fn apply_event(&mut self, _event: &FactEvent) -> Result<(), ProjectionError> { Ok(()) }
-    fn reset(&mut self) -> Result<(), ProjectionError> { Ok(()) }
+    fn id(&self) -> ProjectionId {
+        ProjectionId::new("mock")
+    }
+    fn version(&self) -> ProjectionVersion {
+        ProjectionVersion(1)
+    }
+    fn apply_event(&mut self, _event: &FactEvent) -> Result<(), ProjectionError> {
+        Ok(())
+    }
+    fn reset(&mut self) -> Result<(), ProjectionError> {
+        Ok(())
+    }
 }
 
 #[test]

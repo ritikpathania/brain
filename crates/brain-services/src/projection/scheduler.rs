@@ -22,7 +22,7 @@ pub struct SequentialProjectionScheduler;
 impl SequentialProjectionScheduler {
     /// Creates a new SequentialProjectionScheduler.
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

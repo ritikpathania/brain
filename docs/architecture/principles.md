@@ -1,3 +1,12 @@
+---
+status: active
+owner: architecture
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # Architectural Principles
 
 This document defines the enduring engineering rules that guide the implementation and evolution of the Brain system. Every future pull request and design proposal must conform to these principles.

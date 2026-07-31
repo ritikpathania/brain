@@ -23,7 +23,9 @@ impl ProjectionConformanceSuite {
         R: ProjectionStateView,
     {
         for event in sample_events {
-            reducer.apply_event(event).expect("sample event should apply successfully");
+            reducer
+                .apply_event(event)
+                .expect("sample event should apply successfully");
         }
         reducer.reset().expect("reset should succeed");
         assert_eq!(
@@ -38,9 +40,13 @@ impl ProjectionConformanceSuite {
     where
         R: ProjectionStateView,
     {
-        reducer.apply_event(event).expect("first event should apply successfully");
+        reducer
+            .apply_event(event)
+            .expect("first event should apply successfully");
         let state_after_first = reducer.state().clone();
-        reducer.apply_event(event).expect("duplicate event should apply successfully");
+        reducer
+            .apply_event(event)
+            .expect("duplicate event should apply successfully");
         assert_eq!(
             reducer.state(),
             &state_after_first,
@@ -54,10 +60,14 @@ impl ProjectionConformanceSuite {
         R: ProjectionStateView,
     {
         for event in events {
-            reducer1.apply_event(event).expect("event should apply successfully on reducer 1");
+            reducer1
+                .apply_event(event)
+                .expect("event should apply successfully on reducer 1");
         }
         for event in events {
-            reducer2.apply_event(event).expect("event should apply successfully on reducer 2");
+            reducer2
+                .apply_event(event)
+                .expect("event should apply successfully on reducer 2");
         }
         assert_eq!(
             reducer1.state(),

@@ -72,7 +72,7 @@ impl SearchIndexState {
             return;
         }
 
-        let entity_id = assertion.subject.clone();
+        let entity_id = assertion.subject;
         let tokens = Self::extract_fact_tokens(assertion);
 
         let mut token_counts: HashMap<SearchToken, usize> = HashMap::new();
@@ -80,15 +80,15 @@ impl SearchIndexState {
             *token_counts.entry(token).or_default() += 1;
         }
 
-        for (token, _count) in &token_counts {
+        for token in token_counts.keys() {
             self.token_to_facts
                 .entry(token.clone())
                 .or_default()
-                .insert(fact.id.clone());
+                .insert(fact.id);
         }
 
-        let entity_refcounts = self.entity_token_refcounts.entry(entity_id.clone()).or_default();
-        for (token, _count) in &token_counts {
+        let entity_refcounts = self.entity_token_refcounts.entry(entity_id).or_default();
+        for token in token_counts.keys() {
             let refcount = entity_refcounts.entry(token.clone()).or_default();
             let is_new = *refcount == 0;
             *refcount += 1;
@@ -96,17 +96,17 @@ impl SearchIndexState {
                 self.token_to_entities
                     .entry(token.clone())
                     .or_default()
-                    .insert(entity_id.clone());
+                    .insert(entity_id);
             }
         }
 
-        self.fact_tokens.insert(fact.id.clone(), (entity_id, token_counts));
+        self.fact_tokens.insert(fact.id, (entity_id, token_counts));
     }
 
     /// Internal helper processing FactSuperseded / FactArchived event.
     pub fn remove_active_fact(&mut self, fact_id: &FactVersionId) {
         if let Some((entity_id, token_counts)) = self.fact_tokens.remove(fact_id) {
-            for (token, _count) in &token_counts {
+            for token in token_counts.keys() {
                 if let Some(fact_set) = self.token_to_facts.get_mut(token) {
                     fact_set.remove(fact_id);
                     if fact_set.is_empty() {
@@ -117,7 +117,7 @@ impl SearchIndexState {
 
             let mut remove_entity = false;
             if let Some(entity_refcounts) = self.entity_token_refcounts.get_mut(&entity_id) {
-                for (token, _count) in &token_counts {
+                for token in token_counts.keys() {
                     if let Some(cnt) = entity_refcounts.get_mut(token) {
                         *cnt = cnt.saturating_sub(1);
                         if *cnt == 0 {

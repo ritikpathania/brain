@@ -1,3 +1,12 @@
+---
+status: active
+owner: protocol
+canonical: true
+review_cycle: quarterly
+last_reviewed: 2026-07-30
+applies_to: v0.8+
+---
+
 # IPC & Observability Protocol
 
 ## 1. Unix Domain Socket JSON IPC
@@ -15,8 +24,9 @@ Used by modern clients to support request correlation IDs:
   "version": "1.0",
   "type": "Request",
   "id": 42,
-  "action": "query" | "ingest",
-  "body": "request payload / query text"
+  "action": "query",
+  "body": "request payload / query text",
+  "workspace_context": ["/path/to/workspace"]
 }
 ```
 
@@ -164,15 +174,18 @@ Indicates the stream was interrupted (e.g. due to client cancellation request).
 
 An HTTP diagnostics server runs on `http://127.0.0.1:8080` for telemetry checkup.
 
-* **`GET /health`**: Returns basic status check.
+* **`GET /health`**: Returns basic health status.
   ```json
   {"status":"ok"}
   ```
-* **`GET /ready`**: Confirms readiness to handle requests.
+* **`GET /ready`**: Confirms daemon readiness to handle incoming requests.
   ```json
   {"status":"ready"}
   ```
-* **`GET /metrics`**: Returns raw latency statistics and queue depth.
+* **`GET /status`**: Returns overall runtime and subsystem status JSON.
+* **`GET /diagnostics`**: Returns environment and dependency diagnostics checkup.
+* **`GET /metrics`**: Returns Prometheus text exposition format metrics (`text/plain; version=0.0.4`).
+* **`GET /metrics/json`**: Returns raw latency statistics, cache hit rates, and worker queue depths in JSON format:
   ```json
   {
     "cache_hit_rate": 0.85,
@@ -189,7 +202,3 @@ An HTTP diagnostics server runs on `http://127.0.0.1:8080` for telemetry checkup
     "avg_ipc_latency_us": 1800.0
   }
   ```
-* **`GET /analytics/summary`**: Fetch DuckDB graph summary stats.
-* **`GET /analytics/insights`**: Node type distribution and degree centrality.
-* **`GET /analytics/similarity`**: Similarity recommendations.
-* **`GET /analytics/slow-queries`**: Benchmarks and percentile stats.

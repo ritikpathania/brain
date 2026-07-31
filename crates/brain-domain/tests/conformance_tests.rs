@@ -16,14 +16,16 @@ fn test_graph_adjacency_conformance() {
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -41,7 +43,10 @@ fn test_graph_adjacency_conformance() {
         assertion: Some(assertion),
     };
 
-    ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
+    ProjectionConformanceSuite::assert_reset_clears_state(
+        reducer.clone(),
+        std::slice::from_ref(&event),
+    );
     ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
     ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
@@ -54,14 +59,16 @@ fn test_temporal_state_conformance() {
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -79,27 +86,33 @@ fn test_temporal_state_conformance() {
         assertion: Some(assertion),
     };
 
-    ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
+    ProjectionConformanceSuite::assert_reset_clears_state(
+        reducer.clone(),
+        std::slice::from_ref(&event),
+    );
     ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
     ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
 
 #[test]
 fn test_entity_statistics_conformance() {
-    let reducer = EntityStatisticsReducer::new(ProjectionId::new("statistics"), ProjectionVersion(1));
+    let reducer =
+        EntityStatisticsReducer::new(ProjectionId::new("statistics"), ProjectionVersion(1));
     let fact_id = FactVersionId(Uuid::new_v4());
     let assertion_id = AssertionId(Uuid::new_v4());
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -117,7 +130,10 @@ fn test_entity_statistics_conformance() {
         assertion: Some(assertion),
     };
 
-    ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
+    ProjectionConformanceSuite::assert_reset_clears_state(
+        reducer.clone(),
+        std::slice::from_ref(&event),
+    );
     ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
     ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
@@ -130,14 +146,16 @@ fn test_search_index_conformance() {
     let now = Timestamp::now();
 
     let fact = FactVersion {
-        id: fact_id.clone(),
+        id: fact_id,
         assertion_id,
         lifecycle: FactLifecycle::Verified,
         confidence: Confidence::new(1.0).unwrap(),
         temporal: TemporalWindow::new(now, now, now, None).unwrap(),
         supersedes: None,
         provenance: FactProvenance {
-            source: FactProvenanceSource::Manual { user_id: "test".to_string() },
+            source: FactProvenanceSource::Manual {
+                user_id: "test".to_string(),
+            },
             derived_from: vec![],
         },
     };
@@ -155,7 +173,10 @@ fn test_search_index_conformance() {
         assertion: Some(assertion),
     };
 
-    ProjectionConformanceSuite::assert_reset_clears_state(reducer.clone(), &[event.clone()]);
+    ProjectionConformanceSuite::assert_reset_clears_state(
+        reducer.clone(),
+        std::slice::from_ref(&event),
+    );
     ProjectionConformanceSuite::assert_duplicate_event_idempotency(reducer.clone(), &event);
     ProjectionConformanceSuite::assert_replay_equivalence(reducer.clone(), reducer, &[event]);
 }
