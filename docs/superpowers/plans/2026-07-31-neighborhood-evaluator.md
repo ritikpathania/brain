@@ -18,8 +18,8 @@
 
 | Milestone | Task | Status | Commit |
 | :--- | :--- | :--- | :--- |
-| **M1** | Task 1: Neighborhood Evaluator & Integration Tests | ⬜ Pending | |
-| **M1 Checkpoint** | **BFS Traversal & Contract Verification** | ⬜ Pending | |
+| **M1** | Task 1: Neighborhood Evaluator & Integration Tests | ✅ Completed | `9d82cf8` |
+| **M1 Checkpoint** | **BFS Traversal & Contract Verification** | ✅ Completed | `9d82cf8` |
 
 ---
 
