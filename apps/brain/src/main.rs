@@ -115,9 +115,13 @@ pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String
 }
 
 fn socket_is_alive() -> bool {
-    let socket_path = dirs::home_dir()
-        .map(|h| h.join(".brain").join("daemon.sock"))
-        .unwrap_or_else(|| PathBuf::from("daemon.sock"));
+    let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
+        PathBuf::from(path)
+    } else {
+        dirs::home_dir()
+            .map(|h| h.join(".brain").join("daemon.sock"))
+            .unwrap_or_else(|| PathBuf::from("daemon.sock"))
+    };
     UnixStream::connect(socket_path).is_ok()
 }
 
@@ -189,6 +193,9 @@ async fn check_daemon_before_ui() -> bool {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+    if let Some(ref sp) = cli.socket_path {
+        std::env::set_var("BRAIN_SOCKET_PATH", sp);
+    }
 
     match cli.command {
         Some(Commands::Ui) | Some(Commands::Tui) | None => {
@@ -287,15 +294,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Config) => {
             println!("=== brain Configurations ===");
             let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
+            let socket_path = std::env::var("BRAIN_SOCKET_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| home.join(".brain").join("daemon.sock"));
             println!("data_dir = \"{}\"", home.join(".brain").display());
             println!(
                 "sqlite_runtime_db = \"{}\"",
                 home.join(".brain").join("brain_runtime.db").display()
             );
-            println!(
-                "socket_path = \"{}\"",
-                home.join(".brain").join("daemon.sock").display()
-            );
+            println!("socket_path = \"{}\"", socket_path.display());
             println!("http_port = 8080");
             println!("uds_timeout_ms = 30000");
         }

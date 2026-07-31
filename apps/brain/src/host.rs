@@ -98,9 +98,13 @@ impl CLIHost {
     }
 
     pub async fn run_ingest(content: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let socket_path = dirs::home_dir()
-            .map(|h| h.join(".brain").join("daemon.sock"))
-            .unwrap_or_else(|| PathBuf::from("daemon.sock"));
+        let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
+            PathBuf::from(path)
+        } else {
+            dirs::home_dir()
+                .map(|h| h.join(".brain").join("daemon.sock"))
+                .unwrap_or_else(|| PathBuf::from("daemon.sock"))
+        };
         let mut stream = tokio::net::UnixStream::connect(socket_path).await?;
         use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         let payload = serde_json::json!({

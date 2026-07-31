@@ -11,14 +11,14 @@ PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo build --release --package brain
 echo "Assembling package files..."
 mkdir -p release
 cp target/release/brain release/brain
-cp INSTALL.md release/INSTALL.md
-cp UPGRADE.md release/UPGRADE.md
+cp docs/guides/installation.md release/INSTALL.md
 cp README.md release/README.md
+cp CHANGELOG.md release/CHANGELOG.md
 
 # 3. Create tarball
 TAR_NAME="brain-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m).tar.gz"
 echo "Creating tarball: ${TAR_NAME}..."
-tar -czf ${TAR_NAME} -C release brain INSTALL.md UPGRADE.md README.md
+tar -czf ${TAR_NAME} -C release brain INSTALL.md README.md CHANGELOG.md
 
 # 4. Cleanup
 rm -rf release

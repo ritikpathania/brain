@@ -96,6 +96,17 @@ impl DaemonHost {
 
         let pid = child.id() as i32;
         fs::write(&paths.pid_path, pid.to_string())?;
+
+        // Poll for socket readiness (up to 1s) so chained shell commands succeed deterministically
+        for _ in 0..50 {
+            if paths.socket_path.exists()
+                && std::os::unix::net::UnixStream::connect(&paths.socket_path).is_ok()
+            {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+
         println!("Daemon started successfully (PID: {}).", pid);
 
         Ok(())

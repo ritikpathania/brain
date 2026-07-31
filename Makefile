@@ -9,13 +9,15 @@ setup:
 build-bridge:
 	cd daemon && uv run maturin develop
 
-# Compile the Rust daemon binary
+# Compile the Rust daemon binary and copy to root
 build-daemon:
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --package brain
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --manifest-path daemon/Cargo.toml --bin brain-daemon
+	rm -f ./brain-daemon
+	cp target/debug/brain-daemon ./brain-daemon
 
 # Start the background Rust IPC socket daemon
 run-daemon: build-daemon
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo run --package brain daemon
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo run --manifest-path daemon/Cargo.toml --bin brain-daemon -- daemon run
 
 # Lint python code using Ruff
 lint:
@@ -29,11 +31,9 @@ format:
 type-check:
 	cd daemon && uv run ty check && uv run pyrefly check
 
-# Build standalone Rust daemon binary and copy to root
+# Build standalone Rust CLI binary
 build-brain:
-	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --manifest-path daemon/Cargo.toml --bin brain-daemon
-	rm -f ./brain-daemon
-	cp target/debug/brain-daemon ./brain-daemon
+	PYO3_PYTHON=$(shell pwd)/daemon/.venv/bin/python cargo build --package brain
 
 
 # Stop running daemon if active, then start a new instance
@@ -51,7 +51,7 @@ test-ipc:
 		daemon/tests/test_uds_ipc.py
 
 
-# Full dev workflow: build, replace binary, restart daemon, and run tests
-dev: build-brain restart-daemon test-ipc
+# Full dev workflow: build daemon, restart daemon, and run tests
+dev: build-daemon restart-daemon test-ipc
 
 
