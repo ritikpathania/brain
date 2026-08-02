@@ -23,10 +23,12 @@ fn test_socket_path_flag_nonexistent_socket_fails() {
         .expect("failed to execute brain binary");
 
     let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let combined = format!("{}\n{}", stdout, stderr);
     assert!(
-        stdout.contains("Daemon is not running"),
+        combined.contains("Daemon is not running"),
         "Expected output to report daemon not running when custom socket does not exist, got: {}",
-        stdout
+        combined
     );
 }
 

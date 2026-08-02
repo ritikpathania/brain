@@ -254,41 +254,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             None => {
                 println!("brain daemon subcommands: start, stop, status, run");
+                std::process::exit(2);
             }
         },
         Some(Commands::Query { text }) => {
             if !socket_is_alive() {
-                println!("Daemon is not running.\n");
-                println!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
-                return Ok(());
+                eprintln!("Daemon is not running.\n");
+                eprintln!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
+                std::process::exit(1);
             }
             if let Some(query_str) = text {
-                let response = CLIHost::run_query(&query_str).await?;
-                println!("{}", response);
+                match CLIHost::run_query(&query_str).await {
+                    Ok(response) => println!("{}", response),
+                    Err(e) => {
+                        eprintln!("Query failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             } else {
-                println!("Usage: brain query <text>");
+                eprintln!("Usage: brain query <text>");
+                std::process::exit(2);
             }
         }
         Some(Commands::Ingest { content }) => {
             if !socket_is_alive() {
-                println!("Daemon is not running.\n");
-                println!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
-                return Ok(());
+                eprintln!("Daemon is not running.\n");
+                eprintln!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
+                std::process::exit(1);
             }
             if let Some(content_str) = content {
-                let response = CLIHost::run_ingest(&content_str).await?;
-                println!("{}", response);
+                match CLIHost::run_ingest(&content_str).await {
+                    Ok(response) => {
+                        println!("{}", response);
+                        if response.contains("Ingest failed") {
+                            std::process::exit(1);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Ingest failed: {}", e);
+                        std::process::exit(1);
+                    }
+                }
             } else {
-                println!("Usage: brain ingest <content>");
+                eprintln!("Usage: brain ingest <content>");
+                std::process::exit(2);
             }
         }
         Some(Commands::Health) => {
             if socket_is_alive() {
                 println!("Daemon health status: OK");
             } else {
-                println!("Daemon health status: UNREACHABLE");
-                println!("\nHint: Background daemon is not running.");
-                println!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
+                eprintln!("Daemon health status: UNREACHABLE");
+                eprintln!("\nHint: Background daemon is not running.");
+                eprintln!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
+                std::process::exit(1);
             }
         }
         Some(Commands::Config) => {

@@ -26,17 +26,18 @@ You can compile and install `brain` directly from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/org/brain.git brain-engine
+git clone https://github.com/ritikpathania/brain.git brain-engine
 cd brain-engine
 
 # Initialize Python virtualenv and PyO3 dependencies
 make setup
 
-# Build and install the binary globally
+# Build and install binaries globally into Cargo bin (~/.cargo/bin/)
 PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo install --path apps/brain --bin brain
+PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo install --manifest-path daemon/Cargo.toml --bin brain-daemon
 ```
 
-Once installed, the binary `brain` will be available in your Cargo bin directory (usually `~/.cargo/bin/`).
+Once installed, the binaries `brain` and `brain-daemon` will be available in your Cargo bin directory (usually `~/.cargo/bin/`).
 
 ---
 
@@ -45,6 +46,7 @@ To verify the installation, check the tool version:
 
 ```bash
 brain --version
+brain-daemon --version
 ```
 
 ---
@@ -52,7 +54,7 @@ brain --version
 ## 3. Quick Start
 1. **Start the background memory engine daemon**:
    ```bash
-   brain daemon
+   brain daemon start
    ```
 2. **Launch the interactive terminal UI**:
    ```bash

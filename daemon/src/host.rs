@@ -357,8 +357,8 @@ impl DaemonHost {
         drop(request_dispatcher);
         drop(brain_app);
 
-        match Arc::try_unwrap(brain_runtime) {
-            Ok(runtime) => match runtime.shutdown() {
+        if let Ok(runtime) = Arc::try_unwrap(brain_runtime) {
+            match runtime.shutdown() {
                 Ok(summary) => {
                     info!(
                         component = "runtime",
@@ -369,12 +369,6 @@ impl DaemonHost {
                 Err(e) => {
                     error!(component = "runtime", error = %e, "BrainRuntime shutdown error");
                 }
-            },
-            Err(_) => {
-                warn!(
-                    component = "runtime",
-                    "BrainRuntime Arc had outstanding references at shutdown"
-                );
             }
         }
 

@@ -178,16 +178,37 @@ pub async fn handle_connection(
 
             match app.search(search_query, &context).await {
                 Ok(results) => {
+                    let mut seen_contents = std::collections::HashSet::new();
                     for summary in results {
-                        // Reconstruct QueryResultNode for backward compatibility
+                        let clean_title = if summary.title.trim().starts_with('{') {
+                            if let Ok(v) =
+                                serde_json::from_str::<serde_json::Value>(summary.title.trim())
+                            {
+                                if let Some(content) = v.get("content").and_then(|c| c.as_str()) {
+                                    content.to_string()
+                                } else {
+                                    summary.title.clone()
+                                }
+                            } else {
+                                summary.title.clone()
+                            }
+                        } else {
+                            summary.title.clone()
+                        };
+
+                        let norm_key = clean_title.trim().trim_matches('.').to_lowercase();
+                        if !seen_contents.insert(norm_key) {
+                            continue;
+                        }
+
                         matches.push(crate::server::protocol::QueryResultNode {
                             id: summary.id.clone(),
-                            label: summary.title.clone(),
+                            label: clean_title,
                             node_type: "session_context".to_string(),
                             content: summary.body.clone(),
                             attributes: serde_json::to_value(&summary.metadata)
                                 .unwrap_or(serde_json::json!({})),
-                            score: 8000, // parity score
+                            score: 8000,
                             source: "STM".to_string(),
                             connections: Vec::new(),
                         });

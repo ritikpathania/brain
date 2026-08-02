@@ -12,11 +12,12 @@ pip install brain-memory-sdk
 
 ## Quick Start
 ```python
-from brain_sdk import BrainClient
+from brain_sdk import BrainClient, IngestionEvent
 
-client = BrainClient()
-response = client.query("Find all active session contexts")
-print(response)
+with BrainClient() as client:
+    event = IngestionEvent.message(role="user", content="Hello Brain")
+    ack = client.send(event)
+    print(f"Ingested event sequence: {ack.sequence}, event_id: {ack.event_id}")
 ```
 
 ## Documentation Links
