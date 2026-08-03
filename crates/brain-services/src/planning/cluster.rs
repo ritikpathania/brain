@@ -221,6 +221,11 @@ impl ClusterManager {
         self.current_epoch
     }
 
+    /// Looks up a cluster node reference by ID.
+    pub fn get_node(&self, node_id: &NodeId) -> Option<&ClusterNode> {
+        self.nodes.get(node_id)
+    }
+
     /// Adds a new node to cluster membership in `Joining` state.
     pub fn join_cluster(&mut self, node: ClusterNode, now_ms: u64) -> Result<(), ClusterError> {
         if self.nodes.contains_key(&node.node_id) {

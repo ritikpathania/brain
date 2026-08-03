@@ -67,12 +67,15 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                             crate::ui::search::types::SearchResultKind::Message => {
                                 (" [MSG] ", theme.inactive)
                             }
+                            crate::ui::search::types::SearchResultKind::Knowledge => {
+                                (" [MEM] ", theme.cursor)
+                            }
                         };
 
                         let line = ratatui::text::Line::from(vec![
                             ratatui::text::Span::styled(prefix, prefix_style),
                             ratatui::text::Span::styled(
-                                &res.title,
+                                res.title.as_deref().unwrap_or("(untitled)"),
                                 if is_selected {
                                     theme
                                         .primary
@@ -82,7 +85,10 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                                 },
                             ),
                             ratatui::text::Span::styled(" - ", theme.inactive),
-                            ratatui::text::Span::styled(&res.subtitle, theme.inactive),
+                            ratatui::text::Span::styled(
+                                res.subtitle.as_deref().unwrap_or(""),
+                                theme.inactive,
+                            ),
                         ]);
 
                         ListItem::new(line)

@@ -1,7 +1,9 @@
 use async_trait::async_trait;
 use brain_core::errors::BrainError;
-use brain_domain::{Message, MessageId as DomainMessageId, MessageRole, SessionId};
-use brain_tui::client::{EventReceiver, ExecutionClient, ExecutionRequest, SessionSummary};
+use brain_domain::{Message, SessionId};
+use brain_tui::client::{
+    Confidence, EventReceiver, ExecutionClient, ExecutionRequest, SearchCandidate, SessionSummary,
+};
 use brain_tui::ui::search::providers::RemoteMessagesProvider;
 use brain_tui::ui::search::types::{
     SearchContext, SearchEvent, SearchEventSink, SearchGeneration, SearchProvider, SearchQuery,
@@ -38,19 +40,23 @@ impl ExecutionClient for MockSearchClient {
         Ok(())
     }
 
-    async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError> {
+    async fn search_candidates(
+        &self,
+        query: &str,
+    ) -> Result<Vec<SearchCandidate>, BrainError> {
         if self.delay_ms > 0 {
             tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
         }
-        let m1 = Message::new(
-            DomainMessageId::new(),
-            MessageRole::User,
-            format!("Found message: {}", query),
-        );
-        Ok(vec![m1])
+        Ok(vec![SearchCandidate {
+            entity_id: "test-entity-id".to_string(),
+            title: Some(format!("Found knowledge: {}", query)),
+            summary: Some("Test summary".to_string()),
+            score: 0.85,
+            confidence: Confidence::High,
+        }])
     }
 
-    async fn inspect_node(
+    async fn inspect_entity(
         &self,
         id: brain_domain::NodeId,
     ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
@@ -73,6 +79,21 @@ impl ExecutionClient for MockSearchClient {
             retrieval_explanation: None,
             recent_activity: vec![],
         })
+    }
+
+    async fn list_memories(
+        &self,
+        _filter: brain_domain::MemoryFilter,
+    ) -> Result<Vec<brain_domain::MemorySummary>, BrainError> {
+        Ok(vec![])
+    }
+
+    async fn mutate_memory(
+        &self,
+        _id: &str,
+        _mutation: brain_domain::MemoryMutation,
+    ) -> Result<(), BrainError> {
+        Ok(())
     }
 }
 
@@ -116,16 +137,23 @@ async fn test_remote_messages_provider_success() {
     provider.search(&query, &context, CancellationToken::new(), sink.clone());
 
     // Sleep to let async task complete
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    tokio::time::sleep(Duration::from_millis(150)).await;
 
     let events = sink.get_events();
-    assert_eq!(events.len(), 3);
+    assert_eq!(events.len(), 3, "Expected Started + Results + Finished");
     assert!(matches!(events[0], SearchEvent::Started { .. }));
 
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "Found message: target query");
-        assert_eq!(results[0].kind, SearchResultKind::Message);
+        // Knowledge graph entities use Knowledge kind — NOT Message
+        assert_eq!(results[0].kind, SearchResultKind::Knowledge);
+        // Title is preserved as Some — ViewModel resolves None at the presentation boundary
+        assert_eq!(
+            results[0].title,
+            Some("Found knowledge: target query".to_string())
+        );
+        // entity_id must be propagated
+        assert_eq!(results[0].entity_id, "test-entity-id");
     } else {
         panic!("Expected results event");
     }
@@ -162,4 +190,64 @@ async fn test_remote_messages_provider_cancellation() {
     // and Results/Finished must not be emitted.
     assert_eq!(events.len(), 1);
     assert!(matches!(events[0], SearchEvent::Started { .. }));
+}
+
+#[tokio::test]
+async fn test_mutation_activity_log_emission_on_success_vs_rollback() {
+    let mut model = brain_domain::query::inspector::InspectorModel {
+        entity: brain_domain::dtos::NodeDTO::new(
+            "mem_test".to_string(),
+            "Test Entity".to_string(),
+            "Memory".to_string(),
+            serde_json::Value::Null,
+        ),
+        metadata: std::collections::HashMap::new(),
+        relationships: vec![],
+        provenance: brain_domain::query::inspector::ProvenanceDTO {
+            source: "Test Engine".to_string(),
+            location: "Memory Store".to_string(),
+            timestamp: 100,
+            extra_info: std::collections::HashMap::new(),
+        },
+        retrieval_explanation: None,
+        recent_activity: vec![],
+    };
+
+    // Simulated successful mutation appends activity entry
+    model
+        .recent_activity
+        .push(brain_domain::query::inspector::ActivityLogEntry {
+            timestamp: 101,
+            action: "Pinned".to_string(),
+            details: "Memory pinned to active context by user".to_string(),
+        });
+
+    let vm = brain_tui::ui::view_models::InspectorViewModel::from_domain(&model);
+    let activity_section = vm
+        .sections
+        .iter()
+        .find(|s| s.id() == brain_tui::ui::view_models::EntitySectionId::ActivityFeed);
+    assert!(activity_section.is_some());
+
+    if let Some(brain_tui::ui::view_models::EntitySection::ActivityFeed { entries }) =
+        activity_section
+    {
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].action, "Pinned");
+        assert_eq!(
+            entries[0].details,
+            "Memory pinned to active context by user"
+        );
+    } else {
+        panic!("Expected ActivityFeed section");
+    }
+
+    // Simulated rolled back mutation -> remove entry, leaving feed consistent
+    model.recent_activity.pop();
+    let rolled_back_vm = brain_tui::ui::view_models::InspectorViewModel::from_domain(&model);
+    let rolled_back_activity_section = rolled_back_vm
+        .sections
+        .iter()
+        .find(|s| s.id() == brain_tui::ui::view_models::EntitySectionId::ActivityFeed);
+    assert!(rolled_back_activity_section.is_none());
 }

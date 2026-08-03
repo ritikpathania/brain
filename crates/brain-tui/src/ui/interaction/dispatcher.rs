@@ -351,6 +351,21 @@ impl Dispatcher {
                                                     ),
                                                 );
                                             }
+                                            SearchResultAction::OpenMemoryDetail { entity_id } => {
+                                                // Phase 2.5: memory detail view not yet implemented.
+                                                // Dismiss the palette and emit the event for future handling.
+                                                ctx.command_palette.reset();
+                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    ctx.focus.set_focus(saved);
+                                                }
+                                                return DispatchResult::event(
+                                                    UiEvent::SearchSelect(
+                                                        SearchResultAction::OpenMemoryDetail {
+                                                            entity_id,
+                                                        },
+                                                    ),
+                                                );
+                                            }
                                         }
                                     }
                                 } else {

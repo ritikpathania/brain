@@ -30,7 +30,7 @@ impl SearchAggregator {
             collected_results: HashMap::new(),
             statuses,
             expected_providers,
-            ranking_engine: RankingEngine,
+            ranking_engine: RankingEngine::default(),
         }
     }
 
@@ -88,9 +88,27 @@ impl SearchAggregator {
     }
 
     /// Generates a pure ViewState snapshot of the current aggregator state.
+    ///
+    /// Results with a stable `entity_id` are deduplicated across providers using
+    /// `HashSet<&str>` (borrow-based — no clone until the final `.cloned()`).
+    /// Results without a stable ID (commands, sessions) are always kept.
     pub fn view_state(&self) -> SearchViewState {
-        let flattened: Vec<SearchResult> =
-            self.collected_results.values().flatten().cloned().collect();
+        let mut seen_entity_ids = std::collections::HashSet::new();
+        let flattened: Vec<SearchResult> = self
+            .collected_results
+            .values()
+            .flatten()
+            .filter(|r| {
+                if r.entity_id.is_empty() {
+                    true // No stable ID — always keep (commands, sessions)
+                } else {
+                    // Borrow &str rather than cloning — clone happens once at .cloned() below
+                    seen_entity_ids.insert(r.entity_id.as_str())
+                }
+            })
+            .cloned()
+            .collect();
+
         let ranked = self.ranking_engine.rank(&self.active_query_text, flattened);
 
         SearchViewState {

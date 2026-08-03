@@ -1,9 +1,9 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use brain_integrations::dto::v1::{
     CompilerIrSummaryDto, CompilerStatusReport, DiagnosticDto, KnowledgeCompilationReport,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
@@ -50,7 +50,7 @@ pub fn draw(
     if inner_area.height < 6 {
         let compact_text = vec![Line::from(Span::styled(
             "Terminal height too compact for compiler inspection panel.",
-            Style::default().fg(Color::Yellow),
+            theme.style(ThemeToken::Warning),
         ))];
         f.render_widget(Paragraph::new(compact_text), inner_area);
         return;
@@ -131,7 +131,7 @@ pub fn draw(
                 "Scheduler State: ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::styled(sched_state, Style::default().fg(Color::Green)),
+            Span::styled(sched_state, theme.style(ThemeToken::Success)),
             Span::raw(" | "),
             Span::styled(
                 "Pending Dirty Events: ",
@@ -139,33 +139,30 @@ pub fn draw(
             ),
             Span::styled(
                 pending_dirty.to_string(),
-                Style::default().fg(Color::Magenta),
+                theme.style(ThemeToken::Secondary),
             ),
             Span::raw(" | "),
             Span::styled(
                 "Projection Synced: ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::styled(proj_synced, Style::default().fg(Color::Green)),
+            Span::styled(proj_synced, theme.style(ThemeToken::Success)),
             Span::raw(" | "),
             Span::styled(
                 "Graph Epoch: ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::styled(version_str, Style::default().fg(Color::Cyan)),
+            Span::styled(version_str, theme.style(ThemeToken::Info)),
         ]),
         Line::from(vec![
             Span::styled(
                 "Last Duration: ",
                 Style::default().add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                format!("{} ms", last_dur),
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(format!("{} ms", last_dur), theme.style(ThemeToken::Warning)),
             Span::raw(" | "),
             Span::styled("Last Mode: ", Style::default().add_modifier(Modifier::BOLD)),
-            Span::styled(last_mode, Style::default().fg(Color::Green)),
+            Span::styled(last_mode, theme.style(ThemeToken::Success)),
         ]),
         Line::from(vec![
             Span::styled(
@@ -184,7 +181,7 @@ pub fn draw(
             ),
             Span::styled(
                 format!("Entities: {} | Facts: {}", entities_count, facts_count),
-                Style::default().fg(Color::Green),
+                theme.style(ThemeToken::Success),
             ),
         ]),
     ];
@@ -208,14 +205,14 @@ pub fn draw(
         if st.pass_metrics.is_empty() {
             pass_lines.push(Line::from(Span::styled(
                 "No pass metrics recorded.",
-                Style::default().fg(Color::Gray),
+                theme.style(ThemeToken::TextMuted),
             )));
         } else {
             for pm in &st.pass_metrics {
                 pass_lines.push(Line::from(vec![
                     Span::styled(
                         format!("{:<20}", pm.pass_name),
-                        Style::default().fg(Color::Cyan),
+                        theme.style(ThemeToken::Info),
                     ),
                     Span::raw(format!(
                         " {:>3}x | avg {:>5.2} ms",
@@ -227,7 +224,7 @@ pub fn draw(
     } else {
         pass_lines.push(Line::from(Span::styled(
             "No telemetry available.",
-            Style::default().fg(Color::Gray),
+            theme.style(ThemeToken::TextMuted),
         )));
     }
 
@@ -246,15 +243,15 @@ pub fn draw(
     if state.diagnostics.is_empty() {
         diag_lines.push(Line::from(Span::styled(
             "No active compiler diagnostics.",
-            Style::default().fg(Color::Green),
+            theme.style(ThemeToken::Success),
         )));
     } else {
         for (i, diag) in state.diagnostics.iter().enumerate() {
             let selected = i == state.selected_diagnostic_index;
-            let level_color = match diag.level.to_lowercase().as_str() {
-                "error" => Color::Red,
-                "warning" => Color::Yellow,
-                _ => Color::Blue,
+            let level_token = match diag.level.to_lowercase().as_str() {
+                "error" => ThemeToken::Danger,
+                "warning" => ThemeToken::Warning,
+                _ => ThemeToken::Info,
             };
 
             let prefix = if selected { "> " } else { "  " };
@@ -268,7 +265,7 @@ pub fn draw(
                 Span::styled(prefix, theme.accent),
                 Span::styled(
                     format!("[{}] ", diag.level.to_uppercase()),
-                    Style::default().fg(level_color),
+                    theme.style(level_token),
                 ),
                 Span::styled(format!("{} - {}", diag.kind, diag.message), style),
             ]));

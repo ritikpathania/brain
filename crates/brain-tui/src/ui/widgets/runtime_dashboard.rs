@@ -1,10 +1,10 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::view_models::{
     HealthViewModel, OrchestratorViewModel, ProjectionLagViewModel, ReflectionViewModel,
     RuntimeDashboardViewModel, TaskHistoryViewModel,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -58,18 +58,18 @@ pub fn draw_health_widget(
         Span::raw("Status: "),
         Span::styled(
             format!(" [{}] ", vm.status_text),
-            Style::default().fg(vm.color).add_modifier(Modifier::BOLD),
+            theme.style(vm.status_token).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  |  Seq: "),
         Span::styled(sequence_text, theme.accent),
         Span::raw("  |  Backend: "),
-        Span::styled(&vm.storage_backend, Style::default().fg(Color::Cyan)),
+        Span::styled(&vm.storage_backend, theme.style(ThemeToken::Info)),
     ])];
 
     if let Some(reason) = &vm.reason {
         lines.push(Line::from(vec![
             Span::raw("Reason: "),
-            Span::styled(reason, Style::default().fg(Color::Red)),
+            Span::styled(reason, theme.style(ThemeToken::Danger)),
         ]));
     }
 
@@ -95,22 +95,22 @@ pub fn draw_orchestrator_widget(
             Span::raw("Pending Tasks: "),
             Span::styled(
                 &vm.pending_count_text,
-                Style::default()
-                    .fg(Color::Yellow)
+                theme
+                    .style(ThemeToken::Warning)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" | Completed: "),
-            Span::styled(&vm.completed_count_text, Style::default().fg(Color::Green)),
+            Span::styled(&vm.completed_count_text, theme.style(ThemeToken::Success)),
             Span::raw(" | Failed: "),
-            Span::styled(&vm.failed_count_text, Style::default().fg(Color::Red)),
+            Span::styled(&vm.failed_count_text, theme.style(ThemeToken::Danger)),
             Span::raw(" | Dropped: "),
-            Span::styled(&vm.dropped_count_text, Style::default().fg(Color::Gray)),
+            Span::styled(&vm.dropped_count_text, theme.style(ThemeToken::TextMuted)),
         ]),
         Line::from(vec![
             Span::raw("Latencies  —  Last Wait: "),
-            Span::styled(&vm.last_wait_text, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.last_wait_text, theme.style(ThemeToken::Info)),
             Span::raw(" | Last Exec: "),
-            Span::styled(&vm.last_exec_text, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.last_exec_text, theme.style(ThemeToken::Info)),
         ]),
         Line::from(vec![
             Span::raw("Current Task: "),
@@ -158,7 +158,7 @@ pub fn draw_projection_lag_widget(
                 Span::raw(&item.lag_count),
                 Span::styled(
                     &item.status,
-                    Style::default().fg(item.color).add_modifier(Modifier::BOLD),
+                    theme.style(item.status_token).add_modifier(Modifier::BOLD),
                 ),
             ];
             Row::new(cells).height(1)
@@ -193,22 +193,22 @@ pub fn draw_reflection_widget(
     let lines = vec![
         Line::from(vec![
             Span::raw("Cycles Run: "),
-            Span::styled(&vm.cycles_text, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.cycles_text, theme.style(ThemeToken::Info)),
             Span::raw(" | Findings: "),
-            Span::styled(&vm.findings_text, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.findings_text, theme.style(ThemeToken::Warning)),
         ]),
         Line::from(vec![
             Span::raw("Commands Executed: "),
-            Span::styled(
-                &vm.commands_executed_text,
-                Style::default().fg(Color::Green),
-            ),
+            Span::styled(&vm.commands_executed_text, theme.style(ThemeToken::Success)),
             Span::raw(" | Skipped: "),
-            Span::styled(&vm.commands_skipped_text, Style::default().fg(Color::Gray)),
+            Span::styled(
+                &vm.commands_skipped_text,
+                theme.style(ThemeToken::TextMuted),
+            ),
         ]),
         Line::from(vec![
             Span::raw("Last Duration: "),
-            Span::styled(&vm.last_duration_text, Style::default().fg(Color::Magenta)),
+            Span::styled(&vm.last_duration_text, theme.style(ThemeToken::Secondary)),
         ]),
     ];
 
@@ -232,7 +232,7 @@ pub fn draw_task_history_widget(
     if vm.items.is_empty() {
         let empty_p = Paragraph::new(Line::from(vec![Span::styled(
             "No background tasks executed yet.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         )]))
         .block(block);
         frame.render_widget(empty_p, area);
@@ -260,11 +260,14 @@ pub fn draw_task_history_widget(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
                 Span::styled(&item.id, style),
                 Span::styled(&item.kind, style),
-                Span::styled(&item.priority, style.fg(item.priority_color)),
-                Span::styled(&item.status, style.fg(item.status_color)),
+                Span::styled(
+                    &item.priority,
+                    style.patch(theme.style(item.priority_token)),
+                ),
+                Span::styled(&item.status, style.patch(theme.style(item.status_token))),
                 Span::styled(&item.wait_duration_text, style),
                 Span::styled(&item.exec_duration_text, style),
             ];
@@ -287,37 +290,31 @@ pub fn draw_task_history_widget(
 }
 
 /// Renders the bottom Command Hint Footer bar.
-pub fn draw_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Scroll History   "),
         Span::styled(
             " r ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Green)
+            theme
+                .style(ThemeToken::Success)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Refresh Snapshot   "),
         Span::styled(
             " Tab ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Switch View   "),
         Span::styled(
             " q ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Back "),

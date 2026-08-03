@@ -87,7 +87,7 @@ fn test_commands_provider() {
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert!(!results.is_empty());
         assert_eq!(results[0].kind, SearchResultKind::Command);
-        assert!(results[0].title.to_lowercase().contains("theme"));
+        assert!(results[0].title.as_deref().unwrap_or("").to_lowercase().contains("theme"));
     } else {
         panic!("Expected results event");
     }
@@ -111,8 +111,8 @@ fn test_sessions_provider() {
 
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0].title, "Rust Architecture");
-        assert_eq!(results[1].title, "Archived Notes");
+        assert_eq!(results[0].title, Some("Rust Architecture".to_string()));
+        assert_eq!(results[1].title, Some("Archived Notes".to_string()));
         assert_eq!(results[0].kind, SearchResultKind::Session);
     } else {
         panic!("Expected results event");
@@ -136,7 +136,7 @@ fn test_local_messages_provider() {
 
     if let SearchEvent::Results { results, .. } = &events[1] {
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].title, "This is an assistant response");
+        assert_eq!(results[0].title, Some("This is an assistant response".to_string()));
         assert_eq!(results[0].kind, SearchResultKind::Message);
     } else {
         panic!("Expected results");

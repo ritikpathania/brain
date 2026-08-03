@@ -6,8 +6,12 @@ pub mod compiler_panel;
 pub mod header;
 /// Interactive knowledge inspector widget.
 pub mod inspector;
+/// Memory stewardship list widget.
+pub mod memory_list;
 /// Prompt input buffer bar widget.
 pub mod prompt;
+/// Diagnostic reasoning plan execution DAG widget.
+pub mod reasoning_plan;
 /// Reflection subsystem inspection panel widget.
 pub mod reflection_panel;
 /// Sidebar widget listing session threads.

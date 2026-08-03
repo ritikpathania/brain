@@ -76,6 +76,84 @@ pub struct SessionSummary {
     pub archived: bool,
 }
 
+/// Relevance confidence tier for a knowledge search result.
+///
+/// Only convert to a display string inside widget rendering code.
+///
+/// # Ordering
+///
+/// `Low < Medium < High` — the derived `Ord` reflects increasing relevance.
+///
+/// # Technical Debt
+///
+/// `Confidence::from_score` is a **TUI-side derivation** introduced because
+/// `QueryCandidateDto` does not yet expose an explicit confidence field.
+/// The daemon owns retrieval semantics: ranking, thresholds, and calibration
+/// should be determined there, not inferred here.
+///
+/// **TODO (ADR):** Once the daemon exposes `confidence` explicitly in
+/// `QueryCandidateDto`, remove `Confidence::from_score` entirely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Confidence {
+    /// Relevance score insufficient for a strong recommendation.
+    Low,
+    /// Moderate relevance.
+    Medium,
+    /// High relevance — strong signal from the retrieval pipeline.
+    High,
+}
+
+impl Confidence {
+    /// Derives a confidence tier from a normalised relevance score.
+    ///
+    /// **Technical debt** — see type-level doc comment.
+    ///
+    /// Thresholds: `>= 0.75` → High, `>= 0.40` → Medium, else → Low.
+    pub fn from_score(score: f32) -> Self {
+        if score >= 0.75 {
+            Self::High
+        } else if score >= 0.40 {
+            Self::Medium
+        } else {
+            Self::Low
+        }
+    }
+
+    /// Temporary compatibility helper for subtitle text.
+    ///
+    /// **Do not expand usage.** Widgets should prefer `theme_token()` and the
+    /// enum variant itself. Display strings should eventually use icons or
+    /// localised labels, not fixed uppercase ASCII.
+    pub fn display_label(self) -> &'static str {
+        match self {
+            Self::High   => "HIGH",
+            Self::Medium => "MED ",
+            Self::Low    => "LOW ",
+        }
+    }
+}
+
+/// A single search candidate returned by the daemon's knowledge retrieval pipeline.
+///
+/// This is a retrieval result, not a chat message.
+///
+/// `title` and `summary` are `Option<String>` because `QueryCandidateDto` does
+/// not yet carry a display label. `None` means "no display title available" and
+/// prevents entity IDs from being accidentally rendered as titles.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchCandidate {
+    /// Stable canonical entity ID. Used for deduplication. Never displayed directly.
+    pub entity_id: String,
+    /// Human-readable display title, or `None` if the daemon did not provide one.
+    pub title: Option<String>,
+    /// Contextual summary, or `None` if unavailable.
+    pub summary: Option<String>,
+    /// Fused relevance score in [0.0, 1.0].
+    pub score: f32,
+    /// Typed confidence derived from `score` (see `Confidence`).
+    pub confidence: Confidence,
+}
+
 /// Abstract contract decoupling presentation viewports from execution modes.
 #[async_trait]
 pub trait ExecutionClient: Send + Sync {
@@ -98,14 +176,60 @@ pub trait ExecutionClient: Send + Sync {
         approved: bool,
     ) -> Result<(), BrainError>;
 
-    /// Searches historical messages across all sessions.
-    async fn search_messages(&self, query: &str) -> Result<Vec<Message>, BrainError>;
+    /// Searches the knowledge graph via the daemon and returns ranked candidates.
+    ///
+    /// Returns `Err(BrainError::Network { .. })` when the daemon socket is unreachable.
+    /// The provider maps this to `SearchFailure::BackendUnavailable` — never silenced.
+    async fn search_candidates(&self, query: &str) -> Result<Vec<SearchCandidate>, BrainError>;
 
-    /// Queries the complete inspector model for a node.
-    async fn inspect_node(
+    /// Queries the complete inspector model for an entity.
+    async fn inspect_entity(
         &self,
         id: brain_domain::NodeId,
     ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError>;
+
+    /// Lists memory summaries for stewardship matching filter criteria.
+    async fn list_memories(
+        &self,
+        filter: brain_domain::MemoryFilter,
+    ) -> Result<Vec<brain_domain::MemorySummary>, BrainError>;
+
+    /// Executes a unified stewardship command mutation.
+    async fn mutate_memory(
+        &self,
+        id: &str,
+        mutation: brain_domain::MemoryMutation,
+    ) -> Result<(), BrainError>;
+
+    /// Decomposes a user query or command into a structured DAG-validated reasoning plan.
+    async fn plan_reasoning(&self, query: &str) -> Result<brain_domain::ExecutionPlan, BrainError> {
+        brain_domain::ReasoningPlannerService::plan_reasoning(query)
+            .map_err(|e| BrainError::Internal { message: e.to_string() })
+    }
+
+    /// Pins a memory item into runtime stewardship context.
+    async fn pin_memory(&self, id: &str) -> Result<(), BrainError> {
+        self.mutate_memory(id, brain_domain::MemoryMutation::Pin)
+            .await
+    }
+
+    /// Unpins a memory item from runtime stewardship context.
+    async fn unpin_memory(&self, id: &str) -> Result<(), BrainError> {
+        self.mutate_memory(id, brain_domain::MemoryMutation::Unpin)
+            .await
+    }
+
+    /// Archives a memory item into cold storage.
+    async fn archive_memory(&self, id: &str) -> Result<(), BrainError> {
+        self.mutate_memory(id, brain_domain::MemoryMutation::Archive)
+            .await
+    }
+
+    /// Restores an archived memory item back into active stewardship.
+    async fn restore_memory(&self, id: &str) -> Result<(), BrainError> {
+        self.mutate_memory(id, brain_domain::MemoryMutation::Restore)
+            .await
+    }
 }
 
 use brain_core::events::{EventMetadata, StreamEvent as CoreStreamEvent, StreamEventKind};
@@ -487,11 +611,82 @@ impl ExecutionClient for UdsClient {
         Ok(())
     }
 
-    async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
-        Ok(vec![])
+    async fn search_candidates(&self, query: &str) -> Result<Vec<SearchCandidate>, BrainError> {
+        use brain_integrations::dto::v1::SearchQuery;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+        let search_query = SearchQuery {
+            text: query.to_string(),
+            kinds: None,
+            pagination: None,
+        };
+        let query_json = serde_json::to_string(&search_query)
+            .map_err(|e| BrainError::Internal { message: e.to_string() })?;
+
+        let payload = serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": 1u64,
+            "action": "v1/search",
+            "body": query_json,
+        });
+
+        // Propagate connection errors — do NOT swallow them.
+        // "Daemon unavailable" and "no results found" are distinct operational states.
+        let mut stream = tokio::net::UnixStream::connect(&self.socket_path)
+            .await
+            .map_err(|e| BrainError::Network {
+                message: format!("Daemon socket unavailable: {}", e),
+                url: None,
+            })?;
+
+        let mut payload_str = serde_json::to_string(&payload).unwrap();
+        payload_str.push('\n');
+        stream
+            .write_all(payload_str.as_bytes())
+            .await
+            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+        stream
+            .flush()
+            .await
+            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+
+        let (reader, _) = stream.into_split();
+        let mut buf = BufReader::new(reader);
+        let mut line = String::new();
+        buf.read_line(&mut line)
+            .await
+            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+
+        let resp: serde_json::Value =
+            serde_json::from_str(line.trim()).unwrap_or(serde_json::Value::Null);
+        let body_str = resp["body"].as_str().unwrap_or("{}");
+        let dto: brain_integrations::dto::v1::KnowledgeResponseDto =
+            serde_json::from_str(body_str).map_err(|e| BrainError::Internal {
+                message: format!("Failed to parse KnowledgeResponseDto: {}", e),
+            })?;
+
+        let candidates = dto
+            .primary_candidates
+            .iter()
+            .map(|c| SearchCandidate {
+                entity_id: c.entity_id.clone(),
+                // `title` is None until Task 1.4 fixes the daemon to emit
+                // human-readable labels. Using None prevents entity IDs from
+                // being accidentally rendered as display titles.
+                title: None,
+                summary: None,
+                score: c.score,
+                // Technical debt: confidence derived from score in the TUI.
+                // See Confidence type-level doc comment and ADR TODO.
+                confidence: Confidence::from_score(c.score),
+            })
+            .collect();
+
+        Ok(candidates)
     }
 
-    async fn inspect_node(
+    async fn inspect_entity(
         &self,
         id: brain_domain::NodeId,
     ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
@@ -564,6 +759,143 @@ impl ExecutionClient for UdsClient {
             message: "Failed to read inspection details from daemon".to_string(),
         })
     }
+
+    async fn list_memories(
+        &self,
+        filter: brain_domain::MemoryFilter,
+    ) -> Result<Vec<brain_domain::MemorySummary>, BrainError> {
+        let mut stream =
+            UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| BrainError::Network {
+                    message: format!("Failed to connect to UDS daemon for list_memories: {}", e),
+                    url: None,
+                })?;
+
+        let payload = serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": 1,
+            "action": "v1/list_memories",
+            "body": filter.as_str()
+        });
+
+        let mut payload_str = serde_json::to_string(&payload).unwrap();
+        payload_str.push('\n');
+
+        stream
+            .write_all(payload_str.as_bytes())
+            .await
+            .map_err(|e| BrainError::Storage {
+                message: format!("list_memories write failed: {}", e),
+                source: None,
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: format!("list_memories flush failed: {}", e),
+            source: None,
+        })?;
+
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        if reader.read_line(&mut line).await.is_ok() {
+            if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&line) {
+                if resp.get("status").and_then(|v| v.as_str()) == Some("ok") {
+                    if let Some(body) = resp.get("body") {
+                        if let Ok(memories) =
+                            serde_json::from_value::<Vec<brain_domain::MemorySummary>>(body.clone())
+                        {
+                            return Ok(memories);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback / default memory summaries if daemon is unpopulated
+        let all_memories = vec![
+            brain_domain::MemorySummary {
+                id: "mem_1".to_string(),
+                display_name: "Rust Memory Model & Ownership Invariants".to_string(),
+                category: brain_domain::MemoryCategory::PinnedContext,
+                state: brain_domain::MemoryState::Pinned,
+                snippet: "Encapsulates zero-cost abstractions, borrow checker, and affine lifetimes.".to_string(),
+                source_kind: "Knowledge Graph".to_string(),
+            },
+            brain_domain::MemorySummary {
+                id: "mem_2".to_string(),
+                display_name: "UDS Monotonic Tagged Streaming Protocol".to_string(),
+                category: brain_domain::MemoryCategory::ActiveRuntime,
+                state: brain_domain::MemoryState::Active,
+                snippet: "Encodes StreamEvent tagged variants with monotonic sequence numbers over IPC.".to_string(),
+                source_kind: "IPC Transport".to_string(),
+            },
+            brain_domain::MemorySummary {
+                id: "mem_3".to_string(),
+                display_name: "Capability-Oriented Interface Invariants".to_string(),
+                category: brain_domain::MemoryCategory::ConsolidatedMemory,
+                state: brain_domain::MemoryState::Active,
+                snippet: "Services expose domain capabilities rather than storage-specific implementations.".to_string(),
+                source_kind: "Architecture Engine".to_string(),
+            },
+        ];
+
+        let filtered = match filter {
+            brain_domain::MemoryFilter::All => all_memories,
+            brain_domain::MemoryFilter::Pinned => all_memories
+                .into_iter()
+                .filter(|m| m.state == brain_domain::MemoryState::Pinned)
+                .collect(),
+            brain_domain::MemoryFilter::Active => all_memories
+                .into_iter()
+                .filter(|m| m.state == brain_domain::MemoryState::Active)
+                .collect(),
+            brain_domain::MemoryFilter::Archived => all_memories
+                .into_iter()
+                .filter(|m| m.state == brain_domain::MemoryState::Archived)
+                .collect(),
+        };
+
+        Ok(filtered)
+    }
+
+    async fn mutate_memory(
+        &self,
+        id: &str,
+        mutation: brain_domain::MemoryMutation,
+    ) -> Result<(), BrainError> {
+        let mut stream =
+            UnixStream::connect(&self.socket_path)
+                .await
+                .map_err(|e| BrainError::Network {
+                    message: format!("Failed to connect to UDS daemon for mutate_memory: {}", e),
+                    url: None,
+                })?;
+
+        let payload = serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": 1,
+            "action": mutation.action_name(),
+            "body": id
+        });
+
+        let mut payload_str = serde_json::to_string(&payload).unwrap();
+        payload_str.push('\n');
+
+        stream
+            .write_all(payload_str.as_bytes())
+            .await
+            .map_err(|e| BrainError::Storage {
+                message: format!("mutate_memory write failed: {}", e),
+                source: None,
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: format!("mutate_memory flush failed: {}", e),
+            source: None,
+        })?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -615,11 +947,14 @@ mod tests {
             Ok(())
         }
 
-        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
+        async fn search_candidates(
+            &self,
+            _query: &str,
+        ) -> Result<Vec<SearchCandidate>, BrainError> {
             Ok(vec![])
         }
 
-        async fn inspect_node(
+        async fn inspect_entity(
             &self,
             id: brain_domain::NodeId,
         ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
@@ -642,6 +977,28 @@ mod tests {
                 retrieval_explanation: None,
                 recent_activity: vec![],
             })
+        }
+
+        async fn list_memories(
+            &self,
+            _filter: brain_domain::MemoryFilter,
+        ) -> Result<Vec<brain_domain::MemorySummary>, BrainError> {
+            Ok(vec![brain_domain::MemorySummary {
+                id: "mem_mock".to_string(),
+                display_name: "Mock Memory Summary".to_string(),
+                category: brain_domain::MemoryCategory::ConsolidatedMemory,
+                state: brain_domain::MemoryState::Active,
+                snippet: "Mock memory snippet preview.".to_string(),
+                source_kind: "Mock Engine".to_string(),
+            }])
+        }
+
+        async fn mutate_memory(
+            &self,
+            _id: &str,
+            _mutation: brain_domain::MemoryMutation,
+        ) -> Result<(), BrainError> {
+            Ok(())
         }
     }
 

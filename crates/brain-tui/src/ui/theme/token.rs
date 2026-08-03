@@ -17,6 +17,45 @@ pub enum ThemeToken {
     Warning,
     /// Status danger/error color.
     Danger,
+    /// Status informational color.
+    Info,
+
+    /// Main body/primary text color.
+    TextPrimary,
+    /// Secondary text color.
+    TextSecondary,
+    /// Muted text color.
+    TextMuted,
+
+    /// Main application title/header style.
+    HeaderPrimary,
+    /// Section/panel header style.
+    HeaderSecondary,
+
+    /// Active item selection style.
+    Selection,
+    /// Focus outline/border style.
+    Focus,
+
+    /// Default panel border style.
+    Border,
+    /// Active focused border style.
+    BorderActive,
+    /// Subtle divider/separator border style.
+    BorderSubtle,
+
+    /// Text cursor style.
+    Cursor,
+
+    /// Inline code style.
+    CodeInline,
+    /// Fenced code block style.
+    CodeBlock,
+    /// Hyperlink style.
+    Link,
+    /// Tag/badge style.
+    Tag,
+
     /// Active thinking state.
     Thinking,
     /// Active text streaming state.

@@ -28,3 +28,19 @@ pub fn dark_theme() -> &'static Theme {
 pub fn high_contrast_theme() -> &'static Theme {
     HIGH_CONTRAST_THEME.get_or_init(|| Theme::new(Palette::high_contrast()))
 }
+
+/// Static thread-safe reference for the light theme.
+pub static LIGHT_THEME: OnceLock<Theme> = OnceLock::new();
+
+/// Static thread-safe reference for the terminal theme.
+pub static TERMINAL_THEME: OnceLock<Theme> = OnceLock::new();
+
+/// Returns the lazily-initialized reference to the light theme.
+pub fn light_theme() -> &'static Theme {
+    LIGHT_THEME.get_or_init(|| Theme::new(Palette::light()))
+}
+
+/// Returns the lazily-initialized reference to the terminal theme.
+pub fn terminal_theme() -> &'static Theme {
+    TERMINAL_THEME.get_or_init(|| Theme::new(Palette::terminal()))
+}

@@ -22,6 +22,10 @@ pub const CLEAR_CHAT: CommandId = CommandId("chat.clear");
 pub const SHOW_HELP: CommandId = CommandId("help.show");
 /// Constant identifier for toggling reflection logs.
 pub const TOGGLE_REFLECTION: CommandId = CommandId("reflection.toggle");
+/// Constant identifier for listing memory stewardship.
+pub const MEMORY_LIST: CommandId = CommandId("memory.list");
+/// Constant identifier for generating diagnostic reasoning plans.
+pub const REASONING_PLAN: CommandId = CommandId("reasoning.plan");
 
 /// Type-safe, opaque identifier for visual themes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,6 +33,10 @@ pub struct ThemeId(pub &'static str);
 
 /// Dark theme identifier.
 pub const THEME_DARK: ThemeId = ThemeId("dark");
+/// Light theme identifier.
+pub const THEME_LIGHT: ThemeId = ThemeId("light");
+/// Adaptive terminal theme identifier.
+pub const THEME_TERMINAL: ThemeId = ThemeId("terminal");
 /// High contrast theme identifier.
 pub const THEME_HIGH_CONTRAST: ThemeId = ThemeId("high_contrast");
 
@@ -241,6 +249,34 @@ pub static COMMANDS: &[CommandDescriptor] = &[
         aliases: &["reflection", "toggle-reflection"],
         keywords: &["reflection", "kpp", "critique", "toggle", "logs"],
         parameters: &[],
+    },
+    CommandDescriptor {
+        id: MEMORY_LIST,
+        title: "Memory Stewardship",
+        description: "List and inspect active, pinned, and consolidated memories",
+        category: CommandCategory::Navigation,
+        visibility: CommandVisibility::Both,
+        priority: 110,
+        aliases: &["memory", "memories"],
+        keywords: &["memory", "stewardship", "pinned", "context", "list"],
+        parameters: &[],
+    },
+    CommandDescriptor {
+        id: REASONING_PLAN,
+        title: "Reasoning Plan Debugger",
+        description: "Generate and inspect diagnostic execution plan DAG for query",
+        category: CommandCategory::Developer,
+        visibility: CommandVisibility::Both,
+        priority: 120,
+        aliases: &["plan", "reasoning-plan"],
+        keywords: &["plan", "reasoning", "dag", "debug", "planner"],
+        parameters: &[ParameterDescriptor {
+            id: ParameterId("query"),
+            name: "query",
+            description: "Target query or prompt to decompose into an execution plan",
+            kind: ParameterKind::String,
+            required: true,
+        }],
     },
 ];
 

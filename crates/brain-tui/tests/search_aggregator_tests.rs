@@ -7,10 +7,12 @@ use std::collections::HashMap;
 
 fn make_dummy_result(title: &str, score: i32) -> SearchResult {
     SearchResult {
-        title: title.to_string(),
-        subtitle: "description".to_string(),
+        entity_id: String::new(), // Commands/sessions have no knowledge-graph ID
+        title: Some(title.to_string()),
+        subtitle: Some("description".to_string()),
         kind: SearchResultKind::Session,
         provider_score: score,
+        confidence: brain_tui::client::Confidence::Medium,
         action: SearchResultAction::InvokeCommand(brain_tui::ui::command::CommandId("dummy")),
     }
 }
@@ -46,7 +48,7 @@ fn test_aggregator_generation_filtering() {
 
     let state2 = aggregator.view_state();
     assert_eq!(state2.results().len(), 1);
-    assert_eq!(state2.results()[0].title, "Fresh local result");
+    assert_eq!(state2.results()[0].title, Some("Fresh local result".to_string()));
 }
 
 #[test]
@@ -75,7 +77,7 @@ fn test_aggregator_duplicate_results_replace() {
 
     let state = aggregator.view_state();
     assert_eq!(state.results().len(), 1);
-    assert_eq!(state.results()[0].title, "Result B");
+    assert_eq!(state.results()[0].title, Some("Result B".to_string()));
 }
 
 #[test]

@@ -1,11 +1,11 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::screen_state::ScreenState;
 use crate::ui::widgets::view_models::{
     InteractiveReflectionViewModel, ReflectionProposalDetailViewModel,
 };
 use brain_integrations::dto::v1::ReflectionProposalStatus;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -155,7 +155,7 @@ pub fn draw_reflection_proposals_list(
     if vm.items.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No reflection proposals match current filter.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -189,12 +189,27 @@ pub fn draw_reflection_proposals_list(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
-                Span::styled(&item.status_badge, style.fg(item.status_color)),
-                Span::styled(&item.action_badge, style.fg(item.action_color)),
-                Span::styled(&item.confidence_text, style.fg(Color::Yellow)),
-                Span::styled(&item.source_concept_id, style.fg(Color::Cyan)),
-                Span::styled(&item.target_concept_id_text, style.fg(Color::Gray)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
+                Span::styled(
+                    &item.status_badge,
+                    style.patch(theme.style(item.status_token)),
+                ),
+                Span::styled(
+                    &item.action_badge,
+                    style.patch(theme.style(item.action_token)),
+                ),
+                Span::styled(
+                    &item.confidence_text,
+                    style.patch(theme.style(ThemeToken::Warning)),
+                ),
+                Span::styled(
+                    &item.source_concept_id,
+                    style.patch(theme.style(ThemeToken::Info)),
+                ),
+                Span::styled(
+                    &item.target_concept_id_text,
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
                 Span::styled(
                     &item.explanation_summary,
                     style.add_modifier(Modifier::BOLD),
@@ -242,7 +257,7 @@ pub fn draw_reflection_proposal_detail(
         None => {
             let p = Paragraph::new(Span::styled(
                 "Select a proposal to view evidence breakdown.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -255,17 +270,15 @@ pub fn draw_reflection_proposal_detail(
             Span::raw("Proposal ID:  "),
             Span::styled(
                 &vm.proposal_id,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
             ),
             Span::raw("  |  Finding Kind: "),
-            Span::styled(&vm.finding_kind, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.finding_kind, theme.style(ThemeToken::Warning)),
             Span::raw("  |  Confidence: "),
             Span::styled(
                 &vm.confidence_text,
-                Style::default()
-                    .fg(Color::Green)
+                theme
+                    .style(ThemeToken::Success)
                     .add_modifier(Modifier::BOLD),
             ),
         ]),
@@ -273,28 +286,34 @@ pub fn draw_reflection_proposal_detail(
             Span::raw("Action Type:  "),
             Span::styled(
                 &vm.action_type_text,
-                Style::default()
-                    .fg(Color::Magenta)
+                theme
+                    .style(ThemeToken::Secondary)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("  |  Status: "),
-            Span::styled(&vm.status_text, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.status_text, theme.style(ThemeToken::Warning)),
         ]),
         Line::from(vec![
             Span::raw("Source Node:  "),
-            Span::styled(&vm.source_concept_id, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.source_concept_id, theme.style(ThemeToken::Info)),
             Span::raw("  |  Target Node: "),
-            Span::styled(&vm.target_concept_id_text, Style::default().fg(Color::Gray)),
+            Span::styled(
+                &vm.target_concept_id_text,
+                theme.style(ThemeToken::TextMuted),
+            ),
         ]),
         Line::from(vec![
             Span::raw("Explanation:  "),
-            Span::styled(&vm.explanation_summary, Style::default().fg(Color::White)),
+            Span::styled(
+                &vm.explanation_summary,
+                theme.style(ThemeToken::TextPrimary),
+            ),
         ]),
         Line::from(vec![
             Span::raw("Created At:   "),
-            Span::styled(&vm.created_at_text, Style::default().fg(Color::DarkGray)),
+            Span::styled(&vm.created_at_text, theme.style(ThemeToken::TextMuted)),
             Span::raw("  |  Resolved At: "),
-            Span::styled(&vm.resolved_at_text, Style::default().fg(Color::DarkGray)),
+            Span::styled(&vm.resolved_at_text, theme.style(ThemeToken::TextMuted)),
         ]),
     ];
 
@@ -327,29 +346,27 @@ pub fn draw_reflection_confirmation_modal(
             Span::raw("Are you sure you want to "),
             Span::styled(
                 action_name,
-                Style::default()
-                    .fg(Color::Yellow)
+                theme
+                    .style(ThemeToken::Warning)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" proposal '"),
-            Span::styled(proposal_id, Style::default().fg(Color::Cyan)),
+            Span::styled(proposal_id, theme.style(ThemeToken::Info)),
             Span::raw("'?"),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled(
                 " [Enter] ",
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::Green)
+                theme
+                    .style(ThemeToken::Success)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" Confirm & Dispatch Command     "),
             Span::styled(
                 " [Esc] ",
-                Style::default()
-                    .fg(Color::White)
-                    .bg(Color::DarkGray)
+                theme
+                    .style(ThemeToken::TextMuted)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" Cancel"),
@@ -361,53 +378,43 @@ pub fn draw_reflection_confirmation_modal(
 }
 
 /// Renders the Command Hint Footer bar for Interactive Reflection screen.
-pub fn draw_reflection_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_reflection_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Select Proposal   "),
         Span::styled(
             " a ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Green)
+            theme
+                .style(ThemeToken::Success)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Accept   "),
         Span::styled(
             " r ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Red)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Danger).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Reject   "),
         Span::styled(
             " d ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Defer   "),
         Span::styled(
             " f ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Magenta)
+            theme
+                .style(ThemeToken::Secondary)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Filter Status   "),
         Span::styled(
             " q / Esc ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Exit "),

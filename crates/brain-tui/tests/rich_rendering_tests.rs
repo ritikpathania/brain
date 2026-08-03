@@ -8,62 +8,35 @@ use brain_tui::ui::render::{IconSet, RenderContext};
 use brain_tui::ui::theme::dark_theme;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
+
+use brain_tui::ui::theme::{ActiveTheme, Theme, ThemeToken};
 
 fn map_span_for_test(
     span: &VisualSpan,
-    theme: &Style,
+    theme: &Theme,
     is_selected: bool,
 ) -> ratatui::text::Span<'static> {
-    let mut style = Style::default();
-
-    match span.style {
-        VisualStyle::Heading1 => {
-            style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
+    let mut style = match span.style {
+        VisualStyle::Heading1 | VisualStyle::Heading2 | VisualStyle::Heading3 => {
+            theme.style(ThemeToken::HeaderSecondary)
         }
-        VisualStyle::Heading2 => {
-            style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Heading3 => {
-            style = style.fg(Color::Cyan).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Bold => {
-            style = style.add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Italic => {
-            style = style.add_modifier(Modifier::ITALIC);
-        }
-        VisualStyle::InlineCode => {
-            style = style.fg(Color::Yellow).bg(Color::DarkGray);
-        }
-        VisualStyle::CodeKeyword => {
-            style = style.fg(Color::Magenta).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::CodeComment => {
-            style = style.fg(Color::Gray);
-        }
-        VisualStyle::TableHeader => {
-            style = style.fg(Color::Green).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::TableCell => {
-            style = style.fg(Color::White);
-        }
-        VisualStyle::Citation => {
-            style = style.fg(Color::Blue).add_modifier(Modifier::UNDERLINED);
-        }
-        VisualStyle::Selected => {
-            style = style.bg(Color::LightBlue).fg(Color::Black);
-        }
-        VisualStyle::EntityReference(_) => {
-            style = style.fg(Color::Cyan).add_modifier(Modifier::UNDERLINED);
-        }
-        VisualStyle::Normal => {
-            style = *theme;
-        }
-    }
+        VisualStyle::Bold => Style::default().add_modifier(Modifier::BOLD),
+        VisualStyle::Italic => Style::default().add_modifier(Modifier::ITALIC),
+        VisualStyle::InlineCode => theme.style(ThemeToken::CodeInline),
+        VisualStyle::CodeKeyword => theme
+            .style(ThemeToken::Secondary)
+            .add_modifier(Modifier::BOLD),
+        VisualStyle::CodeComment => theme.style(ThemeToken::TextMuted),
+        VisualStyle::TableHeader => theme.style(ThemeToken::HeaderSecondary),
+        VisualStyle::TableCell => theme.style(ThemeToken::TextPrimary),
+        VisualStyle::Citation | VisualStyle::EntityReference(_) => theme.style(ThemeToken::Link),
+        VisualStyle::Selected => theme.style(ThemeToken::Selection),
+        VisualStyle::Normal => theme.style(ThemeToken::TextPrimary),
+    };
 
     if is_selected {
-        style = style.bg(Color::LightBlue).fg(Color::Black);
+        style = theme.style(ThemeToken::Selection);
     }
 
     ratatui::text::Span::styled(span.text.to_string(), style)
@@ -73,7 +46,7 @@ fn render_visual_lines(
     buf: &mut Buffer,
     area: Rect,
     lines: &[VisualLine],
-    theme: &Style,
+    theme: &Theme,
     selection: &SelectionState,
 ) {
     for (idx, visual_line) in lines.iter().enumerate() {
@@ -198,7 +171,7 @@ fn test_rich_rendering_snapshots() {
         capabilities,
         tick: 0,
     };
-    let text_style = theme.text;
+    let _text_style = theme.text;
     let highlighter = KeywordSyntaxHighlighter::new();
     let selection_none = SelectionState::new();
 
@@ -270,7 +243,7 @@ fn main() {
 
         let area = Rect::new(0, 0, width as u16, layout.len() as u16);
         let mut buf = Buffer::empty(area);
-        render_visual_lines(&mut buf, area, &layout, &text_style, selection);
+        render_visual_lines(&mut buf, area, &layout, theme, selection);
         common::assert_snapshot(&buf, &ctx, &format!("screens/chat/{}", name));
     }
 
@@ -287,7 +260,7 @@ Line 3 text",
 
         let area = Rect::new(0, 0, 80, layout.len() as u16);
         let mut buf = Buffer::empty(area);
-        render_visual_lines(&mut buf, area, &layout, &text_style, &selection);
+        render_visual_lines(&mut buf, area, &layout, theme, &selection);
         common::assert_snapshot(&buf, &ctx, "screens/chat/rich_markdown_selected");
     }
 }

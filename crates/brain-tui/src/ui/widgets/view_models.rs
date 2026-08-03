@@ -1,5 +1,7 @@
 //! Immutable data-driven view models for stateless widgets.
 
+use crate::ui::theme::ThemeToken;
+
 /// Layout limits for stateless widgets.
 pub const MAX_SHORTCUTS: usize = 8;
 /// Maximum tab entries supported by the toolbar.
@@ -232,8 +234,8 @@ pub struct HealthViewModel {
     pub status_text: String,
     /// Detailed health reason string if non-healthy.
     pub reason: Option<String>,
-    /// Ratatui color for status.
-    pub color: ratatui::style::Color,
+    /// Theme token for status.
+    pub status_token: ThemeToken,
     /// System uptime formatted string (e.g. "1h 24m 12s").
     pub uptime_text: String,
     /// Active event subscribers count string.
@@ -274,8 +276,8 @@ pub struct ProjectionLagItemViewModel {
     pub lag_count: String,
     /// Status indicator string ("UP TO DATE", "LAGGING (14)").
     pub status: String,
-    /// Status ratatui color.
-    pub color: ratatui::style::Color,
+    /// Status theme token.
+    pub status_token: ThemeToken,
 }
 
 /// Projection lag view model for ProjectionLagWidget.
@@ -309,12 +311,12 @@ pub struct TaskHistoryItemViewModel {
     pub kind: String,
     /// Priority level ("critical", "high", "normal", "low").
     pub priority: String,
-    /// Priority ratatui color.
-    pub priority_color: ratatui::style::Color,
+    /// Priority theme token.
+    pub priority_token: ThemeToken,
     /// Execution status ("Succeeded", "Failed", "Running").
     pub status: String,
-    /// Status ratatui color.
-    pub status_color: ratatui::style::Color,
+    /// Status theme token.
+    pub status_token: ThemeToken,
     /// Wait duration formatted string (e.g. "1ms").
     pub wait_duration_text: String,
     /// Exec duration formatted string (e.g. "42ms").
@@ -355,19 +357,17 @@ impl RuntimeDashboardViewModel {
         report: &brain_integrations::dto::v1::RuntimeDiagnosticsReport,
         selected_history_idx: Option<usize>,
     ) -> Self {
-        use ratatui::style::Color;
-
-        let (health_text, health_color) = match report.health.to_lowercase().as_str() {
-            "healthy" => ("HEALTHY".to_string(), Color::Green),
-            "degraded" => ("DEGRADED".to_string(), Color::Yellow),
-            "unhealthy" => ("UNHEALTHY".to_string(), Color::Red),
-            _ => ("UNKNOWN".to_string(), Color::Gray),
+        let (health_text, health_token) = match report.health.to_lowercase().as_str() {
+            "healthy" => ("HEALTHY".to_string(), ThemeToken::Success),
+            "degraded" => ("DEGRADED".to_string(), ThemeToken::Warning),
+            "unhealthy" => ("UNHEALTHY".to_string(), ThemeToken::Danger),
+            _ => ("UNKNOWN".to_string(), ThemeToken::TextMuted),
         };
 
         let health = HealthViewModel {
             status_text: health_text,
             reason: report.health_reason.clone(),
-            color: health_color,
+            status_token: health_token,
             uptime_text: "Active".to_string(),
             subscribers_text: "1".to_string(),
             storage_backend: "SQLite WAL".to_string(),
@@ -398,10 +398,13 @@ impl RuntimeDashboardViewModel {
             .projection_lags
             .iter()
             .map(|p| {
-                let (status_text, color) = if p.lag_sequence_count == 0 {
-                    ("UP TO DATE".to_string(), Color::Green)
+                let (status_text, token) = if p.lag_sequence_count == 0 {
+                    ("UP TO DATE".to_string(), ThemeToken::Success)
                 } else {
-                    (format!("LAGGING ({})", p.lag_sequence_count), Color::Yellow)
+                    (
+                        format!("LAGGING ({})", p.lag_sequence_count),
+                        ThemeToken::Warning,
+                    )
                 };
                 ProjectionLagItemViewModel {
                     name: truncate_str(&p.projection_id, 16),
@@ -409,7 +412,7 @@ impl RuntimeDashboardViewModel {
                     max_sequence: p.max_event_sequence.to_string(),
                     lag_count: p.lag_sequence_count.to_string(),
                     status: status_text,
-                    color,
+                    status_token: token,
                 }
             })
             .collect();
@@ -436,27 +439,27 @@ impl RuntimeDashboardViewModel {
             .task_history
             .iter()
             .map(|t| {
-                let prio_color = match t.priority.to_lowercase().as_str() {
-                    "critical" => Color::LightRed,
-                    "high" => Color::LightYellow,
-                    "normal" => Color::Cyan,
-                    _ => Color::DarkGray,
+                let prio_token = match t.priority.to_lowercase().as_str() {
+                    "critical" => ThemeToken::Danger,
+                    "high" => ThemeToken::Warning,
+                    "normal" => ThemeToken::Info,
+                    _ => ThemeToken::TextMuted,
                 };
-                let status_color = if t.status.contains("Succeeded") {
-                    Color::Green
+                let status_token = if t.status.contains("Succeeded") {
+                    ThemeToken::Success
                 } else if t.status.contains("Failed") {
-                    Color::Red
+                    ThemeToken::Danger
                 } else {
-                    Color::Yellow
+                    ThemeToken::Warning
                 };
 
                 TaskHistoryItemViewModel {
                     id: truncate_str(&t.id, 8),
                     kind: truncate_str(&t.kind, 12),
                     priority: t.priority.clone(),
-                    priority_color: prio_color,
+                    priority_token: prio_token,
                     status: truncate_str(&t.status, 14),
-                    status_color,
+                    status_token,
                     wait_duration_text: format!("{}ms", t.wait_duration_ms),
                     exec_duration_text: format!("{}ms", t.exec_duration_ms),
                 }
@@ -526,8 +529,8 @@ pub struct RelationItemViewModel {
     pub relation: String,
     /// Edge direction ("OUTGOING" or "INCOMING").
     pub direction: String,
-    /// Ratatui style color for direction.
-    pub direction_color: ratatui::style::Color,
+    /// Theme token for direction.
+    pub direction_token: ThemeToken,
     /// Formatted confidence weight string (e.g. "0.95").
     pub weight_text: String,
 }
@@ -597,8 +600,6 @@ impl KnowledgeExplorerViewModel {
         selected_concept_idx: Option<usize>,
         selected_relation_idx: Option<usize>,
     ) -> Self {
-        use ratatui::style::Color;
-
         let concept_items = concepts
             .iter()
             .map(|c| ConceptItemViewModel {
@@ -645,7 +646,11 @@ impl KnowledgeExplorerViewModel {
             for r in rel_dtos {
                 let is_out = r.direction.to_lowercase().contains("out");
                 let dir_str = if is_out { "OUTGOING" } else { "INCOMING" };
-                let dir_color = if is_out { Color::Cyan } else { Color::Green };
+                let dir_token = if is_out {
+                    ThemeToken::Info
+                } else {
+                    ThemeToken::Success
+                };
 
                 sorted_relations.push(RelationItemViewModel {
                     target_id: r.target_id,
@@ -653,7 +658,7 @@ impl KnowledgeExplorerViewModel {
                     target_type: truncate_str(&r.target_type, 12),
                     relation: r.relation,
                     direction: dir_str.to_string(),
-                    direction_color: dir_color,
+                    direction_token: dir_token,
                     weight_text: format!("{:.2}", r.weight),
                 });
             }
@@ -743,8 +748,8 @@ pub struct ExplanationStepItemViewModel {
     pub stage_text: String,
     /// Visual status badge string ("✓", "⚠", "✖", "ℹ").
     pub status_badge: String,
-    /// Ratatui style color for status badge.
-    pub status_color: ratatui::style::Color,
+    /// Theme token for status badge.
+    pub status_token: ThemeToken,
     /// Display title string.
     pub title: String,
     /// Stage narrative description string.
@@ -814,7 +819,6 @@ impl ExplanationViewModel {
         selected_step_idx: Option<usize>,
     ) -> Self {
         use brain_integrations::dto::v1::{ExplanationStage, ExplanationStatus};
-        use ratatui::style::Color;
 
         let summary = report.map(|r| ExplanationSummaryViewModel {
             concept_id: r.concept_id.clone(),
@@ -842,11 +846,11 @@ impl ExplanationViewModel {
                     ExplanationStage::Recommendation => "[RECOMMENDATION]",
                 };
 
-                let (badge, color) = match step.status {
-                    ExplanationStatus::Success => ("✓", Color::Green),
-                    ExplanationStatus::Warning => ("⚠", Color::Yellow),
-                    ExplanationStatus::Error => ("✖", Color::Red),
-                    ExplanationStatus::Info => ("ℹ", Color::Cyan),
+                let (badge, token) = match step.status {
+                    ExplanationStatus::Success => ("✓", ThemeToken::Success),
+                    ExplanationStatus::Warning => ("⚠", ThemeToken::Warning),
+                    ExplanationStatus::Error => ("✖", ThemeToken::Danger),
+                    ExplanationStatus::Info => ("ℹ", ThemeToken::Info),
                 };
 
                 step_items.push(ExplanationStepItemViewModel {
@@ -856,7 +860,7 @@ impl ExplanationViewModel {
                     time_text: step.timestamp_ms.to_string(),
                     stage_text: stage_str.to_string(),
                     status_badge: badge.to_string(),
-                    status_color: color,
+                    status_token: token,
                     title: step.title.clone(),
                     description: step.description.clone(),
                 });
@@ -933,12 +937,12 @@ pub struct ReflectionProposalItemViewModel {
     pub proposal_id: String,
     /// Status badge string ("[PENDING]", "[ACCEPTED]", "[REJECTED]", "[DEFERRED]").
     pub status_badge: String,
-    /// Status badge ratatui color.
-    pub status_color: ratatui::style::Color,
+    /// Status badge theme token.
+    pub status_token: ThemeToken,
     /// Typed action badge string ("[MERGE]", "[STRENGTHEN]", "[PRUNE]", "[INFER]").
     pub action_badge: String,
-    /// Action badge ratatui color.
-    pub action_color: ratatui::style::Color,
+    /// Action badge theme token.
+    pub action_token: ThemeToken,
     /// Primary source concept ID.
     pub source_concept_id: String,
     /// Target concept ID, if any.
@@ -1001,7 +1005,6 @@ impl InteractiveReflectionViewModel {
         filter: Option<brain_integrations::dto::v1::ReflectionProposalStatus>,
     ) -> Self {
         use brain_integrations::dto::v1::{ReflectionActionType, ReflectionProposalStatus};
-        use ratatui::style::Color;
 
         let mut pending_count = 0;
         let mut accepted_count = 0;
@@ -1024,26 +1027,26 @@ impl InteractiveReflectionViewModel {
 
         let mut items = Vec::new();
         for p in &filtered {
-            let (status_badge, status_color) = match p.status {
-                ReflectionProposalStatus::Pending => ("[PENDING]", Color::Yellow),
-                ReflectionProposalStatus::Accepted => ("[ACCEPTED]", Color::Green),
-                ReflectionProposalStatus::Rejected => ("[REJECTED]", Color::Red),
-                ReflectionProposalStatus::Deferred => ("[DEFERRED]", Color::DarkGray),
+            let (status_badge, status_token) = match p.status {
+                ReflectionProposalStatus::Pending => ("[PENDING]", ThemeToken::Warning),
+                ReflectionProposalStatus::Accepted => ("[ACCEPTED]", ThemeToken::Success),
+                ReflectionProposalStatus::Rejected => ("[REJECTED]", ThemeToken::Danger),
+                ReflectionProposalStatus::Deferred => ("[DEFERRED]", ThemeToken::TextMuted),
             };
 
-            let (action_badge, action_color) = match p.action_type {
-                ReflectionActionType::MergeEntities => ("[MERGE]", Color::Magenta),
-                ReflectionActionType::StrengthenEdge => ("[STRENGTHEN]", Color::Cyan),
-                ReflectionActionType::PruneFact => ("[PRUNE]", Color::Red),
-                ReflectionActionType::InferRelation => ("[INFER]", Color::Green),
+            let (action_badge, action_token) = match p.action_type {
+                ReflectionActionType::MergeEntities => ("[MERGE]", ThemeToken::Secondary),
+                ReflectionActionType::StrengthenEdge => ("[STRENGTHEN]", ThemeToken::Info),
+                ReflectionActionType::PruneFact => ("[PRUNE]", ThemeToken::Danger),
+                ReflectionActionType::InferRelation => ("[INFER]", ThemeToken::Success),
             };
 
             items.push(ReflectionProposalItemViewModel {
                 proposal_id: p.proposal_id.clone(),
                 status_badge: status_badge.to_string(),
-                status_color,
+                status_token,
                 action_badge: action_badge.to_string(),
-                action_color,
+                action_token,
                 source_concept_id: p.source_concept_id.clone(),
                 target_concept_id_text: p
                     .target_concept_id
@@ -1132,8 +1135,8 @@ pub struct EvolutionPlanViewModel {
     pub policy_id: String,
     /// Status badge string (e.g. "[DRAFT]", "[EXECUTED]").
     pub status_badge: String,
-    /// Status badge display color.
-    pub status_color: ratatui::style::Color,
+    /// Status badge theme token.
+    pub status_token: ThemeToken,
     /// Total step count string.
     pub steps_count_text: String,
     /// Step rationale descriptions.
@@ -1155,8 +1158,8 @@ pub struct EvolutionSimulationViewModel {
     pub confidence_delta_text: String,
     /// Risk level badge (e.g. "[LOW RISK]").
     pub risk_badge: String,
-    /// Risk badge color.
-    pub risk_color: ratatui::style::Color,
+    /// Risk badge theme token.
+    pub risk_token: ThemeToken,
 }
 
 /// Presentation model for an evolution audit record history item.
@@ -1172,8 +1175,8 @@ pub struct EvolutionAuditItemViewModel {
     pub policy_name: String,
     /// Outcome badge (e.g. "[APPLIED]", "[CONFLICT]").
     pub outcome_badge: String,
-    /// Outcome badge color.
-    pub outcome_color: ratatui::style::Color,
+    /// Outcome badge theme token.
+    pub outcome_token: ThemeToken,
     /// Summary sentence.
     pub summary: String,
 }
@@ -1203,7 +1206,6 @@ impl KnowledgeEvolutionViewModel {
         audit_history: &[brain_integrations::dto::v1::EvolutionAuditRecordDto],
     ) -> Self {
         use brain_integrations::dto::v1::{EvolutionExecutionOutcome, EvolutionPlanStatus};
-        use ratatui::style::Color;
 
         let policy_vms = policies
             .iter()
@@ -1222,11 +1224,11 @@ impl KnowledgeEvolutionViewModel {
             .collect();
 
         let plan_vm = plan.map(|p| {
-            let (status_badge, status_color) = match p.status {
-                EvolutionPlanStatus::Draft => ("[DRAFT]", Color::Yellow),
-                EvolutionPlanStatus::Approved => ("[APPROVED]", Color::Green),
-                EvolutionPlanStatus::Executed => ("[EXECUTED]", Color::Cyan),
-                EvolutionPlanStatus::RolledBack => ("[ROLLED BACK]", Color::Red),
+            let (status_badge, status_token) = match p.status {
+                EvolutionPlanStatus::Draft => ("[DRAFT]", ThemeToken::Warning),
+                EvolutionPlanStatus::Approved => ("[APPROVED]", ThemeToken::Success),
+                EvolutionPlanStatus::Executed => ("[EXECUTED]", ThemeToken::Info),
+                EvolutionPlanStatus::RolledBack => ("[ROLLED BACK]", ThemeToken::Danger),
             };
 
             let step_descriptions = p
@@ -1240,17 +1242,17 @@ impl KnowledgeEvolutionViewModel {
                 target_version_text: format!("Target Graph Version: v{}", p.target_graph_version),
                 policy_id: p.policy_id.clone(),
                 status_badge: status_badge.to_string(),
-                status_color,
+                status_token,
                 steps_count_text: format!("{} steps", p.steps.len()),
                 step_descriptions,
             }
         });
 
         let sim_vm = sim_report.map(|s| {
-            let (risk_badge, risk_color) = match s.risk_level.as_str() {
-                "LOW" => ("[LOW RISK]", Color::Green),
-                "MEDIUM" => ("[MEDIUM RISK]", Color::Yellow),
-                _ => ("[HIGH RISK]", Color::Red),
+            let (risk_badge, risk_token) = match s.risk_level.as_str() {
+                "LOW" => ("[LOW RISK]", ThemeToken::Success),
+                "MEDIUM" => ("[MEDIUM RISK]", ThemeToken::Warning),
+                _ => ("[HIGH RISK]", ThemeToken::Danger),
             };
 
             EvolutionSimulationViewModel {
@@ -1266,20 +1268,20 @@ impl KnowledgeEvolutionViewModel {
                     s.confidence_delta * 100.0
                 ),
                 risk_badge: risk_badge.to_string(),
-                risk_color,
+                risk_token,
             }
         });
 
         let audit_vms = audit_history
             .iter()
             .map(|a| {
-                let (outcome_badge, outcome_color) = match a.outcome {
-                    EvolutionExecutionOutcome::Applied => ("[APPLIED]", Color::Green),
-                    EvolutionExecutionOutcome::PlanConflict => ("[CONFLICT]", Color::Red),
+                let (outcome_badge, outcome_token) = match a.outcome {
+                    EvolutionExecutionOutcome::Applied => ("[APPLIED]", ThemeToken::Success),
+                    EvolutionExecutionOutcome::PlanConflict => ("[CONFLICT]", ThemeToken::Danger),
                     EvolutionExecutionOutcome::AlreadyExecuted => {
-                        ("[ALREADY EXECUTED]", Color::Yellow)
+                        ("[ALREADY EXECUTED]", ThemeToken::Warning)
                     }
-                    EvolutionExecutionOutcome::NotFound => ("[NOT FOUND]", Color::DarkGray),
+                    EvolutionExecutionOutcome::NotFound => ("[NOT FOUND]", ThemeToken::TextMuted),
                 };
 
                 EvolutionAuditItemViewModel {
@@ -1288,7 +1290,7 @@ impl KnowledgeEvolutionViewModel {
                     plan_id: a.plan_id.clone(),
                     policy_name: a.policy_name.clone(),
                     outcome_badge: outcome_badge.to_string(),
-                    outcome_color,
+                    outcome_token,
                     summary: a.summary.clone(),
                 }
             })
@@ -1317,8 +1319,8 @@ pub struct AutomationRuleItemViewModel {
     pub action_badge: String,
     /// Active status badge ("ACTIVE" / "PAUSED").
     pub status_badge: String,
-    /// Active status display color.
-    pub status_color: ratatui::style::Color,
+    /// Active status theme token.
+    pub status_token: ThemeToken,
     /// Target policy ID.
     pub target_policy_id: String,
 }
@@ -1334,8 +1336,8 @@ pub struct AutomationQueueItemViewModel {
     pub rule_id: String,
     /// Queue status badge.
     pub status_badge: String,
-    /// Status display color.
-    pub status_color: ratatui::style::Color,
+    /// Status theme token.
+    pub status_token: ThemeToken,
     /// Retry attempt counter text.
     pub retry_count_text: String,
 }
@@ -1379,15 +1381,14 @@ impl KnowledgeAutomationViewModel {
         logs: &[brain_integrations::dto::v1::AutomationExecutionLogDto],
     ) -> Self {
         use brain_integrations::dto::v1::AutomationQueueStatus;
-        use ratatui::style::Color;
 
         let rule_vms = rules
             .iter()
             .map(|r| {
-                let (status_badge, status_color) = if r.is_active {
-                    ("[ACTIVE]", Color::Green)
+                let (status_badge, status_token) = if r.is_active {
+                    ("[ACTIVE]", ThemeToken::Success)
                 } else {
-                    ("[PAUSED]", Color::DarkGray)
+                    ("[PAUSED]", ThemeToken::TextMuted)
                 };
 
                 AutomationRuleItemViewModel {
@@ -1396,7 +1397,7 @@ impl KnowledgeAutomationViewModel {
                     trigger_badge: format!("{:?}", r.trigger_kind),
                     action_badge: format!("{:?}", r.action_kind),
                     status_badge: status_badge.to_string(),
-                    status_color,
+                    status_token,
                     target_policy_id: r.target_policy_id.clone(),
                 }
             })
@@ -1405,12 +1406,12 @@ impl KnowledgeAutomationViewModel {
         let queue_vms = queue
             .iter()
             .map(|q| {
-                let (status_badge, status_color) = match q.status {
-                    AutomationQueueStatus::Queued => ("[QUEUED]", Color::Yellow),
-                    AutomationQueueStatus::Running => ("[RUNNING]", Color::Cyan),
-                    AutomationQueueStatus::Completed => ("[COMPLETED]", Color::Green),
-                    AutomationQueueStatus::Failed => ("[FAILED]", Color::Red),
-                    AutomationQueueStatus::Cancelled => ("[CANCELLED]", Color::DarkGray),
+                let (status_badge, status_token) = match q.status {
+                    AutomationQueueStatus::Queued => ("[QUEUED]", ThemeToken::Warning),
+                    AutomationQueueStatus::Running => ("[RUNNING]", ThemeToken::Info),
+                    AutomationQueueStatus::Completed => ("[COMPLETED]", ThemeToken::Success),
+                    AutomationQueueStatus::Failed => ("[FAILED]", ThemeToken::Danger),
+                    AutomationQueueStatus::Cancelled => ("[CANCELLED]", ThemeToken::TextMuted),
                 };
 
                 AutomationQueueItemViewModel {
@@ -1418,7 +1419,7 @@ impl KnowledgeAutomationViewModel {
                     automation_execution_id: q.automation_execution_id.clone(),
                     rule_id: q.rule_id.clone(),
                     status_badge: status_badge.to_string(),
-                    status_color,
+                    status_token,
                     retry_count_text: format!("retries: {}", q.retry_count),
                 }
             })

@@ -1,18 +1,51 @@
-use brain_tui::ui::theme::{dark_theme, ActiveTheme, ThemeToken};
+use brain_tui::ui::theme::{
+    dark_theme, high_contrast_theme, light_theme, terminal_theme, ActiveTheme, ThemeToken,
+};
+use ratatui::style::Color;
 
 #[test]
 fn test_theme_resolver() {
     let theme = dark_theme();
 
     let success_style = theme.style(ThemeToken::Success);
-    assert_eq!(
-        success_style.fg,
-        Some(ratatui::style::Color::Rgb(78, 186, 101))
-    );
+    assert_eq!(success_style.fg, Some(Color::Rgb(78, 186, 101)));
 
     let danger_style = theme.style(ThemeToken::Danger);
+    assert_eq!(danger_style.fg, Some(Color::Rgb(255, 107, 128)));
+}
+
+#[test]
+fn test_theme_palette_invariants() {
+    // 1. Dark theme invariants
+    let dark = dark_theme();
     assert_eq!(
-        danger_style.fg,
-        Some(ratatui::style::Color::Rgb(255, 107, 128))
+        dark.style(ThemeToken::HeaderPrimary).fg,
+        Some(Color::Rgb(255, 255, 255))
     );
+
+    // 2. Light theme invariants
+    let light = light_theme();
+    assert_eq!(
+        light.style(ThemeToken::TextPrimary).fg,
+        Some(Color::Rgb(20, 20, 20))
+    );
+    assert_eq!(
+        light.style(ThemeToken::HeaderPrimary).fg,
+        Some(Color::Rgb(10, 10, 10))
+    );
+
+    // 3. Adaptive terminal theme invariants:
+    // Base fg/bg must be Color::Reset, while semantic accents remain explicit ANSI colors.
+    let term = terminal_theme();
+    assert_eq!(term.style(ThemeToken::TextPrimary).fg, Some(Color::Reset));
+    assert_eq!(term.style(ThemeToken::HeaderPrimary).fg, Some(Color::Reset));
+    assert_eq!(term.style(ThemeToken::Success).fg, Some(Color::Green));
+    assert_eq!(term.style(ThemeToken::Danger).fg, Some(Color::Red));
+    assert_eq!(term.style(ThemeToken::Warning).fg, Some(Color::Yellow));
+    assert_eq!(term.style(ThemeToken::Info).fg, Some(Color::Cyan));
+
+    // 4. High contrast theme invariants
+    let hc = high_contrast_theme();
+    assert_eq!(hc.style(ThemeToken::TextPrimary).fg, Some(Color::White));
+    assert_eq!(hc.style(ThemeToken::HeaderPrimary).fg, Some(Color::White));
 }

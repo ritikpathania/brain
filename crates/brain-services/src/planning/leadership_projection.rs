@@ -64,3 +64,11 @@ impl LeadershipProjection {
         }
     }
 }
+
+impl crate::planning::recovery_engine::RestoreFromSnapshot<LeadershipProjection>
+    for LeadershipProjection
+{
+    fn restore_snapshot(&mut self, state: &LeadershipProjection) {
+        *self = state.clone();
+    }
+}

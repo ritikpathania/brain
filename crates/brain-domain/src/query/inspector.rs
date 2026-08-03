@@ -48,7 +48,7 @@ pub struct RetrievalExplanationDTO {
 }
 
 /// Data Transfer Object representing a log entry for recent user or background daemon actions on the entity.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ActivityLogEntry {
     /// Unix timestamp of the activity.
     pub timestamp: u64,

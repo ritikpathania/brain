@@ -1,8 +1,8 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::screen_state::ScreenState;
 use crate::ui::widgets::view_models::KnowledgeAutomationViewModel;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -114,7 +114,7 @@ pub fn draw_automation_rules_list(
     if vm.rules.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No active automation rules configured.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -147,12 +147,24 @@ pub fn draw_automation_rules_list(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
-                Span::styled(&rule.status_badge, style.fg(rule.status_color)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
+                Span::styled(
+                    &rule.status_badge,
+                    style.patch(theme.style(rule.status_token)),
+                ),
                 Span::styled(&rule.name, style.add_modifier(Modifier::BOLD)),
-                Span::styled(&rule.trigger_badge, style.fg(Color::Cyan)),
-                Span::styled(&rule.action_badge, style.fg(Color::Magenta)),
-                Span::styled(&rule.target_policy_id, style.fg(Color::Gray)),
+                Span::styled(
+                    &rule.trigger_badge,
+                    style.patch(theme.style(ThemeToken::Info)),
+                ),
+                Span::styled(
+                    &rule.action_badge,
+                    style.patch(theme.style(ThemeToken::Secondary)),
+                ),
+                Span::styled(
+                    &rule.target_policy_id,
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
             ];
             Row::new(cells).height(1)
         })
@@ -193,7 +205,7 @@ pub fn draw_automation_queue_timeline(
     if vm.queue.is_empty() {
         let p = Paragraph::new(Span::styled(
             "Execution queue is empty.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -216,14 +228,11 @@ pub fn draw_automation_queue_timeline(
         .iter()
         .map(|q| {
             let cells = vec![
-                Span::styled(&q.queue_id, Style::default().fg(Color::Cyan)),
-                Span::styled(
-                    &q.automation_execution_id,
-                    Style::default().fg(Color::Yellow),
-                ),
-                Span::styled(&q.status_badge, Style::default().fg(q.status_color)),
-                Span::styled(&q.rule_id, Style::default().fg(Color::White)),
-                Span::styled(&q.retry_count_text, Style::default().fg(Color::DarkGray)),
+                Span::styled(&q.queue_id, theme.style(ThemeToken::Info)),
+                Span::styled(&q.automation_execution_id, theme.style(ThemeToken::Warning)),
+                Span::styled(&q.status_badge, theme.style(q.status_token)),
+                Span::styled(&q.rule_id, theme.style(ThemeToken::TextPrimary)),
+                Span::styled(&q.retry_count_text, theme.style(ThemeToken::TextMuted)),
             ];
             Row::new(cells).height(1)
         })
@@ -263,7 +272,7 @@ pub fn draw_automation_execution_logs(
     if vm.logs.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No execution history logs recorded yet.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -280,14 +289,11 @@ pub fn draw_automation_execution_logs(
         .iter()
         .map(|l| {
             let cells = vec![
-                Span::styled(
-                    &l.automation_execution_id,
-                    Style::default().fg(Color::Yellow),
-                ),
-                Span::styled(&l.rule_id, Style::default().fg(Color::Cyan)),
-                Span::styled(&l.plan_id_text, Style::default().fg(Color::Magenta)),
-                Span::styled(&l.graph_version_text, Style::default().fg(Color::Green)),
-                Span::styled(&l.summary, Style::default().fg(Color::White)),
+                Span::styled(&l.automation_execution_id, theme.style(ThemeToken::Warning)),
+                Span::styled(&l.rule_id, theme.style(ThemeToken::Info)),
+                Span::styled(&l.plan_id_text, theme.style(ThemeToken::Secondary)),
+                Span::styled(&l.graph_version_text, theme.style(ThemeToken::Success)),
+                Span::styled(&l.summary, theme.style(ThemeToken::TextPrimary)),
             ];
             Row::new(cells).height(1)
         })
@@ -306,45 +312,36 @@ pub fn draw_automation_execution_logs(
 }
 
 /// Renders Command Hint Footer bar for Knowledge Automation screen.
-pub fn draw_automation_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_automation_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Select Rule   "),
         Span::styled(
             " r ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Green)
+            theme
+                .style(ThemeToken::Success)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Trigger Rule   "),
         Span::styled(
             " t ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Toggle Active   "),
         Span::styled(
             " c ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Red)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Danger).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Cancel Item   "),
         Span::styled(
             " q / Esc ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Exit "),

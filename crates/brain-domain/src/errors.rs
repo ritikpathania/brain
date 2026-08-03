@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 /// Domain-specific errors for the Brain domain model.
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[derive(Debug, Error, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DomainError {
     /// An edge already exists in the graph.
     #[error("Edge already exists: {source_node} -> {target_node} [{relation}]")]
@@ -34,4 +34,12 @@ pub enum DomainError {
     /// Invalid relation type or unregistered relation ID.
     #[error("Unregistered relation: {0}")]
     UnregisteredRelation(String),
+    /// Domain validation invariant failure.
+    #[error("Validation error: {message}")]
+    ValidationError {
+        /// Failure message text.
+        message: String,
+        /// Invariant rule identifier code.
+        rule_id: Option<String>,
+    },
 }

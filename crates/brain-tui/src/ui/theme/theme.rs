@@ -5,23 +5,38 @@ use crate::ui::theme::style::ActiveTheme;
 use crate::ui::theme::token::ThemeToken;
 use ratatui::style::Style;
 
-/// Theme structure mapping semantic tokens and legacy fields to style values.
+/// Theme structure mapping semantic tokens to style values.
 pub struct Theme {
     /// Style for primary elements.
     pub primary: Style,
+    /// Style for secondary elements.
+    pub secondary: Style,
     /// Style for accent items.
     pub accent: Style,
+    /// Style for muted/passive areas.
+    pub muted: Style,
     /// Style for success notifications.
     pub success: Style,
     /// Style for warnings.
     pub warning: Style,
-    /// Style for errors.
+    /// Style for errors/danger.
     pub error: Style,
 
-    // New private fields
-    secondary: Style,
-    muted: Style,
-    danger: Style,
+    // Additional semantic token styles
+    info: Style,
+    text_primary: Style,
+    text_secondary: Style,
+    text_muted: Style,
+    header_primary: Style,
+    header_secondary: Style,
+    selection: Style,
+    focus: Style,
+    border_subtle: Style,
+    code_inline: Style,
+    code_block: Style,
+    link: Style,
+    tag: Style,
+
     thinking: Style,
     streaming: Style,
     user: Style,
@@ -51,19 +66,64 @@ impl Theme {
     /// Creates a new Theme instance resolved from the given color palette.
     pub fn new(palette: Palette) -> Self {
         let primary = Style::default().fg(palette.primary);
+        let secondary = Style::default().fg(palette.secondary);
         let accent = Style::default().fg(palette.accent);
+        let muted = Style::default().fg(palette.muted);
         let success = Style::default().fg(palette.success);
         let warning = Style::default().fg(palette.warning);
-        let error = Style::default().fg(palette.danger);
+        let danger = Style::default().fg(palette.danger);
+        let info = Style::default().fg(palette.info);
+
+        let text_primary = Style::default().fg(palette.text_primary);
+        let text_secondary = Style::default().fg(palette.text_secondary);
+        let text_muted = Style::default().fg(palette.muted);
+
+        let header_primary = Style::default()
+            .fg(palette.header_primary)
+            .add_modifier(ratatui::style::Modifier::BOLD);
+        let header_secondary = Style::default()
+            .fg(palette.primary)
+            .add_modifier(ratatui::style::Modifier::BOLD);
+
+        let selection = Style::default()
+            .bg(palette.selection_bg)
+            .fg(palette.selection_fg);
+        let focus = primary.add_modifier(ratatui::style::Modifier::BOLD);
+
+        let border = Style::default().fg(palette.muted);
+        let border_active = primary;
+        let border_subtle = Style::default().fg(palette.muted);
+
+        let code_inline = Style::default().fg(palette.code_inline);
+        let code_block = Style::default().fg(palette.code_block);
+        let link = Style::default()
+            .fg(palette.link)
+            .add_modifier(ratatui::style::Modifier::UNDERLINED);
+        let tag = Style::default().fg(palette.accent);
+
+        let cursor = selection;
 
         Self {
             primary,
-            secondary: Style::default().fg(palette.secondary),
+            secondary,
             accent,
-            muted: Style::default().fg(palette.muted),
+            muted,
             success,
             warning,
-            danger: error,
+            error: danger,
+            info,
+            text_primary,
+            text_secondary,
+            text_muted,
+            header_primary,
+            header_secondary,
+            selection,
+            focus,
+            border_subtle,
+            code_inline,
+            code_block,
+            link,
+            tag,
             thinking: Style::default().fg(palette.thinking),
             streaming: Style::default().fg(palette.streaming),
             user: Style::default().fg(palette.user),
@@ -73,19 +133,13 @@ impl Theme {
             background: Style::default().bg(palette.background),
             surface: Style::default().bg(palette.surface),
 
-            // Compatibility fields mapped to Design System specs
-            border: Style::default().fg(palette.muted),
-            border_active: primary,
-            inactive: Style::default().fg(palette.muted),
-            text: Style::default().fg(ratatui::style::Color::White),
-            header: Style::default()
-                .fg(ratatui::style::Color::White)
-                .add_modifier(ratatui::style::Modifier::BOLD),
-            status: Style::default().fg(palette.muted),
-            cursor: Style::default()
-                .bg(ratatui::style::Color::White)
-                .fg(ratatui::style::Color::Black),
-            error,
+            border,
+            border_active,
+            inactive: muted,
+            text: text_primary,
+            header: header_primary,
+            status: muted,
+            cursor,
         }
     }
 
@@ -131,7 +185,23 @@ impl ActiveTheme for Theme {
             ThemeToken::Muted => self.muted,
             ThemeToken::Success => self.success,
             ThemeToken::Warning => self.warning,
-            ThemeToken::Danger => self.danger,
+            ThemeToken::Danger => self.error,
+            ThemeToken::Info => self.info,
+            ThemeToken::TextPrimary => self.text_primary,
+            ThemeToken::TextSecondary => self.text_secondary,
+            ThemeToken::TextMuted => self.text_muted,
+            ThemeToken::HeaderPrimary => self.header_primary,
+            ThemeToken::HeaderSecondary => self.header_secondary,
+            ThemeToken::Selection => self.selection,
+            ThemeToken::Focus => self.focus,
+            ThemeToken::Border => self.border,
+            ThemeToken::BorderActive => self.border_active,
+            ThemeToken::BorderSubtle => self.border_subtle,
+            ThemeToken::Cursor => self.cursor,
+            ThemeToken::CodeInline => self.code_inline,
+            ThemeToken::CodeBlock => self.code_block,
+            ThemeToken::Link => self.link,
+            ThemeToken::Tag => self.tag,
             ThemeToken::Thinking => self.thinking,
             ThemeToken::Streaming => self.streaming,
             ThemeToken::User => self.user,

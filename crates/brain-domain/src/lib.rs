@@ -57,6 +57,10 @@ pub use validation::*;
 pub mod query;
 pub use query::*;
 
+/// Persistent relational memory models and lifecycle state.
+pub mod memory;
+pub use memory::*;
+
 /// Cognitive retrieval and reasoning engine.
 pub mod retrieval;
 pub use retrieval::*;
@@ -89,6 +93,34 @@ pub use observation::*;
 pub mod evidence;
 pub use evidence::*;
 
+/// Domain-wide canonical structured value type.
+pub mod value;
+pub use value::*;
+
 /// Phase 3 Projection Runtime domain models.
 pub mod projection;
 pub use projection::*;
+
+/// Phase 3 Runtime Reasoning and Execution Planning domain models.
+pub mod reasoning;
+pub use reasoning::*;
+
+/// Execution progress cursor helper.
+pub mod cursor;
+pub use cursor::*;
+
+/// Execution state models, state machine transitions, and lightweight event facts.
+pub mod execution;
+pub use execution::*;
+
+/// Pure domain reasoning planner service.
+pub mod planner;
+pub use planner::*;
+
+/// Execution artifacts, first-class provenance edges, and artifact views.
+pub mod artifact;
+pub use artifact::*;
+
+/// Append-only store managing evidence artifacts and provenance graph relationships.
+pub mod artifact_store;
+pub use artifact_store::*;

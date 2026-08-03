@@ -40,6 +40,9 @@ pub mod reflection;
 /// Graph/relationship model DTOs.
 pub mod graph;
 
+/// Phase 3 Runtime Reasoning execution engine contracts and runner.
+pub mod reasoning;
+
 pub use agents::*;
 pub use errors::*;
 pub use events::*;
@@ -47,6 +50,7 @@ pub use evolution::*;
 pub use extensibility::*;
 pub use graph::*;
 pub use projection::*;
+pub use reasoning::*;
 pub use reflection::*;
 pub use repositories::*;
 pub use retrieval::*;

@@ -1,7 +1,7 @@
 use crate::ui::interaction::markdown::{SelectionState, VisualLine, VisualSpan, VisualStyle};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
@@ -37,7 +37,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
 
         if let Some(ref sender) = visible.sender_header {
             let sender_style = if is_sel {
-                Style::default().bg(Color::LightBlue).fg(Color::Black)
+                theme.style(ThemeToken::Selection)
             } else {
                 theme.accent.add_modifier(Modifier::BOLD)
             };
@@ -62,63 +62,26 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
 }
 
 fn map_span<'a>(span: &VisualSpan, theme: &Theme, is_selected: bool) -> Span<'a> {
-    let mut style = Style::default();
-
-    match span.style {
-        VisualStyle::Heading1 => {
-            style = style
-                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                .add_modifier(Modifier::BOLD);
+    let mut style = match span.style {
+        VisualStyle::Heading1 | VisualStyle::Heading2 | VisualStyle::Heading3 => {
+            theme.style(ThemeToken::HeaderSecondary)
         }
-        VisualStyle::Heading2 => {
-            style = style
-                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                .add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Heading3 => {
-            style = style
-                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                .add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Bold => {
-            style = style.add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::Italic => {
-            style = style.add_modifier(Modifier::ITALIC);
-        }
-        VisualStyle::InlineCode => {
-            style = style.fg(Color::Yellow).bg(Color::DarkGray);
-        }
-        VisualStyle::CodeKeyword => {
-            style = style.fg(Color::Magenta).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::CodeComment => {
-            style = style.fg(Color::Gray);
-        }
-        VisualStyle::TableHeader => {
-            style = style.fg(Color::Green).add_modifier(Modifier::BOLD);
-        }
-        VisualStyle::TableCell => {
-            style = style.fg(Color::White);
-        }
-        VisualStyle::Citation => {
-            style = style.fg(Color::Blue).add_modifier(Modifier::UNDERLINED);
-        }
-        VisualStyle::Selected => {
-            style = style.bg(Color::LightBlue).fg(Color::Black);
-        }
-        VisualStyle::EntityReference(_) => {
-            style = style
-                .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                .add_modifier(Modifier::UNDERLINED);
-        }
-        VisualStyle::Normal => {
-            style = theme.text;
-        }
-    }
+        VisualStyle::Bold => Style::default().add_modifier(Modifier::BOLD),
+        VisualStyle::Italic => Style::default().add_modifier(Modifier::ITALIC),
+        VisualStyle::InlineCode => theme.style(ThemeToken::CodeInline),
+        VisualStyle::CodeKeyword => theme
+            .style(ThemeToken::Secondary)
+            .add_modifier(Modifier::BOLD),
+        VisualStyle::CodeComment => theme.style(ThemeToken::TextMuted),
+        VisualStyle::TableHeader => theme.style(ThemeToken::HeaderSecondary),
+        VisualStyle::TableCell => theme.style(ThemeToken::TextPrimary),
+        VisualStyle::Citation | VisualStyle::EntityReference(_) => theme.style(ThemeToken::Link),
+        VisualStyle::Selected => theme.style(ThemeToken::Selection),
+        VisualStyle::Normal => theme.style(ThemeToken::TextPrimary),
+    };
 
     if is_selected {
-        style = style.bg(Color::LightBlue).fg(Color::Black);
+        style = theme.style(ThemeToken::Selection);
     }
 
     Span::styled(span.text.to_string(), style)

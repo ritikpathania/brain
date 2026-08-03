@@ -1,10 +1,10 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::view_models::{
     ConceptDetailsViewModel, ConceptListViewModel, KnowledgeExplorerViewModel, PropertiesViewModel,
     ProvenanceViewModel, RelationsViewModel,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -155,7 +155,7 @@ pub fn draw_concept_list_widget(
     if vm.items.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No concept nodes in graph catalog.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -181,11 +181,17 @@ pub fn draw_concept_list_widget(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
                 Span::styled(&item.label, style),
-                Span::styled(&item.node_type, style.fg(Color::Yellow)),
-                Span::styled(&item.id, style.fg(Color::Gray)),
-                Span::styled(&item.relationships_count_text, style.fg(Color::Cyan)),
+                Span::styled(
+                    &item.node_type,
+                    style.patch(theme.style(ThemeToken::Warning)),
+                ),
+                Span::styled(&item.id, style.patch(theme.style(ThemeToken::TextMuted))),
+                Span::styled(
+                    &item.relationships_count_text,
+                    style.patch(theme.style(ThemeToken::Info)),
+                ),
             ];
             Row::new(cells).height(1)
         })
@@ -221,15 +227,15 @@ pub fn draw_concept_details_widget(
         let lines = vec![
             Line::from(vec![Span::styled(
                 "  ⚠  Target Concept Unavailable",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Danger).add_modifier(Modifier::BOLD),
             )]),
             Line::from(vec![Span::styled(
                 format!("     Reason: {}", err),
-                Style::default().fg(Color::Yellow),
+                theme.style(ThemeToken::Warning),
             )]),
             Line::from(vec![Span::styled(
                 "     Press 'b' to navigate back to previous concept.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             )]),
         ];
         let p = Paragraph::new(lines).block(block);
@@ -242,7 +248,7 @@ pub fn draw_concept_details_widget(
         None => {
             let p = Paragraph::new(Span::styled(
                 "Select a concept node to view details.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -255,16 +261,14 @@ pub fn draw_concept_details_widget(
             Span::raw("Canonical Label: "),
             Span::styled(
                 &vm.label,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
             Span::raw("Node Type:       "),
-            Span::styled(&vm.node_type, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.node_type, theme.style(ThemeToken::Warning)),
             Span::raw("  |  ID: "),
-            Span::styled(&vm.id, Style::default().fg(Color::Gray)),
+            Span::styled(&vm.id, theme.style(ThemeToken::TextMuted)),
         ]),
     ];
 
@@ -294,7 +298,7 @@ pub fn draw_relations_widget(
     if vm.items.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No relationship edges recorded for this concept.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -327,12 +331,24 @@ pub fn draw_relations_widget(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
-                Span::styled(&item.direction, style.fg(item.direction_color)),
-                Span::styled(&item.relation, style.fg(Color::Yellow)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
+                Span::styled(
+                    &item.direction,
+                    style.patch(theme.style(item.direction_token)),
+                ),
+                Span::styled(
+                    &item.relation,
+                    style.patch(theme.style(ThemeToken::Warning)),
+                ),
                 Span::styled(&item.target_label, style.add_modifier(Modifier::BOLD)),
-                Span::styled(&item.target_type, style.fg(Color::Gray)),
-                Span::styled(&item.weight_text, style.fg(Color::Magenta)),
+                Span::styled(
+                    &item.target_type,
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
+                Span::styled(
+                    &item.weight_text,
+                    style.patch(theme.style(ThemeToken::Secondary)),
+                ),
             ];
             Row::new(cells).height(1)
         })
@@ -373,7 +389,7 @@ pub fn draw_properties_widget(
     if vm.items.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No key-value attributes recorded.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -389,16 +405,16 @@ pub fn draw_properties_widget(
         .items
         .iter()
         .map(|item| {
-            let group_color = match item.group.as_str() {
-                "System" => Color::Red,
-                "Canonical" => Color::Cyan,
-                "User" => Color::Green,
-                _ => Color::Gray,
+            let group_token = match item.group.as_str() {
+                "System" => ThemeToken::Danger,
+                "Canonical" => ThemeToken::Info,
+                "User" => ThemeToken::Success,
+                _ => ThemeToken::TextMuted,
             };
             let cells = vec![
-                Span::styled(&item.group, Style::default().fg(group_color)),
-                Span::styled(&item.key, Style::default().fg(Color::Yellow)),
-                Span::styled(&item.value, Style::default().fg(Color::White)),
+                Span::styled(&item.group, theme.style(group_token)),
+                Span::styled(&item.key, theme.style(ThemeToken::Warning)),
+                Span::styled(&item.value, theme.style(ThemeToken::TextPrimary)),
             ];
             Row::new(cells).height(1)
         })
@@ -438,7 +454,7 @@ pub fn draw_provenance_widget(
         None => {
             let p = Paragraph::new(Span::styled(
                 "No provenance origin recorded.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -449,15 +465,15 @@ pub fn draw_provenance_widget(
     let mut lines = vec![
         Line::from(vec![
             Span::raw("Source: "),
-            Span::styled(&vm.source, Style::default().fg(Color::Green)),
+            Span::styled(&vm.source, theme.style(ThemeToken::Success)),
             Span::raw("  |  Compiler Pass: "),
-            Span::styled(&vm.compiler_pass, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.compiler_pass, theme.style(ThemeToken::Warning)),
         ]),
         Line::from(vec![
             Span::raw("Location:  "),
-            Span::styled(&vm.location, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.location, theme.style(ThemeToken::Info)),
             Span::raw("  |  Timestamp: "),
-            Span::styled(&vm.timestamp_text, Style::default().fg(Color::Gray)),
+            Span::styled(&vm.timestamp_text, theme.style(ThemeToken::TextMuted)),
         ]),
     ];
 
@@ -470,7 +486,7 @@ pub fn draw_provenance_widget(
             .join("  ");
         lines.push(Line::from(vec![
             Span::raw("Annotations: "),
-            Span::styled(extra_str, Style::default().fg(Color::DarkGray)),
+            Span::styled(extra_str, theme.style(ThemeToken::TextMuted)),
         ]));
     }
 
@@ -479,45 +495,38 @@ pub fn draw_provenance_widget(
 }
 
 /// Renders the bottom Command Hint Footer bar for Knowledge Explorer.
-pub fn draw_explorer_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_explorer_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Scroll Cursor   "),
         Span::styled(
             " Enter ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Green)
+            theme
+                .style(ThemeToken::Success)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Jump Target Node   "),
         Span::styled(
             " b / Shift+B ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Magenta)
+            theme
+                .style(ThemeToken::Secondary)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Back/Forward   "),
         Span::styled(
             " Tab ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Switch Focus Panel   "),
         Span::styled(
             " q ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Back "),

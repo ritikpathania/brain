@@ -505,6 +505,131 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             UpdateResult::Changed => {}
                             UpdateResult::NoChange => {}
                             UpdateResult::PromptSubmitted(prompt) => {
+                                if prompt.trim().starts_with("/memory") {
+                                    let client_clone = client.clone();
+                                    let tx = events.sender();
+                                    let filter = brain_domain::MemoryFilter::parse(&prompt);
+                                    tokio::spawn(async move {
+                                        match client_clone.list_memories(filter).await {
+                                            Ok(memories) => {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoriesLoaded(memories),
+                                                ));
+                                            }
+                                            Err(err) => {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoriesLoadFailed(err.to_string()),
+                                                ));
+                                            }
+                                        }
+                                    });
+                                } else if prompt.trim().starts_with("/pin ") {
+                                    let id = prompt.trim()["/pin ".len()..].trim().to_string();
+                                    if let Some(snapshot) = state
+                                        .memory_results_vm
+                                        .items()
+                                        .iter()
+                                        .find(|item| item.id == id)
+                                        .cloned()
+                                    {
+                                        let client_clone = client.clone();
+                                        let id_clone = id.clone();
+                                        let tx = events.sender();
+                                        tokio::spawn(async move {
+                                            if client_clone.pin_memory(&id_clone).await.is_err() {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoryMutationFailed(snapshot),
+                                                ));
+                                            }
+                                        });
+                                    }
+                                    state.update(Action::PinMemory(id));
+                                } else if prompt.trim().starts_with("/unpin ") {
+                                    let id = prompt.trim()["/unpin ".len()..].trim().to_string();
+                                    if let Some(snapshot) = state
+                                        .memory_results_vm
+                                        .items()
+                                        .iter()
+                                        .find(|item| item.id == id)
+                                        .cloned()
+                                    {
+                                        let client_clone = client.clone();
+                                        let id_clone = id.clone();
+                                        let tx = events.sender();
+                                        tokio::spawn(async move {
+                                            if client_clone.unpin_memory(&id_clone).await.is_err() {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoryMutationFailed(snapshot),
+                                                ));
+                                            }
+                                        });
+                                    }
+                                    state.update(Action::UnpinMemory(id));
+                                } else if prompt.trim().starts_with("/archive ") {
+                                    let id = prompt.trim()["/archive ".len()..].trim().to_string();
+                                    if let Some(snapshot) = state
+                                        .memory_results_vm
+                                        .items()
+                                        .iter()
+                                        .find(|item| item.id == id)
+                                        .cloned()
+                                    {
+                                        let client_clone = client.clone();
+                                        let id_clone = id.clone();
+                                        let tx = events.sender();
+                                        tokio::spawn(async move {
+                                            if client_clone.archive_memory(&id_clone).await.is_err()
+                                            {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoryMutationFailed(snapshot),
+                                                ));
+                                            }
+                                        });
+                                    }
+                                    state.update(Action::ArchiveMemory(id));
+                                } else if prompt.trim().starts_with("/restore ") {
+                                    let id = prompt.trim()["/restore ".len()..].trim().to_string();
+                                    if let Some(snapshot) = state
+                                        .memory_results_vm
+                                        .items()
+                                        .iter()
+                                        .find(|item| item.id == id)
+                                        .cloned()
+                                    {
+                                        let client_clone = client.clone();
+                                        let id_clone = id.clone();
+                                        let tx = events.sender();
+                                        tokio::spawn(async move {
+                                            if client_clone.restore_memory(&id_clone).await.is_err()
+                                            {
+                                                let _ = tx.send(Event::App(
+                                                    AppEvent::MemoryMutationFailed(snapshot),
+                                                ));
+                                            }
+                                        });
+                                    }
+                                    state.update(Action::RestoreMemory(id));
+                                } else if prompt.trim().starts_with("/plan") {
+                                    let query = prompt.trim()["/plan".len()..].trim();
+                                    let target_query = if query.is_empty() {
+                                        "How does retrieval work?"
+                                    } else {
+                                        query
+                                    };
+                                    let client_clone = client.clone();
+                                    let tx = events.sender();
+                                    let query_str = target_query.to_string();
+                                    tokio::spawn(async move {
+                                        if let Ok(plan) =
+                                            client_clone.plan_reasoning(&query_str).await
+                                        {
+                                            let _ = tx.send(Event::App(
+                                                AppEvent::ReasoningPlanGenerated(plan),
+                                            ));
+                                        }
+                                    });
+                                }
+
                                 // Cancel any in-flight stream before starting a new one.
                                 if let Some(old_token) = active_cancel.take() {
                                     old_token.cancel();
@@ -609,7 +734,7 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                 let client_clone = std::sync::Arc::clone(&client);
                                 let tx = events.sender();
                                 tokio::spawn(async move {
-                                    match client_clone.inspect_node(node_id).await {
+                                    match client_clone.inspect_entity(node_id).await {
                                         Ok(model) => {
                                             let _ = tx.send(Event::App(
                                                 AppEvent::InspectNodeLoaded(Box::new(model)),
@@ -688,6 +813,18 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                 }
                 Event::App(AppEvent::InspectNodeFailed(error)) => {
                     state.update(Action::NodeDetailsFailed(error));
+                }
+                Event::App(AppEvent::MemoriesLoaded(memories)) => {
+                    state.update(Action::LoadMemories(memories));
+                }
+                Event::App(AppEvent::MemoriesLoadFailed(error)) => {
+                    state.update(Action::MemoryListFailed(error));
+                }
+                Event::App(AppEvent::MemoryMutationFailed(previous)) => {
+                    state.update(Action::RollbackMemoryMutation(previous));
+                }
+                Event::App(AppEvent::ReasoningPlanGenerated(plan)) => {
+                    state.update(Action::ReasoningPlanGenerated(plan));
                 }
                 Event::App(AppEvent::Stream(stream_event)) => {
                     match stream_event.kind {
@@ -877,10 +1014,13 @@ mod integration_tests {
         ) -> Result<(), BrainError> {
             Ok(())
         }
-        async fn search_messages(&self, _query: &str) -> Result<Vec<Message>, BrainError> {
+        async fn search_candidates(
+            &self,
+            _query: &str,
+        ) -> Result<Vec<crate::client::SearchCandidate>, BrainError> {
             Ok(vec![])
         }
-        async fn inspect_node(
+        async fn inspect_entity(
             &self,
             id: brain_domain::NodeId,
         ) -> Result<brain_domain::query::inspector::InspectorModel, BrainError> {
@@ -903,6 +1043,19 @@ mod integration_tests {
                 retrieval_explanation: None,
                 recent_activity: vec![],
             })
+        }
+        async fn list_memories(
+            &self,
+            _filter: brain_domain::MemoryFilter,
+        ) -> Result<Vec<brain_domain::MemorySummary>, BrainError> {
+            Ok(vec![])
+        }
+        async fn mutate_memory(
+            &self,
+            _id: &str,
+            _mutation: brain_domain::MemoryMutation,
+        ) -> Result<(), BrainError> {
+            Ok(())
         }
     }
 

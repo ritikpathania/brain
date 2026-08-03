@@ -46,6 +46,14 @@ pub enum AppEvent {
     InspectNodeLoaded(Box<brain_domain::query::inspector::InspectorModel>),
     /// Graph node inspection failed.
     InspectNodeFailed(String),
+    /// Memory summaries loaded.
+    MemoriesLoaded(Vec<brain_domain::MemorySummary>),
+    /// Memory summaries load failed.
+    MemoriesLoadFailed(String),
+    /// Memory mutation failed, requiring optimistic rollback.
+    MemoryMutationFailed(crate::ui::view_models::MemoryItemViewModel),
+    /// Diagnostic reasoning execution plan generated.
+    ReasoningPlanGenerated(brain_domain::ExecutionPlan),
     /// Daemon socket closed without sending a Finished or Cancelled event.
     /// Signals unexpected disconnection (daemon crash, process killed, etc.).
     StreamEof,

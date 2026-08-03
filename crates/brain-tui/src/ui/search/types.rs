@@ -65,6 +65,8 @@ pub enum SearchResultKind {
     Session,
     /// Result jumps to a specific message content coordinate.
     Message,
+    /// Result is a knowledge graph entity from the daemon's retrieval pipeline.
+    Knowledge,
 }
 
 /// Opaque actions triggered by selecting a result.
@@ -79,19 +81,33 @@ pub enum SearchResultAction {
         /// Message target identifier.
         message_id: MessageId,
     },
+    /// Open the memory detail view for a knowledge graph entity.
+    /// Used by Phase 2.5 expand-to-details flow.
+    OpenMemoryDetail {
+        /// Stable entity ID for detail lookup.
+        entity_id: String,
+    },
 }
 
 /// Unified search result produced by providers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchResult {
-    /// Result title text.
-    pub title: String,
-    /// Explanatory subtitle or description.
-    pub subtitle: String,
+    /// Stable canonical entity ID from the source knowledge graph.
+    ///
+    /// Used for deduplication across providers. Empty string for results that
+    /// have no stable backing ID (commands, sessions) — these are never deduplicated.
+    pub entity_id: String,
+    /// Result title text, or `None` if the provider has no human-readable label.
+    /// Only `MemoryResultViewModel::from_search_result` resolves `None` to a placeholder.
+    pub title: Option<String>,
+    /// Explanatory subtitle or description, or `None` if unavailable.
+    pub subtitle: Option<String>,
     /// Display category.
     pub kind: SearchResultKind,
-    /// Specific provider match score.
+    /// Scaled ranking score (i32). Note: follow-up rename to `ranking_score` pending.
     pub provider_score: i32,
+    /// Typed confidence carried from the retrieval pipeline.
+    pub confidence: crate::client::Confidence,
     /// Triggerable action payload.
     pub action: SearchResultAction,
 }

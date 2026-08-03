@@ -1,6 +1,6 @@
 use crate::state::{ConnectionMode, FocusRegion, UiState};
 use crate::ui::interaction::markdown::{SelectionState, ViewportIndex, VisualLine, VisualLineKind};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::{
     chat::{self, ChatView, VisibleChatLine},
     dialog::Dialog,
@@ -533,8 +533,8 @@ impl AppRenderer {
             );
 
             let buf = f.buffer_mut();
-            let block = ratatui::widgets::Block::default()
-                .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+            let block =
+                ratatui::widgets::Block::default().style(theme.style(ThemeToken::Background));
             ratatui::widgets::Widget::render(block, dialog_area, buf);
 
             // Use the capabilities already built at the top of draw() — not a second detect().

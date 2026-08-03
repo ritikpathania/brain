@@ -3,7 +3,6 @@
 use crate::state::PinnedNode;
 use crate::ui::theme::Theme;
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Stylize;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 
 /// Renders the Pinned Context list as a modal overlay centered in the area.
@@ -86,7 +85,7 @@ pub fn draw(
 
                 let mut item = ListItem::new(line);
                 if is_selected {
-                    item = item.style(theme.primary.bold().bg(ratatui::style::Color::DarkGray));
+                    item = item.style(theme.cursor);
                 } else {
                     item = item.style(theme.text);
                 }

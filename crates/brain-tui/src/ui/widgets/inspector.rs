@@ -1,7 +1,7 @@
 use crate::state::{InspectorLoadState, InspectorSession};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
@@ -28,204 +28,193 @@ pub fn draw(
             lines.push(Line::from(""));
             lines.push(Line::from(vec![Span::styled(
                 "  ⏳  Loading graph entity details...",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::ITALIC),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::ITALIC),
             )]));
         }
         InspectorLoadState::Error(err) => {
             lines.push(Line::from(""));
             lines.push(Line::from(vec![Span::styled(
                 "  ⚠  Error fetching entity:",
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Danger).add_modifier(Modifier::BOLD),
             )]));
             lines.push(Line::from(vec![Span::styled(
                 format!("     {}", err),
-                Style::default().fg(Color::Red),
+                theme.style(ThemeToken::Danger),
             )]));
         }
         InspectorLoadState::Loaded(model) => {
+            let vm = crate::ui::view_models::InspectorViewModel::from_domain(model);
+
             // Title Header
             let mut entity_spans = vec![
-                Span::styled("Entity: ", Style::default().fg(Color::Gray)),
+                Span::styled("Entity: ", theme.style(ThemeToken::TextMuted)),
                 Span::styled(
-                    &model.entity.label,
-                    Style::default()
-                        .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                        .add_modifier(Modifier::BOLD),
+                    vm.display_name.clone(),
+                    theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
                 ),
             ];
             if is_pinned {
                 entity_spans.push(Span::styled(
                     " [PINNED]",
-                    Style::default()
-                        .fg(Color::Magenta)
+                    theme
+                        .style(ThemeToken::Secondary)
                         .add_modifier(Modifier::BOLD),
                 ));
             }
             lines.push(Line::from(entity_spans));
-            lines.push(Line::from(vec![
-                Span::styled("Type:   ", Style::default().fg(Color::Gray)),
-                Span::styled(&model.entity.node_type, Style::default().fg(Color::Yellow)),
-            ]));
             lines.push(Line::from("─".repeat(max_width)));
 
-            // 1. Relationships Section
-            lines.push(Line::from(vec![Span::styled(
-                "Relationships & Adjacency",
-                Style::default()
-                    .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                    .add_modifier(Modifier::BOLD),
-            )]));
-            if model.relationships.is_empty() {
-                lines.push(Line::from(vec![Span::styled(
-                    "  (No connections recorded)",
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::ITALIC),
-                )]));
-            } else {
-                for (idx, rel) in model.relationships.iter().enumerate() {
-                    let is_selected = idx == active.selected_relation_idx;
-
-                    let prefix = if is_selected { " ▶ " } else { "   " };
-                    let style = if is_selected {
-                        Style::default()
-                            .bg(Color::LightBlue)
-                            .fg(Color::Black)
-                            .add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default()
-                    };
-
-                    let direction_symbol = if rel.direction == "outgoing" {
-                        "→"
-                    } else {
-                        "←"
-                    };
-
-                    lines.push(Line::from(vec![
-                        Span::styled(
-                            prefix,
-                            if is_selected {
-                                Style::default().fg(Color::LightBlue)
-                            } else {
-                                Style::default().fg(Color::DarkGray)
-                            },
-                        ),
-                        Span::styled(
-                            format!("{} [{}] ", direction_symbol, rel.direction),
-                            style.fg(Color::Yellow),
-                        ),
-                        Span::styled(format!("({}) ", rel.relation), style.fg(Color::Magenta)),
-                        Span::styled(&rel.target_label, style.fg(Color::White)),
-                        Span::styled(format!(" ({})", rel.target_type), style.fg(Color::DarkGray)),
-                        Span::styled(format!(" [w: {:.2}]", rel.weight), style.fg(Color::Green)),
-                    ]));
+            for section in &vm.sections {
+                match section {
+                    crate::ui::view_models::EntitySection::Identity {
+                        id,
+                        display_name: _,
+                        node_type,
+                    } => {
+                        lines.push(Line::from(vec![Span::styled(
+                            "Identity",
+                            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+                        )]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  ID:   ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(id.clone(), theme.style(ThemeToken::TextPrimary)),
+                        ]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  Type: ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(node_type.clone(), theme.style(ThemeToken::Warning)),
+                        ]));
+                        lines.push(Line::from("─".repeat(max_width)));
+                    }
+                    crate::ui::view_models::EntitySection::Source {
+                        kind,
+                        producer,
+                        location,
+                        timestamp,
+                        workspace,
+                    } => {
+                        lines.push(Line::from(vec![Span::styled(
+                            section.heading(),
+                            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+                        )]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  Kind:      ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(kind.clone(), theme.style(ThemeToken::TextPrimary)),
+                        ]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  Producer:  ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(producer.clone(), theme.style(ThemeToken::Secondary)),
+                        ]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  Location:  ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(location.clone(), theme.style(ThemeToken::Warning)),
+                        ]));
+                        lines.push(Line::from(vec![
+                            Span::styled("  Workspace: ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(workspace.clone(), theme.style(ThemeToken::TextMuted)),
+                        ]));
+                        if *timestamp > 0 {
+                            lines.push(Line::from(vec![
+                                Span::styled("  Time:      ", theme.style(ThemeToken::TextMuted)),
+                                Span::styled(
+                                    timestamp.to_string(),
+                                    theme.style(ThemeToken::TextMuted),
+                                ),
+                            ]));
+                        }
+                        lines.push(Line::from("─".repeat(max_width)));
+                    }
+                    crate::ui::view_models::EntitySection::RetrievalExplanation { explanation } => {
+                        lines.push(Line::from(vec![Span::styled(
+                            section.heading(),
+                            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+                        )]));
+                        lines.push(Line::from(vec![Span::styled(
+                            "  Matched:",
+                            theme.style(ThemeToken::TextMuted),
+                        )]));
+                        for reason in &explanation.matched_elements {
+                            lines.push(Line::from(vec![
+                                Span::styled("    ✓ ", theme.style(ThemeToken::Success)),
+                                Span::styled(reason.label(), theme.style(ThemeToken::TextPrimary)),
+                            ]));
+                        }
+                        lines.push(Line::from(vec![
+                            Span::styled("  Confidence: ", theme.style(ThemeToken::TextMuted)),
+                            Span::styled(
+                                explanation.confidence.badge_text(),
+                                theme
+                                    .style(ThemeToken::Success)
+                                    .add_modifier(Modifier::BOLD),
+                            ),
+                        ]));
+                        lines.push(Line::from("─".repeat(max_width)));
+                    }
+                    crate::ui::view_models::EntitySection::ActivityFeed { entries } => {
+                        lines.push(Line::from(vec![Span::styled(
+                            section.heading(),
+                            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+                        )]));
+                        for entry in entries {
+                            lines.push(Line::from(vec![
+                                Span::styled("  • ", theme.style(ThemeToken::Success)),
+                                Span::styled(
+                                    entry.action.clone(),
+                                    theme
+                                        .style(ThemeToken::HeaderPrimary)
+                                        .add_modifier(Modifier::BOLD),
+                                ),
+                                Span::raw(": "),
+                                Span::styled(
+                                    entry.details.clone(),
+                                    theme.style(ThemeToken::TextPrimary),
+                                ),
+                            ]));
+                        }
+                        lines.push(Line::from("─".repeat(max_width)));
+                    }
+                    crate::ui::view_models::EntitySection::Metadata { attributes } => {
+                        lines.push(Line::from(vec![Span::styled(
+                            section.heading(),
+                            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+                        )]));
+                        if attributes.is_empty() {
+                            lines.push(Line::from(vec![Span::styled(
+                                "  (No attributes recorded)",
+                                theme
+                                    .style(ThemeToken::TextMuted)
+                                    .add_modifier(Modifier::ITALIC),
+                            )]));
+                        } else {
+                            for (k, v) in attributes {
+                                lines.push(Line::from(vec![
+                                    Span::styled(
+                                        format!("  {}: ", k),
+                                        theme.style(ThemeToken::TextMuted),
+                                    ),
+                                    Span::styled(v.clone(), theme.style(ThemeToken::TextPrimary)),
+                                ]));
+                            }
+                        }
+                        lines.push(Line::from("─".repeat(max_width)));
+                    }
+                    crate::ui::view_models::EntitySection::Relationships { connections } => {
+                        render_relationship_section(
+                            &mut lines,
+                            connections,
+                            active.selected_relation_idx,
+                            theme,
+                            max_width,
+                        );
+                    }
                 }
             }
-            lines.push(Line::from("─".repeat(max_width)));
-
-            // 2. Metadata Section
-            lines.push(Line::from(vec![Span::styled(
-                "Properties & Metadata",
-                Style::default()
-                    .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                    .add_modifier(Modifier::BOLD),
-            )]));
-            // Dump basic properties
-            if let serde_json::Value::Object(map) = &model.entity.attributes {
-                for (k, v) in map {
-                    let val_str = match v {
-                        serde_json::Value::String(s) => s.clone(),
-                        other => other.to_string(),
-                    };
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {}: ", k), Style::default().fg(Color::Gray)),
-                        Span::styled(val_str, Style::default().fg(Color::White)),
-                    ]));
-                }
-            }
-            // Dump remaining system metadata
-            for (k, v) in &model.metadata {
-                if k != "id" {
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {}: ", k), Style::default().fg(Color::DarkGray)),
-                        Span::styled(v, Style::default().fg(Color::DarkGray)),
-                    ]));
-                }
-            }
-            lines.push(Line::from("─".repeat(max_width)));
-
-            // 3. Retrieval Explanation Section (Phase 1 Dedicated Section)
-            if let Some(ref explanation) = model.retrieval_explanation {
-                lines.push(Line::from(vec![Span::styled(
-                    "Retrieval Explanation",
-                    Style::default()
-                        .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                        .add_modifier(Modifier::BOLD),
-                )]));
-                lines.push(Line::from(vec![
-                    Span::styled("  Score: ", Style::default().fg(Color::Gray)),
-                    Span::styled(
-                        format!("{:.4}", explanation.score),
-                        Style::default().fg(Color::Green),
-                    ),
-                    Span::styled(
-                        format!(" (raw: {:.4})", explanation.raw_score),
-                        Style::default().fg(Color::DarkGray),
-                    ),
-                ]));
-                if explanation.semantic_distance > 0.0 {
-                    lines.push(Line::from(vec![
-                        Span::styled("  Semantic Distance: ", Style::default().fg(Color::Gray)),
-                        Span::styled(
-                            format!("{:.4}", explanation.semantic_distance),
-                            Style::default().fg(Color::Yellow),
-                        ),
-                    ]));
-                }
-                if !explanation.keyword_boosts.is_empty() {
-                    lines.push(Line::from(vec![
-                        Span::styled("  Matched Terms:     ", Style::default().fg(Color::Gray)),
-                        Span::styled(
-                            explanation.keyword_boosts.join(", "),
-                            Style::default().fg(Color::Magenta),
-                        ),
-                    ]));
-                }
-                lines.push(Line::from(vec![
-                    Span::styled("  Reasoning: ", Style::default().fg(Color::Gray)),
-                    Span::styled(&explanation.reasoning, Style::default().fg(Color::White)),
-                ]));
-                lines.push(Line::from("─".repeat(max_width)));
-            }
-
-            // 4. Provenance Section
-            lines.push(Line::from(vec![Span::styled(
-                "Provenance & Source History",
-                Style::default()
-                    .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                    .add_modifier(Modifier::BOLD),
-            )]));
-            lines.push(Line::from(vec![
-                Span::styled("  Origin:   ", Style::default().fg(Color::Gray)),
-                Span::styled(&model.provenance.source, Style::default().fg(Color::White)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  Location: ", Style::default().fg(Color::Gray)),
-                Span::styled(
-                    &model.provenance.location,
-                    Style::default().fg(Color::Yellow),
-                ),
-            ]));
             if let Some(text_span) = model.provenance.extra_info.get("text_span") {
                 lines.push(Line::from(vec![
-                    Span::styled("  Text Span: ", Style::default().fg(Color::Gray)),
+                    Span::styled("  Text Span: ", theme.style(ThemeToken::TextMuted)),
                     Span::styled(
                         format!("\"{}\"", text_span),
-                        Style::default()
-                            .fg(Color::DarkGray)
+                        theme
+                            .style(ThemeToken::TextMuted)
                             .add_modifier(Modifier::ITALIC),
                     ),
                 ]));
@@ -235,17 +224,15 @@ pub fn draw(
             // 5. Recent Activity Section
             lines.push(Line::from(vec![Span::styled(
                 "Recent Activity Logs",
-                Style::default()
-                    .fg(theme.accent.fg.unwrap_or(Color::Cyan))
-                    .add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
             )]));
             for log in &model.recent_activity {
                 lines.push(Line::from(vec![
                     Span::styled(
                         format!("  [{}] ", log.action),
-                        Style::default().fg(Color::Yellow),
+                        theme.style(ThemeToken::Warning),
                     ),
-                    Span::styled(&log.details, Style::default().fg(Color::Gray)),
+                    Span::styled(log.details.clone(), theme.style(ThemeToken::TextMuted)),
                 ]));
             }
         }
@@ -261,4 +248,56 @@ pub fn draw(
     let list = List::new(list_items).block(block).style(theme.text);
 
     f.render_widget(list, area);
+}
+
+/// Renders the relationship adjacency section with localized selection highlights.
+fn render_relationship_section<'a>(
+    lines: &mut Vec<Line<'a>>,
+    connections: &[crate::ui::view_models::RelationshipViewModel],
+    selected_idx: usize,
+    theme: &Theme,
+    max_width: usize,
+) {
+    lines.push(Line::from(vec![Span::styled(
+        "Relationships & Adjacency",
+        theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
+    )]));
+    if connections.is_empty() {
+        lines.push(Line::from(vec![Span::styled(
+            "  (No connections recorded)",
+            theme
+                .style(ThemeToken::TextMuted)
+                .add_modifier(Modifier::ITALIC),
+        )]));
+    } else {
+        for (idx, rel) in connections.iter().enumerate() {
+            let is_selected = selected_idx == idx;
+            let prefix = if is_selected { " ▶ " } else { "   " };
+            let style = if is_selected {
+                theme.style(ThemeToken::Selection)
+            } else {
+                Style::default()
+            };
+
+            lines.push(Line::from(vec![
+                Span::styled(
+                    prefix.to_string(),
+                    if is_selected {
+                        theme.style(ThemeToken::Info)
+                    } else {
+                        theme.style(ThemeToken::TextMuted)
+                    },
+                ),
+                Span::styled(
+                    format!("({}) ", rel.relation_kind),
+                    style.patch(theme.style(ThemeToken::Secondary)),
+                ),
+                Span::styled(
+                    rel.target_label.clone(),
+                    style.patch(theme.style(ThemeToken::TextPrimary)),
+                ),
+            ]));
+        }
+    }
+    lines.push(Line::from("─".repeat(max_width)));
 }

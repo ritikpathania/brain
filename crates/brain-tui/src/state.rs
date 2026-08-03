@@ -614,6 +614,14 @@ pub struct UiState {
     pub slash_completion: crate::ui::command::completion::SlashCompletionState,
     /// Command palette state.
     pub command_palette: crate::ui::command::palette::CommandPaletteState,
+    /// Encapsulated presentation view model for search results.
+    pub search_results_vm: crate::ui::view_models::SearchResultsViewModel,
+    /// Encapsulated presentation view model for memory stewardship results.
+    pub memory_results_vm: crate::ui::view_models::MemoryResultsViewModel,
+    /// Encapsulated presentation view model for diagnostic reasoning execution plans.
+    pub reasoning_plan_vm: Option<crate::ui::view_models::ReasoningPlanViewModel>,
+    /// Encapsulated inspection navigation session.
+    pub inspection_session: crate::ui::view_models::InspectionSession,
     /// Track pending activations atomically.
     pub pending_load: Option<PendingLoad>,
 
@@ -901,6 +909,22 @@ pub enum Action {
     ResetSubmitWithWorkspace,
     /// Set a transient status-bar message (clears on next tick if stale).
     SetTransientMessage(String),
+    /// Loaded list of memory summaries for stewardship.
+    LoadMemories(Vec<brain_domain::MemorySummary>),
+    /// Memory list load failed.
+    MemoryListFailed(String),
+    /// Pin a specific memory item into context.
+    PinMemory(String),
+    /// Unpin a specific memory item from context.
+    UnpinMemory(String),
+    /// Archive a specific memory item into cold storage.
+    ArchiveMemory(String),
+    /// Restore an archived memory item back to active stewardship.
+    RestoreMemory(String),
+    /// Rollback an optimistic memory mutation on reconciliation failure.
+    RollbackMemoryMutation(crate::ui::view_models::MemoryItemViewModel),
+    /// Diagnostic reasoning plan generated.
+    ReasoningPlanGenerated(brain_domain::ExecutionPlan),
 }
 
 /// Pure status indicator returning from state updates.
@@ -949,6 +973,10 @@ impl UiState {
             sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
             slash_completion: crate::ui::command::completion::SlashCompletionState::new(),
             command_palette: crate::ui::command::palette::CommandPaletteState::new(),
+            search_results_vm: crate::ui::view_models::SearchResultsViewModel::default(),
+            memory_results_vm: crate::ui::view_models::MemoryResultsViewModel::default(),
+            reasoning_plan_vm: None,
+            inspection_session: crate::ui::view_models::InspectionSession::default(),
             pending_load: None,
 
             session_load_state: SessionLoadState::NotLoaded,
@@ -1022,6 +1050,10 @@ impl UiState {
             sidebar: crate::ui::interaction::sidebar::SidebarInteraction::new(),
             slash_completion: crate::ui::command::completion::SlashCompletionState::new(),
             command_palette: crate::ui::command::palette::CommandPaletteState::new(),
+            search_results_vm: crate::ui::view_models::SearchResultsViewModel::default(),
+            memory_results_vm: crate::ui::view_models::MemoryResultsViewModel::default(),
+            reasoning_plan_vm: None,
+            inspection_session: crate::ui::view_models::InspectionSession::default(),
             pending_load: None,
 
             session_load_state: SessionLoadState::NotLoaded,
@@ -1656,6 +1688,8 @@ impl UiState {
                     selected_relation_idx: 0,
                 });
 
+                self.inspection_session.inspect(node_id.0.to_string());
+
                 UpdateResult::InspectNode(node_id)
             }
             Action::NodeDetailsLoaded(model) => {
@@ -1679,6 +1713,7 @@ impl UiState {
                         go_back_to = Some(*prev);
                     }
                 }
+                self.inspection_session.go_back();
                 if let Some(prev_node_id) = go_back_to {
                     // Update breadcrumbs manually to preserve stack
                     let mut breadcrumbs = Vec::new();
@@ -1706,6 +1741,7 @@ impl UiState {
                 // Setting active_inspector to None also clears breadcrumbs,
                 // which are volatile and scoped to the active Inspector session (RFC-006 §4).
                 self.active_inspector = None;
+                self.inspection_session = crate::ui::view_models::InspectionSession::default();
                 // Resume auto-follow so the timeline scrolls to bottom on next message.
                 self.viewport.follow_tail = true;
                 self.recalculate_viewport();
@@ -2101,6 +2137,73 @@ impl UiState {
             }
             Action::SetTransientMessage(msg) => {
                 self.transient_message = Some((msg, std::time::Instant::now()));
+                UpdateResult::Changed
+            }
+            Action::LoadMemories(summaries) => {
+                let vms = summaries
+                    .iter()
+                    .map(crate::ui::view_models::MemoryItemViewModel::from_summary)
+                    .collect();
+                self.memory_results_vm.update_items(vms);
+                self.memory_results_vm.set_active(true);
+                UpdateResult::Changed
+            }
+            Action::MemoryListFailed(err) => {
+                self.transient_message = Some((
+                    format!("Memory list failed: {}", err),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::PinMemory(id) => {
+                self.memory_results_vm.optimistic_pin(&id);
+                self.transient_message =
+                    Some((format!("Pinned memory: {}", id), std::time::Instant::now()));
+                UpdateResult::Changed
+            }
+            Action::UnpinMemory(id) => {
+                self.memory_results_vm.optimistic_unpin(&id);
+                self.transient_message = Some((
+                    format!("Unpinned memory: {}", id),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::ArchiveMemory(id) => {
+                self.memory_results_vm.optimistic_archive(&id);
+                self.transient_message = Some((
+                    format!("Archived memory: {}", id),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::RestoreMemory(id) => {
+                self.memory_results_vm.optimistic_restore(&id);
+                self.transient_message = Some((
+                    format!("Restored memory: {}", id),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::RollbackMemoryMutation(previous) => {
+                let id = previous.id.clone();
+                self.memory_results_vm.rollback_item(previous);
+                self.transient_message = Some((
+                    format!("Reconciled memory mutation failure for {}", id),
+                    std::time::Instant::now(),
+                ));
+                UpdateResult::Changed
+            }
+            Action::ReasoningPlanGenerated(plan) => {
+                let vm = crate::ui::view_models::ReasoningPlanViewModel::from_domain(&plan);
+                self.transient_message = Some((
+                    format!(
+                        "Generated reasoning plan '{}' ({} steps)",
+                        vm.plan_id, vm.total_steps
+                    ),
+                    std::time::Instant::now(),
+                ));
+                self.reasoning_plan_vm = Some(vm);
                 UpdateResult::Changed
             }
         }

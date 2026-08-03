@@ -7,6 +7,9 @@ pub mod theme;
 /// Stateless layout widgets and ViewModels.
 pub mod widgets;
 
+/// Encapsulated presentation view models.
+pub mod view_models;
+
 /// Stateless rendering helpers.
 pub mod render;
 

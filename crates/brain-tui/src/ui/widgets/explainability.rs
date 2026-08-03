@@ -1,10 +1,10 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::view_models::{
     ExplanationDetailPaneViewModel, ExplanationSummaryViewModel, ExplanationTimelineViewModel,
     ExplanationViewModel,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -91,7 +91,7 @@ pub fn draw_explanation_summary_widget(
         None => {
             let p = Paragraph::new(Span::styled(
                 "No explanation report loaded for concept.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -104,23 +104,21 @@ pub fn draw_explanation_summary_widget(
             Span::raw("Concept Label: "),
             Span::styled(
                 &vm.concept_label,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
             ),
             Span::raw("  |  Type: "),
-            Span::styled(&vm.node_type, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.node_type, theme.style(ThemeToken::Warning)),
             Span::raw("  |  ID: "),
-            Span::styled(&vm.concept_id, Style::default().fg(Color::Gray)),
+            Span::styled(&vm.concept_id, theme.style(ThemeToken::TextMuted)),
         ]),
         Line::from(vec![
             Span::raw("Created At:    "),
-            Span::styled(&vm.created_at_text, Style::default().fg(Color::Gray)),
+            Span::styled(&vm.created_at_text, theme.style(ThemeToken::TextMuted)),
             Span::raw("  |  Total Causal Steps: "),
             Span::styled(
                 &vm.total_steps_text,
-                Style::default()
-                    .fg(Color::Magenta)
+                theme
+                    .style(ThemeToken::Secondary)
                     .add_modifier(Modifier::BOLD),
             ),
         ]),
@@ -152,7 +150,7 @@ pub fn draw_explanation_timeline_widget(
     if vm.items.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No causal execution steps available.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -185,12 +183,24 @@ pub fn draw_explanation_timeline_widget(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
-                Span::styled(item.step_sequence.to_string(), style.fg(Color::Gray)),
-                Span::styled(&item.status_badge, style.fg(item.status_color)),
-                Span::styled(&item.stage_text, style.fg(Color::Yellow)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
+                Span::styled(
+                    item.step_sequence.to_string(),
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
+                Span::styled(
+                    &item.status_badge,
+                    style.patch(theme.style(item.status_token)),
+                ),
+                Span::styled(
+                    &item.stage_text,
+                    style.patch(theme.style(ThemeToken::Warning)),
+                ),
                 Span::styled(&item.title, style.add_modifier(Modifier::BOLD)),
-                Span::styled(&item.time_text, style.fg(Color::DarkGray)),
+                Span::styled(
+                    &item.time_text,
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
             ];
             Row::new(cells).height(1)
         })
@@ -233,7 +243,7 @@ pub fn draw_explanation_detail_widget(
         None => {
             let p = Paragraph::new(Span::styled(
                 "Select a timeline step to inspect causal details.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -246,36 +256,34 @@ pub fn draw_explanation_detail_widget(
             Span::raw("Step ID:    "),
             Span::styled(
                 &vm.step_id,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
             ),
             Span::raw("  |  Sequence: "),
             Span::styled(
                 vm.step_sequence.to_string(),
-                Style::default().fg(Color::Gray),
+                theme.style(ThemeToken::TextMuted),
             ),
             Span::raw("  |  Parent ID: "),
-            Span::styled(&vm.parent_step_id_text, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.parent_step_id_text, theme.style(ThemeToken::Warning)),
         ]),
         Line::from(vec![
             Span::raw("Stage:      "),
-            Span::styled(&vm.stage_text, Style::default().fg(Color::Yellow)),
+            Span::styled(&vm.stage_text, theme.style(ThemeToken::Warning)),
             Span::raw("  |  Status: "),
-            Span::styled(&vm.status_text, Style::default().fg(Color::Green)),
+            Span::styled(&vm.status_text, theme.style(ThemeToken::Success)),
         ]),
         Line::from(vec![
             Span::raw("Title:      "),
             Span::styled(
                 &vm.title,
-                Style::default()
-                    .fg(Color::White)
+                theme
+                    .style(ThemeToken::TextPrimary)
                     .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
             Span::raw("Details:    "),
-            Span::styled(&vm.description, Style::default().fg(Color::White)),
+            Span::styled(&vm.description, theme.style(ThemeToken::TextPrimary)),
         ]),
     ];
 
@@ -283,8 +291,8 @@ pub fn draw_explanation_detail_widget(
         lines.push(Line::from("─── Step Metadata Annotations ───"));
         for (k, v) in &vm.metadata_items {
             lines.push(Line::from(vec![
-                Span::styled(format!("  {} : ", k), Style::default().fg(Color::Gray)),
-                Span::styled(v, Style::default().fg(Color::Cyan)),
+                Span::styled(format!("  {} : ", k), theme.style(ThemeToken::TextMuted)),
+                Span::styled(v, theme.style(ThemeToken::Info)),
             ]));
         }
     }
@@ -294,29 +302,24 @@ pub fn draw_explanation_detail_widget(
 }
 
 /// Renders the bottom Command Hint Footer bar for Explainability screen.
-pub fn draw_explainability_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_explainability_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Scroll Timeline Steps   "),
         Span::styled(
             " Tab ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Switch Focus Panel   "),
         Span::styled(
             " q / Esc ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Back to Knowledge Explorer "),

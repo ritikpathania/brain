@@ -1,5 +1,6 @@
 //! Pluggable search providers for the global search omnibox.
 
+use crate::client::Confidence;
 use crate::ui::search::types::{
     ProviderId, SearchContext, SearchEvent, SearchEventSink, SearchProvider, SearchQuery,
     SearchResult, SearchResultAction, SearchResultKind, PROVIDER_COMMANDS, PROVIDER_LOCAL_MESSAGES,
@@ -45,10 +46,12 @@ impl SearchProvider for CommandsProvider {
                         .any(|kw| kw.to_lowercase().contains(&term)))
             {
                 matches.push(SearchResult {
-                    title: cmd.title.to_string(),
-                    subtitle: cmd.description.to_string(),
+                    entity_id: String::new(), // Commands have no knowledge-graph ID
+                    title: Some(cmd.title.to_string()),
+                    subtitle: Some(cmd.description.to_string()),
                     kind: SearchResultKind::Command,
                     provider_score: 1,
+                    confidence: Confidence::Medium,
                     action: SearchResultAction::InvokeCommand(cmd.id),
                 });
             }
@@ -93,14 +96,16 @@ impl SearchProvider for SessionsProvider {
         for session in &context.sessions {
             if term.is_empty() || session.title.to_lowercase().contains(&term) {
                 matches.push(SearchResult {
-                    title: session.title.clone(),
-                    subtitle: if session.archived {
+                    entity_id: session.id.to_string(),
+                    title: Some(session.title.clone()),
+                    subtitle: Some(if session.archived {
                         "Archived Session".to_string()
                     } else {
                         "Active Session".to_string()
-                    },
+                    }),
                     kind: SearchResultKind::Session,
                     provider_score: 1,
+                    confidence: Confidence::Medium,
                     action: SearchResultAction::SwitchSession(session.id),
                 });
             }
@@ -157,10 +162,12 @@ impl SearchProvider for LocalMessagesProvider {
                 };
 
                 matches.push(SearchResult {
-                    title: preview,
-                    subtitle: format!("{} message", role_name),
+                    entity_id: String::new(), // In-session messages have no graph ID
+                    title: Some(preview),
+                    subtitle: Some(format!("{} message", role_name)),
                     kind: SearchResultKind::Message,
                     provider_score: 1,
+                    confidence: Confidence::Medium,
                     action: SearchResultAction::JumpToMessage {
                         message_id: crate::ui::interaction::MessageId(idx as u64),
                     },
@@ -181,7 +188,10 @@ impl SearchProvider for LocalMessagesProvider {
     }
 }
 
-/// Pluggable provider for remote message history.
+/// Pluggable provider for daemon-backed knowledge graph search.
+///
+/// Calls `ExecutionClient::search_candidates` which hits the daemon's `v1/search` endpoint.
+/// Retrieval, ranking, and confidence are owned by the daemon — this provider is transport only.
 pub struct RemoteMessagesProvider {
     client: Arc<dyn crate::client::ExecutionClient>,
 }
@@ -221,35 +231,29 @@ impl SearchProvider for RemoteMessagesProvider {
                 return;
             }
 
-            match client_clone.search_messages(&query_text).await {
-                Ok(messages) => {
+            match client_clone.search_candidates(&query_text).await {
+                Ok(candidates) => {
                     if cancellation_token.is_cancelled() {
                         return;
                     }
-                    let mut results = Vec::new();
-                    for msg in messages {
-                        let preview = if msg.content.len() > 50 {
-                            format!("{}...", &msg.content[..50])
-                        } else {
-                            msg.content.clone()
-                        };
 
-                        let role_name = match msg.role {
-                            brain_domain::MessageRole::User => "User",
-                            brain_domain::MessageRole::Assistant => "Assistant",
-                            brain_domain::MessageRole::System => "System",
-                        };
-
-                        results.push(SearchResult {
-                            title: preview,
-                            subtitle: format!("{} message (history)", role_name),
-                            kind: SearchResultKind::Message,
-                            provider_score: 1,
+                    let results = candidates
+                        .into_iter()
+                        .map(|c| SearchResult {
+                            entity_id: c.entity_id,
+                            // Preserve Option — do not resolve to a string here.
+                            // MemoryResultViewModel is the sole place that converts None
+                            // to a displayable placeholder.
+                            title: c.title,
+                            subtitle: c.summary,
+                            kind: SearchResultKind::Knowledge, // Not Message — knowledge graph entities
+                            provider_score: (c.score * 100.0) as i32,
+                            confidence: c.confidence,
                             action: SearchResultAction::JumpToMessage {
-                                message_id: crate::ui::interaction::MessageId(0), // Opaque jump target for historical messages
+                                message_id: crate::ui::interaction::MessageId(0),
                             },
-                        });
-                    }
+                        })
+                        .collect();
 
                     sink_clone.submit(SearchEvent::Results {
                         generation: gen,
@@ -261,7 +265,18 @@ impl SearchProvider for RemoteMessagesProvider {
                         provider: provider_id,
                     });
                 }
+                Err(brain_core::errors::BrainError::Network { .. }) => {
+                    // Connection-level failure: daemon is unreachable.
+                    // "Daemon unavailable" and "No results found" are distinct.
+                    // Never silently swallow this into an empty result set.
+                    sink_clone.submit(SearchEvent::Failed {
+                        generation: gen,
+                        provider: provider_id,
+                        reason: crate::ui::search::types::SearchFailure::BackendUnavailable,
+                    });
+                }
                 Err(_e) => {
+                    // Other errors (parse, storage, internal): flag as internal failure.
                     if cancellation_token.is_cancelled() {
                         return;
                     }
@@ -275,3 +290,4 @@ impl SearchProvider for RemoteMessagesProvider {
         });
     }
 }
+

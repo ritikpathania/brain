@@ -1,10 +1,10 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::screen_state::ScreenState;
 use crate::ui::widgets::view_models::{
     EvolutionPlanViewModel, EvolutionSimulationViewModel, KnowledgeEvolutionViewModel,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Row, Table};
 use ratatui::Frame;
@@ -121,7 +121,7 @@ pub fn draw_governance_policies_list(
     if vm.policies.is_empty() {
         let p = Paragraph::new(Span::styled(
             "No active governance evolution policies loaded.",
-            Style::default().fg(Color::DarkGray),
+            theme.style(ThemeToken::TextMuted),
         ))
         .block(block);
         frame.render_widget(p, area);
@@ -154,12 +154,24 @@ pub fn draw_governance_policies_list(
             };
 
             let cells = vec![
-                Span::styled(cursor_str, Style::default().fg(Color::Yellow)),
-                Span::styled(&policy.priority_badge, style.fg(Color::Magenta)),
+                Span::styled(cursor_str, theme.style(ThemeToken::Warning)),
+                Span::styled(
+                    &policy.priority_badge,
+                    style.patch(theme.style(ThemeToken::Secondary)),
+                ),
                 Span::styled(&policy.name, style.add_modifier(Modifier::BOLD)),
-                Span::styled(&policy.trigger_badge, style.fg(Color::Cyan)),
-                Span::styled(&policy.action_badge, style.fg(Color::Green)),
-                Span::styled(&policy.auto_apply_text, style.fg(Color::Gray)),
+                Span::styled(
+                    &policy.trigger_badge,
+                    style.patch(theme.style(ThemeToken::Info)),
+                ),
+                Span::styled(
+                    &policy.action_badge,
+                    style.patch(theme.style(ThemeToken::Success)),
+                ),
+                Span::styled(
+                    &policy.auto_apply_text,
+                    style.patch(theme.style(ThemeToken::TextMuted)),
+                ),
             ];
             Row::new(cells).height(1)
         })
@@ -202,7 +214,7 @@ pub fn draw_evolution_plan_timeline(
         None => {
             let p = Paragraph::new(Span::styled(
                 "Press [g] to generate an Evolution Plan for the selected policy.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -214,26 +226,22 @@ pub fn draw_evolution_plan_timeline(
         Span::raw("Plan ID: "),
         Span::styled(
             &vm.plan_id,
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw("  |  "),
-        Span::styled(&vm.target_version_text, Style::default().fg(Color::Yellow)),
+        Span::styled(&vm.target_version_text, theme.style(ThemeToken::Warning)),
         Span::raw("  |  Status: "),
         Span::styled(
             &vm.status_badge,
-            Style::default()
-                .fg(vm.status_color)
-                .add_modifier(Modifier::BOLD),
+            theme.style(vm.status_token).add_modifier(Modifier::BOLD),
         ),
     ])];
 
     lines.push(Line::from(""));
     for desc in &vm.step_descriptions {
         lines.push(Line::from(vec![
-            Span::styled("   • ", Style::default().fg(Color::Green)),
-            Span::styled(desc, Style::default().fg(Color::White)),
+            Span::styled("   • ", theme.style(ThemeToken::Success)),
+            Span::styled(desc, theme.style(ThemeToken::TextPrimary)),
         ]));
     }
 
@@ -265,7 +273,7 @@ pub fn draw_simulation_impact_report(
         None => {
             let p = Paragraph::new(Span::styled(
                 "Press [s] to simulate plan impact without side effects.",
-                Style::default().fg(Color::DarkGray),
+                theme.style(ThemeToken::TextMuted),
             ))
             .block(block);
             frame.render_widget(p, area);
@@ -276,33 +284,31 @@ pub fn draw_simulation_impact_report(
     let lines = vec![
         Line::from(vec![
             Span::raw("Plan ID Analyzed: "),
-            Span::styled(&vm.plan_id, Style::default().fg(Color::Cyan)),
+            Span::styled(&vm.plan_id, theme.style(ThemeToken::Info)),
             Span::raw("  |  Risk Level: "),
             Span::styled(
                 &vm.risk_badge,
-                Style::default()
-                    .fg(vm.risk_color)
-                    .add_modifier(Modifier::BOLD),
+                theme.style(vm.risk_token).add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
             Span::styled(
                 &vm.entities_affected_text,
-                Style::default().fg(Color::White),
+                theme.style(ThemeToken::TextPrimary),
             ),
             Span::raw("  |  "),
-            Span::styled(&vm.facts_retired_text, Style::default().fg(Color::White)),
+            Span::styled(&vm.facts_retired_text, theme.style(ThemeToken::TextPrimary)),
             Span::raw("  |  "),
             Span::styled(
                 &vm.edges_strengthened_text,
-                Style::default().fg(Color::White),
+                theme.style(ThemeToken::TextPrimary),
             ),
         ]),
         Line::from(vec![
             Span::styled(
                 &vm.confidence_delta_text,
-                Style::default()
-                    .fg(Color::Green)
+                theme
+                    .style(ThemeToken::Success)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" (Estimated graph quality enhancement)"),
@@ -314,45 +320,36 @@ pub fn draw_simulation_impact_report(
 }
 
 /// Renders the Command Hint Footer bar for Knowledge Evolution screen.
-pub fn draw_evolution_command_hint_footer(frame: &mut Frame, area: Rect, _theme: &Theme) {
+pub fn draw_evolution_command_hint_footer(frame: &mut Frame, area: Rect, theme: &Theme) {
     let hints = Line::from(vec![
         Span::styled(
             " ↑↓ / jk ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Info).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Select Policy   "),
         Span::styled(
             " g ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Green)
+            theme
+                .style(ThemeToken::Success)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Generate Plan   "),
         Span::styled(
             " s ",
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Yellow)
+            theme
+                .style(ThemeToken::Warning)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Simulate Impact   "),
         Span::styled(
             " e ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Red)
-                .add_modifier(Modifier::BOLD),
+            theme.style(ThemeToken::Danger).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Execute Plan   "),
         Span::styled(
             " q / Esc ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::DarkGray)
+            theme
+                .style(ThemeToken::TextMuted)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" Exit "),
