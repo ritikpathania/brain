@@ -27,7 +27,7 @@ fn test_concept_search_and_confidence_grouping() {
         },
         SearchResult {
             entity_id: "ent-med-1".to_string(),
-            title: None, // Missing title -> should resolve to "(untitled memory)"
+            title: None,    // Missing title -> should resolve to "(untitled memory)"
             subtitle: None, // Missing summary -> should resolve to ""
             kind: SearchResultKind::Knowledge,
             provider_score: 70,
@@ -53,7 +53,11 @@ fn test_concept_search_and_confidence_grouping() {
     let groups = MemoryGroupingEngine::group(&results);
 
     // ── Assert (Black-Box Observable Behavior) ───────────────────────────────
-    assert_eq!(groups.len(), 3, "Should create 3 groups for High, Medium, Low");
+    assert_eq!(
+        groups.len(),
+        3,
+        "Should create 3 groups for High, Medium, Low"
+    );
     assert_eq!(groups[0].label, "High confidence");
     assert_eq!(groups[1].label, "Good match");
     assert_eq!(groups[2].label, "Partial match");
@@ -73,7 +77,10 @@ fn test_concept_search_and_confidence_grouping() {
         med_vm.display_title, "(untitled memory)",
         "Missing title MUST resolve to placeholder '(untitled memory)'"
     );
-    assert_eq!(med_vm.display_subtitle, "", "Missing summary MUST resolve to empty string");
+    assert_eq!(
+        med_vm.display_subtitle, "",
+        "Missing summary MUST resolve to empty string"
+    );
     assert_eq!(
         med_vm.detail,
         DetailAvailability::Available("ent-med-1".to_string()),
@@ -141,8 +148,14 @@ fn test_ordering_stability_across_repaints() {
     let run3 = MemoryGroupingEngine::group(&results);
 
     // ── Assert: Group and item order MUST be 100% identical ─────────────────
-    assert_eq!(run1, run2, "Grouping must be 100% identical across repaints");
-    assert_eq!(run2, run3, "Grouping must be 100% identical across repaints");
+    assert_eq!(
+        run1, run2,
+        "Grouping must be 100% identical across repaints"
+    );
+    assert_eq!(
+        run2, run3,
+        "Grouping must be 100% identical across repaints"
+    );
 
     // Item titles order within High group
     assert_eq!(run1[0].items[0].display_title, "First High");
@@ -172,5 +185,53 @@ fn test_ranking_config_default_threshold_invariant() {
     assert_eq!(
         config.minimum_score, 6,
         "Default minimum score must match documented threshold (6)"
+    );
+}
+
+#[test]
+fn test_adr_027_retrieval_pipeline_and_state_machine() {
+    use brain_tui::ui::search::types::UiSearchState;
+    use brain_tui::ui::view_models::search_results::{
+        EmptyViewModel, ErrorViewModel, LoadingViewModel,
+    };
+
+    // 1. Invariant 10: Projection determinism
+    let loading_vm = LoadingViewModel::project("brain", 1);
+    assert_eq!(loading_vm.query, "brain");
+    assert_eq!(loading_vm.spinner_frame, "⠙");
+    assert_eq!(loading_vm, LoadingViewModel::project("brain", 1));
+
+    let empty_vm = EmptyViewModel::project("unknown_query");
+    assert_eq!(
+        empty_vm.headline,
+        "No matching knowledge found for \"unknown_query\""
+    );
+    assert_eq!(empty_vm, EmptyViewModel::project("unknown_query"));
+
+    let error_vm = ErrorViewModel::project("bad_query", "Daemon unreachable");
+    assert_eq!(error_vm.error_message, "Search Failed: Daemon unreachable");
+    assert_eq!(
+        error_vm,
+        ErrorViewModel::project("bad_query", "Daemon unreachable")
+    );
+
+    // 2. UI State transitions
+    assert!(
+        brain_tui::ui::search::controller::SearchController::is_valid_transition(
+            UiSearchState::Idle,
+            UiSearchState::Searching
+        )
+    );
+    assert!(
+        brain_tui::ui::search::controller::SearchController::is_valid_transition(
+            UiSearchState::Searching,
+            UiSearchState::Results
+        )
+    );
+    assert!(
+        !brain_tui::ui::search::controller::SearchController::is_valid_transition(
+            UiSearchState::Idle,
+            UiSearchState::Results
+        )
     );
 }

@@ -6,7 +6,18 @@ use crate::reasoning::PlanStepId;
 use std::collections::BTreeSet;
 
 /// Composable algebraic strategy for selecting evidence artifacts from an ArtifactStore graph.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum SelectionStrategy {
     /// Select all artifacts in store.
     #[default]
@@ -34,9 +45,7 @@ impl SelectionStrategy {
                 let norm_right = right.normalize();
                 if norm_left == norm_right {
                     norm_left
-                } else if norm_left == Self::All {
-                    Self::All
-                } else if norm_right == Self::All {
+                } else if norm_left == Self::All || norm_right == Self::All {
                     Self::All
                 } else {
                     Self::Union(Box::new(norm_left), Box::new(norm_right))

@@ -340,4 +340,115 @@ mod tests {
         assert_eq!(vm.selected_index(), Some(0));
         assert_eq!(vm.selected_item().unwrap().id, "id_x");
     }
+
+    #[test]
+    fn test_invariant_10_deterministic_view_model_projections() {
+        // Invariant 10: Given identical inputs, Projection Layer MUST produce byte-for-byte identical ViewModels.
+        let loading1 = LoadingViewModel::project("rust", 3);
+        let loading2 = LoadingViewModel::project("rust", 3);
+        assert_eq!(loading1, loading2);
+
+        let empty1 = EmptyViewModel::project("nonexistent");
+        let empty2 = EmptyViewModel::project("nonexistent");
+        assert_eq!(empty1, empty2);
+
+        let err1 = ErrorViewModel::project("test", "Connection timeout");
+        let err2 = ErrorViewModel::project("test", "Connection timeout");
+        assert_eq!(err1, err2);
+    }
+}
+
+// ─── State Projections (ADR-027 Step 2) ────────────────────────────────────
+
+/// Immutable presentation View Model for searching / loading states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadingViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Pre-formatted loading status string.
+    pub status_text: String,
+    /// Animated frame indicator symbol.
+    pub spinner_frame: &'static str,
+}
+
+impl LoadingViewModel {
+    /// Projection constructor mapping query text and frame counter into a deterministic `LoadingViewModel`.
+    pub fn project(query: impl Into<String>, frame_tick: usize) -> Self {
+        let spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let spinner_frame = spinners[frame_tick % spinners.len()];
+        let q = query.into();
+        let status_text = if q.is_empty() {
+            "Searching knowledge graph...".to_string()
+        } else {
+            format!("Searching knowledge graph for \"{}\"...", q)
+        };
+
+        Self {
+            query: q,
+            status_text,
+            spinner_frame,
+        }
+    }
+}
+
+/// Immutable presentation View Model for empty search results states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmptyViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Primary diagnostic status message.
+    pub headline: String,
+    /// Actionable search refinement suggestions.
+    pub suggestions: Vec<String>,
+}
+
+impl EmptyViewModel {
+    /// Projection constructor mapping query text into a deterministic `EmptyViewModel`.
+    pub fn project(query: impl Into<String>) -> Self {
+        let q = query.into();
+        let headline = if q.is_empty() {
+            "No active query".to_string()
+        } else {
+            format!("No matching knowledge found for \"{}\"", q)
+        };
+
+        let suggestions = vec![
+            "Check for typos or broader keywords".to_string(),
+            "Try searching by concept entity type (e.g. System, Language)".to_string(),
+            "Use `/ingest` to add new knowledge to memory".to_string(),
+        ];
+
+        Self {
+            query: q,
+            headline,
+            suggestions,
+        }
+    }
+}
+
+/// Immutable presentation View Model for error search states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Pre-formatted user-facing error message.
+    pub error_message: String,
+    /// Actionable recovery guidance hint.
+    pub recovery_hint: String,
+}
+
+impl ErrorViewModel {
+    /// Projection constructor mapping query text and raw error into a deterministic `ErrorViewModel`.
+    pub fn project(query: impl Into<String>, raw_error: &str) -> Self {
+        let q = query.into();
+        let error_message = format!("Search Failed: {}", raw_error);
+        let recovery_hint =
+            "Press Esc to clear or check if brain-daemon is running (`brain health`)".to_string();
+
+        Self {
+            query: q,
+            error_message,
+            recovery_hint,
+        }
+    }
 }
