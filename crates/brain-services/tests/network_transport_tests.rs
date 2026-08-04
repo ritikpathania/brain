@@ -76,15 +76,9 @@ fn test_grpc_and_quic_snapshot_transports_streaming() {
     let codec = JsonSnapshotCodec::<LeadershipProjection>::new();
     let mut proj = LeadershipProjection::new();
     proj.total_events = 20;
-    let snapshot = SnapshotBuilder::build_snapshot(
-        &proj,
-        SequenceNumber(20),
-        TermId(1),
-        &codec,
-        1,
-        1000,
-    )
-    .unwrap();
+    let snapshot =
+        SnapshotBuilder::build_snapshot(&proj, SequenceNumber(20), TermId(1), &codec, 1, 1000)
+            .unwrap();
 
     let adapter1 = ChunkedStreamAdapter::new(&grpc_transport);
     let state1 = adapter1

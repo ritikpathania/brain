@@ -7,7 +7,9 @@ use std::fmt;
 use uuid::Uuid;
 
 /// Strongly-typed identifier for an execution artifact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct EvidenceArtifactId(pub Uuid);
 
 impl EvidenceArtifactId {
@@ -35,7 +37,9 @@ impl fmt::Display for EvidenceArtifactId {
 }
 
 /// Strongly-typed identifier for a provenance edge in the evidence graph.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ProvenanceEdgeId(pub Uuid);
 
 impl ProvenanceEdgeId {

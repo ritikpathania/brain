@@ -15,18 +15,13 @@ pub const TRANSPORT_FRAME_SCHEMA_VERSION: u16 = 1;
 pub const MAX_FRAME_SIZE: usize = 16 * 1024 * 1024;
 
 /// Configurable integrity verification policy for framing codec.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum IntegrityPolicy {
     /// Skip checksum calculation (for TLS / HTTP2 transports with built-in integrity).
     None,
     /// Enforce CRC32 checksum validation (for raw UDP / QUIC byte streams).
+    #[default]
     Crc32,
-}
-
-impl Default for IntegrityPolicy {
-    fn default() -> Self {
-        Self::Crc32
-    }
 }
 
 /// Binary header prefix for logical transport frames.
@@ -72,7 +67,11 @@ impl std::fmt::Display for FramingError {
             Self::OversizedFrame(size) => write!(f, "Oversized frame: {} bytes", size),
             Self::TruncatedFrame => write!(f, "Truncated or incomplete frame"),
             Self::ChecksumMismatch { expected, actual } => {
-                write!(f, "CRC32 checksum mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "CRC32 checksum mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
         }
     }

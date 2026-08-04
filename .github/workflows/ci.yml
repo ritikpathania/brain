@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, "feat/*" ]
   pull_request:
     branches: [ main, master ]
 
@@ -70,63 +70,9 @@ jobs:
       - name: Check Workspace MSRV
         run: cargo check --workspace --all-targets
 
-  type-check:
-    name: Type Checking
+  xtask-verify-gate:
+    name: Quality Gate (cargo xtask verify)
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-
-      - name: Sync Dependencies
-        run: |
-          cd daemon
-          uv sync --no-install-project
-
-      - name: Run Type Checking
-        run: |
-          cd daemon
-          uv run --no-sync ty check
-          uv run --no-sync pyrefly check
-
-  docs-and-contracts:
-    name: Docs & Contract Verification
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Verify Contracts
-        run: cargo xtask verify-contracts
-
-      - name: Verify Documentation Governance
-        run: cargo xtask docs all
-
-  test-and-bench:
-    name: Tests & Benchmark Compiles (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: [lint-and-format, msrv-check, docs-and-contracts]
-    env:
-      PYO3_PYTHON: python3
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-      fail-fast: false
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -157,15 +103,66 @@ jobs:
           cd daemon
           uv run maturin develop
 
-      - name: Run Rust Test Suite
+      - name: Run xtask verify Quality Gate
         run: |
-          cargo test --workspace
+          PYO3_PYTHON=python3 cargo xtask verify
 
-      - name: Run Python Test Suite
+  sdk-and-packaging:
+    name: Python SDK & Package Verification (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [lint-and-format, xtask-verify-gate]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync Dependencies & Build Maturin Bridge
         run: |
           cd daemon
-          uv run --no-sync pytest
+          uv sync --no-install-project
+          uv run maturin develop
 
-      - name: Verify Benchmark Compilation
+      - name: Run Python SDK Test Suite
         run: |
-          cargo bench --workspace --no-run
+          PYTHONPATH=sdks/python/src python3 -m pytest sdks/python/tests/ -v
+
+      - name: Verify Release Packaging Script (package.sh)
+        run: |
+          bash package.sh
+          TAR_FILE=$(ls brain-*.tar.gz | head -n 1)
+          echo "Found generated package: ${TAR_FILE}"
+          
+          # Inspect tarball contents
+          MANIFEST=$(tar -tzf ${TAR_FILE})
+          echo "${MANIFEST}"
+          
+          # Assert both brain and brain-daemon binaries exist in archive
+          echo "${MANIFEST}" | grep -q "brain$" || (echo "ERROR: brain binary missing from package" && exit 1)
+          echo "${MANIFEST}" | grep -q "brain-daemon$" || (echo "ERROR: brain-daemon binary missing from package" && exit 1)
+          
+          # Unpack and verify binary execution
+          mkdir -p /tmp/pkg_verify
+          tar -xzf ${TAR_FILE} -C /tmp/pkg_verify
+          /tmp/pkg_verify/brain-daemon --version
+          
+          # Test exit code semantics (brain health when daemon unreachable should exit 1)
+          /tmp/pkg_verify/brain health || [ $? -eq 1 ]

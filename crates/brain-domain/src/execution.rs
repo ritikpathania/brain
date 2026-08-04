@@ -38,7 +38,9 @@ impl fmt::Display for ExecutionId {
 }
 
 /// Strongly-typed timestamp for execution events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct ExecutionTimestamp(pub SystemTime);
 
 impl ExecutionTimestamp {
@@ -218,7 +220,10 @@ impl ExecutionState {
 
     /// Returns the lifecycle status for a step, defaulting to `StepStatus::Pending`.
     pub fn status(&self, step_id: PlanStepId) -> StepStatus {
-        self.statuses.get(&step_id).cloned().unwrap_or(StepStatus::Pending)
+        self.statuses
+            .get(&step_id)
+            .cloned()
+            .unwrap_or(StepStatus::Pending)
     }
 
     /// Returns the output payload for a completed step.
@@ -256,7 +261,11 @@ impl ExecutionState {
     /// - `Pending` / `Ready` -> `Skipped(reason)`
     ///
     /// Illegal rewinds (e.g. `Running` -> `Ready`, `Completed` -> `Running`) are rejected.
-    pub fn transition(&mut self, step_id: PlanStepId, next_status: StepStatus) -> Result<(), DomainError> {
+    pub fn transition(
+        &mut self,
+        step_id: PlanStepId,
+        next_status: StepStatus,
+    ) -> Result<(), DomainError> {
         let current = self.status(step_id);
 
         let valid = match (&current, &next_status) {
@@ -302,7 +311,11 @@ impl ExecutionState {
     }
 
     /// Stores the output payload for a completed step.
-    pub fn set_output(&mut self, step_id: PlanStepId, output: StepOutput) -> Result<(), DomainError> {
+    pub fn set_output(
+        &mut self,
+        step_id: PlanStepId,
+        output: StepOutput,
+    ) -> Result<(), DomainError> {
         if self.status(step_id) != StepStatus::Completed {
             return Err(DomainError::ValidationError {
                 message: format!(
@@ -318,7 +331,11 @@ impl ExecutionState {
     }
 
     /// Stores error details for a failed step.
-    pub fn set_error(&mut self, step_id: PlanStepId, error: DomainError) -> Result<(), DomainError> {
+    pub fn set_error(
+        &mut self,
+        step_id: PlanStepId,
+        error: DomainError,
+    ) -> Result<(), DomainError> {
         if self.status(step_id) != StepStatus::Failed {
             return Err(DomainError::ValidationError {
                 message: format!(
@@ -355,7 +372,10 @@ mod tests {
         assert_eq!(state.status(step_id), StepStatus::Completed);
 
         assert!(state
-            .set_output(step_id, StepOutput::new(StructuredValue::String("ok".to_string())))
+            .set_output(
+                step_id,
+                StepOutput::new(StructuredValue::String("ok".to_string()))
+            )
             .is_ok());
         assert_eq!(
             state.output(step_id).unwrap().value,

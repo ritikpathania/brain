@@ -87,11 +87,7 @@ impl StepExecutorRegistry {
     }
 
     /// Registers a capability `StepExecutor` for a given step kind variant.
-    pub fn register(
-        &mut self,
-        step_kind: &ReasoningPlanStepKind,
-        executor: Arc<dyn StepExecutor>,
-    ) {
+    pub fn register(&mut self, step_kind: &ReasoningPlanStepKind, executor: Arc<dyn StepExecutor>) {
         let disc = ReasoningPlanStepKindDiscriminator::from(step_kind);
         self.executors.insert(disc, executor);
     }
@@ -102,11 +98,15 @@ impl StepExecutorRegistry {
         step_kind: &ReasoningPlanStepKind,
     ) -> Result<Arc<dyn StepExecutor>, DomainError> {
         let disc = ReasoningPlanStepKindDiscriminator::from(step_kind);
-        self.executors.get(&disc).cloned().ok_or_else(|| {
-            DomainError::ValidationError {
-                message: format!("No StepExecutor registered for plan step kind {:?}", step_kind),
+        self.executors
+            .get(&disc)
+            .cloned()
+            .ok_or_else(|| DomainError::ValidationError {
+                message: format!(
+                    "No StepExecutor registered for plan step kind {:?}",
+                    step_kind
+                ),
                 rule_id: Some("VAL-EXEC-004".to_string()),
-            }
-        })
+            })
     }
 }

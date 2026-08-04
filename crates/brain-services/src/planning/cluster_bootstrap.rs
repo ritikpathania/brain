@@ -53,15 +53,22 @@ impl std::fmt::Display for ClusterConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidAddress(addr) => write!(f, "Invalid network address syntax: {}", addr),
-            Self::DuplicatePeer(addr) => write!(f, "Duplicate peer address in configuration: {}", addr),
-            Self::InvalidTimeoutRelationship { heartbeat_ms, election_ms } => {
+            Self::DuplicatePeer(addr) => {
+                write!(f, "Duplicate peer address in configuration: {}", addr)
+            }
+            Self::InvalidTimeoutRelationship {
+                heartbeat_ms,
+                election_ms,
+            } => {
                 write!(
                     f,
                     "Invalid timeout relationship: heartbeat ({}ms) must be < election ({}ms)",
                     heartbeat_ms, election_ms
                 )
             }
-            Self::InvalidChunkSize(size) => write!(f, "Invalid snapshot chunk size: {} bytes", size),
+            Self::InvalidChunkSize(size) => {
+                write!(f, "Invalid snapshot chunk size: {} bytes", size)
+            }
         }
     }
 }
@@ -80,9 +87,13 @@ pub struct ClusterConfigValidator;
 
 impl ClusterConfigValidator {
     /// Validates raw `ClusterNodeConfig` into a `ValidatedClusterConfig`.
-    pub fn validate(config: ClusterNodeConfig) -> Result<ValidatedClusterConfig, ClusterConfigError> {
+    pub fn validate(
+        config: ClusterNodeConfig,
+    ) -> Result<ValidatedClusterConfig, ClusterConfigError> {
         if config.listen_address.trim().is_empty() {
-            return Err(ClusterConfigError::InvalidAddress(config.listen_address.clone()));
+            return Err(ClusterConfigError::InvalidAddress(
+                config.listen_address.clone(),
+            ));
         }
 
         let mut seen_peers = HashSet::new();
@@ -106,7 +117,9 @@ impl ClusterConfigValidator {
         }
 
         if config.snapshot_chunk_size < 1024 || config.snapshot_chunk_size > 16 * 1024 * 1024 {
-            return Err(ClusterConfigError::InvalidChunkSize(config.snapshot_chunk_size));
+            return Err(ClusterConfigError::InvalidChunkSize(
+                config.snapshot_chunk_size,
+            ));
         }
 
         Ok(ValidatedClusterConfig { config })
@@ -184,7 +197,11 @@ pub struct CliClusterController;
 
 impl CliClusterController {
     /// Queries current domain-level status report from a `ConsensusEngine`.
-    pub fn get_cluster_status(node_id: NodeId, engine: &ConsensusEngine, peer_count: usize) -> ClusterStatusReport {
+    pub fn get_cluster_status(
+        node_id: NodeId,
+        engine: &ConsensusEngine,
+        peer_count: usize,
+    ) -> ClusterStatusReport {
         let state = engine.current_state();
         ClusterStatusReport {
             node_id,
@@ -195,10 +212,7 @@ impl CliClusterController {
     }
 
     /// Compiles an immutable `MembershipChangePlan` to add a new node to joint consensus.
-    pub fn plan_add_node(
-        current_members: &[NodeId],
-        new_node: NodeId,
-    ) -> MembershipChangePlan {
+    pub fn plan_add_node(current_members: &[NodeId], new_node: NodeId) -> MembershipChangePlan {
         let current_view = MembershipView::new(
             ConfigurationVersion(1),
             current_members.to_vec(),
@@ -209,7 +223,8 @@ impl CliClusterController {
             target_voters.push(new_node);
         }
 
-        let transition = ConfigurationPlanner::plan_transition(&current_view, target_voters, Vec::new());
+        let transition =
+            ConfigurationPlanner::plan_transition(&current_view, target_voters, Vec::new());
         MembershipChangePlan {
             action: "add_node".to_string(),
             target_node: new_node,
@@ -233,7 +248,8 @@ impl CliClusterController {
             .filter(|&id| id != target_node)
             .collect();
 
-        let transition = ConfigurationPlanner::plan_transition(&current_view, updated_voters, Vec::new());
+        let transition =
+            ConfigurationPlanner::plan_transition(&current_view, updated_voters, Vec::new());
         MembershipChangePlan {
             action: "remove_node".to_string(),
             target_node,

@@ -39,7 +39,9 @@ impl ReadPolicy for LeasePriorityPolicy {
         now_ms: u64,
     ) -> ReadConsistencyStrategy {
         if let Some(lease) = leader_lease {
-            if LeaderLeaseValidator::validate_lease(lease, &request.leader_id, request.term, now_ms).is_ok() {
+            if LeaderLeaseValidator::validate_lease(lease, &request.leader_id, request.term, now_ms)
+                .is_ok()
+            {
                 return ReadConsistencyStrategy::LeaderLease(*lease);
             }
         }

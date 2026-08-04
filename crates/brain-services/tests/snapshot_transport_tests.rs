@@ -1,8 +1,8 @@
 //! Integration & Transport Abstraction Test Suite for `SnapshotTransport`, `MockSnapshotTransport`, and `ChunkedStreamAdapter` (Phase 14 Milestone 14.3).
 
 use brain_services::planning::{
-    ChunkedStreamAdapter, ConsensusEngine, JsonSnapshotCodec, LeadershipProjection, MockSnapshotTransport,
-    NodeId, SequenceNumber, SnapshotBuilder, SnapshotTransferState, TermId,
+    ChunkedStreamAdapter, ConsensusEngine, JsonSnapshotCodec, LeadershipProjection,
+    MockSnapshotTransport, NodeId, SequenceNumber, SnapshotBuilder, SnapshotTransferState, TermId,
 };
 use uuid::Uuid;
 
@@ -19,15 +19,9 @@ fn test_mock_snapshot_transport_streaming_completion() {
     let mut proj = LeadershipProjection::new();
     proj.total_events = 50;
 
-    let snapshot = SnapshotBuilder::build_snapshot(
-        &proj,
-        SequenceNumber(50),
-        TermId(2),
-        &codec,
-        1,
-        10000,
-    )
-    .unwrap();
+    let snapshot =
+        SnapshotBuilder::build_snapshot(&proj, SequenceNumber(50), TermId(2), &codec, 1, 10000)
+            .unwrap();
 
     let adapter = ChunkedStreamAdapter::new(&transport);
     let state = adapter
@@ -57,15 +51,9 @@ fn test_mock_snapshot_transport_packet_drop_error_propagation() {
 
     let codec = JsonSnapshotCodec::<LeadershipProjection>::new();
     let proj = LeadershipProjection::new();
-    let snapshot = SnapshotBuilder::build_snapshot(
-        &proj,
-        SequenceNumber(10),
-        TermId(1),
-        &codec,
-        1,
-        1000,
-    )
-    .unwrap();
+    let snapshot =
+        SnapshotBuilder::build_snapshot(&proj, SequenceNumber(10), TermId(1), &codec, 1, 1000)
+            .unwrap();
 
     let adapter = ChunkedStreamAdapter::new(&transport);
     let res = adapter.stream_snapshot(

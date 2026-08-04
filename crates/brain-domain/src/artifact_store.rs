@@ -32,7 +32,10 @@ impl ArtifactStore {
 
     /// Inserts an `ExecutionArtifact` into the store.
     /// Invariant: Artifacts are immutable and append-only once inserted.
-    pub fn insert(&mut self, artifact: ExecutionArtifact) -> Result<EvidenceArtifactId, DomainError> {
+    pub fn insert(
+        &mut self,
+        artifact: ExecutionArtifact,
+    ) -> Result<EvidenceArtifactId, DomainError> {
         let id = artifact.id;
         let step_id = artifact.metadata.producer_step;
 
@@ -57,21 +60,30 @@ impl ArtifactStore {
     pub fn add_edge(&mut self, edge: ProvenanceEdge) -> Result<ProvenanceEdgeId, DomainError> {
         if edge.from == edge.to {
             return Err(DomainError::ValidationError {
-                message: format!("Self-loop provenance edge is invalid for artifact {}", edge.from),
+                message: format!(
+                    "Self-loop provenance edge is invalid for artifact {}",
+                    edge.from
+                ),
                 rule_id: Some("VAL-ART-002".to_string()),
             });
         }
 
         if !self.artifacts.contains_key(&edge.from) {
             return Err(DomainError::ValidationError {
-                message: format!("Source artifact {} does not exist in ArtifactStore", edge.from),
+                message: format!(
+                    "Source artifact {} does not exist in ArtifactStore",
+                    edge.from
+                ),
                 rule_id: Some("VAL-ART-003".to_string()),
             });
         }
 
         if !self.artifacts.contains_key(&edge.to) {
             return Err(DomainError::ValidationError {
-                message: format!("Target artifact {} does not exist in ArtifactStore", edge.to),
+                message: format!(
+                    "Target artifact {} does not exist in ArtifactStore",
+                    edge.to
+                ),
                 rule_id: Some("VAL-ART-004".to_string()),
             });
         }
@@ -80,7 +92,9 @@ impl ArtifactStore {
         if let Some(existing_outgoing) = self.outgoing.get(&edge.from) {
             for existing_id in existing_outgoing {
                 if let Some(existing_edge) = self.edges.get(existing_id) {
-                    if existing_edge.to == edge.to && existing_edge.relationship == edge.relationship {
+                    if existing_edge.to == edge.to
+                        && existing_edge.relationship == edge.relationship
+                    {
                         return Err(DomainError::ValidationError {
                             message: format!(
                                 "Duplicate provenance edge {:?} between {} -> {}",
@@ -94,14 +108,8 @@ impl ArtifactStore {
         }
 
         let edge_id = edge.id;
-        self.outgoing
-            .entry(edge.from)
-            .or_default()
-            .push(edge_id);
-        self.incoming
-            .entry(edge.to)
-            .or_default()
-            .push(edge_id);
+        self.outgoing.entry(edge.from).or_default().push(edge_id);
+        self.incoming.entry(edge.to).or_default().push(edge_id);
         self.edges.insert(edge_id, edge);
 
         Ok(edge_id)

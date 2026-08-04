@@ -116,11 +116,7 @@ impl MemoryResultViewModel {
             .unwrap_or("(untitled memory)")
             .to_string();
 
-        let display_subtitle = result
-            .subtitle
-            .as_deref()
-            .unwrap_or("")
-            .to_string();
+        let display_subtitle = result.subtitle.as_deref().unwrap_or("").to_string();
 
         let confidence = result.confidence;
         let confidence_badge = confidence_badge(confidence);
@@ -159,9 +155,9 @@ impl MemoryResultViewModel {
 /// - `○` (U+25CB) — empty for Low
 fn confidence_badge(c: Confidence) -> String {
     match c {
-        Confidence::High   => "● HIGH".to_string(),
+        Confidence::High => "● HIGH".to_string(),
         Confidence::Medium => "◐ MED ".to_string(),
-        Confidence::Low    => "○ LOW ".to_string(),
+        Confidence::Low => "○ LOW ".to_string(),
     }
 }
 
@@ -246,18 +242,18 @@ impl MemoryGroupingEngine {
         for result in results {
             let vm = MemoryResultViewModel::from_search_result(result);
             match result.confidence {
-                Confidence::High   => high.push(vm),
+                Confidence::High => high.push(vm),
                 Confidence::Medium => medium.push(vm),
-                Confidence::Low    => low.push(vm),
+                Confidence::Low => low.push(vm),
             }
         }
 
         // Fixed group order: High → Medium → Low.
         // Empty groups are omitted.
         [
-            (Confidence::High,   "High confidence", high),
-            (Confidence::Medium, "Good match",      medium),
-            (Confidence::Low,    "Partial match",   low),
+            (Confidence::High, "High confidence", high),
+            (Confidence::Medium, "Good match", medium),
+            (Confidence::Low, "Partial match", low),
         ]
         .into_iter()
         .filter_map(|(_, label, items)| {
@@ -284,8 +280,8 @@ impl MemoryGroupingEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::search::types::{SearchResultAction, SearchResultKind};
     use crate::ui::command::CommandId;
+    use crate::ui::search::types::{SearchResultAction, SearchResultKind};
 
     fn make_result(
         entity_id: &str,
@@ -339,7 +335,10 @@ mod tests {
         assert_eq!(vm.confidence_badge, "● HIGH");
         assert_eq!(vm.confidence, Confidence::High);
         assert!(vm.is_expandable());
-        assert_eq!(vm.detail, DetailAvailability::Available("ent-abc".to_string()));
+        assert_eq!(
+            vm.detail,
+            DetailAvailability::Available("ent-abc".to_string())
+        );
     }
 
     #[test]
@@ -403,9 +402,9 @@ mod tests {
 
     #[test]
     fn test_confidence_badge_strings() {
-        assert_eq!(confidence_badge(Confidence::High),   "● HIGH");
+        assert_eq!(confidence_badge(Confidence::High), "● HIGH");
         assert_eq!(confidence_badge(Confidence::Medium), "◐ MED ");
-        assert_eq!(confidence_badge(Confidence::Low),    "○ LOW ");
+        assert_eq!(confidence_badge(Confidence::Low), "○ LOW ");
     }
 
     // ── MemoryGroupingEngine ────────────────────────────────────────────────
@@ -413,9 +412,27 @@ mod tests {
     #[test]
     fn test_grouping_produces_fixed_order_high_medium_low() {
         let results = vec![
-            make_result("a", Some("Low result"),    None, SearchResultKind::Knowledge, Confidence::Low),
-            make_result("b", Some("High result"),   None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("c", Some("Medium result"), None, SearchResultKind::Knowledge, Confidence::Medium),
+            make_result(
+                "a",
+                Some("Low result"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Low,
+            ),
+            make_result(
+                "b",
+                Some("High result"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "c",
+                Some("Medium result"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Medium,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -432,8 +449,20 @@ mod tests {
     #[test]
     fn test_empty_groups_are_omitted() {
         let results = vec![
-            make_result("a", Some("High A"), None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("b", Some("High B"), None, SearchResultKind::Knowledge, Confidence::High),
+            make_result(
+                "a",
+                Some("High A"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "b",
+                Some("High B"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -452,9 +481,27 @@ mod tests {
     fn test_grouping_preserves_input_order_within_group() {
         // Items within a group must appear in input order (ranking is upstream).
         let results = vec![
-            make_result("first",  Some("Alpha"), None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("second", Some("Beta"),  None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("third",  Some("Gamma"), None, SearchResultKind::Knowledge, Confidence::High),
+            make_result(
+                "first",
+                Some("Alpha"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "second",
+                Some("Beta"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "third",
+                Some("Gamma"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -468,12 +515,30 @@ mod tests {
     #[test]
     fn test_grouping_is_deterministic() {
         let results = vec![
-            make_result("a", Some("High"),   None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("b", Some("Medium"), None, SearchResultKind::Knowledge, Confidence::Medium),
-            make_result("c", Some("Low"),    None, SearchResultKind::Knowledge, Confidence::Low),
+            make_result(
+                "a",
+                Some("High"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "b",
+                Some("Medium"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Medium,
+            ),
+            make_result(
+                "c",
+                Some("Low"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Low,
+            ),
         ];
 
-        let first  = MemoryGroupingEngine::group(&results);
+        let first = MemoryGroupingEngine::group(&results);
         let second = MemoryGroupingEngine::group(&results);
         assert_eq!(first, second, "Grouping must be deterministic");
     }
@@ -483,8 +548,20 @@ mod tests {
         // The engine must NOT re-sort within a group. Input order must be preserved.
         let results = vec![
             // Deliberately non-alphabetical within the High tier
-            make_result("z", Some("Zebra"), None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("a", Some("Apple"), None, SearchResultKind::Knowledge, Confidence::High),
+            make_result(
+                "z",
+                Some("Zebra"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "a",
+                Some("Apple"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -495,9 +572,27 @@ mod tests {
     #[test]
     fn test_total_items_matches_input_count() {
         let results = vec![
-            make_result("a", Some("H"), None, SearchResultKind::Knowledge, Confidence::High),
-            make_result("b", Some("M"), None, SearchResultKind::Knowledge, Confidence::Medium),
-            make_result("c", Some("L"), None, SearchResultKind::Knowledge, Confidence::Low),
+            make_result(
+                "a",
+                Some("H"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
+            make_result(
+                "b",
+                Some("M"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Medium,
+            ),
+            make_result(
+                "c",
+                Some("L"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::Low,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -508,8 +603,20 @@ mod tests {
     fn test_grouping_skips_non_knowledge_results_detail_availability() {
         // Grouping works on any SearchResult kind — the detail field is set by the ViewModel.
         let results = vec![
-            make_result("cmd", Some("A command"), None, SearchResultKind::Command, Confidence::High),
-            make_result("ent", Some("A memory"),  None, SearchResultKind::Knowledge, Confidence::High),
+            make_result(
+                "cmd",
+                Some("A command"),
+                None,
+                SearchResultKind::Command,
+                Confidence::High,
+            ),
+            make_result(
+                "ent",
+                Some("A memory"),
+                None,
+                SearchResultKind::Knowledge,
+                Confidence::High,
+            ),
         ];
 
         let groups = MemoryGroupingEngine::group(&results);
@@ -519,6 +626,9 @@ mod tests {
         // Command: no detail
         assert_eq!(items[0].detail, DetailAvailability::None);
         // Knowledge: detail available
-        assert_eq!(items[1].detail, DetailAvailability::Available("ent".to_string()));
+        assert_eq!(
+            items[1].detail,
+            DetailAvailability::Available("ent".to_string())
+        );
     }
 }

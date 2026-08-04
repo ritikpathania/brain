@@ -1,6 +1,7 @@
 //! Sidebar Interaction state core and ParsedQuery caching.
 
 use crate::ui::interaction::editor::Editor;
+use crate::ui::interaction::session_navigator::{SessionListItem, SessionNavigator};
 use brain_domain::SessionId;
 
 /// Filter options for filtering sessions in the sidebar list.
@@ -96,6 +97,13 @@ pub struct SidebarInteraction {
     pub mode: SidebarMode,
     /// Browsing and selection state.
     pub browse: BrowseState,
+    /// Scroll-and-selection navigator for the session list.
+    ///
+    /// Owns the scroll offset and tracks selection by `SessionId` so that list
+    /// refreshes preserve the selected item by identity rather than by index.
+    /// The renderer should call `navigator.set_viewport_height(h)` each frame
+    /// before reading `navigator.scroll_offset()` to derive `ListState`.
+    pub navigator: SessionNavigator,
     /// Searching and filtering state.
     pub search: SearchState,
     /// Renaming state.
@@ -111,6 +119,7 @@ impl SidebarInteraction {
                 selected: None,
                 filter: SessionFilter::Active,
             },
+            navigator: SessionNavigator::new(),
             search: SearchState {
                 active: false,
                 editor: Editor::new(),
@@ -313,31 +322,56 @@ impl SidebarInteraction {
     }
 
     fn navigate_selection(&mut self, visible_ids: &[SessionId], delta: i32) {
-        if visible_ids.is_empty() {
-            self.browse.selected = None;
-            return;
+        // Sync the navigator snapshot with the current visible set, preserving
+        // the selection by identity.
+        let new_items: Vec<SessionListItem> = visible_ids
+            .iter()
+            .map(|&id| SessionListItem { id })
+            .collect();
+        self.navigator.update_items(new_items, true);
+
+        // Move selection in the navigator.
+        if delta < 0 {
+            for _ in 0..delta.unsigned_abs() {
+                self.navigator.select_prev();
+            }
+        } else {
+            for _ in 0..delta as u32 {
+                self.navigator.select_next();
+            }
         }
-        let current_pos = self
-            .browse
-            .selected
-            .and_then(|id| visible_ids.iter().position(|&x| x == id))
-            .unwrap_or(0);
-        let new_pos = (current_pos as i32 + delta).clamp(0, visible_ids.len() as i32 - 1) as usize;
-        self.browse.selected = Some(visible_ids[new_pos]);
+
+        // Keep browse.selected in sync so downstream code that reads it is
+        // unaffected by the introduction of SessionNavigator.
+        self.browse.selected = self.navigator.selected_id();
     }
 
     /// Restores the selected session fallback if the current selection is no longer valid.
+    /// Also syncs the `SessionNavigator` snapshot so scroll state stays consistent.
     pub fn restore_selection_fallback(&mut self, visible_ids: &[SessionId]) {
         if visible_ids.is_empty() {
             self.browse.selected = None;
+            self.navigator.update_items(vec![], true);
             return;
         }
         if let Some(selected_id) = self.browse.selected {
             if visible_ids.contains(&selected_id) {
+                // Selection is still valid — just refresh the navigator snapshot.
+                let new_items: Vec<SessionListItem> = visible_ids
+                    .iter()
+                    .map(|&id| SessionListItem { id })
+                    .collect();
+                self.navigator.update_items(new_items, true);
                 return;
             }
         }
+        // Fall back to the first visible session.
         self.browse.selected = visible_ids.first().copied();
+        let new_items: Vec<SessionListItem> = visible_ids
+            .iter()
+            .map(|&id| SessionListItem { id })
+            .collect();
+        self.navigator.update_items(new_items, false);
     }
 }
 

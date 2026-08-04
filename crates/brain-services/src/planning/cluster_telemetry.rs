@@ -12,7 +12,7 @@ use crate::planning::replication_events::{ReplicationEvent, ReplicationEventKind
 use serde::{Deserialize, Serialize};
 
 /// Objective cumulative facts collected by telemetry projections.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ClusterTelemetryMetrics {
     /// Total operations processed.
     pub total_requests: u64,
@@ -24,18 +24,6 @@ pub struct ClusterTelemetryMetrics {
     pub total_latency_us: u64,
     /// Count of distinct active cluster nodes observed.
     pub active_nodes: u64,
-}
-
-impl Default for ClusterTelemetryMetrics {
-    fn default() -> Self {
-        Self {
-            total_requests: 0,
-            successful_requests: 0,
-            failed_requests: 0,
-            total_latency_us: 0,
-            active_nodes: 0,
-        }
-    }
 }
 
 impl ClusterTelemetryMetrics {
@@ -160,16 +148,22 @@ impl SlaSloMonitor {
         let actual_latency = metrics.average_latency_us();
 
         let avail_ok = actual_avail >= policy.target_availability_pct;
-        let latency_ok = metrics.total_requests == 0 || actual_latency <= policy.max_average_latency_us;
+        let latency_ok =
+            metrics.total_requests == 0 || actual_latency <= policy.max_average_latency_us;
         let slo_met = avail_ok && latency_ok;
 
         let allowed_failure_rate = 100.0 - policy.target_availability_pct;
         let actual_failure_rate = 100.0 - actual_avail;
 
         let error_budget_remaining_pct = if allowed_failure_rate <= 0.0 {
-            if actual_failure_rate > 0.0 { 0.0 } else { 100.0 }
+            if actual_failure_rate > 0.0 {
+                0.0
+            } else {
+                100.0
+            }
         } else {
-            let remaining = ((allowed_failure_rate - actual_failure_rate) / allowed_failure_rate) * 100.0;
+            let remaining =
+                ((allowed_failure_rate - actual_failure_rate) / allowed_failure_rate) * 100.0;
             remaining.clamp(0.0, 100.0)
         };
 

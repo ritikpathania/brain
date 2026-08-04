@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 /// Composable representation of network fault effects evaluated between node pairs.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct FaultEffects {
     /// `true` if network link between nodes is partitioned.
     pub partitioned: bool,
@@ -19,16 +19,6 @@ pub struct FaultEffects {
     pub delay_ms: Option<u64>,
     /// `true` if transport packet should be dropped.
     pub drop_packet: bool,
-}
-
-impl Default for FaultEffects {
-    fn default() -> Self {
-        Self {
-            partitioned: false,
-            delay_ms: None,
-            drop_packet: false,
-        }
-    }
 }
 
 impl FaultEffects {
@@ -162,7 +152,9 @@ impl PacketDropSimulator {
 
         let mut s = self.seed.lock().unwrap();
         // Linear congruential pseudo-random generator
-        *s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        *s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let sample = ((*s >> 32) % 100) as u8;
         sample < self.drop_pct
     }

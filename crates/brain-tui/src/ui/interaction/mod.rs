@@ -15,6 +15,8 @@ pub mod navigation;
 /// Document parser mapping markdown to semantic blocks.
 pub mod parser;
 pub mod scroll;
+/// Session list scroll-and-selection navigator.
+pub mod session_navigator;
 /// Sidebar navigation component interaction.
 pub mod sidebar;
 /// Unified event timeline models.
@@ -25,6 +27,7 @@ pub use dispatcher::{DispatchResult, Dispatcher, InteractionContext, UiEvent};
 pub use editor::{Cursor, Editor, TextBuffer};
 pub use markdown::{MarkdownDocument, MarkdownRenderState};
 pub use scroll::{AutoFollowPolicy, ScrollState};
+pub use session_navigator::{SessionListItem, SessionNavigator};
 pub use sidebar::{
     BrowseState, ParsedQuery, RenameState, SearchState, SessionFilter, SessionLookup, SidebarEvent,
     SidebarInteraction, SidebarMode,

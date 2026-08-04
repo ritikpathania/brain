@@ -121,8 +121,8 @@ pub use execution_runtime::{
     TaskExecutionRuntime, TaskExecutionStatus, TaskExecutor,
 };
 pub use fault_injection::{
-    FaultEffects, FaultInjectionHarness, FaultInjector, NetworkDelaySimulator,
-    PacketDropSimulator, PartitionSimulator,
+    FaultEffects, FaultInjectionHarness, FaultInjector, NetworkDelaySimulator, PacketDropSimulator,
+    PartitionSimulator,
 };
 pub use fenced_lease::FencedLease;
 pub use global_scheduler::GlobalScheduler;
@@ -143,6 +143,9 @@ pub use models::{
     PlanningValidationKind, PlanningValidationReport, Priority, TaskCandidate, TaskDependencyEdge,
     TaskGraph, TaskId, TaskPlan, TaskStep,
 };
+pub use network_transport::{
+    ConnectionStatus, GrpcSnapshotTransport, QuicSnapshotTransport, TransportConnectionPool,
+};
 pub use optimizer::{
     BranchConsolidationPass, ConfidenceMaximizationPass, OptimizationPass, OptimizationPolicy,
     OptimizationReport, OptimizationTransformation, PlanOptimizer, RedundantTaskEliminationPass,
@@ -151,9 +154,7 @@ pub use planning_runtime::PlanningRuntime;
 pub use read_events::{
     ReadEvent, ReadEventId, ReadEventKind, ReadEventPublisher, READ_EVENT_SCHEMA_VERSION,
 };
-pub use read_policy::{
-    LeasePriorityPolicy, QuorumOnlyPolicy, ReadPolicy, ReadPolicyEvaluator,
-};
+pub use read_policy::{LeasePriorityPolicy, QuorumOnlyPolicy, ReadPolicy, ReadPolicyEvaluator};
 pub use read_projection::{ReadMetrics, ReadProjection};
 pub use recovery_engine::{RecoveryEngine, RestoreFromSnapshot};
 pub use replication_events::{
@@ -187,15 +188,8 @@ pub use snapshot_store::{
     InMemorySnapshotStore, JsonSnapshotCodec, LogSnapshot, SnapshotBuilder, SnapshotCodec,
     SnapshotStore,
 };
-pub use network_transport::{
-    ConnectionStatus, GrpcSnapshotTransport, QuicSnapshotTransport, TransportConnectionPool,
-};
 pub use snapshot_transport::{ChunkedStreamAdapter, MockSnapshotTransport, SnapshotTransport};
 pub use sqlite_event_log::SqliteEventLog;
-pub use transport_framing::{
-    FramingError, IntegrityPolicy, MessageFramingCodec, TransportFrameHeader, MAX_FRAME_SIZE,
-    TRANSPORT_FRAME_MAGIC, TRANSPORT_FRAME_SCHEMA_VERSION,
-};
 pub use supervision::{
     CheckpointCapability, CheckpointCapabilitySet, CheckpointId, ExecutionCheckpoint,
     ExecutionSupervisor, RecoveryReport, SupervisionError, SupervisionEvent, SupervisionEventId,
@@ -205,6 +199,10 @@ pub use supervision_replay::{
     AuditEntry, CapabilityCompatibility, CapabilityNegotiator, DynamicProjectionRegistry,
     ProjectionId, SupervisionAuditProjection, SupervisionMetricsProjection, SupervisionProjection,
     SupervisionProjectionEngine, SupervisionStateProjection,
+};
+pub use transport_framing::{
+    FramingError, IntegrityPolicy, MessageFramingCodec, TransportFrameHeader, MAX_FRAME_SIZE,
+    TRANSPORT_FRAME_MAGIC, TRANSPORT_FRAME_SCHEMA_VERSION,
 };
 pub use validator::GoalValidator;
 pub use worker_registry::{

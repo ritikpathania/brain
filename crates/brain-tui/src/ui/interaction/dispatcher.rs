@@ -430,6 +430,7 @@ impl Dispatcher {
                                                 });
                                                 ctx.command_palette.editor.clear();
                                                 if state.collected.len() == desc.parameters.len() {
+                                                    // All parameters collected — build and dispatch.
                                                     let inv_opt = CommandInvocation::build(
                                                         state.command_id,
                                                         &state.collected,
@@ -446,6 +447,11 @@ impl Dispatcher {
                                                         );
                                                     }
                                                 }
+                                                // Render the prompt for the next parameter.
+                                                // The editor has been cleared; the widget reads
+                                                // state.current_parameter() to know what label
+                                                // to display for the new parameter slot.
+                                                return DispatchResult::render();
                                             }
                                         }
                                     }
@@ -453,9 +459,74 @@ impl Dispatcher {
                             }
 
                             PaletteStage::Confirm { .. } => {
+                                // TODO: The Confirm stage is currently an unimplemented stub.
+                                // Pressing Enter here resets the palette without dispatching
+                                // any command. This stage was reserved for destructive-action
+                                // confirmation UX but has not been designed or implemented yet.
+                                // Either implement confirmation flow or remove the variant in a
+                                // future milestone.
                                 ctx.command_palette.reset();
                                 if let Some(saved) = ctx.focus.pop_saved_focus() {
                                     ctx.focus.set_focus(saved);
+                                }
+                            }
+                        }
+                        return DispatchResult::render();
+                    }
+                    // Tab (FocusNext) in CollectParameter acts as "advance to next parameter".
+                    // If there is a next parameter, Tab behaves identically to Enter —
+                    // collecting the current value and moving to the next field.
+                    // If the current parameter is the last, Tab also behaves like Enter
+                    // (submits and dispatches the command).
+                    //
+                    // In Search stage, Tab is a no-op (no suggestion cycling in the palette).
+                    Command::FocusNext => {
+                        if let PaletteStage::CollectParameter(state) =
+                            &mut ctx.command_palette.stage
+                        {
+                            let descriptor = CommandRegistry::find_by_id(state.command_id);
+                            if let Some(desc) = descriptor {
+                                if let Some(param_desc) = state.current_parameter(desc) {
+                                    let text = ctx.command_palette.editor.text().trim().to_string();
+                                    if !text.is_empty() {
+                                        let val = match param_desc.kind {
+                                            crate::ui::command::ParameterKind::String => {
+                                                Some(ParameterValue::String(text))
+                                            }
+                                            crate::ui::command::ParameterKind::Theme => {
+                                                Some(ParameterValue::Theme(
+                                                    crate::ui::command::ThemeId("dark"),
+                                                ))
+                                            }
+                                            _ => Some(ParameterValue::String(text)),
+                                        };
+                                        if let Some(param_val) = val {
+                                            state.collected.push(CollectedParameter {
+                                                id: param_desc.id,
+                                                value: param_val,
+                                            });
+                                            ctx.command_palette.editor.clear();
+                                            if state.collected.len() == desc.parameters.len() {
+                                                // Last parameter — build and dispatch.
+                                                let inv_opt = CommandInvocation::build(
+                                                    state.command_id,
+                                                    &state.collected,
+                                                    ctx.sidebar.browse.selected,
+                                                );
+                                                ctx.command_palette.reset();
+                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                                    ctx.focus.set_focus(saved);
+                                                }
+                                                if let Some(inv) = inv_opt {
+                                                    return DispatchResult::event(
+                                                        UiEvent::Command(inv),
+                                                    );
+                                                }
+                                            }
+                                            // Advance to next parameter field.
+                                            return DispatchResult::render();
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -515,12 +586,28 @@ impl Dispatcher {
             return DispatchResult::none();
         }
 
-        // If Prompt is focused and slash completion is visible, Arrow keys and Tab interact with suggestions.
+        // If Prompt is focused and slash completion is visible, Arrow keys, Tab, and Escape
+        // interact with suggestions.
+        //
+        // Escape dismissal semantic:
+        //   One Escape dismisses the completion for the *current exact query string* only.
+        //   dismissed_query caches at most one query — typing any different text clears it.
+        //   See SlashCompletionState::dismissed_query and sync_slash_completion() in state.rs.
         if ctx.focus.current() == FocusTarget::Prompt && ctx.slash_completion.visible {
             let count = crate::ui::command::completion::SlashCompletionEngine::matches(
                 &ctx.slash_completion.query,
             )
             .count();
+
+            // Escape: dismiss popup and cache the dismissed query to prevent re-opening
+            // while the user is still on the same text. Typing a different character
+            // (handled in the post-processing block below) clears dismissed_query.
+            if let InputAction::Command(Command::Escape) = action {
+                ctx.slash_completion.dismissed_query = Some(ctx.slash_completion.query.clone());
+                ctx.slash_completion.visible = false;
+                return DispatchResult::render();
+            }
+
             if count > 0 {
                 if let InputAction::Command(cmd) = action {
                     match cmd {
@@ -608,6 +695,10 @@ impl Dispatcher {
                     }
                 }
                 Command::ToggleCommandPalette => DispatchResult::render(),
+                // Escape when the slash-completion popup is visible is handled earlier
+                // in the slash-completion guard (sets dismissed_query, hides popup).
+                // When no popup is visible, Escape is a deliberate no-op in the prompt:
+                // it does NOT clear the editor or change focus.
                 Command::Escape => DispatchResult::none(),
             },
 

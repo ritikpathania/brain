@@ -98,16 +98,39 @@ async fn test_end_to_end_dag_execution_diamond_pipeline() {
         Some(PlanStepComplexity::High),
     );
 
-    let plan = ExecutionPlan::new("diamond_plan", "test query", vec![step1, step2, step3, step4]).unwrap();
+    let plan = ExecutionPlan::new(
+        "diamond_plan",
+        "test query",
+        vec![step1, step2, step3, step4],
+    )
+    .unwrap();
 
     let counter = Arc::new(AtomicUsize::new(0));
     let mock_exec = Arc::new(MockStepExecutor::new(counter.clone(), false));
 
     let mut registry = StepExecutorRegistry::new();
-    registry.register(&ReasoningPlanStepKind::Search { query: "".to_string() }, mock_exec.clone());
-    registry.register(&ReasoningPlanStepKind::QueryMemory { filter: brain_domain::MemoryFilter::All }, mock_exec.clone());
-    registry.register(&ReasoningPlanStepKind::InspectEntity { entity_id: "".to_string() }, mock_exec.clone());
-    registry.register(&ReasoningPlanStepKind::SynthesizeResponse, mock_exec.clone());
+    registry.register(
+        &ReasoningPlanStepKind::Search {
+            query: "".to_string(),
+        },
+        mock_exec.clone(),
+    );
+    registry.register(
+        &ReasoningPlanStepKind::QueryMemory {
+            filter: brain_domain::MemoryFilter::All,
+        },
+        mock_exec.clone(),
+    );
+    registry.register(
+        &ReasoningPlanStepKind::InspectEntity {
+            entity_id: "".to_string(),
+        },
+        mock_exec.clone(),
+    );
+    registry.register(
+        &ReasoningPlanStepKind::SynthesizeResponse,
+        mock_exec.clone(),
+    );
 
     let runner = ExecutionRunner::new(registry);
     let exec_id = ExecutionId::new();
@@ -136,7 +159,9 @@ async fn test_end_to_end_dag_execution_diamond_pipeline() {
         events.push(evt);
     }
 
-    assert!(events.iter().any(|e| matches!(e, ExecutionEvent::PlanCompleted { .. })));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ExecutionEvent::PlanCompleted { .. })));
 }
 
 #[tokio::test]
@@ -169,7 +194,12 @@ async fn test_failure_propagation_skips_downstream_dependents() {
     let success_exec = Arc::new(MockStepExecutor::new(counter.clone(), false));
 
     let mut registry = StepExecutorRegistry::new();
-    registry.register(&ReasoningPlanStepKind::Search { query: "".to_string() }, failing_exec);
+    registry.register(
+        &ReasoningPlanStepKind::Search {
+            query: "".to_string(),
+        },
+        failing_exec,
+    );
     registry.register(&ReasoningPlanStepKind::SynthesizeResponse, success_exec);
 
     let runner = ExecutionRunner::new(registry);
@@ -194,8 +224,16 @@ async fn test_failure_propagation_skips_downstream_dependents() {
         events.push(evt);
     }
 
-    assert!(events.iter().any(|e| matches!(e, ExecutionEvent::StepSkipped { reason: SkippedReason::UpstreamFailure, .. })));
-    assert!(events.iter().any(|e| matches!(e, ExecutionEvent::PlanFailed { .. })));
+    assert!(events.iter().any(|e| matches!(
+        e,
+        ExecutionEvent::StepSkipped {
+            reason: SkippedReason::UpstreamFailure,
+            ..
+        }
+    )));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ExecutionEvent::PlanFailed { .. })));
 }
 
 #[tokio::test]
@@ -236,7 +274,13 @@ async fn test_cooperative_cancellation_isolation() {
         events.push(evt);
     }
 
-    assert!(events.iter().any(|e| matches!(e, ExecutionEvent::StepSkipped { reason: SkippedReason::Cancelled, .. })));
+    assert!(events.iter().any(|e| matches!(
+        e,
+        ExecutionEvent::StepSkipped {
+            reason: SkippedReason::Cancelled,
+            ..
+        }
+    )));
 }
 
 #[test]
@@ -276,9 +320,24 @@ fn test_artifact_store_provenance_graph_traversal_and_relationships() {
     let art3_id = store.insert(art3).unwrap();
 
     // Provenance chain: art1 -> art2 (DerivedFrom), art2 -> art3 (Summarizes), art1 -> art3 (References)
-    let edge1 = ProvenanceEdge::new(art1_id, art2_id, ProvenanceRelationship::DerivedFrom, ExecutionTimestamp::now());
-    let edge2 = ProvenanceEdge::new(art2_id, art3_id, ProvenanceRelationship::Summarizes, ExecutionTimestamp::now());
-    let edge3 = ProvenanceEdge::new(art1_id, art3_id, ProvenanceRelationship::References, ExecutionTimestamp::now());
+    let edge1 = ProvenanceEdge::new(
+        art1_id,
+        art2_id,
+        ProvenanceRelationship::DerivedFrom,
+        ExecutionTimestamp::now(),
+    );
+    let edge2 = ProvenanceEdge::new(
+        art2_id,
+        art3_id,
+        ProvenanceRelationship::Summarizes,
+        ExecutionTimestamp::now(),
+    );
+    let edge3 = ProvenanceEdge::new(
+        art1_id,
+        art3_id,
+        ProvenanceRelationship::References,
+        ExecutionTimestamp::now(),
+    );
 
     store.add_edge(edge1).unwrap();
     store.add_edge(edge2).unwrap();
@@ -322,12 +381,22 @@ fn test_invalid_provenance_edge_insertion_rejected() {
     let missing_id = EvidenceArtifactId::new();
 
     // Edge pointing to missing artifact must be rejected
-    let edge = ProvenanceEdge::new(art1_id, missing_id, ProvenanceRelationship::DerivedFrom, ExecutionTimestamp::now());
+    let edge = ProvenanceEdge::new(
+        art1_id,
+        missing_id,
+        ProvenanceRelationship::DerivedFrom,
+        ExecutionTimestamp::now(),
+    );
     let res = store.add_edge(edge);
     assert!(res.is_err());
 
     // Self-loop edge must be rejected
-    let self_loop = ProvenanceEdge::new(art1_id, art1_id, ProvenanceRelationship::DerivedFrom, ExecutionTimestamp::now());
+    let self_loop = ProvenanceEdge::new(
+        art1_id,
+        art1_id,
+        ProvenanceRelationship::DerivedFrom,
+        ExecutionTimestamp::now(),
+    );
     let self_res = store.add_edge(self_loop);
     assert!(self_res.is_err());
 }

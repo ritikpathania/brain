@@ -71,7 +71,11 @@ fn test_ranking_independence_of_irrelevant_alternatives() {
     let ranked_extended = engine.rank("match", results_extended);
 
     // The low result is filtered — only the two high-scoring results remain
-    assert_eq!(ranked_extended.len(), 2, "Low-score result should be filtered by minimum_score");
+    assert_eq!(
+        ranked_extended.len(),
+        2,
+        "Low-score result should be filtered by minimum_score"
+    );
     assert_eq!(ranked_extended[0].title, Some("Perfect match".to_string()));
     assert_eq!(ranked_extended[1].title, Some("Good match".to_string()));
 }

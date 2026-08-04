@@ -80,7 +80,9 @@ impl ReasoningPlanViewModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use brain_domain::reasoning::{PlanStepComplexity, PlanStepId, ReasoningPlanStep, ReasoningPlanStepKind};
+    use brain_domain::reasoning::{
+        PlanStepComplexity, PlanStepId, ReasoningPlanStep, ReasoningPlanStepKind,
+    };
 
     #[test]
     fn test_reasoning_plan_view_model_conversion() {

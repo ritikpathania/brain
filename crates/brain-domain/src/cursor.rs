@@ -117,7 +117,8 @@ mod tests {
             Some(PlanStepComplexity::High),
         );
 
-        let plan = ExecutionPlan::new("plan_roots", "query", vec![step1, step2, step3, step4]).unwrap();
+        let plan =
+            ExecutionPlan::new("plan_roots", "query", vec![step1, step2, step3, step4]).unwrap();
         let cursor = ExecutionCursor::new();
 
         // Initially both independent root steps (Step 1 and Step 2) should be executable simultaneously
@@ -132,7 +133,9 @@ mod tests {
     fn test_execution_cursor_step_advancement() {
         let step1 = ReasoningPlanStep::new(
             PlanStepId::new(1),
-            ReasoningPlanStepKind::Search { query: "a".to_string() },
+            ReasoningPlanStepKind::Search {
+                query: "a".to_string(),
+            },
             "Step 1",
             vec![],
             None,
@@ -149,7 +152,10 @@ mod tests {
         let mut cursor = ExecutionCursor::new();
 
         assert_eq!(cursor.next_executable_steps(&plan).len(), 1);
-        assert_eq!(cursor.next_executable_steps(&plan)[0].id, PlanStepId::new(1));
+        assert_eq!(
+            cursor.next_executable_steps(&plan)[0].id,
+            PlanStepId::new(1)
+        );
 
         cursor.mark_in_flight(PlanStepId::new(1));
         assert_eq!(cursor.next_executable_steps(&plan).len(), 0);

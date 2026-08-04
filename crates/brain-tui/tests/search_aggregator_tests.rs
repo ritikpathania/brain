@@ -48,7 +48,10 @@ fn test_aggregator_generation_filtering() {
 
     let state2 = aggregator.view_state();
     assert_eq!(state2.results().len(), 1);
-    assert_eq!(state2.results()[0].title, Some("Fresh local result".to_string()));
+    assert_eq!(
+        state2.results()[0].title,
+        Some("Fresh local result".to_string())
+    );
 }
 
 #[test]

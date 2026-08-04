@@ -2,8 +2,8 @@
 
 use crate::reasoning::executor_trait::{StepExecutionContext, StepExecutorRegistry};
 use brain_domain::{
-    DomainError, ExecutionEvent, ExecutionPlan, ExecutionState, ExecutionTimestamp,
-    SkippedReason, StepInputs, StepStatus,
+    DomainError, ExecutionEvent, ExecutionPlan, ExecutionState, ExecutionTimestamp, SkippedReason,
+    StepInputs, StepStatus,
 };
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -77,10 +77,8 @@ impl ExecutionRunner {
 
                 if has_upstream_failure {
                     // Mark step as skipped due to upstream failure
-                    state.transition(
-                        step.id,
-                        StepStatus::Skipped(SkippedReason::UpstreamFailure),
-                    )?;
+                    state
+                        .transition(step.id, StepStatus::Skipped(SkippedReason::UpstreamFailure))?;
                     let _ = event_tx.send(ExecutionEvent::StepSkipped {
                         execution_id: ctx.execution_id,
                         step_id: step.id,
@@ -143,14 +141,16 @@ impl ExecutionRunner {
                         state.transition(step_id, StepStatus::Completed)?;
 
                         // Construct ExecutionArtifact via ArtifactBuilder
-                        let artifact = crate::reasoning::ArtifactBuilder::build(&step, &ctx, output.clone());
+                        let artifact =
+                            crate::reasoning::ArtifactBuilder::build(&step, &ctx, output.clone());
                         let artifact_id = artifact.id;
 
                         // Insert artifact and record provenance edges into state.artifact_store
                         state.artifact_store.insert(artifact)?;
 
                         for dep_id in &step.depends_on {
-                            if let Some(parent_art) = state.artifact_store.get_by_producer(*dep_id) {
+                            if let Some(parent_art) = state.artifact_store.get_by_producer(*dep_id)
+                            {
                                 let edge = brain_domain::ProvenanceEdge::new(
                                     parent_art.id(),
                                     artifact_id,

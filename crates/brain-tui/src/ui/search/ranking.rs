@@ -33,15 +33,10 @@ impl Default for RankingConfig {
 }
 
 /// The pure ranking engine calculates result match scores and performs stable sorting.
+#[derive(Default)]
 pub struct RankingEngine {
     /// Configuration controlling score threshold filtering.
     pub config: RankingConfig,
-}
-
-impl Default for RankingEngine {
-    fn default() -> Self {
-        Self { config: RankingConfig::default() }
-    }
 }
 
 impl RankingEngine {
@@ -84,10 +79,9 @@ impl RankingEngine {
 
             // 3. Kind Boost
             match res.kind {
-                SearchResultKind::Session  => score += 10,
-                SearchResultKind::Command  => score += 5,
-                SearchResultKind::Message |
-                SearchResultKind::Knowledge => {}
+                SearchResultKind::Session => score += 10,
+                SearchResultKind::Command => score += 5,
+                SearchResultKind::Message | SearchResultKind::Knowledge => {}
             }
 
             scored_results.push((score, res));
@@ -100,13 +94,12 @@ impl RankingEngine {
 
         // Stably sort descending by score. If scores are equal, fall back to title alphabetically.
         scored_results.sort_by(|a, b| {
-            b.0.cmp(&a.0)
-                .then_with(|| match (&a.1.title, &b.1.title) {
-                    (Some(ta), Some(tb)) => ta.cmp(tb),
-                    (Some(_), None)      => std::cmp::Ordering::Less,
-                    (None, Some(_))      => std::cmp::Ordering::Greater,
-                    (None, None)         => std::cmp::Ordering::Equal,
-                })
+            b.0.cmp(&a.0).then_with(|| match (&a.1.title, &b.1.title) {
+                (Some(ta), Some(tb)) => ta.cmp(tb),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            })
         });
 
         scored_results.into_iter().map(|(_, res)| res).collect()

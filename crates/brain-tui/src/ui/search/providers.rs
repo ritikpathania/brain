@@ -290,4 +290,3 @@ impl SearchProvider for RemoteMessagesProvider {
         });
     }
 }
-

@@ -6,7 +6,9 @@
 //! 3. Policy-Driven Framing: gRPC transport uses `IntegrityPolicy::None` to prevent double checksumming, while QUIC uses `IntegrityPolicy::Crc32`.
 
 use crate::planning::cluster::NodeId;
-use crate::planning::consensus::{ConsensusEngine, ConsensusError, InstallSnapshotRequest, InstallSnapshotResponse};
+use crate::planning::consensus::{
+    ConsensusEngine, ConsensusError, InstallSnapshotRequest, InstallSnapshotResponse,
+};
 use crate::planning::snapshot_transport::SnapshotTransport;
 use crate::planning::transport_framing::{IntegrityPolicy, MessageFramingCodec};
 use std::collections::HashMap;
@@ -43,7 +45,9 @@ impl SnapshotTransport for GrpcSnapshotTransport {
             .map_err(|e| ConsensusError::TransportError(format!("Framing error: {}", e)))?;
 
         let guard = self.nodes.lock().unwrap();
-        let target_engine = guard.get(&request.leader_id).or_else(|| guard.values().next());
+        let target_engine = guard
+            .get(&request.leader_id)
+            .or_else(|| guard.values().next());
 
         match target_engine {
             Some(engine) => engine.install_snapshot(request),
@@ -85,7 +89,9 @@ impl SnapshotTransport for QuicSnapshotTransport {
             .map_err(|e| ConsensusError::TransportError(format!("Framing error: {}", e)))?;
 
         let guard = self.nodes.lock().unwrap();
-        let target_engine = guard.get(&request.leader_id).or_else(|| guard.values().next());
+        let target_engine = guard
+            .get(&request.leader_id)
+            .or_else(|| guard.values().next());
 
         match target_engine {
             Some(engine) => engine.install_snapshot(request),
@@ -134,6 +140,9 @@ impl TransportConnectionPool {
     /// Returns count of managed active connections.
     pub fn active_connection_count(&self) -> usize {
         let guard = self.active_connections.lock().unwrap();
-        guard.values().filter(|&&s| s == ConnectionStatus::Active).count()
+        guard
+            .values()
+            .filter(|&&s| s == ConnectionStatus::Active)
+            .count()
     }
 }

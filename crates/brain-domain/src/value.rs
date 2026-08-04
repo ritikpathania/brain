@@ -4,9 +4,21 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 /// Domain-wide canonical structured value type reusable across execution, memory, inspection, and reasoning.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum StructuredValue {
     /// Null / empty value representation.
+    #[default]
     Null,
     /// Boolean value.
     Bool(bool),
@@ -40,12 +52,6 @@ impl StructuredValue {
             Self::Object(map) => Some(map),
             _ => None,
         }
-    }
-}
-
-impl Default for StructuredValue {
-    fn default() -> Self {
-        Self::Null
     }
 }
 
@@ -87,7 +93,10 @@ mod tests {
     #[test]
     fn test_structured_value_formatting_and_ordering() {
         let mut map = BTreeMap::new();
-        map.insert("key1".to_string(), StructuredValue::String("val1".to_string()));
+        map.insert(
+            "key1".to_string(),
+            StructuredValue::String("val1".to_string()),
+        );
         map.insert("key2".to_string(), StructuredValue::Integer(42));
 
         let val = StructuredValue::Object(map);

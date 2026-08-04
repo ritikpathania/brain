@@ -7,9 +7,13 @@
 //! 4. Transport Independence: Replication outcomes are 100% identical regardless of transport implementation backend (In-Memory, QUIC, gRPC, IPC).
 
 use crate::planning::cluster::NodeId;
-use crate::planning::consensus::{ConsensusEngine, ConsensusError, InstallSnapshotRequest, InstallSnapshotResponse, TermId};
+use crate::planning::consensus::{
+    ConsensusEngine, ConsensusError, InstallSnapshotRequest, InstallSnapshotResponse, TermId,
+};
 use crate::planning::durable_event_store::SequenceNumber;
-use crate::planning::snapshot_replicator::{SnapshotReplicationPlanner, SnapshotReplicator, SnapshotTransferState};
+use crate::planning::snapshot_replicator::{
+    SnapshotReplicationPlanner, SnapshotReplicator, SnapshotTransferState,
+};
 use crate::planning::snapshot_store::LogSnapshot;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -104,6 +108,7 @@ impl<'a, T: SnapshotTransport> ChunkedStreamAdapter<'a, T> {
     }
 
     /// Orchestrates full streaming of a `SnapshotTransferPlan` over the transport.
+    #[allow(clippy::too_many_arguments)]
     pub fn stream_snapshot(
         &self,
         snapshot: &LogSnapshot,
@@ -117,12 +122,9 @@ impl<'a, T: SnapshotTransport> ChunkedStreamAdapter<'a, T> {
         let plan = SnapshotReplicationPlanner::plan_transfer(snapshot, target_node, chunk_size);
         let mut replicator = SnapshotReplicator::new(plan);
 
-        while let Some(req) = replicator.next_request(
-            term,
-            leader_id,
-            last_included_sequence,
-            last_included_term,
-        ) {
+        while let Some(req) =
+            replicator.next_request(term, leader_id, last_included_sequence, last_included_term)
+        {
             match self.transport.transmit_chunk(&req) {
                 Ok(resp) => {
                     replicator.process_ack(resp.success, resp.bytes_written);

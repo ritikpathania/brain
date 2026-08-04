@@ -126,9 +126,9 @@ impl Confidence {
     /// localised labels, not fixed uppercase ASCII.
     pub fn display_label(self) -> &'static str {
         match self {
-            Self::High   => "HIGH",
+            Self::High => "HIGH",
             Self::Medium => "MED ",
-            Self::Low    => "LOW ",
+            Self::Low => "LOW ",
         }
     }
 }
@@ -203,8 +203,11 @@ pub trait ExecutionClient: Send + Sync {
 
     /// Decomposes a user query or command into a structured DAG-validated reasoning plan.
     async fn plan_reasoning(&self, query: &str) -> Result<brain_domain::ExecutionPlan, BrainError> {
-        brain_domain::ReasoningPlannerService::plan_reasoning(query)
-            .map_err(|e| BrainError::Internal { message: e.to_string() })
+        brain_domain::ReasoningPlannerService::plan_reasoning(query).map_err(|e| {
+            BrainError::Internal {
+                message: e.to_string(),
+            }
+        })
     }
 
     /// Pins a memory item into runtime stewardship context.
@@ -620,8 +623,10 @@ impl ExecutionClient for UdsClient {
             kinds: None,
             pagination: None,
         };
-        let query_json = serde_json::to_string(&search_query)
-            .map_err(|e| BrainError::Internal { message: e.to_string() })?;
+        let query_json =
+            serde_json::to_string(&search_query).map_err(|e| BrainError::Internal {
+                message: e.to_string(),
+            })?;
 
         let payload = serde_json::json!({
             "version": "1.0",
@@ -645,24 +650,30 @@ impl ExecutionClient for UdsClient {
         stream
             .write_all(payload_str.as_bytes())
             .await
-            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
-        stream
-            .flush()
-            .await
-            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            .map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
+        stream.flush().await.map_err(|e| BrainError::Storage {
+            message: e.to_string(),
+            source: None,
+        })?;
 
         let (reader, _) = stream.into_split();
         let mut buf = BufReader::new(reader);
         let mut line = String::new();
         buf.read_line(&mut line)
             .await
-            .map_err(|e| BrainError::Storage { message: e.to_string(), source: None })?;
+            .map_err(|e| BrainError::Storage {
+                message: e.to_string(),
+                source: None,
+            })?;
 
         let resp: serde_json::Value =
             serde_json::from_str(line.trim()).unwrap_or(serde_json::Value::Null);
         let body_str = resp["body"].as_str().unwrap_or("{}");
-        let dto: brain_integrations::dto::v1::KnowledgeResponseDto =
-            serde_json::from_str(body_str).map_err(|e| BrainError::Internal {
+        let dto: brain_integrations::dto::v1::KnowledgeResponseDto = serde_json::from_str(body_str)
+            .map_err(|e| BrainError::Internal {
                 message: format!("Failed to parse KnowledgeResponseDto: {}", e),
             })?;
 

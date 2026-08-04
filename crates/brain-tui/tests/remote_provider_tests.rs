@@ -40,10 +40,7 @@ impl ExecutionClient for MockSearchClient {
         Ok(())
     }
 
-    async fn search_candidates(
-        &self,
-        query: &str,
-    ) -> Result<Vec<SearchCandidate>, BrainError> {
+    async fn search_candidates(&self, query: &str) -> Result<Vec<SearchCandidate>, BrainError> {
         if self.delay_ms > 0 {
             tokio::time::sleep(Duration::from_millis(self.delay_ms)).await;
         }

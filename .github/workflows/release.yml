@@ -46,16 +46,31 @@ jobs:
           uv sync --no-install-project
           uv run maturin develop
 
-      - name: Build Standalone Brain Binary
+      - name: Build Standalone Binaries (brain & brain-daemon)
         run: |
-          PYO3_PYTHON=python3 cargo build --release --bin brain --target ${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/brain ./${{ matrix.artifact_name }}
+          PYO3_PYTHON=python3 cargo build --release --package brain --target ${{ matrix.target }}
+          PYO3_PYTHON=python3 cargo build --release --manifest-path daemon/Cargo.toml --bin brain-daemon --target ${{ matrix.target }}
+          
+          mkdir -p release_staging
+          cp target/${{ matrix.target }}/release/brain release_staging/brain
+          if [ -f daemon/target/${{ matrix.target }}/release/brain-daemon ]; then
+            cp daemon/target/${{ matrix.target }}/release/brain-daemon release_staging/brain-daemon
+          else
+            cp target/${{ matrix.target }}/release/brain-daemon release_staging/brain-daemon
+          fi
+          cp README.md release_staging/README.md
+          cp CHANGELOG.md release_staging/CHANGELOG.md
+          cp LICENSE release_staging/LICENSE 2>/dev/null || true
+          cp -r docs release_staging/docs
 
-      - name: Upload Binary Artifact
+          TAR_NAME="${{ matrix.artifact_name }}.tar.gz"
+          tar -czf ${TAR_NAME} -C release_staging .
+
+      - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.tar.gz
 
   publish-release:
     name: Create GitHub Release
