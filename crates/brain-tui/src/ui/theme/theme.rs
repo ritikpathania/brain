@@ -219,3 +219,62 @@ impl Default for Theme {
         Self::new(Palette::dark())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::theme::{dark_theme, high_contrast_theme, light_theme, terminal_theme};
+
+    const ALL_TOKENS: &[ThemeToken] = &[
+        ThemeToken::Primary,
+        ThemeToken::Secondary,
+        ThemeToken::Accent,
+        ThemeToken::Muted,
+        ThemeToken::Success,
+        ThemeToken::Warning,
+        ThemeToken::Danger,
+        ThemeToken::Info,
+        ThemeToken::TextPrimary,
+        ThemeToken::TextSecondary,
+        ThemeToken::TextMuted,
+        ThemeToken::HeaderPrimary,
+        ThemeToken::HeaderSecondary,
+        ThemeToken::Selection,
+        ThemeToken::Focus,
+        ThemeToken::Border,
+        ThemeToken::BorderActive,
+        ThemeToken::BorderSubtle,
+        ThemeToken::Cursor,
+        ThemeToken::CodeInline,
+        ThemeToken::CodeBlock,
+        ThemeToken::Link,
+        ThemeToken::Tag,
+        ThemeToken::Thinking,
+        ThemeToken::Streaming,
+        ThemeToken::User,
+        ThemeToken::Assistant,
+        ThemeToken::Tool,
+        ThemeToken::System,
+        ThemeToken::Background,
+        ThemeToken::Surface,
+    ];
+
+    #[test]
+    fn test_all_tokens_resolve_without_panic() {
+        let themes: &[&Theme] = &[
+            dark_theme(),
+            light_theme(),
+            terminal_theme(),
+            high_contrast_theme(),
+        ];
+
+        for theme in themes {
+            for token in ALL_TOKENS {
+                let style = theme.style(*token);
+                // Invariant check: resolution returns a valid Style object
+                let _ = style;
+            }
+        }
+    }
+}
+

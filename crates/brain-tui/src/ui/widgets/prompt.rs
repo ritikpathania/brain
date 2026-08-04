@@ -1,4 +1,4 @@
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
@@ -28,12 +28,14 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
 
     let prefix_span = ratatui::text::Span::styled(
         prefix,
-        theme.accent.add_modifier(ratatui::style::Modifier::BOLD),
+        theme
+            .style(ThemeToken::Accent)
+            .add_modifier(ratatui::style::Modifier::BOLD),
     );
 
     let content_line = if view.prompt_text.is_empty() {
         let placeholder_style = theme
-            .inactive
+            .style(ThemeToken::TextMuted)
             .add_modifier(ratatui::style::Modifier::ITALIC);
         ratatui::text::Line::from(vec![
             prefix_span,
@@ -42,9 +44,10 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
     } else {
         ratatui::text::Line::from(vec![
             prefix_span,
-            ratatui::text::Span::styled(&view.prompt_text, theme.text),
+            ratatui::text::Span::styled(&view.prompt_text, theme.style(ThemeToken::TextPrimary)),
         ])
     };
+
 
     let p = Paragraph::new(content_line).block(block);
 
