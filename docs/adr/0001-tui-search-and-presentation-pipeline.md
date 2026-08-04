@@ -75,13 +75,20 @@ tests/e2e/
 
 ### Critical End-to-End Invariants Tested
 
-1. **Presentation Boundary Regression**:
+1. **Presentation Boundary Regression (Black-Box Assertions)**:
    - Given a daemon response with missing title, missing summary, valid entity ID, and score.
-   - Asserts that placeholder resolution occurs strictly at `MemoryResultViewModel::from_search_result`, no `Option` types leak to the renderer, raw UUIDs are never displayed, and `DetailAvailability::Available` preserves the entity ID.
+   - Asserts observable UI behavior: no raw UUID strings or unresolved `Option` values appear in rendered output, default placeholder text (`"(untitled memory)"`) appears in place of missing fields, and detail navigation resolves to the correct entity ID.
+   - Does NOT assert internal method calls, keeping tests resilient against internal refactoring.
 
-2. **Daemon Recovery State Machine**:
+2. **Ordering Stability Across State Operations & Repaints**:
+   - Given a set of search results displayed in confidence groups (`High`, `Medium`, `Low`).
+   - Triggering UI state changes (theme switches, sidebar navigation, screen resize, redrawing).
+   - Asserts that group ordering and intra-group item ordering remain 100% identical across repaints; state mutations update presentation styles without triggering unexpected re-ranking or re-grouping.
+
+3. **Daemon Recovery State Machine**:
    - Given a daemon transport failure (`BackendUnavailable`), followed by daemon reconnection and a successful query.
    - Asserts that the failure banner clears automatically, stale error states reset, and search results render without requiring an application restart.
+
 
 ## Consequences
 
