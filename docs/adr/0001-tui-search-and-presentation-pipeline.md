@@ -60,8 +60,32 @@ Backend / Daemon Retrieval
 
 All scroll offsets and list selections are owned by dedicated state models (e.g., `SessionNavigator`), tracking identity via `SessionId` rather than list indices.
 
+## Verification & End-to-End Strategy
+
+End-to-end tests are structured by **behavioral capability** rather than individual widget units:
+
+```text
+tests/e2e/
+├── search_flow.rs       # Concept search, placeholder resolution, confidence badges
+├── command_palette.rs   # /slash navigation, Escape dismissal, parameter collection
+├── navigation.rs        # Session list scrolling, identity preservation across updates
+├── themes.rs            # 4-theme switching, WCAG AA contrast resolution
+└── failure_modes.rs     # Backend unavailability, reconnection & recovery state machine
+```
+
+### Critical End-to-End Invariants Tested
+
+1. **Presentation Boundary Regression**:
+   - Given a daemon response with missing title, missing summary, valid entity ID, and score.
+   - Asserts that placeholder resolution occurs strictly at `MemoryResultViewModel::from_search_result`, no `Option` types leak to the renderer, raw UUIDs are never displayed, and `DetailAvailability::Available` preserves the entity ID.
+
+2. **Daemon Recovery State Machine**:
+   - Given a daemon transport failure (`BackendUnavailable`), followed by daemon reconnection and a successful query.
+   - Asserts that the failure banner clears automatically, stale error states reset, and search results render without requiring an application restart.
+
 ## Consequences
 
-- **Testability**: Every stage is unit-tested in isolation without mocking ratatui frames or network sockets.
+- **Testability**: Every stage is unit-tested in isolation without mocking ratatui frames or network sockets, while end-to-end behavioral suites validate multi-layer user flows.
 - **Extensibility**: Adding new search providers or presentation badges requires extending only the relevant pipeline stage without touching render loops.
 - **Accessibility**: Theme contrast ratio checks (WCAG AA >= 4.5:1) are verified via automated tests.
+
