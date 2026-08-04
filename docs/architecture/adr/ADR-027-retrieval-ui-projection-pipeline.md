@@ -57,6 +57,7 @@ Keyboard Input / Prompt
 8. **Widgets**: Pure stateless functions consuming ViewModels and drawing into `ratatui::buffer::Buffer`.
 9. **Renderer**: Orchestrates screen layout rects and invokes widget draw functions.
 10. **Deterministic Rendering Invariant**: Given identical search query, provider outputs, ranking configuration, and UI state, the Projection Layer **MUST** produce byte-for-byte identical ViewModels.
+11. **Stable Selection Invariant**: If the currently selected search result entity still exists after an asynchronous search update or ranking refresh, that specific entity **MUST** remain selected regardless of its new row index position.
 
 ## UI State Machine Lifecycle
 
