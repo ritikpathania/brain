@@ -47,15 +47,38 @@ Keyboard Input / Prompt
 
 ### Stage Boundary Invariants
 
-1. **Input / Controller**: Handles debounce timers and cancellation signals. Produces `SearchQuery` with monotonically increasing `SearchGeneration`.
+1. **Input / Controller**: Handles debounce timers and cancellation signals. Produces `SearchQuery` with monotonically increasing `SearchGeneration`. **Only the Input/Controller owns `CancellationToken`s**; downstream stages consume cancellation tokens but never create or manage them.
 2. **Search Providers**: Pure data access strategies. Responds to `SearchQuery` and emits `SearchEvent` frames to `SearchEventSink`.
 3. **Search Aggregator**: Tracks current generation ID. Discards events from stale generations.
 4. **Ranking Engine**: Computes normalized match scores (`0` to `100`). Applies score cutoff thresholds.
 5. **Grouping Engine**: Partitions ranked candidates into confidence tiers (`High`, `Medium`, `Low`). Preserves relative ranking within tiers.
-6. **Projection Layer**: Maps domain DTOs (`ConceptSummaryDto`, `MemoryEntity`) to UI projection types without mutating domain entities.
-7. **ViewModels**: Immutable value objects containing only pre-formatted text and display flags. **MUST NOT** hold mutable widget state (e.g. selection indices, scroll offsets).
-8. **Widgets**: Pure functions consuming ViewModels and drawing into `ratatui::buffer::Buffer`.
+6. **Projection Layer**: **Sole owner of presentation formatting** (score text, confidence badges, timestamps, string truncation, DTO-to-ViewModel transformations). Widgets and renderers **MUST NOT** perform string formatting or domain interpretation.
+7. **ViewModels**: Immutable value objects containing only pre-formatted display strings and layout flags. **MUST NOT** hold mutable widget interaction state (e.g. selection indices, scroll offsets).
+8. **Widgets**: Pure stateless functions consuming ViewModels and drawing into `ratatui::buffer::Buffer`.
 9. **Renderer**: Orchestrates screen layout rects and invokes widget draw functions.
+
+## UI State Machine Lifecycle
+
+The pipeline operates as a deterministic finite state machine with explicit allowed transitions:
+
+```text
+Idle
+  │
+  ▼
+Debouncing (150ms)
+  │
+  ▼
+Searching
+ ├──────────────► Empty
+ ├──────────────► Results
+ └──────────────► Error
+
+Results   ──► Debouncing  ──► Idle
+Empty     ──► Debouncing  ──► Idle
+Error     ──► Debouncing  ──► Idle
+```
+
+State transitions are driven by input events and aggregator events; invalid state transitions are rejected by the controller reducer.
 
 ## Milestone 1 Acceptance Contract
 
