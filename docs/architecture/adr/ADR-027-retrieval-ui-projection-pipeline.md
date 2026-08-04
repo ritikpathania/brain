@@ -56,6 +56,7 @@ Keyboard Input / Prompt
 7. **ViewModels**: Immutable value objects containing only pre-formatted display strings and layout flags. **MUST NOT** hold mutable widget interaction state (e.g. selection indices, scroll offsets).
 8. **Widgets**: Pure stateless functions consuming ViewModels and drawing into `ratatui::buffer::Buffer`.
 9. **Renderer**: Orchestrates screen layout rects and invokes widget draw functions.
+10. **Deterministic Rendering Invariant**: Given identical search query, provider outputs, ranking configuration, and UI state, the Projection Layer **MUST** produce byte-for-byte identical ViewModels.
 
 ## UI State Machine Lifecycle
 
