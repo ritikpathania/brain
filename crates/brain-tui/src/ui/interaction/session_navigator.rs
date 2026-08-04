@@ -255,7 +255,7 @@ mod tests {
         // We cache them in a thread-local to keep the same mapping across calls.
         use std::cell::RefCell;
         thread_local! {
-            static POOL: RefCell<Option<Vec<SessionId>>> = RefCell::new(None);
+            static POOL: RefCell<Option<Vec<SessionId>>> = const { RefCell::new(None) };
         }
         POOL.with(|cell| {
             let mut borrow = cell.borrow_mut();
@@ -271,7 +271,9 @@ mod tests {
     }
 
     fn items(ids: &[u8]) -> Vec<SessionListItem> {
-        ids.iter().map(|&n| SessionListItem { id: sid(n) }).collect()
+        ids.iter()
+            .map(|&n| SessionListItem { id: sid(n) })
+            .collect()
     }
 
     fn navigator(ids: &[u8]) -> SessionNavigator {

@@ -27,6 +27,7 @@ pub use events::*;
 pub use identifiers::*;
 pub use services::*;
 pub use specification::*;
+pub use ulid;
 
 /// Brain Knowledge Format (BKF) canonical representation.
 pub mod bkf;

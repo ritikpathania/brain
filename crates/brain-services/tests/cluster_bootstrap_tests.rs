@@ -2,7 +2,7 @@
 
 use brain_services::planning::{
     CliClusterController, ClusterBootstrapEngine, ClusterConfigError, ClusterConfigValidator,
-    ClusterNodeConfig, ConsensusEngine, ConsensusRole, NodeId, SequenceNumber, TermId,
+    ClusterNodeConfig, ConsensusRole, NodeId, SequenceNumber, TermId,
 };
 use uuid::Uuid;
 

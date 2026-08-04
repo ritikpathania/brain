@@ -1,8 +1,8 @@
 //! Integration & Chaos Test Suite for `PartitionSimulator`, `NetworkDelaySimulator`, `PacketDropSimulator`, and `FaultInjectionHarness` (Phase 15 Milestone 15.2).
 
 use brain_services::planning::{
-    FaultEffects, FaultInjectionHarness, FaultInjector, NetworkDelaySimulator, NodeId,
-    PacketDropSimulator, PartitionSimulator,
+    FaultInjectionHarness, FaultInjector, NetworkDelaySimulator, NodeId, PacketDropSimulator,
+    PartitionSimulator,
 };
 use uuid::Uuid;
 
