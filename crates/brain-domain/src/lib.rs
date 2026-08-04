@@ -125,3 +125,15 @@ pub use artifact::*;
 /// Append-only store managing evidence artifacts and provenance graph relationships.
 pub mod artifact_store;
 pub use artifact_store::*;
+
+/// ArtifactDescriptor payload produced by StepExecutors.
+pub mod descriptor;
+pub use descriptor::*;
+
+/// Algebraic Evidence Selection Strategy, Context, Query, and EvidenceSet.
+pub mod selection;
+pub use selection::*;
+
+/// Domain-neutral ReasoningFinding and immutable ReasoningResult models.
+pub mod synthesis;
+pub use synthesis::*;

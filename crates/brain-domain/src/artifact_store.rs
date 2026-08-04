@@ -127,6 +127,18 @@ impl ArtifactStore {
             .and_then(|id| self.get(*id))
     }
 
+    /// Returns a list of all artifact IDs present in the store in deterministic sorted order.
+    pub fn all_artifact_ids(&self) -> Vec<EvidenceArtifactId> {
+        let mut ids: Vec<_> = self.artifacts.keys().copied().collect();
+        ids.sort();
+        ids
+    }
+
+    /// Returns an iterator over all artifact views present in the store.
+    pub fn all_artifact_views(&self) -> impl Iterator<Item = ArtifactView<'_>> {
+        self.artifacts.values().map(ArtifactView::new)
+    }
+
     /// Returns direct parent artifact IDs for a target child artifact ID in deterministic order.
     pub fn parents(&self, id: EvidenceArtifactId) -> Vec<EvidenceArtifactId> {
         let mut parent_ids = Vec::new();
