@@ -90,9 +90,23 @@ tests/e2e/
    - Asserts that the failure banner clears automatically, stale error states reset, and search results render without requiring an application restart.
 
 
+### Test Pattern Guidelines (Arrange → Act → Assert)
+
+All end-to-end tests follow a strict user-journey pattern:
+- **Arrange**: Seed deterministic sessions, knowledge graph candidates, or network state.
+- **Act**: Execute user interaction sequences via keyboard input (`/`, arrows, `Enter`, `Esc`, `Tab`).
+- **Assert**: Validate strictly observable outputs (rendered strings, selection focus, status banners, navigation targets).
+
+## Framework Stability Policy
+
+With this architecture established and verified:
+- **Architecture is frozen**: Framework code exists only to enable capabilities. New features should build directly on top of the existing pipeline (`Retrieval` → `Aggregation` → `Projection` → `Grouping` → `Rendering`).
+- **ADR Gate**: Future ADRs are required ONLY if altering an established architectural contract (introducing a new pipeline stage, changing boundary ownership, or modifying documented invariants).
+
 ## Consequences
 
 - **Testability**: Every stage is unit-tested in isolation without mocking ratatui frames or network sockets, while end-to-end behavioral suites validate multi-layer user flows.
 - **Extensibility**: Adding new search providers or presentation badges requires extending only the relevant pipeline stage without touching render loops.
 - **Accessibility**: Theme contrast ratio checks (WCAG AA >= 4.5:1) are verified via automated tests.
+
 
