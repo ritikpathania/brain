@@ -16,8 +16,23 @@
 //! - Mutable UI state or selection indices (belongs in widget state)
 //! - Grouping, filtering, or sorting algorithms (belongs in dedicated engines)
 //!
-//! This constraint prevents ViewModels from becoming "smart objects" that
-//! accumulate retrieval semantics over time. The pipeline is strictly:
+//! **ViewModels are immutable value objects.**
+//! All UI interaction state belongs to controller or state objects, never to ViewModels:
+//!
+//! ```text
+//! // Wrong — do NOT add these to any ViewModel:
+//! selected: bool
+//! expanded: bool
+//! focused: bool
+//! scroll_offset: usize
+//! ```
+//!
+//! Selection, focus, expansion, and scrolling belong to `AppState`, widget
+//! controllers (e.g. `SessionNavigator`, `PaletteState`), or `ListState` —
+//! not to projection types.
+//!
+//! This constraint prevents the gradual accumulation of interaction semantics
+//! inside presentation projections. The pipeline is strictly:
 //!
 //! ```text
 //! Domain entity / SearchResult  (retrieval boundary)
