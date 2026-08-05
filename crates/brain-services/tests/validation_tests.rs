@@ -329,8 +329,7 @@ fn test_structured_telemetry_emission_contract() {
         stages.contains(&"candidate_counts"),
         "Missing candidate counts stage telemetry"
     );
-    assert!(stages.contains(&"BM25"), "Missing BM25 stage telemetry");
-    assert!(stages.contains(&"vector"), "Missing vector stage telemetry");
+    assert!(stages.contains(&"RRF"), "Missing RRF stage telemetry");
     assert!(
         stages.contains(&"pipeline"),
         "Missing overall pipeline stage telemetry"
