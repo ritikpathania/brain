@@ -137,3 +137,23 @@ pub use selection::*;
 /// Domain-neutral ReasoningFinding and immutable ReasoningResult models.
 pub mod synthesis;
 pub use synthesis::*;
+
+/// Domain models for Reasoning Reflection & Critique.
+pub mod reasoning_reflection;
+pub use reasoning_reflection::*;
+
+/// Knowledge Candidate models and KnowledgeCandidateSet.
+pub mod candidate;
+pub use candidate::*;
+
+/// Consolidation decision domain models.
+pub mod consolidation_decision;
+pub use consolidation_decision::*;
+
+/// Declarative Knowledge Evolution models.
+pub mod evolution;
+pub use evolution::*;
+
+/// Immutable ReasoningSession aggregate and stage transition state machine.
+pub mod session;
+pub use session::*;
