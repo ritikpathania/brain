@@ -119,6 +119,13 @@ pub fn draw(
         inner_area
     };
 
+    if view.sessions.is_empty() {
+        let placeholder =
+            Paragraph::new("  No active sessions").style(theme.style(ThemeToken::TextMuted));
+        f.render_widget(placeholder, list_area);
+        return;
+    }
+
     let items: Vec<ListItem> = view
         .sessions
         .iter()

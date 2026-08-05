@@ -15,6 +15,10 @@ pub enum Command {
     Backspace,
     /// Delete character under cursor.
     Delete,
+    /// Move cursor to line start.
+    MoveHome,
+    /// Move cursor to line end.
+    MoveEnd,
     /// Move cursor left.
     MoveLeft,
     /// Move cursor right.
@@ -61,6 +65,8 @@ impl InputRouter {
                 KeyCode::Char('k') | KeyCode::Char('K') => {
                     InputAction::Command(Command::ToggleCommandPalette)
                 }
+                KeyCode::Char('a') | KeyCode::Char('A') => InputAction::Command(Command::MoveHome),
+                KeyCode::Char('e') | KeyCode::Char('E') => InputAction::Command(Command::MoveEnd),
                 _ => InputAction::None,
             }
         } else {
@@ -71,6 +77,8 @@ impl InputRouter {
 
                 KeyCode::Backspace => InputAction::Command(Command::Backspace),
                 KeyCode::Delete => InputAction::Command(Command::Delete),
+                KeyCode::Home => InputAction::Command(Command::MoveHome),
+                KeyCode::End => InputAction::Command(Command::MoveEnd),
                 KeyCode::Left => InputAction::Command(Command::MoveLeft),
                 KeyCode::Right => InputAction::Command(Command::MoveRight),
                 KeyCode::Up => InputAction::Command(Command::ScrollUp),

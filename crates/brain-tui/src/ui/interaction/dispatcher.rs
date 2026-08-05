@@ -670,6 +670,14 @@ impl Dispatcher {
                     ctx.editor.delete();
                     DispatchResult::render()
                 }
+                Command::MoveHome => {
+                    ctx.editor.move_to_home();
+                    DispatchResult::render()
+                }
+                Command::MoveEnd => {
+                    ctx.editor.move_to_end();
+                    DispatchResult::render()
+                }
                 Command::MoveLeft => {
                     ctx.editor.move_cursor_left();
                     DispatchResult::render()
@@ -690,15 +698,61 @@ impl Dispatcher {
                     let text = ctx.editor.text().trim().to_string();
                     if text.is_empty() {
                         DispatchResult::none()
+                    } else if let Some(stripped) = text.strip_prefix('/') {
+                        let parts: Vec<&str> = stripped.split_whitespace().collect();
+                        let command_name = parts.first().copied().unwrap_or("");
+                        let arg = parts.get(1).copied().unwrap_or("");
+
+                        ctx.editor.clear();
+                        ctx.slash_completion.visible = false;
+
+                        match command_name.to_lowercase().as_str() {
+                            "theme" => {
+                                let theme_id = match arg.to_lowercase().as_str() {
+                                    "light" => crate::ui::command::THEME_LIGHT,
+                                    "terminal" => crate::ui::command::THEME_TERMINAL,
+                                    "high_contrast" | "contrast" => {
+                                        crate::ui::command::THEME_HIGH_CONTRAST
+                                    }
+                                    _ => crate::ui::command::THEME_DARK,
+                                };
+                                DispatchResult::event(UiEvent::Command(
+                                    CommandInvocation::ChangeTheme { theme: theme_id },
+                                ))
+                            }
+                            "help" | "info" => {
+                                DispatchResult::event(UiEvent::Command(CommandInvocation::ShowHelp))
+                            }
+                            "clear" | "cls" => DispatchResult::event(UiEvent::Command(
+                                CommandInvocation::ClearChat,
+                            )),
+                            "toggle" | "reflection" => DispatchResult::event(UiEvent::Command(
+                                CommandInvocation::ToggleReflection,
+                            )),
+                            "rename" if !arg.is_empty() => {
+                                if let Some(session_id) = ctx.sidebar.browse.selected {
+                                    DispatchResult::event(UiEvent::Command(
+                                        CommandInvocation::RenameSession {
+                                            session_id,
+                                            title: crate::ui::command::SessionTitle(
+                                                arg.to_string(),
+                                            ),
+                                        },
+                                    ))
+                                } else {
+                                    DispatchResult::none()
+                                }
+                            }
+                            _ => {
+                                // For unrecognized slash commands, submit as system help note rather than sending /command as a retrieval query
+                                DispatchResult::event(UiEvent::SubmitPrompt(format!("System: Unknown slash command '/{}'. Type /help to view available commands.", command_name)))
+                            }
+                        }
                     } else {
                         DispatchResult::event(UiEvent::SubmitPrompt(text))
                     }
                 }
                 Command::ToggleCommandPalette => DispatchResult::render(),
-                // Escape when the slash-completion popup is visible is handled earlier
-                // in the slash-completion guard (sets dismissed_query, hides popup).
-                // When no popup is visible, Escape is a deliberate no-op in the prompt:
-                // it does NOT clear the editor or change focus.
                 Command::Escape => DispatchResult::none(),
             },
 

@@ -165,6 +165,12 @@ impl Editor {
         self.buffer.as_str()
     }
 
+    /// Moves the cursor to the beginning of the text buffer (index 0).
+    pub fn move_to_home(&mut self) {
+        self.cursor.byte_index = 0;
+        self.cursor.visual_col = 0;
+    }
+
     /// Handles a key event by mutating the editor state. Returns true if handled.
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> bool {
         use crossterm::event::KeyCode;
@@ -179,6 +185,14 @@ impl Editor {
             }
             KeyCode::Delete => {
                 self.delete();
+                true
+            }
+            KeyCode::Home => {
+                self.move_to_home();
+                true
+            }
+            KeyCode::End => {
+                self.move_to_end();
                 true
             }
             KeyCode::Left => {

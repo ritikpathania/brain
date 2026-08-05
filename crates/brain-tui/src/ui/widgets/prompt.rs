@@ -18,7 +18,12 @@ pub struct PromptView {
 
 /// Renders the input prompt bar widget.
 pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
-    let block = theme.input(view.has_focus);
+    let mut block = theme.input(view.has_focus);
+    if view.prompt_text.starts_with('/') {
+        block = block.title(" COMMAND MODE ");
+    } else if view.has_focus {
+        block = block.title(" SEARCH & QUERY MODE ");
+    }
 
     let prefix = if view.submit_with_workspace {
         "brain> "

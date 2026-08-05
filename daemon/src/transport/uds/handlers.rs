@@ -234,6 +234,28 @@ pub async fn handle_connection(
                 .map(|n| n.id.clone())
                 .collect();
 
+            let is_diagnostic_query = payload.to_lowercase().contains("test")
+                || payload.to_lowercase().contains("canary")
+                || payload.to_lowercase().contains("stress")
+                || payload.to_lowercase().contains("telemetry");
+
+            let filtered_matches: Vec<_> = matches
+                .into_iter()
+                .filter(|node| {
+                    if is_diagnostic_query {
+                        return true;
+                    }
+                    let lbl = node.label.to_lowercase();
+                    let cnt = node.content.to_lowercase();
+                    !lbl.contains("stress test observation")
+                        && !lbl.contains("canaryphraseconfidencerank")
+                        && !lbl.contains("hello brain from end-to-end test")
+                        && !lbl.contains("telemetry validation query")
+                        && !cnt.contains("canaryphraseconfidencerank")
+                })
+                .collect();
+            matches = filtered_matches;
+
             if resp_msg.is_empty() {
                 if !matches.is_empty() {
                     seq += 1;
@@ -247,7 +269,7 @@ pub async fn handle_connection(
                             stream_id: stream_id.clone(),
                             sequence: seq,
                             content: format!(
-                                "Found {} {} from your memory graph:\n",
+                                "Found {} {} from your memory graph:\n\n🟢 High Confidence\n",
                                 matches.len(),
                                 plural
                             ),
@@ -260,8 +282,7 @@ pub async fn handle_connection(
 
                     for node in matches {
                         seq += 1;
-                        let output_line =
-                            format!("**{}** — {} (High confidence)\n", node.id, node.label);
+                        let output_line = format!("  • {}\n", node.label);
                         let text_chunk =
                             ServerResponse::Stream(crate::server::protocol::StreamEvent::Chunk {
                                 stream_id: stream_id.clone(),

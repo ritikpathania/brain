@@ -130,8 +130,12 @@ impl Theme {
             assistant: Style::default().fg(palette.assistant),
             tool: Style::default().fg(palette.tool),
             system: Style::default().fg(palette.system),
-            background: Style::default().bg(palette.background),
-            surface: Style::default().bg(palette.surface),
+            background: Style::default()
+                .bg(palette.background)
+                .fg(palette.text_primary),
+            surface: Style::default()
+                .bg(palette.surface)
+                .fg(palette.text_primary),
 
             border,
             border_active,
