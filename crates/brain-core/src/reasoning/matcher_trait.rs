@@ -27,8 +27,6 @@ impl MatchClassifier for DefaultMatchClassifier {
             MatchRelationship::Duplicate
         } else if similarity >= GraphSimilarityScore::HIGH {
             MatchRelationship::Overlap
-        } else if similarity >= GraphSimilarityScore::MEDIUM {
-            MatchRelationship::Related
         } else {
             MatchRelationship::Related
         }

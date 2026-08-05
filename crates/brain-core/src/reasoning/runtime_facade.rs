@@ -3,14 +3,13 @@
 use crate::reasoning::{
     CandidateExtractorService, ConsolidationService, DefaultConsolidationPolicy,
     DefaultMatchAssessmentPolicy, DefaultReflectionPolicy, DefaultSynthesisPolicy,
-    EvidenceSelector, KnowledgeGraphMatcher, KnowledgeGraphMatcherService, MatchAssessmentService,
+    EvidenceSelector, KnowledgeGraphMatcherService, MatchAssessmentService,
     MemoryMutationPlannerService, MemoryStewardshipExecutor, MemoryStewardshipExecutorService,
     ReflectionService, SynthesizerService,
 };
 use brain_domain::{
-    ConsolidationReport, DomainError, ReasoningPhaseReport, ReasoningResult, ReasoningSession,
-    ReasoningSessionId, ReasoningSessionStage, ReflectionReport, RuntimeContext,
-    RuntimeExecutionReport, SessionTransition, StewardshipPhaseReport,
+    DomainError, ReasoningPhaseReport, ReasoningSession, RuntimeContext, RuntimeExecutionReport,
+    SessionTransition, StewardshipPhaseReport,
 };
 use std::sync::Arc;
 
@@ -24,6 +23,7 @@ pub struct ReasoningRuntime {
     synthesizer: Arc<SynthesizerService>,
     reflection_service: Arc<ReflectionService>,
     candidate_extractor: Arc<CandidateExtractorService>,
+    #[allow(dead_code)]
     matcher: Arc<KnowledgeGraphMatcherService>,
     match_assessment_service: Arc<MatchAssessmentService>,
     consolidation_service: Arc<ConsolidationService>,
