@@ -219,3 +219,40 @@ impl<Id: std::hash::Hash + Eq + Clone> NavigationState<Id> {
         self.history_stack.clear();
     }
 }
+
+/// State container managing loaded exploration context (M3.1 Inspector & Exploration Session).
+///
+/// Decouples loaded entity details ("What have I loaded?") from selection position ("Where am I?").
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExplorationSession {
+    /// Active entity identifier string being inspected/explored.
+    pub entity_id: Option<String>,
+    /// Dedicated navigation state for history stack and selection offset.
+    pub navigation: NavigationState<String>,
+    /// Currently expanded section in Inspector.
+    pub active_section: Option<crate::ui::view_models::EntitySectionId>,
+}
+
+impl ExplorationSession {
+    /// Instantiates a new empty ExplorationSession.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Loads a target entity into the exploration session, pushing history.
+    pub fn load_entity(&mut self, entity_id: impl Into<String>) {
+        let id = entity_id.into();
+        self.entity_id = Some(id.clone());
+        self.navigation.navigate_to(id);
+    }
+
+    /// Navigates back to the previous entity in history stack.
+    pub fn back(&mut self) -> bool {
+        if let Some(prev) = self.navigation.navigate_back() {
+            self.entity_id = Some(prev);
+            true
+        } else {
+            false
+        }
+    }
+}
