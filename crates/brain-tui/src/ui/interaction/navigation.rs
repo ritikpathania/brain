@@ -153,3 +153,69 @@ impl NavigationSolver {
         NavigationIndex { nodes }
     }
 }
+
+/// Generic, identity-based navigation state container for scrollable collections and drill-downs.
+///
+/// Encapsulates selection, scroll offset, viewport height, and navigation stack
+/// history for back/forward drill-down navigation (e.g. search → inspector → graph).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NavigationState<Id: std::hash::Hash + Eq + Clone> {
+    /// Currently selected entity identifier.
+    pub selected_id: Option<Id>,
+    /// Index of top-most visible item in viewport.
+    pub scroll_offset: usize,
+    /// Viewport height in rows.
+    pub viewport_height: usize,
+    /// Stack of previously visited entity IDs for back navigation.
+    pub history_stack: Vec<Id>,
+}
+
+impl<Id: std::hash::Hash + Eq + Clone> Default for NavigationState<Id> {
+    fn default() -> Self {
+        Self {
+            selected_id: None,
+            scroll_offset: 0,
+            viewport_height: 10,
+            history_stack: Vec::new(),
+        }
+    }
+}
+
+impl<Id: std::hash::Hash + Eq + Clone> NavigationState<Id> {
+    /// Instantiates a new NavigationState with default viewport height.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets viewport height in rows.
+    pub fn set_viewport_height(&mut self, height: usize) {
+        self.viewport_height = height.max(1);
+    }
+
+    /// Selects an entity ID directly, pushing the previous selection onto history.
+    pub fn navigate_to(&mut self, target_id: Id) {
+        if let Some(prev) = self.selected_id.take() {
+            if prev != target_id {
+                self.history_stack.push(prev);
+            }
+        }
+        self.selected_id = Some(target_id);
+    }
+
+    /// Navigates back to the previous entity in history, if available.
+    pub fn navigate_back(&mut self) -> Option<Id> {
+        if let Some(prev) = self.history_stack.pop() {
+            self.selected_id = Some(prev.clone());
+            Some(prev)
+        } else {
+            None
+        }
+    }
+
+    /// Clears selection and navigation history.
+    pub fn clear(&mut self) {
+        self.selected_id = None;
+        self.scroll_offset = 0;
+        self.history_stack.clear();
+    }
+}
