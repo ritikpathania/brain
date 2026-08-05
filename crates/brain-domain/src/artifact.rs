@@ -67,7 +67,9 @@ impl fmt::Display for ProvenanceEdgeId {
 }
 
 /// Taxonomy of artifact data representations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum EvidenceArtifactKind {
     /// Unprocessed raw payload data from retrieval or tool calls.
     RawData,

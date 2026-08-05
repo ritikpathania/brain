@@ -1,17 +1,43 @@
 //! Phase 3 Runtime Reasoning execution engine, step executor contracts, and DAG orchestration.
 
 pub mod artifact_builder;
+pub mod candidate_extractor;
+pub mod consolidation_policy;
+pub mod consolidation_service;
 pub mod dag_engine;
 pub mod evidence_resolver;
 pub mod evidence_selector;
+pub mod evolution_planner;
 pub mod executor_trait;
+pub mod match_assessment_policy;
+pub mod match_assessment_service;
+pub mod matcher_service;
+pub mod matcher_trait;
+pub mod mutation_planner;
+pub mod reflection_policy;
+pub mod reflection_service;
+pub mod runtime_facade;
+pub mod stewardship_executor;
 pub mod synthesis_policy;
 pub mod synthesizer_service;
 
 pub use artifact_builder::*;
+pub use candidate_extractor::*;
+pub use consolidation_policy::*;
+pub use consolidation_service::*;
 pub use dag_engine::*;
 pub use evidence_resolver::*;
 pub use evidence_selector::*;
+pub use evolution_planner::*;
 pub use executor_trait::*;
+pub use match_assessment_policy::*;
+pub use match_assessment_service::*;
+pub use matcher_service::*;
+pub use matcher_trait::*;
+pub use mutation_planner::*;
+pub use reflection_policy::*;
+pub use reflection_service::*;
+pub use runtime_facade::*;
+pub use stewardship_executor::*;
 pub use synthesis_policy::*;
 pub use synthesizer_service::*;

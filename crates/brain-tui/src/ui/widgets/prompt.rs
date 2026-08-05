@@ -48,7 +48,6 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &PromptView, theme: &Theme) {
         ])
     };
 
-
     let p = Paragraph::new(content_line).block(block);
 
     f.render_widget(p, area);

@@ -4,6 +4,37 @@ use crate::execution::ExecutionId;
 use crate::selection::EvidenceSet;
 use crate::value::StructuredValue;
 use std::fmt;
+use uuid::Uuid;
+
+/// Strongly-typed identifier for a reasoning finding.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
+pub struct ReasoningFindingId(pub Uuid);
+
+impl ReasoningFindingId {
+    /// Instantiates a new unique `ReasoningFindingId`.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Wraps an existing Uuid.
+    pub fn from_uuid(uuid: Uuid) -> Self {
+        Self(uuid)
+    }
+}
+
+impl Default for ReasoningFindingId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for ReasoningFindingId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "find-{}", self.0.simple())
+    }
+}
 
 /// Classification of domain synthesis findings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -32,6 +63,8 @@ impl fmt::Display for ReasoningFindingKind {
 /// Structured finding associating a structured domain value payload with supporting evidence.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ReasoningFinding {
+    /// Strongly-typed finding identifier.
+    pub id: ReasoningFindingId,
     /// Semantic classification of this finding.
     pub kind: ReasoningFindingKind,
     /// Structured domain payload.
@@ -48,6 +81,7 @@ impl ReasoningFinding {
         supporting_evidence: EvidenceSet,
     ) -> Self {
         Self {
+            id: ReasoningFindingId::new(),
             kind,
             value,
             supporting_evidence,
@@ -58,27 +92,27 @@ impl ReasoningFinding {
 /// Immutable, end-to-end reasoning synthesis result aggregate.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ReasoningResult {
-    /// Execution run ID.
+    /// Execution run identifier.
     pub execution_id: ExecutionId,
-    /// Original user query.
-    pub user_query: String,
+    /// Contextual query string.
+    pub query: String,
     /// Derived structured findings.
     pub findings: Vec<ReasoningFinding>,
-    /// Global selected evidence set.
+    /// Combined overall evidence set backing the synthesis findings.
     pub evidence_set: EvidenceSet,
 }
 
 impl ReasoningResult {
-    /// Instantiates a new immutable `ReasoningResult`.
+    /// Instantiates a new `ReasoningResult`.
     pub fn new(
         execution_id: ExecutionId,
-        user_query: String,
+        query: String,
         findings: Vec<ReasoningFinding>,
         evidence_set: EvidenceSet,
     ) -> Self {
         Self {
             execution_id,
-            user_query,
+            query,
             findings,
             evidence_set,
         }

@@ -34,11 +34,15 @@ impl SynthesisPolicy for DefaultSynthesisPolicy {
             .iter()
             .map(|view| {
                 let kind = match view.metadata().kind {
-                    brain_domain::EvidenceArtifactKind::RawData => ReasoningFindingKind::Observation,
+                    brain_domain::EvidenceArtifactKind::RawData => {
+                        ReasoningFindingKind::Observation
+                    }
                     brain_domain::EvidenceArtifactKind::DerivedData => ReasoningFindingKind::Claim,
                     brain_domain::EvidenceArtifactKind::Claim => ReasoningFindingKind::Claim,
                     brain_domain::EvidenceArtifactKind::Summary => ReasoningFindingKind::Conclusion,
-                    brain_domain::EvidenceArtifactKind::Result => ReasoningFindingKind::Recommendation,
+                    brain_domain::EvidenceArtifactKind::Result => {
+                        ReasoningFindingKind::Recommendation
+                    }
                 };
                 ReasoningFinding::new(kind, view.value().clone(), evidence_set.clone())
             })

@@ -161,3 +161,11 @@ pub use evolution::*;
 /// Immutable ReasoningSession aggregate and stage transition state machine.
 pub mod session;
 pub use session::*;
+
+/// Domain models for Memory Mutations.
+pub mod mutation;
+pub use mutation::*;
+
+/// Read models and execution context for Runtime Composition.
+pub mod runtime_report;
+pub use runtime_report::*;
