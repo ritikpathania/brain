@@ -143,7 +143,8 @@ jobs:
 
       - name: Run Python SDK Test Suite
         run: |
-          PYTHONPATH=sdks/python/src python3 -m pytest sdks/python/tests/ -v
+          cd daemon
+          PYTHONPATH=../sdks/python uv run pytest ../sdks/python/tests/ -v
 
       - name: Verify Release Packaging Script (package.sh)
         run: |
