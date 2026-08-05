@@ -5,7 +5,9 @@
 
 use brain_tui::ui::command::completion::SlashCompletionEngine;
 use brain_tui::ui::command::completion::SlashCompletionState;
-use brain_tui::ui::command::palette::{CommandPaletteState, PaletteStage, ParameterCollectionState};
+use brain_tui::ui::command::palette::{
+    CommandPaletteState, PaletteStage, ParameterCollectionState,
+};
 use brain_tui::ui::command::CommandId;
 use brain_tui::ui::focus::{FocusManager, FocusProfile};
 use brain_tui::ui::input::{Command, InputAction};
@@ -86,10 +88,7 @@ fn test_slash_completion_popup_and_escape_dismissal() {
 
     // Act: Type another character making it "/themes" via dispatcher -> dismissed_query should clear
     use brain_tui::ui::input::TextInput;
-    Dispatcher::dispatch(
-        InputAction::Text(TextInput::Char('s')),
-        &mut ctx,
-    );
+    Dispatcher::dispatch(InputAction::Text(TextInput::Char('s')), &mut ctx);
 
     // Assert: re-armed for new text
     assert_eq!(

@@ -22,7 +22,11 @@ impl EvidenceResolver {
     }
 
     /// Resolves an `EvidenceSet` against an `ArtifactStore` into a vector of `ArtifactView` items.
-    pub fn resolve<'a>(&self, set: &'a EvidenceSet, store: &'a ArtifactStore) -> Vec<ArtifactView<'a>> {
+    pub fn resolve<'a>(
+        &self,
+        set: &'a EvidenceSet,
+        store: &'a ArtifactStore,
+    ) -> Vec<ArtifactView<'a>> {
         self.resolve_iter(set, store).collect()
     }
 }

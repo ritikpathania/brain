@@ -432,7 +432,12 @@ async fn test_end_to_end_reasoning_synthesis_pipeline() {
     let mock_exec = Arc::new(MockStepExecutor::new(counter.clone(), false));
 
     let mut registry = StepExecutorRegistry::new();
-    registry.register(&ReasoningPlanStepKind::Search { query: "".to_string() }, mock_exec.clone());
+    registry.register(
+        &ReasoningPlanStepKind::Search {
+            query: "".to_string(),
+        },
+        mock_exec.clone(),
+    );
     registry.register(&ReasoningPlanStepKind::SynthesizeResponse, mock_exec);
 
     let runner = ExecutionRunner::new(registry);
@@ -519,9 +524,7 @@ fn test_nested_algebraic_selection_deduplication() {
 
 #[test]
 fn test_empty_evidence_selection_handles_cleanly() {
-    use brain_core::reasoning::{
-        DefaultSynthesisPolicy, EvidenceSelector, SynthesizerService,
-    };
+    use brain_core::reasoning::{DefaultSynthesisPolicy, EvidenceSelector, SynthesizerService};
     use brain_domain::ExecutionState;
 
     let exec_id = brain_domain::ExecutionId::new();

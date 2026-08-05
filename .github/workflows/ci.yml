@@ -19,11 +19,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
       - name: Check Rust Formatting
         run: cargo fmt --all -- --check
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
 
       - name: Set up Python
         uses: actions/setup-python@v5

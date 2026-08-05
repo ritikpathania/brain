@@ -6,7 +6,6 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{List, ListItem, Paragraph};
 use ratatui::Frame;
 
-
 /// ViewModel carrying session list, selection, filters, and editor states.
 pub struct SidebarView<'a> {
     /// List of sessions metadata to display.
@@ -112,8 +111,7 @@ pub fn draw(
             "Search: {}",
             format_with_cursor(&sliced_query, new_cursor, cursor_char)
         );
-        let search_p =
-            Paragraph::new(search_text).style(theme.style(ThemeToken::TextPrimary));
+        let search_p = Paragraph::new(search_text).style(theme.style(ThemeToken::TextPrimary));
         f.render_widget(search_p, chunks[0]);
 
         chunks[1]
@@ -176,4 +174,3 @@ pub fn draw(
     let list = List::new(items);
     f.render_widget(list, list_area);
 }
-
