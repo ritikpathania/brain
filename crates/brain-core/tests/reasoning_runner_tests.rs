@@ -549,3 +549,31 @@ fn test_empty_evidence_selection_handles_cleanly() {
     assert_eq!(result.findings.len(), 0);
     assert!(result.evidence_set.is_empty());
 }
+
+#[tokio::test]
+async fn test_phase7_reasoning_runtime_facade_async_cycle_and_replay_equivalence() {
+    use brain_core::reasoning::ReasoningRuntime;
+    use brain_domain::{ReasoningSessionStage, RuntimeContext};
+
+    let ctx = RuntimeContext::new();
+    let runtime = ReasoningRuntime::new();
+
+    let report1 = runtime.run_cycle(&ctx, "Query 1").await.unwrap();
+
+    assert_eq!(report1.execution_id, ctx.execution_id);
+    assert_eq!(report1.session.stage, ReasoningSessionStage::Completed);
+    assert!(report1.reasoning.reasoning_result.is_some());
+    assert!(report1.reasoning.reflection_report.is_some());
+    assert!(report1.reasoning.consolidation_report.is_some());
+    assert!(report1.stewardship.summary.is_some());
+    assert!(report1.stewardship.audit_log.is_some());
+
+    // Replay equivalence check via JSON serialization roundtrip
+    let json_bytes = serde_json::to_vec(&report1).unwrap();
+    let report_replayed: brain_domain::RuntimeExecutionReport =
+        serde_json::from_slice(&json_bytes).unwrap();
+
+    assert_eq!(report1.execution_id, report_replayed.execution_id);
+    assert_eq!(report1.session.id, report_replayed.session.id);
+    assert_eq!(report1, report_replayed);
+}
