@@ -1,0 +1,16 @@
+[
+  {
+    "id": "conflict-database",
+    "fact_a": "ADR-005 specifies SQLite as primary database.",
+    "fact_b": "ADR-024 specifies PostgreSQL as primary database.",
+    "query": "primary database",
+    "expected_facts": ["ADR-005", "ADR-024"]
+  },
+  {
+    "id": "conflict-auth",
+    "fact_a": "Auth Service uses OAuth2 JWT tokens.",
+    "fact_b": "Auth Service migrated to mTLS certificates.",
+    "query": "Auth Service authentication",
+    "expected_facts": ["OAuth2", "mTLS"]
+  }
+]

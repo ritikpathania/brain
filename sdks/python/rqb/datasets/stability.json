@@ -1,0 +1,12 @@
+[
+  {
+    "query": "postgres",
+    "runs": 20,
+    "top_k": 3
+  },
+  {
+    "query": "session state",
+    "runs": 20,
+    "top_k": 3
+  }
+]

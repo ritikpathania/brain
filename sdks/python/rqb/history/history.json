@@ -1,0 +1,32 @@
+{
+  "v1.0.0": {
+    "timestamp": "2026-07-01 12:00:00 UTC",
+    "metrics": {
+      "Exact Retrieval": 0.85,
+      "Synonyms & Aliases": 0.65,
+      "Typo Tolerance": 0.8,
+      "Acronym Expansion": 0.9,
+      "Memory Deduplication": 0.1,
+      "Conflicting Knowledge Visibility": 0.5,
+      "Temporal Evolution Recency": 0.7,
+      "Broad Synthesis Completeness": 0.8,
+      "Conversational Follow-ups": 0.85,
+      "Ranking Stability": 0.85
+    }
+  },
+  "v1.1.0": {
+    "timestamp": "2026-08-05 21:56:57 UTC",
+    "metrics": {
+      "Exact Retrieval": 1.0,
+      "Synonyms & Aliases": 0.7142857142857143,
+      "Typo Tolerance": 1.0,
+      "Acronym Expansion": 1.0,
+      "Memory Deduplication": 0.0,
+      "Conflicting Knowledge Visibility": 1.0,
+      "Temporal Evolution Recency": 1.0,
+      "Broad Synthesis Completeness": 1.0,
+      "Conversational Follow-ups": 1.0,
+      "Ranking Stability": 1.0
+    }
+  }
+}

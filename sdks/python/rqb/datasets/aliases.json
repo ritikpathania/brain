@@ -1,0 +1,17 @@
+[
+  {
+    "canonical": "PostgreSQL",
+    "aliases": ["postgres", "pgsql", "postgres database"],
+    "sample_text": "PostgreSQL is configured as the primary relational database for metadata."
+  },
+  {
+    "canonical": "Kubernetes",
+    "aliases": ["k8s", "kube"],
+    "sample_text": "Kubernetes manages container orchestration in staging."
+  },
+  {
+    "canonical": "Redis",
+    "aliases": ["in-memory cache", "key-value store"],
+    "sample_text": "Redis is configured as an in-memory cache for session state."
+  }
+]

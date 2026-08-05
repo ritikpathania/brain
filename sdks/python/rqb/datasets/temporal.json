@@ -1,0 +1,12 @@
+[
+  {
+    "topic": "memory storage",
+    "old_fact": "2025-01-10: We decided to use SQLite for initial memory storage.",
+    "old_timestamp": "2025-01-10",
+    "new_fact": "2026-06-15: We migrated memory graph storage to PostgreSQL.",
+    "new_timestamp": "2026-06-15",
+    "query": "memory graph storage",
+    "expected_newer_keyword": "2026-06-15",
+    "expected_older_keyword": "2025-01-10"
+  }
+]
