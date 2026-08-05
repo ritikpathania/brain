@@ -699,7 +699,8 @@ impl Dispatcher {
                     if text.is_empty() {
                         DispatchResult::none()
                     } else if let Some(stripped) = text.strip_prefix('/') {
-                        let parts: Vec<&str> = stripped.split_whitespace().collect();
+                        let clean_command = stripped.trim_start_matches('/');
+                        let parts: Vec<&str> = clean_command.split_whitespace().collect();
                         let command_name = parts.first().copied().unwrap_or("");
                         let arg = parts.get(1).copied().unwrap_or("");
 
