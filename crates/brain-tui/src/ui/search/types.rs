@@ -56,6 +56,34 @@ pub enum SearchFailure {
     Internal,
 }
 
+/// UI search state machine lifecycle categories specified in ADR-027.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum UiSearchState {
+    /// Idle state with no active search query.
+    #[default]
+    Idle,
+    /// Query character entered; awaiting 150ms debounce trigger.
+    Debouncing,
+    /// Asynchronous search active across providers.
+    Searching,
+    /// Ranked search results available.
+    Results,
+    /// Search completed with zero matching candidates.
+    Empty,
+    /// Search failed with a provider or system error.
+    Error,
+}
+
+/// Error returned when attempting an invalid UI search state transition.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("Invalid UI search state transition from {from:?} to {to:?}")]
+pub struct InvalidStateTransitionError {
+    /// Current state before attempted transition.
+    pub from: UiSearchState,
+    /// Attempted target state.
+    pub to: UiSearchState,
+}
+
 /// Typed categories of search results consumed by presentation layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchResultKind {

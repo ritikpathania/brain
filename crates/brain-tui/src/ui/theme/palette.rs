@@ -93,8 +93,8 @@ impl Palette {
             secondary: Color::Rgb(90, 50, 160),
             accent: Color::Rgb(120, 60, 200),
             muted: Color::Rgb(100, 100, 100),
-            success: Color::Rgb(30, 130, 60),
-            warning: Color::Rgb(180, 120, 0),
+            success: Color::Rgb(20, 110, 50),
+            warning: Color::Rgb(140, 90, 0),
             danger: Color::Rgb(200, 40, 60),
             info: Color::Rgb(30, 100, 180),
             text_primary: Color::Rgb(20, 20, 20),
@@ -177,3 +177,86 @@ impl Palette {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn relative_luminance(c: Color) -> f64 {
+        if let Color::Rgb(r, g, b) = c {
+            let channel = |v: u8| {
+                let s = v as f64 / 255.0;
+                if s <= 0.03928 {
+                    s / 12.92
+                } else {
+                    ((s + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+        } else {
+            1.0
+        }
+    }
+
+    fn contrast_ratio(c1: Color, c2: Color) -> f64 {
+        let l1 = relative_luminance(c1);
+        let l2 = relative_luminance(c2);
+        let (max, min) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
+        (max + 0.05) / (min + 0.05)
+    }
+
+    #[test]
+    fn test_light_palette_wcag_aa_contrast() {
+        let light = Palette::light();
+        let bg = light.background;
+
+        // Text primary against background (WCAG AA > 4.5:1)
+        assert!(
+            contrast_ratio(light.text_primary, bg) >= 4.5,
+            "TextPrimary contrast against background must be >= 4.5"
+        );
+
+        // Text secondary against background
+        assert!(
+            contrast_ratio(light.text_secondary, bg) >= 4.5,
+            "TextSecondary contrast against background must be >= 4.5"
+        );
+
+        // Muted text against background
+        assert!(
+            contrast_ratio(light.muted, bg) >= 4.5,
+            "Muted text contrast against background must be >= 4.5"
+        );
+
+        // Success state against background
+        assert!(
+            contrast_ratio(light.success, bg) >= 4.5,
+            "Success color contrast against background must be >= 4.5"
+        );
+
+        // Warning state against background
+        assert!(
+            contrast_ratio(light.warning, bg) >= 4.5,
+            "Warning color contrast against background must be >= 4.5"
+        );
+
+        // Danger state against background
+        assert!(
+            contrast_ratio(light.danger, bg) >= 4.5,
+            "Danger color contrast against background must be >= 4.5"
+        );
+
+        // Info state against background
+        assert!(
+            contrast_ratio(light.info, bg) >= 4.5,
+            "Info color contrast against background must be >= 4.5"
+        );
+
+        // Selection FG vs Selection BG
+        assert!(
+            contrast_ratio(light.selection_fg, light.selection_bg) >= 4.5,
+            "Selection FG contrast against Selection BG must be >= 4.5"
+        );
+    }
+}
+

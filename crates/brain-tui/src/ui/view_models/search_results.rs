@@ -176,13 +176,119 @@ impl SearchResultsViewModel {
         }
     }
 
+    /// Navigates selection down by a page stride.
+    pub fn page_down(&mut self, page_size: usize) {
+        if self.items.is_empty() {
+            self.selected = None;
+            return;
+        }
+        let current = self.selected.unwrap_or(0);
+        let next = (current + page_size).min(self.items.len() - 1);
+        self.selected = Some(next);
+    }
+
+    /// Navigates selection up by a page stride.
+    pub fn page_up(&mut self, page_size: usize) {
+        if self.items.is_empty() {
+            self.selected = None;
+            return;
+        }
+        let current = self.selected.unwrap_or(0);
+        let next = current.saturating_sub(page_size);
+        self.selected = Some(next);
+    }
+
     /// Clears active selection and deactivates focus.
     pub fn clear_selection(&mut self) {
         self.selected = None;
         self.active = false;
     }
 
-    /// Updates search results preserving selection stability if the selected entity still exists.
+    /// Pre-formatted summary text for the search collection.
+    pub fn summary_text(&self) -> String {
+        let count = self.items.len();
+        if count == 0 {
+            "No results".to_string()
+        } else if count == 1 {
+            "1 result found".to_string()
+        } else {
+            format!("{} results found", count)
+        }
+    }
+
+    /// Projects search results into flattened display rows including section headers.
+    pub fn flattened_rows(&self) -> Vec<FlattenedDisplayRow> {
+        let mut rows = Vec::new();
+        let mut high_items = Vec::new();
+        let mut med_items = Vec::new();
+        let mut low_items = Vec::new();
+
+        for (idx, item) in self.items.iter().enumerate() {
+            let is_selected = self.selected == Some(idx);
+            if item.score >= 80 {
+                high_items.push((idx, item, is_selected));
+            } else if item.score >= 50 {
+                med_items.push((idx, item, is_selected));
+            } else {
+                low_items.push((idx, item, is_selected));
+            }
+        }
+
+        if !high_items.is_empty() {
+            rows.push(FlattenedDisplayRow::Header {
+                label: "High confidence".to_string(),
+                count: high_items.len(),
+            });
+            for (idx, item, is_selected) in high_items {
+                rows.push(FlattenedDisplayRow::Result {
+                    item: item.clone(),
+                    is_selected,
+                    index_in_results: idx,
+                });
+            }
+        }
+
+        if !med_items.is_empty() {
+            rows.push(FlattenedDisplayRow::Header {
+                label: "Good match".to_string(),
+                count: med_items.len(),
+            });
+            for (idx, item, is_selected) in med_items {
+                rows.push(FlattenedDisplayRow::Result {
+                    item: item.clone(),
+                    is_selected,
+                    index_in_results: idx,
+                });
+            }
+        }
+
+        if !low_items.is_empty() {
+            rows.push(FlattenedDisplayRow::Header {
+                label: "Partial match".to_string(),
+                count: low_items.len(),
+            });
+            for (idx, item, is_selected) in low_items {
+                rows.push(FlattenedDisplayRow::Result {
+                    item: item.clone(),
+                    is_selected,
+                    index_in_results: idx,
+                });
+            }
+        }
+
+        rows
+    }
+
+    /// Virtualized row slicing returning a window of `FlattenedDisplayRow`s.
+    pub fn visible_rows(&self, offset: usize, max_rows: usize) -> Vec<FlattenedDisplayRow> {
+        self.flattened_rows()
+            .into_iter()
+            .skip(offset)
+            .take(max_rows)
+            .collect()
+    }
+
+    /// Updates search results preserving selection stability if the selected entity still exists (Invariant 11).
     pub fn update_results(&mut self, new_query: String, new_items: Vec<SearchResultViewModel>) {
         let currently_selected_id = self.selected_item().map(|item| item.id.clone());
 
@@ -205,6 +311,27 @@ impl SearchResultsViewModel {
         // Fallback: Default to first item if previous selection disappeared
         self.selected = Some(0);
     }
+}
+
+/// Representation of a flattened display row for virtualized rendering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlattenedDisplayRow {
+    /// Section header divider (e.g. "High confidence (3 results)").
+    Header {
+        /// Section header display string.
+        label: String,
+        /// Number of items in this section.
+        count: usize,
+    },
+    /// Result row item.
+    Result {
+        /// Result item view model.
+        item: SearchResultViewModel,
+        /// Whether this row is currently selected.
+        is_selected: bool,
+        /// Original index in `items`.
+        index_in_results: usize,
+    },
 }
 
 #[cfg(test)]
@@ -339,5 +466,171 @@ mod tests {
         vm.update_results("query".to_string(), items_removed);
         assert_eq!(vm.selected_index(), Some(0));
         assert_eq!(vm.selected_item().unwrap().id, "id_x");
+    }
+
+    #[test]
+    fn test_m2_page_navigation_and_flattened_rows() {
+        let items = vec![
+            SearchResultViewModel::new(
+                "h1".to_string(),
+                "High 1".to_string(),
+                "Snippet".to_string(),
+                90,
+                "Graph".to_string(),
+                "High",
+            ),
+            SearchResultViewModel::new(
+                "m1".to_string(),
+                "Med 1".to_string(),
+                "Snippet".to_string(),
+                60,
+                "Graph".to_string(),
+                "Med",
+            ),
+            SearchResultViewModel::new(
+                "l1".to_string(),
+                "Low 1".to_string(),
+                "Snippet".to_string(),
+                20,
+                "Graph".to_string(),
+                "Low",
+            ),
+        ];
+
+        let mut vm = SearchResultsViewModel::new("test".to_string(), items);
+        assert_eq!(vm.summary_text(), "3 results found");
+        assert_eq!(vm.selected_index(), Some(0));
+
+        vm.page_down(2);
+        assert_eq!(vm.selected_index(), Some(2));
+        assert_eq!(vm.selected_item().unwrap().id, "l1");
+
+        vm.page_up(1);
+        assert_eq!(vm.selected_index(), Some(1));
+        assert_eq!(vm.selected_item().unwrap().id, "m1");
+
+        let rows = vm.flattened_rows();
+        // 3 headers + 3 results = 6 rows
+        assert_eq!(rows.len(), 6);
+        assert!(
+            matches!(&rows[0], FlattenedDisplayRow::Header { label, count } if label == "High confidence" && *count == 1)
+        );
+        assert!(
+            matches!(&rows[2], FlattenedDisplayRow::Header { label, count } if label == "Good match" && *count == 1)
+        );
+        assert!(
+            matches!(&rows[4], FlattenedDisplayRow::Header { label, count } if label == "Partial match" && *count == 1)
+        );
+    }
+
+    #[test]
+    fn test_invariant_10_deterministic_view_model_projections() {
+        // Invariant 10: Given identical inputs, Projection Layer MUST produce byte-for-byte identical ViewModels.
+        let loading1 = LoadingViewModel::project("rust", 3);
+        let loading2 = LoadingViewModel::project("rust", 3);
+        assert_eq!(loading1, loading2);
+
+        let empty1 = EmptyViewModel::project("nonexistent");
+        let empty2 = EmptyViewModel::project("nonexistent");
+        assert_eq!(empty1, empty2);
+
+        let err1 = ErrorViewModel::project("test", "Connection timeout");
+        let err2 = ErrorViewModel::project("test", "Connection timeout");
+        assert_eq!(err1, err2);
+    }
+}
+
+// ─── State Projections (ADR-027 Step 2) ────────────────────────────────────
+
+/// Immutable presentation View Model for searching / loading states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoadingViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Pre-formatted loading status string.
+    pub status_text: String,
+    /// Animated frame indicator symbol.
+    pub spinner_frame: &'static str,
+}
+
+impl LoadingViewModel {
+    /// Projection constructor mapping query text and frame counter into a deterministic `LoadingViewModel`.
+    pub fn project(query: impl Into<String>, frame_tick: usize) -> Self {
+        let spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let spinner_frame = spinners[frame_tick % spinners.len()];
+        let q = query.into();
+        let status_text = if q.is_empty() {
+            "Searching knowledge graph...".to_string()
+        } else {
+            format!("Searching knowledge graph for \"{}\"...", q)
+        };
+
+        Self {
+            query: q,
+            status_text,
+            spinner_frame,
+        }
+    }
+}
+
+/// Immutable presentation View Model for empty search results states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmptyViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Primary diagnostic status message.
+    pub headline: String,
+    /// Actionable search refinement suggestions.
+    pub suggestions: Vec<String>,
+}
+
+impl EmptyViewModel {
+    /// Projection constructor mapping query text into a deterministic `EmptyViewModel`.
+    pub fn project(query: impl Into<String>) -> Self {
+        let q = query.into();
+        let headline = if q.is_empty() {
+            "No active query".to_string()
+        } else {
+            format!("No matching knowledge found for \"{}\"", q)
+        };
+
+        let suggestions = vec![
+            "Check for typos or broader keywords".to_string(),
+            "Try searching by concept entity type (e.g. System, Language)".to_string(),
+            "Use `/ingest` to add new knowledge to memory".to_string(),
+        ];
+
+        Self {
+            query: q,
+            headline,
+            suggestions,
+        }
+    }
+}
+
+/// Immutable presentation View Model for error search states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorViewModel {
+    /// Active query text.
+    pub query: String,
+    /// Pre-formatted user-facing error message.
+    pub error_message: String,
+    /// Actionable recovery guidance hint.
+    pub recovery_hint: String,
+}
+
+impl ErrorViewModel {
+    /// Projection constructor mapping query text and raw error into a deterministic `ErrorViewModel`.
+    pub fn project(query: impl Into<String>, raw_error: &str) -> Self {
+        let q = query.into();
+        let error_message = format!("Search Failed: {}", raw_error);
+        let recovery_hint =
+            "Press Esc to clear or check if brain-daemon is running (`brain health`)".to_string();
+
+        Self {
+            query: q,
+            error_message,
+            recovery_hint,
+        }
     }
 }

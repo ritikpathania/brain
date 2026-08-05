@@ -10,22 +10,31 @@ use brain_domain::{
 pub struct ArtifactBuilder;
 
 impl ArtifactBuilder {
-    /// Builds an `ExecutionArtifact` from a step output payload, target plan step, and execution context.
+    /// Builds an `ExecutionArtifact` from an `ArtifactDescriptor`, target plan step, and execution context.
+    pub fn build_from_descriptor(
+        step: &ReasoningPlanStep,
+        ctx: &StepExecutionContext,
+        descriptor: brain_domain::ArtifactDescriptor,
+    ) -> ExecutionArtifact {
+        let metadata = ArtifactMetadata {
+            kind: descriptor.kind,
+            producer_step: step.id,
+            execution_id: ctx.execution_id,
+            created_at: brain_domain::ExecutionTimestamp::now(),
+        };
+
+        ExecutionArtifact::new(metadata, descriptor.value)
+    }
+
+    /// Builds an `ExecutionArtifact` from a step output payload, inferring representation kind from step kind.
     pub fn build(
         step: &ReasoningPlanStep,
         ctx: &StepExecutionContext,
         output: StepOutput,
     ) -> ExecutionArtifact {
         let kind = Self::infer_kind(&step.kind);
-
-        let metadata = ArtifactMetadata {
-            kind,
-            producer_step: step.id,
-            execution_id: ctx.execution_id,
-            created_at: brain_domain::ExecutionTimestamp::now(),
-        };
-
-        ExecutionArtifact::new(metadata, output.value)
+        let descriptor = brain_domain::ArtifactDescriptor::new(kind, output.value);
+        Self::build_from_descriptor(step, ctx, descriptor)
     }
 
     /// Infers representation `EvidenceArtifactKind` from capability step kind.

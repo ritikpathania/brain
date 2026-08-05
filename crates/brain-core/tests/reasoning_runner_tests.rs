@@ -400,3 +400,149 @@ fn test_invalid_provenance_edge_insertion_rejected() {
     let self_res = store.add_edge(self_loop);
     assert!(self_res.is_err());
 }
+
+#[tokio::test]
+async fn test_end_to_end_reasoning_synthesis_pipeline() {
+    use brain_core::reasoning::{
+        DefaultSynthesisPolicy, EvidenceResolver, EvidenceSelector, SynthesizerService,
+    };
+    use brain_domain::{EvidenceQuery, SelectionContext, SelectionStrategy};
+
+    let step1 = ReasoningPlanStep::new(
+        PlanStepId::new(1),
+        ReasoningPlanStepKind::Search {
+            query: "synthesis".to_string(),
+        },
+        "Search Step 1",
+        vec![],
+        Some(PlanStepComplexity::Low),
+    );
+
+    let step2 = ReasoningPlanStep::new(
+        PlanStepId::new(2),
+        ReasoningPlanStepKind::SynthesizeResponse,
+        "Synthesize Step 2",
+        vec![PlanStepId::new(1)],
+        Some(PlanStepComplexity::High),
+    );
+
+    let plan = ExecutionPlan::new("synthesis_pipeline_plan", "query", vec![step1, step2]).unwrap();
+
+    let counter = Arc::new(AtomicUsize::new(0));
+    let mock_exec = Arc::new(MockStepExecutor::new(counter.clone(), false));
+
+    let mut registry = StepExecutorRegistry::new();
+    registry.register(&ReasoningPlanStepKind::Search { query: "".to_string() }, mock_exec.clone());
+    registry.register(&ReasoningPlanStepKind::SynthesizeResponse, mock_exec);
+
+    let runner = ExecutionRunner::new(registry);
+    let exec_id = ExecutionId::new();
+    let ctx = StepExecutionContext::new(exec_id, CancellationToken::new());
+    let (event_tx, _) = mpsc::unbounded_channel();
+
+    let state = runner.run_plan(&plan, ctx, event_tx).await.unwrap();
+
+    let selector = EvidenceSelector::new();
+    let resolver = EvidenceResolver::new();
+    let policy = DefaultSynthesisPolicy::new();
+    let synthesizer = SynthesizerService::new();
+
+    let query = EvidenceQuery::new(SelectionStrategy::All, SelectionContext::new(exec_id));
+    let evidence_set = selector.select(&state.artifact_store, &query);
+    assert_eq!(evidence_set.len(), 2);
+
+    let views = resolver.resolve(&evidence_set, &state.artifact_store);
+    assert_eq!(views.len(), 2);
+
+    let result = synthesizer
+        .synthesize(exec_id, &plan, &state, &selector, &policy)
+        .unwrap();
+
+    assert_eq!(result.execution_id, exec_id);
+    assert_eq!(result.findings.len(), 2);
+    assert_eq!(result.evidence_set.len(), 2);
+}
+
+#[test]
+fn test_nested_algebraic_selection_deduplication() {
+    use brain_core::reasoning::EvidenceSelector;
+    use brain_domain::{
+        ArtifactMetadata, ArtifactStore, EvidenceArtifactKind, EvidenceQuery, ExecutionArtifact,
+        ExecutionTimestamp, ProvenanceEdge, ProvenanceRelationship, SelectionContext,
+        SelectionStrategy, StructuredValue,
+    };
+
+    let mut store = ArtifactStore::new();
+
+    let meta1 = ArtifactMetadata {
+        kind: EvidenceArtifactKind::RawData,
+        producer_step: PlanStepId::new(1),
+        execution_id: ExecutionId::new(),
+        created_at: ExecutionTimestamp::now(),
+    };
+    let art1 = ExecutionArtifact::new(meta1, StructuredValue::String("raw".to_string()));
+    let art1_id = store.insert(art1).unwrap();
+
+    let meta2 = ArtifactMetadata {
+        kind: EvidenceArtifactKind::Result,
+        producer_step: PlanStepId::new(2),
+        execution_id: ExecutionId::new(),
+        created_at: ExecutionTimestamp::now(),
+    };
+    let art2 = ExecutionArtifact::new(meta2, StructuredValue::String("res".to_string()));
+    let art2_id = store.insert(art2).unwrap();
+
+    let edge = ProvenanceEdge::new(
+        art1_id,
+        art2_id,
+        ProvenanceRelationship::DerivedFrom,
+        ExecutionTimestamp::now(),
+    );
+    store.add_edge(edge).unwrap();
+
+    let selector = EvidenceSelector::new();
+    let ctx = SelectionContext::new(ExecutionId::new());
+
+    // Union(ByKind(Result), AncestorsOf(art2_id)) -> art2_id and art1_id
+    let strategy = SelectionStrategy::Union(
+        Box::new(SelectionStrategy::ByKind(EvidenceArtifactKind::Result)),
+        Box::new(SelectionStrategy::AncestorsOf(art2_id)),
+    );
+
+    let query = EvidenceQuery::new(strategy, ctx);
+    let set = selector.select(&store, &query);
+
+    assert_eq!(set.len(), 2);
+    assert!(set.contains(&art1_id));
+    assert!(set.contains(&art2_id));
+}
+
+#[test]
+fn test_empty_evidence_selection_handles_cleanly() {
+    use brain_core::reasoning::{
+        DefaultSynthesisPolicy, EvidenceSelector, SynthesizerService,
+    };
+    use brain_domain::ExecutionState;
+
+    let exec_id = brain_domain::ExecutionId::new();
+    let step1 = ReasoningPlanStep::new(
+        PlanStepId::new(1),
+        ReasoningPlanStepKind::SynthesizeResponse,
+        "Step 1",
+        vec![],
+        None,
+    );
+    let plan = ExecutionPlan::new("empty_store_plan", "query", vec![step1]).unwrap();
+    let state = ExecutionState::default();
+
+    let selector = EvidenceSelector::new();
+    let policy = DefaultSynthesisPolicy::new();
+    let synthesizer = SynthesizerService::new();
+
+    let result = synthesizer
+        .synthesize(exec_id, &plan, &state, &selector, &policy)
+        .unwrap();
+
+    assert_eq!(result.findings.len(), 0);
+    assert!(result.evidence_set.is_empty());
+}

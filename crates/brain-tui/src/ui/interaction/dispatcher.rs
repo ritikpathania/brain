@@ -715,19 +715,25 @@ impl Dispatcher {
         if ctx.focus.current() == FocusTarget::Prompt {
             let text = ctx.editor.text();
             if text.starts_with('/') && !text.contains(' ') {
-                ctx.slash_completion.visible = true;
-                ctx.slash_completion.query = text.to_string();
-                let count = crate::ui::command::completion::SlashCompletionEngine::matches(
-                    &ctx.slash_completion.query,
-                )
-                .count();
-                if count == 0 {
+                if ctx.slash_completion.dismissed_query.as_deref() == Some(text) {
                     ctx.slash_completion.visible = false;
-                } else if ctx.slash_completion.selected_index >= count {
-                    ctx.slash_completion.selected_index = 0;
+                } else {
+                    ctx.slash_completion.dismissed_query = None;
+                    ctx.slash_completion.visible = true;
+                    ctx.slash_completion.query = text.to_string();
+                    let count = crate::ui::command::completion::SlashCompletionEngine::matches(
+                        &ctx.slash_completion.query,
+                    )
+                    .count();
+                    if count == 0 {
+                        ctx.slash_completion.visible = false;
+                    } else if ctx.slash_completion.selected_index >= count {
+                        ctx.slash_completion.selected_index = 0;
+                    }
                 }
             } else {
                 ctx.slash_completion.visible = false;
+                ctx.slash_completion.dismissed_query = None;
             }
         }
 

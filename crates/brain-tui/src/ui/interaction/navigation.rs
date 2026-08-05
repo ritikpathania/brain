@@ -153,3 +153,106 @@ impl NavigationSolver {
         NavigationIndex { nodes }
     }
 }
+
+/// Generic, identity-based navigation state container for scrollable collections and drill-downs.
+///
+/// Encapsulates selection, scroll offset, viewport height, and navigation stack
+/// history for back/forward drill-down navigation (e.g. search → inspector → graph).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NavigationState<Id: std::hash::Hash + Eq + Clone> {
+    /// Currently selected entity identifier.
+    pub selected_id: Option<Id>,
+    /// Index of top-most visible item in viewport.
+    pub scroll_offset: usize,
+    /// Viewport height in rows.
+    pub viewport_height: usize,
+    /// Stack of previously visited entity IDs for back navigation.
+    pub history_stack: Vec<Id>,
+}
+
+impl<Id: std::hash::Hash + Eq + Clone> Default for NavigationState<Id> {
+    fn default() -> Self {
+        Self {
+            selected_id: None,
+            scroll_offset: 0,
+            viewport_height: 10,
+            history_stack: Vec::new(),
+        }
+    }
+}
+
+impl<Id: std::hash::Hash + Eq + Clone> NavigationState<Id> {
+    /// Instantiates a new NavigationState with default viewport height.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets viewport height in rows.
+    pub fn set_viewport_height(&mut self, height: usize) {
+        self.viewport_height = height.max(1);
+    }
+
+    /// Selects an entity ID directly, pushing the previous selection onto history.
+    pub fn navigate_to(&mut self, target_id: Id) {
+        if let Some(prev) = self.selected_id.take() {
+            if prev != target_id {
+                self.history_stack.push(prev);
+            }
+        }
+        self.selected_id = Some(target_id);
+    }
+
+    /// Navigates back to the previous entity in history, if available.
+    pub fn navigate_back(&mut self) -> Option<Id> {
+        if let Some(prev) = self.history_stack.pop() {
+            self.selected_id = Some(prev.clone());
+            Some(prev)
+        } else {
+            None
+        }
+    }
+
+    /// Clears selection and navigation history.
+    pub fn clear(&mut self) {
+        self.selected_id = None;
+        self.scroll_offset = 0;
+        self.history_stack.clear();
+    }
+}
+
+/// State container managing loaded exploration context (M3.1 Inspector & Exploration Session).
+///
+/// Decouples loaded entity details ("What have I loaded?") from selection position ("Where am I?").
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExplorationSession {
+    /// Active entity identifier string being inspected/explored.
+    pub entity_id: Option<String>,
+    /// Dedicated navigation state for history stack and selection offset.
+    pub navigation: NavigationState<String>,
+    /// Currently expanded section in Inspector.
+    pub active_section: Option<crate::ui::view_models::EntitySectionId>,
+}
+
+impl ExplorationSession {
+    /// Instantiates a new empty ExplorationSession.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Loads a target entity into the exploration session, pushing history.
+    pub fn load_entity(&mut self, entity_id: impl Into<String>) {
+        let id = entity_id.into();
+        self.entity_id = Some(id.clone());
+        self.navigation.navigate_to(id);
+    }
+
+    /// Navigates back to the previous entity in history stack.
+    pub fn back(&mut self) -> bool {
+        if let Some(prev) = self.navigation.navigate_back() {
+            self.entity_id = Some(prev);
+            true
+        } else {
+            false
+        }
+    }
+}

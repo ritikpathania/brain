@@ -132,3 +132,33 @@ async fn test_controller_cancellation_and_debounce() {
     assert!(final_events.iter().any(|e| matches!(e, SearchEvent::Started { generation: SearchGeneration(2), provider } if *provider == p_async.provider_id())));
     assert!(final_events.iter().any(|e| matches!(e, SearchEvent::Finished { generation: SearchGeneration(2), provider } if *provider == p_async.provider_id())));
 }
+
+#[test]
+fn test_state_machine_valid_and_invalid_transitions() {
+    use brain_tui::ui::search::types::UiSearchState;
+
+    let sink = Arc::new(MockEventSink::new());
+    let mut controller = SearchController::new(Vec::new(), Vec::new(), sink);
+
+    // Initial state is Idle
+    assert_eq!(controller.state(), UiSearchState::Idle);
+
+    // Valid transition Idle -> Searching -> Results -> Idle
+    assert!(controller.transition_to(UiSearchState::Searching).is_ok());
+    assert_eq!(controller.state(), UiSearchState::Searching);
+
+    assert!(controller.transition_to(UiSearchState::Results).is_ok());
+    assert_eq!(controller.state(), UiSearchState::Results);
+
+    assert!(controller.transition_to(UiSearchState::Idle).is_ok());
+    assert_eq!(controller.state(), UiSearchState::Idle);
+
+    // Invalid transition Idle -> Results directly (without Searching or Debouncing) should fail
+    let err = controller
+        .transition_to(UiSearchState::Results)
+        .unwrap_err();
+    assert_eq!(err.from, UiSearchState::Idle);
+    assert_eq!(err.to, UiSearchState::Results);
+    // State remains unchanged
+    assert_eq!(controller.state(), UiSearchState::Idle);
+}

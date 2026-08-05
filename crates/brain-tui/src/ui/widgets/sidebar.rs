@@ -1,10 +1,11 @@
 use crate::state::SessionViewModel;
 use crate::ui::interaction::sidebar::{SessionFilter, SidebarMode};
 use crate::ui::render::UnicodeSupport;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{List, ListItem, Paragraph};
 use ratatui::Frame;
+
 
 /// ViewModel carrying session list, selection, filters, and editor states.
 pub struct SidebarView<'a> {
@@ -111,7 +112,8 @@ pub fn draw(
             "Search: {}",
             format_with_cursor(&sliced_query, new_cursor, cursor_char)
         );
-        let search_p = Paragraph::new(search_text).style(theme.text);
+        let search_p =
+            Paragraph::new(search_text).style(theme.style(ThemeToken::TextPrimary));
         f.render_widget(search_p, chunks[0]);
 
         chunks[1]
@@ -152,17 +154,19 @@ pub fn draw(
             let style = if is_selected {
                 if view.has_focus {
                     theme
-                        .primary
+                        .style(ThemeToken::Primary)
                         .add_modifier(ratatui::style::Modifier::REVERSED)
                 } else {
                     theme
-                        .inactive
+                        .style(ThemeToken::TextMuted)
                         .add_modifier(ratatui::style::Modifier::REVERSED)
                 }
             } else if s.active {
-                theme.primary.add_modifier(ratatui::style::Modifier::BOLD)
+                theme
+                    .style(ThemeToken::Primary)
+                    .add_modifier(ratatui::style::Modifier::BOLD)
             } else {
-                theme.text
+                theme.style(ThemeToken::TextPrimary)
             };
 
             ListItem::new(text).style(style)
@@ -172,3 +176,4 @@ pub fn draw(
     let list = List::new(items);
     f.render_widget(list, list_area);
 }
+
