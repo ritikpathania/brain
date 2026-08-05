@@ -136,7 +136,7 @@ CI continuously benchmarks query latencies, ingestion throughput, and typewriter
 ## 🗺️ Roadmap
 
 - [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, UDS IPC daemon, and Ratatui TUI.
-- [ ] **v1.1.0**: HNSW vector similarity indexing & multi-session isolation namespaces.
+- [x] **v1.1.0**: Phase 2 Retrieval UI, Knowledge Exploration Experience & Reasoning Reflection Pipeline.
 - [ ] **v2.0.0**: Active-active Raft distributed consensus & WASM plugin sandbox.
 
 See **[ROADMAP.md](ROADMAP.md)** for full milestone details.

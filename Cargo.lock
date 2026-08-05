@@ -205,7 +205,7 @@ dependencies = [
 
 [[package]]
 name = "brain"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "brain-config",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "brain-daemon"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "brain-application",
  "brain-config",

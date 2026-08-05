@@ -16,8 +16,11 @@ This document outlines the high-level roadmap and architectural direction for th
 
 ---
 
-## 🚀 Version 1.x (Near-Term Milestones)
+## 🚀 Version 1.1 (Current Release - Retrieval & Knowledge Exploration)
 
+- [x] **Retrieval UI Projection Pipeline**: Sub-150ms debounce, localized cancellation ownership, stable selection invariant.
+- [x] **Knowledge Exploration Architecture**: synchronized graph/list projections, navigation session stack, explainability & provenance.
+- [x] **Reasoning Reflection Pipeline**: Phase 6 reflection, candidate extraction, graph matching, and memory stewardship facade.
 - [ ] **Expanded Vector Indexing**: Support HNSW vector indexing for sub-millisecond similarity queries over >1M embeddings.
 - [ ] **Multi-Session Isolation**: Fine-grained session namespace partitioning for concurrent workspace agents.
 - [ ] **SDK Package Distribution**:

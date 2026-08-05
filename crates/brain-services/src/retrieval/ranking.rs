@@ -396,6 +396,14 @@ impl RankingStrategy for RrfRanking {
     fn rank(&self, request: &RetrievalRequest, nodes: Vec<Node>) -> Result<Vec<Node>, BrainError> {
         let start = std::time::Instant::now();
         if nodes.is_empty() || self.strategies.is_empty() {
+            let duration = start.elapsed();
+            tracing::info!(
+                target: "brain::telemetry::retrieval",
+                stage = "RRF",
+                duration_ms = duration.as_millis(),
+                input_candidate_count = nodes.len(),
+                "Retrieval stage completed: RRF"
+            );
             return Ok(nodes);
         }
 

@@ -191,7 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(status.code().unwrap_or(0));
             }
             "version" | "--version" | "-V" => {
-                println!("brain-daemon version 0.1.0");
+                println!("brain-daemon version 1.1.0");
             }
             "health" => {
                 check_health().await?;

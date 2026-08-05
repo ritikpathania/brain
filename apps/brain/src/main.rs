@@ -10,7 +10,7 @@ use std::path::PathBuf;
 #[command(
     name = "brain",
     author,
-    version = "0.1.0",
+    version = "1.1.0",
     about = "brain: AI Coding Companion Relational Memory Engine CLI",
     long_about = None
 )]
