@@ -113,11 +113,13 @@ class VectorEvaluation:
     metric_name: str
     metric_value: float
     details: str
+    higher_is_better: bool = True
 
 class Vector(ABC):
-    def __init__(self, vector_id: int, name: str):
+    def __init__(self, vector_id: int, name: str, higher_is_better: bool = True):
         self.vector_id = vector_id
         self.name = name
+        self.higher_is_better = higher_is_better
 
     @abstractmethod
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
@@ -125,8 +127,8 @@ class Vector(ABC):
 
 class FunctionalVector(Vector):
     """Deterministic binary pass/fail verification vector."""
-    def __init__(self, vector_id: int, name: str):
-        super().__init__(vector_id, name)
+    def __init__(self, vector_id: int, name: str, higher_is_better: bool = True):
+        super().__init__(vector_id, name, higher_is_better)
 
     @abstractmethod
     def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
@@ -143,13 +145,14 @@ class FunctionalVector(Vector):
             score=1.0 if passed else 0.0,
             metric_name=metric_name,
             metric_value=metric_val,
-            details=details
+            details=details,
+            higher_is_better=self.higher_is_better
         )
 
 class QualityVector(Vector):
     """Quantitative scored quality vector with heuristic IR metrics."""
-    def __init__(self, vector_id: int, name: str, threshold: float = 0.8):
-        super().__init__(vector_id, name)
+    def __init__(self, vector_id: int, name: str, threshold: float = 0.8, higher_is_better: bool = True):
+        super().__init__(vector_id, name, higher_is_better)
         self.threshold = threshold
 
     @abstractmethod
@@ -168,7 +171,8 @@ class QualityVector(Vector):
             score=score,
             metric_name=metric_name,
             metric_value=score,
-            details=details
+            details=details,
+            higher_is_better=self.higher_is_better
         )
 
 # -------------------------------------------------------------------

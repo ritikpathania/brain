@@ -94,7 +94,7 @@ class AcronymVector(FunctionalVector):
 @VectorRegistry.register(5)
 class DeduplicationVector(FunctionalVector):
     def __init__(self):
-        super().__init__(5, "Memory Deduplication")
+        super().__init__(5, "Memory Deduplication", higher_is_better=False)
 
     def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
         stmt = "The default UDS socket location is /tmp/brain.sock."
