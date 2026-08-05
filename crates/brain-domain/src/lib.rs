@@ -146,6 +146,10 @@ pub use reasoning_reflection::*;
 pub mod candidate;
 pub use candidate::*;
 
+/// Knowledge Graph Matching domain models.
+pub mod match_domain;
+pub use match_domain::*;
+
 /// Consolidation decision domain models.
 pub mod consolidation_decision;
 pub use consolidation_decision::*;
