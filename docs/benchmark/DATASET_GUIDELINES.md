@@ -41,7 +41,17 @@ A lightweight **Quality Orchestrator** manages execution ordering, provenance, s
 
 ---
 
-## 3. End-to-End User Task Success & Evidence Utilization Metrics
+## 3. Operational Quality Infrastructure
+
+Quality tooling around the framework focuses on operational usability without increasing engine complexity:
+- **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
+- **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
+- **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
+- **Dataset Provenance & Ownership Tracking**: Maintaining author provenance, SHA-256 policy hashes, and dataset versioning.
+
+---
+
+## 4. End-to-End User Task Success & Evidence Utilization Metrics
 
 | Product Metric | Measurement Target | User Impact |
 |---|---|---|
@@ -54,7 +64,7 @@ A lightweight **Quality Orchestrator** manages execution ordering, provenance, s
 
 ---
 
-## 4. User Retrieval Failure Taxonomy
+## 5. User Retrieval Failure Taxonomy
 
 | Failure Type | Description & Example | Primary Remediation Target |
 |---|---|---|
@@ -66,7 +76,7 @@ A lightweight **Quality Orchestrator** manages execution ordering, provenance, s
 
 ---
 
-## 5. Product Outcome Measurement Dimensions
+## 6. Product Outcome Measurement Dimensions
 
 Engineering focuses on four measurable product dimensions:
 - **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
@@ -76,7 +86,7 @@ Engineering focuses on four measurable product dimensions:
 
 ---
 
-## 6. Closed Continuous Production Feedback Loop
+## 7. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -86,7 +96,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 7. Measured Empirical Baseline vs Target Forecasts
+## 8. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -97,7 +107,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 8. Practical Definition of "Contract Stability"
+## 9. Practical Definition of "Contract Stability"
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
@@ -106,7 +116,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 9. Non-Goals of the RQB Platform
+## 10. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
