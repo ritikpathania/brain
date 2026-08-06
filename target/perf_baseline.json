@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-08-06T21:40:17Z",
+  "metrics": {
+    "cold_startup_ms": 497,
+    "sampled_rss_kb": 16080,
+    "idle_cpu_percent": 0.0
+  }
+}

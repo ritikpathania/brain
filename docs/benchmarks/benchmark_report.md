@@ -18,12 +18,19 @@ This document records the latency, throughput, memory allocation, and parse over
 | **FFI Python GIL Overhead** | `3.08 µs` | `3.06 µs` | `3.10 µs` | PyO3 transition boundary overhead (Rust direct vs PyO3 GIL). |
 | **Memory Growth Simulation** | `74.46 µs` | `74.38 µs` | `74.59 µs` | Allocation & ingestion cost of 1,000 distinct nodes on heap. |
 
+
+
 ---
 
-## ⚡ 2. Performance Analysis & Design Insights
+## 🖥️ 3. TUI & Daemon Performance Baseline Metrics
 
-1. **Sub-Microsecond Parsing & Microsecond Latencies**: The parser handles incoming IPC requests in `~353 ns`. Short-term memory queries complete in `~3.08 µs`, meaning the in-memory retrieval hot path is extremely efficient.
-2. **High Indexing Throughput**: Standard ingestion processes 100 items in `~117.44 µs` (averaging only `1.17 µs` per item), representing a write throughput of over **850,000 items per second**.
-3. **Low-Overhead PyO3 Bridge**: Transitioning through the PyO3 FFI GIL boundary to Python costs merely `~3.08 µs` of overhead, confirming our design allows for out-of-band extraction scripts and plugin layers without impacting performance.
-4. **Native SQLite Cosine Similarity**: In-memory vector searches over 384-dimensional floating-point vectors complete in `~3.15 µs`, proving that local database-backed comparisons are extremely fast for personal workspaces.
-5. **Decoupled Analytical Isolation**: Columnar read projection synchronization in SQLite executes in `~350.18 µs`, ensuring that analytical search projections do not block transactional UDS operations.
+Recorded via `./scripts/perf_runner.sh target/perf_baseline.json` and Criterion (`cargo bench -p brain-tui`):
+
+| Category | Benchmark / Metric | Measured Baseline Value | Subsystem / Description |
+|---|---|---|---|
+| **Daemon Initialization** | `cold_startup_ms` | `497 ms` | Cold daemon process startup and UDS socket readiness. |
+| **Daemon Resource** | `sampled_rss_kb` | `16,080 KB` (~16.08 MB) | Peak RSS memory sample under steady state daemon operation. |
+| **Daemon Resource** | `idle_cpu_percent` | `0.0 %` | Idle CPU utilization during UDS socket polling. |
+| **TUI Rendering** | `frame_draw_empty_120x40` | `108.12 µs` | Criterion benchmark for empty container layout frame render. |
+| **TUI Tokenizer** | `tokenizer_feed_chunk` | `516.59 ns` | Criterion benchmark for streaming typewriter chunk parsing. |
+
