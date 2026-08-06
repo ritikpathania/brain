@@ -1,10 +1,12 @@
-# Knowledge Quality Corpus (KQC) — Quality Architecture & Guidelines v1.0
+# Knowledge Quality Corpus (KQC) — Quality Architecture & Guidelines v1.0 (Platform-Complete)
 
 The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class product asset separate from the RQB execution engine.
 
 ---
 
-## 1. Five-Tier Quality System Architecture
+## 1. Five-Tier Quality System Architecture (v1 Platform-Complete)
+
+The quality architecture is **v1 Platform-Complete**:
 
 ```
 EBRA Gate           ──► Release correctness & release gate (1,225/1,225 PASS)
