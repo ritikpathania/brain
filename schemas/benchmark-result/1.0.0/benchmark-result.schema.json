@@ -22,16 +22,34 @@
       "type": "string",
       "const": "BenchmarkResult"
     },
-    "metadata": {
+    "metadata": { "$ref": "#/$defs/Metadata" },
+    "benchmark": { "$ref": "#/$defs/BenchmarkInfo" },
+    "measurements": { "$ref": "#/$defs/Measurements" },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provenance": { "$ref": "#/$defs/Provenance" },
+    "diagnostics": { "$ref": "#/$defs/Diagnostics" },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "Metadata": {
       "type": "object",
       "required": ["suite_id", "benchmark_id"],
       "properties": {
-        "suite_id": { "type": "string" },
+        "suite_id": { "type": "string", "enum": ["EBRA", "RQB", "Agent", "OPB"] },
         "benchmark_id": { "type": "string" },
-        "timestamp": { "type": "string" }
+        "timestamp": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|\\+[0-9]{2}:[0-9]{2})?$"
+        }
       }
     },
-    "benchmark": {
+    "BenchmarkInfo": {
       "type": "object",
       "required": ["capability", "status"],
       "properties": {
@@ -39,53 +57,47 @@
         "status": { "type": "string", "enum": ["PASS", "QUALITY_WARNING", "ENGINE_FAIL", "BLOCKED"] }
       }
     },
-    "measurements": {
+    "Measurements": {
       "type": "object",
       "required": ["score"],
       "properties": {
-        "score": { "type": "number" },
-        "confidence": {
-          "type": "object",
-          "properties": {
-            "lower": { "type": "number" },
-            "upper": { "type": "number" },
-            "level": { "type": "number" }
-          }
-        },
-        "latency": {
-          "type": "object",
-          "properties": {
-            "mean_ms": { "type": "number" },
-            "p50_ms": { "type": "number" },
-            "p95_ms": { "type": "number" },
-            "p99_ms": { "type": "number" }
-          }
-        }
+        "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "confidence": { "$ref": "#/$defs/Confidence" },
+        "latency": { "$ref": "#/$defs/Latency" }
       }
     },
-    "evidence": {
-      "type": "array",
-      "items": { "type": "string" }
+    "Confidence": {
+      "type": "object",
+      "properties": {
+        "lower": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "upper": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "level": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+      }
     },
-    "provenance": {
+    "Latency": {
+      "type": "object",
+      "properties": {
+        "mean_ms": { "type": "number", "minimum": 0.0 },
+        "p50_ms": { "type": "number", "minimum": 0.0 },
+        "p95_ms": { "type": "number", "minimum": 0.0 },
+        "p99_ms": { "type": "number", "minimum": 0.0 }
+      }
+    },
+    "Provenance": {
       "type": "object",
       "required": ["git_commit"],
       "properties": {
-        "git_commit": { "type": "string" },
+        "git_commit": { "type": "string", "pattern": "^[0-9a-fA-F]{7,40}$" },
         "policy_hash": { "type": "string" },
         "seed": { "type": "integer" }
       }
     },
-    "diagnostics": {
+    "Diagnostics": {
       "type": "object",
       "properties": {
         "probable_causes": { "type": "array", "items": { "type": "string" } },
         "suggested_capability": { "type": "string" }
       }
-    },
-    "recommendations": {
-      "type": "array",
-      "items": { "type": "string" }
     }
   }
 }

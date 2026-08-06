@@ -16,9 +16,9 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Machine-Readable `BenchmarkResult` JSON Schema Contract
+## 2. Machine-Readable `BenchmarkResult` JSON Schema & Version Evolution Policy
 
-A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json):
+All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json):
 
 ```json
 {
@@ -46,30 +46,17 @@ A lightweight **Quality Orchestrator** manages execution ordering, provenance, s
 }
 ```
 
-```
-                            Quality Orchestrator (Schema Validation)
-                                              │
-        ┌───────────────────┬─────────────────┴───────────────────┬───────────────────┐
-        ▼                   ▼                                     ▼                   ▼
-     EBRA Gate          RQB Suite                             Agent Suite         OPB Suite
-  (Release Gate)   (Retrieval Quality)                    (Planning & Tools)   (Operational Load)
-   • 1225 Unit/Int  • Alias Normalization                 • Tool Selection     • 24h Memory Soak
-   • Protocol Mono  • Context & Recency                   • Planning Accuracy  • P95/P99 Latency
-   • Clippy & Fmt   • Reasoning & Synthesis               • Error Recovery     • Scale Throughput
-```
-
-| Suite | Core Responsibility | Verification Target / Primary Metric |
-|---|---|---|
-| **EBRA Gate** | *"Is the software correct and releasable?"* | `cargo xtask verify` (1,225/1,225 PASS) |
-| **RQB Suite** | *"Does retrieval return the right knowledge?"* | Alias Coverage (71%), Precision@5, Conflict Visibility |
-| **Agent Suite** | *"Can the system plan and execute correctly?"* | Tool selection accuracy, planning, error recovery |
-| **OPB Suite** | *"Can the system sustain production load?"* | Mean/P95/P99 latency, 24h RSS memory soak, throughput |
+### Schema Semantic Versioning & Compatibility Rules
+- **Patch (v1.0.x)**: Schema documentation & validation rule bug fixes only. Backward compatible.
+- **Minor (v1.x.0)**: Additive non-breaking properties to `$defs`. Backward compatible for readers.
+- **Major (vX.0.0)**: Breaking property removals or type changes. Requires explicit migration.
 
 ---
 
-## 3. Operational Quality Infrastructure
+## 3. Operational Quality Infrastructure & CI Governance
 
 Usability tooling around the framework focuses on operational usability without increasing engine complexity:
+- **CI Executable Governance**: Automated schema validation enforcing output compliance against `benchmark-result.schema.json`.
 - **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
 - **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
 - **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
