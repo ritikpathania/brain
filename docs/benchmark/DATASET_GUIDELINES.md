@@ -20,11 +20,8 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
 
-### Project-Wide Executable Governance (`cargo xtask verify`)
-Schema validation is integrated into project-wide verification (`cargo xtask verify` / `python3 schemas/benchmark-result/validate_schema.py`):
-- **Positive Fixture Validation**: Verifies valid contract outputs pass (`schemas/benchmark-result/tests/valid/`).
-- **Backward Compatibility Validation**: Verifies historical release outputs pass (`schemas/benchmark-result/compatibility/v1.0.0/`).
-- **Negative Constraint Validation**: Verifies malformed outputs are correctly rejected (`additionalProperties: false`).
+### Project-Wide Executable Governance & Environment Provenance (`cargo xtask verify`)
+Schema validation is integrated into project-wide verification (`cargo xtask verify` / `python3 schemas/benchmark-result/validate_schema.py`). Every result includes complete environmental reproducibility metadata:
 
 ```json
 {
@@ -50,7 +47,17 @@ Schema validation is integrated into project-wide verification (`cargo xtask ver
     "latency": { "mean_ms": 29.56, "p95_ms": 58.91 }
   },
   "evidence": ["5/7 alias variants resolved canonical target"],
-  "provenance": { "git_commit": "e7778802ec", "policy_hash": "ecf5732" },
+  "provenance": {
+    "git_commit": "e7778802ec",
+    "policy_hash": "ecf5732",
+    "seed": 42,
+    "environment": {
+      "os": "macOS ARM64",
+      "rust_version": "1.82.0",
+      "python_version": "3.11.9",
+      "dataset_hash": "a0993f3"
+    }
+  },
   "diagnostics": {
     "probable_causes": ["Missing 'pgsql' variant mapping"]
   },
