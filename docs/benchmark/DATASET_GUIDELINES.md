@@ -16,17 +16,17 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. End-to-End User Task Success Metrics
+## 2. End-to-End User Task Success & Calibration Metrics
 
-To complement retrieval-centric evaluation, high-level user task success is tracked across five product dimensions:
+To complement retrieval-centric evaluation, high-level user task success and score calibration are tracked across product dimensions:
 
-| Product Task Metric | Measurement Target | User Impact |
+| Product Metric | Measurement Target | User Impact |
 |---|---|---|
 | **Task Success Rate** | Goal accomplishment without query reformulation | Measures overall query efficacy |
 | **First Answer Success** | Relevant target returned on initial query turn | Eliminates user friction |
 | **Reformulation Rate** | Frequency of query retries or rewordings | Identifies retrieval ambiguity |
 | **Citation Accuracy** | Cited memory nodes directly support synthesized answer | Ensures ground-truth factual rigor |
-| **Hallucination Rate** | Rate of unsupported synthesized statements | Prevents spurious memory generation |
+| **Confidence Calibration** | Confidence scores (e.g. 0.90) correlate with empirical accuracy (90%) | Enables reliable threshold filtering |
 
 ---
 
