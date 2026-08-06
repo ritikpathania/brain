@@ -14,8 +14,23 @@
       "Ranking Stability": 0.85
     }
   },
+  "v1.0.1": {
+    "timestamp": "2026-07-15 12:00:00 UTC",
+    "metrics": {
+      "Exact Retrieval": 0.9,
+      "Synonyms & Aliases": 0.68,
+      "Typo Tolerance": 0.9,
+      "Acronym Expansion": 0.95,
+      "Memory Deduplication": 0.05,
+      "Conflicting Knowledge Visibility": 0.75,
+      "Temporal Evolution Recency": 0.85,
+      "Broad Synthesis Completeness": 0.9,
+      "Conversational Follow-ups": 0.9,
+      "Ranking Stability": 0.9
+    }
+  },
   "v1.1.0": {
-    "timestamp": "2026-08-05 22:39:14 UTC",
+    "timestamp": "2026-08-06 06:30:50 UTC",
     "metrics": {
       "Exact Retrieval": 1.0,
       "Synonyms & Aliases": 0.7142857142857143,

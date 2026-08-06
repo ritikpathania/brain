@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Retrieval Quality Benchmark (RQB) & Operational Benchmark (OPB) Engine
+Retrieval Quality Benchmark (RQB) Engine v2.0.0
 
-Class Hierarchy:
-- Vector (ABC)
-  ├── FunctionalVector (Deterministic Pass/Fail)
-  └── QualityVector (Quantitative Scored Metric)
+Features:
+- Config-Driven Benchmark Policy (benchmark_config.json)
+- Explicit Failure Taxonomy (PASS, ENGINE FAIL, QUALITY BELOW TARGET)
+- Algorithmic Coverage & Corpus Size Index
+- Ephemeral Execution Harness
 """
 
 from abc import ABC, abstractmethod
@@ -24,8 +25,16 @@ DAEMON_BIN = "/Users/ritikpathania/Developer/PyCharm/brain/target/debug/brain-da
 PYTHON_VENV = "/Users/ritikpathania/Developer/PyCharm/brain/daemon/.venv/bin/python"
 
 # -------------------------------------------------------------------
-# 1. Ephemeral Isolated Execution Harness
+# 1. Ephemeral Isolated Execution Harness with Corpus Tracking
 # -------------------------------------------------------------------
+
+@dataclass
+class CorpusMetrics:
+    total_docs_ingested: int = 0
+    total_tokens_est: int = 0
+    total_queries_run: int = 0
+    alias_entities_count: int = 0
+    conflict_facts_count: int = 0
 
 class IsolatedHarness:
     def __init__(self):
@@ -35,6 +44,7 @@ class IsolatedHarness:
         os.makedirs(self.data_dir, exist_ok=True)
         self.http_port = str(random.randint(18000, 29000))
         self.proc: Optional[subprocess.Popen] = None
+        self.corpus_metrics = CorpusMetrics()
 
     def start(self):
         env = os.environ.copy()
@@ -60,6 +70,12 @@ class IsolatedHarness:
         raise RuntimeError(f"Isolated Harness failed to start. Stderr:\n{stderr_out}")
 
     def request(self, action: str, payload: str) -> List[Dict[str, Any]]:
+        if action == "ingest":
+            self.corpus_metrics.total_docs_ingested += 1
+            self.corpus_metrics.total_tokens_est += len(payload.split())
+        elif action == "query":
+            self.corpus_metrics.total_queries_run += 1
+
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(self.socket_path)
         req = json.dumps({"action": action, "payload": payload}) + "\n"
@@ -100,7 +116,7 @@ class IsolatedHarness:
         self.tmp_dir.cleanup()
 
 # -------------------------------------------------------------------
-# 2. Vector Class Hierarchy
+# 2. Vector Class Hierarchy & Failure Taxonomy
 # -------------------------------------------------------------------
 
 @dataclass
@@ -109,17 +125,27 @@ class VectorEvaluation:
     name: str
     vector_type: str  # "Functional" or "Quality"
     passed: bool
+    status_badge: str  # "🟢 PASS" | "🔴 ENGINE FAIL" | "🟡 QUALITY BELOW TARGET"
     score: float
     metric_name: str
     metric_value: float
     details: str
+    weight: int = 1
     higher_is_better: bool = True
+    threshold: float = 0.8
 
 class Vector(ABC):
     def __init__(self, vector_id: int, name: str, higher_is_better: bool = True):
         self.vector_id = vector_id
         self.name = name
         self.higher_is_better = higher_is_better
+        self.weight = 1
+        self.threshold = 0.8
+
+    def configure(self, cfg: Dict[str, Any]):
+        self.weight = cfg.get("weight", 1)
+        self.threshold = cfg.get("threshold", 0.8)
+        self.higher_is_better = (cfg.get("direction", "maximize") == "maximize")
 
     @abstractmethod
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
@@ -131,22 +157,39 @@ class FunctionalVector(Vector):
         super().__init__(vector_id, name, higher_is_better)
 
     @abstractmethod
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        """Returns (passed, metric_value, metric_name, details)."""
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
+        """Returns (passed, metric_value, metric_name, details, engine_error)."""
         pass
 
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
-        passed, metric_val, metric_name, details = self.run_functional(harness, dataset_dir)
+        try:
+            passed, metric_val, metric_name, details, engine_err = self.run_functional(harness, dataset_dir)
+            if engine_err:
+                status = "🔴 ENGINE FAIL"
+            elif not passed:
+                status = "🟡 QUALITY BELOW TARGET"
+            else:
+                status = "🟢 PASS"
+        except Exception as ex:
+            passed = False
+            metric_val = 0.0
+            metric_name = "Execution Error"
+            details = f"Unhandled exception in evaluator: {str(ex)}"
+            status = "🔴 ENGINE FAIL"
+
         return VectorEvaluation(
             vector_id=self.vector_id,
             name=self.name,
             vector_type="Functional",
             passed=passed,
+            status_badge=status,
             score=1.0 if passed else 0.0,
             metric_name=metric_name,
             metric_value=metric_val,
             details=details,
-            higher_is_better=self.higher_is_better
+            weight=self.weight,
+            higher_is_better=self.higher_is_better,
+            threshold=self.threshold
         )
 
 class QualityVector(Vector):
@@ -156,229 +199,94 @@ class QualityVector(Vector):
         self.threshold = threshold
 
     @abstractmethod
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        """Returns (score_ratio, metric_name, details)."""
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
+        """Returns (score_ratio, metric_name, details, engine_error)."""
         pass
 
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
-        score, metric_name, details = self.run_quality(harness, dataset_dir)
-        passed = score >= self.threshold
+        try:
+            score, metric_name, details, engine_err = self.run_quality(harness, dataset_dir)
+            if engine_err:
+                passed = False
+                status = "🔴 ENGINE FAIL"
+            elif self.higher_is_better and score < self.threshold:
+                passed = False
+                status = "🟡 QUALITY BELOW TARGET"
+            elif not self.higher_is_better and score > self.threshold:
+                passed = False
+                status = "🟡 QUALITY BELOW TARGET"
+            else:
+                passed = True
+                status = "🟢 PASS"
+        except Exception as ex:
+            passed = False
+            score = 0.0
+            metric_name = "Execution Error"
+            details = f"Unhandled exception in evaluator: {str(ex)}"
+            status = "🔴 ENGINE FAIL"
+
         return VectorEvaluation(
             vector_id=self.vector_id,
             name=self.name,
             vector_type="Quality",
             passed=passed,
+            status_badge=status,
             score=score,
             metric_name=metric_name,
             metric_value=score,
             details=details,
-            higher_is_better=self.higher_is_better
+            weight=self.weight,
+            higher_is_better=self.higher_is_better,
+            threshold=self.threshold
         )
 
 # -------------------------------------------------------------------
-# 3. Benchmark Implementations
+# 3. Algorithmic Dataset & Benchmark Coverage Calculator
 # -------------------------------------------------------------------
 
-class ExactRetrievalVector(FunctionalVector):
-    def __init__(self):
-        super().__init__(1, "Exact Retrieval")
+class CoverageScoreEngine:
+    @staticmethod
+    def calculate_score(harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, Dict[str, Any]]:
+        # Count datasets and entities
+        alias_file = os.path.join(dataset_dir, "aliases.json")
+        conflict_file = os.path.join(dataset_dir, "conflicts.json")
+        temporal_file = os.path.join(dataset_dir, "temporal.json")
+        stability_file = os.path.join(dataset_dir, "stability.json")
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        target = "ADR-042 selected WebAssembly for client-side plugin sandbox isolation."
-        harness.request("ingest", target)
-        time.sleep(0.3)
+        alias_count = len(json.load(open(alias_file))) if os.path.exists(alias_file) else 0
+        conflict_count = len(json.load(open(conflict_file))) if os.path.exists(conflict_file) else 0
+        temporal_count = len(json.load(open(temporal_file))) if os.path.exists(temporal_file) else 0
+        stability_count = len(json.load(open(stability_file))) if os.path.exists(stability_file) else 0
 
-        resp = harness.request("query", "WebAssembly client-side plugin sandbox")
-        chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
-        lines = [c.strip() for c in chunks if c.strip().startswith("•")]
+        scenarios_total = alias_count + conflict_count + temporal_count + stability_count
+        queries_run = harness.corpus_metrics.total_queries_run
+        docs_ingested = harness.corpus_metrics.total_docs_ingested
+        tokens_est = harness.corpus_metrics.total_tokens_est
 
-        rank = -1
-        for idx, line in enumerate(lines):
-            if "WebAssembly" in line or "ADR-042" in line:
-                rank = idx + 1
-                break
+        # Algorithmic Coverage Score formula (0..100)
+        raw_score = (
+            (scenarios_total * 4.0) +
+            (queries_run * 0.5) +
+            (docs_ingested * 2.0) +
+            (tokens_est * 0.05)
+        )
+        score = min(100.0, max(0.0, raw_score))
 
-        mrr = 1.0 / rank if rank > 0 else 0.0
-        passed = mrr > 0.0
-        return passed, mrr, "MRR", f"Target record retrieved at rank {rank} (MRR = {mrr:.2f})"
+        if score < 30.0:
+            level = "LOW (Initial Baseline)"
+        elif score < 60.0:
+            level = "MODERATE (Standard Suite)"
+        elif score < 85.0:
+            level = "HIGH (Comprehensive Suite)"
+        else:
+            level = "EXTENSIVE (Production Soak Suite)"
 
-class AliasVector(FunctionalVector):
-    def __init__(self):
-        super().__init__(2, "Synonyms & Aliases")
-
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        with open(os.path.join(dataset_dir, "aliases.json"), "r") as f:
-            data = json.load(f)
-
-        total = 0
-        successful = 0
-        for entry in data:
-            harness.request("ingest", entry["sample_text"])
-            time.sleep(0.2)
-            for alias in entry["aliases"]:
-                total += 1
-                resp = harness.request("query", alias)
-                content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-                if entry["canonical"].lower() in content.lower() or alias.lower() in content.lower():
-                    successful += 1
-
-        coverage = successful / total if total > 0 else 0.0
-        passed = coverage >= 0.75
-        return passed, coverage, "Alias Coverage", f"{successful}/{total} alias variants resolved canonical target"
-
-class TypoVector(FunctionalVector):
-    def __init__(self):
-        super().__init__(3, "Typo Tolerance")
-
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        harness.request("ingest", "Redis is configured as an in-memory cache for session state.")
-        time.sleep(0.3)
-
-        resp = harness.request("query", "rediss")
-        content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-        found = "redis" in content.lower()
-        return found, 1.0 if found else 0.0, "Typo Recall", "Typo query 'rediss' resolved canonical 'Redis' entity"
-
-class AcronymVector(FunctionalVector):
-    def __init__(self):
-        super().__init__(4, "Acronym Expansion")
-
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        harness.request("ingest", "We use Reciprocal Rank Fusion (RRF) and Okapi BM25 for hybrid search ranking.")
-        time.sleep(0.3)
-
-        resp = harness.request("query", "RRF")
-        content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-        found = "reciprocal rank fusion" in content.lower() or "rrf" in content.lower()
-        return found, 1.0 if found else 0.0, "Acronym Recall", "Acronym query 'RRF' matched full definition record"
-
-class DeduplicationVector(FunctionalVector):
-    def __init__(self):
-        super().__init__(5, "Memory Deduplication")
-
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        stmt = "The default UDS socket location is /tmp/brain.sock."
-        harness.request("ingest", stmt)
-        harness.request("ingest", stmt)
-        harness.request("ingest", stmt)
-        time.sleep(0.3)
-
-        resp = harness.request("query", "UDS socket location")
-        chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
-        lines = [c.strip() for c in chunks if c.strip().startswith("•")]
-        unique = set(lines)
-
-        dup_rate = (len(lines) - len(unique)) / len(lines) if lines else 0.0
-        passed = dup_rate == 0.0
-        return passed, dup_rate, "Duplicate Rate", f"{len(lines)} items rendered ({len(unique)} unique), duplicate rate = {dup_rate:.1%}"
-
-class ConflictQualityVector(QualityVector):
-    def __init__(self):
-        super().__init__(6, "Conflicting Knowledge Visibility", threshold=0.9)
-
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "conflicts.json"), "r") as f:
-            data = json.load(f)
-
-        total = len(data)
-        surfaced = 0
-        for entry in data:
-            harness.request("ingest", entry["fact_a"])
-            harness.request("ingest", entry["fact_b"])
-            time.sleep(0.3)
-
-            resp = harness.request("query", entry["query"])
-            content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-            both_found = all(ef.lower() in content.lower() for ef in entry["expected_facts"])
-            if both_found:
-                surfaced += 1
-
-        score = surfaced / total if total > 0 else 0.0
-        return score, "Conflict Visibility Rate", f"{surfaced}/{total} conflict sets surfaced both disagreeing facts"
-
-class TemporalQualityVector(QualityVector):
-    def __init__(self):
-        super().__init__(7, "Temporal Evolution Recency", threshold=0.9)
-
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "temporal.json"), "r") as f:
-            data = json.load(f)
-
-        aligned = 0
-        for entry in data:
-            harness.request("ingest", entry["old_fact"])
-            time.sleep(0.2)
-            harness.request("ingest", entry["new_fact"])
-            time.sleep(0.3)
-
-            resp = harness.request("query", entry["query"])
-            chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
-            lines = [c.strip() for c in chunks if c.strip().startswith("•")]
-
-            new_idx = next((i for i, l in enumerate(lines) if entry["expected_newer_keyword"].lower() in l.lower()), -1)
-            old_idx = next((i for i, l in enumerate(lines) if entry["expected_older_keyword"].lower() in l.lower()), -1)
-
-            if new_idx != -1 and old_idx != -1 and new_idx < old_idx:
-                aligned += 1
-
-        score = aligned / len(data) if data else 0.0
-        return score, "Recency Order Alignment", f"Newer timestamp ranked ahead of older timestamp ({aligned}/{len(data)})"
-
-class BroadSynthesisVector(QualityVector):
-    def __init__(self):
-        super().__init__(8, "Broad Synthesis Completeness", threshold=0.6)
-
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        resp = harness.request("query", "database architecture")
-        chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
-        lines = [c.strip() for c in chunks if c.strip().startswith("•")]
-
-        # Precision@5 computation: relevant items in top 5 / 5
-        top_5 = lines[:5]
-        relevant_count = sum(1 for l in top_5 if any(kw in l.lower() for kw in ["sqlite", "postgres", "redis", "database", "cache", "adr"]))
-        precision_at_5 = relevant_count / 5.0
-
-        return precision_at_5, "Precision@5", f"Precision@5 = {precision_at_5:.2f} ({relevant_count}/5 top items relevant)"
-
-class ContextFollowupVector(QualityVector):
-    def __init__(self):
-        super().__init__(9, "Conversational Follow-ups", threshold=0.8)
-
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        resp = harness.request("query", "session state cache")
-        content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-
-        relevant = "redis" in content.lower() or "session" in content.lower()
-        score = 1.0 if relevant else 0.0
-        return score, "Context Relevance", "Conversational session history context resolved relevant caching node"
-
-class RankingStabilityVector(QualityVector):
-    def __init__(self):
-        super().__init__(10, "Ranking Stability", threshold=0.95)
-
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "stability.json"), "r") as f:
-            data = json.load(f)
-
-        total_runs = 0
-        stable_runs = 0
-
-        for entry in data:
-            query = entry["query"]
-            runs = entry["runs"]
-            top_k = entry["top_k"]
-
-            initial_resp = harness.request("query", query)
-            initial_chunks = [r.get("content", "") for r in initial_resp if r.get("type") == "stream_chunk"]
-            initial_top = [c.strip() for c in initial_chunks if c.strip().startswith("•")][:top_k]
-
-            for _ in range(runs):
-                total_runs += 1
-                r_resp = harness.request("query", query)
-                r_chunks = [r.get("content", "") for r in r_resp if r.get("type") == "stream_chunk"]
-                r_top = [c.strip() for c in r_chunks if c.strip().startswith("•")][:top_k]
-                if r_top == initial_top:
-                    stable_runs += 1
-
-        stability_ratio = stable_runs / total_runs if total_runs > 0 else 0.0
-        return stability_ratio, "Top-3 Stability Ratio", f"Top-3 ordering remained stable across {stable_runs}/{total_runs} consecutive query runs ({stability_ratio:.1%})"
+        breakdown = {
+            "scenarios_count": scenarios_total,
+            "queries_run": queries_run,
+            "docs_ingested": docs_ingested,
+            "tokens_est": tokens_est,
+            "coverage_score": score,
+            "level": level
+        }
+        return score, level, breakdown

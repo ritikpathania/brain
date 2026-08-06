@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pluggable Vector Evaluator Module Definitions
+Pluggable Vector Evaluator Module Definitions v2.0.0
 """
 
 import json
@@ -15,12 +15,15 @@ class ExactRetrievalVector(FunctionalVector):
     def __init__(self):
         super().__init__(1, "Exact Retrieval")
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
         target = "ADR-042 selected WebAssembly for client-side plugin sandbox isolation."
         harness.request("ingest", target)
         time.sleep(0.3)
 
         resp = harness.request("query", "WebAssembly client-side plugin sandbox")
+        if not resp:
+            return False, 0.0, "MRR", "Engine returned empty UDS stream response", True
+
         chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
         lines = [c.strip() for c in chunks if c.strip().startswith("•")]
 
@@ -32,7 +35,7 @@ class ExactRetrievalVector(FunctionalVector):
 
         mrr = 1.0 / rank if rank > 0 else 0.0
         passed = mrr > 0.0
-        return passed, mrr, "MRR", f"Target record retrieved at rank {rank} (MRR = {mrr:.2f})"
+        return passed, mrr, "MRR", f"Target record retrieved at rank {rank} (MRR = {mrr:.2f})", False
 
 
 @VectorRegistry.register(2)
@@ -40,8 +43,12 @@ class AliasVector(FunctionalVector):
     def __init__(self):
         super().__init__(2, "Synonyms & Aliases")
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
-        with open(os.path.join(dataset_dir, "aliases.json"), "r") as f:
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
+        dataset_file = os.path.join(dataset_dir, "aliases.json")
+        if not os.path.exists(dataset_file):
+            return False, 0.0, "Alias Coverage", "Dataset file aliases.json missing", True
+
+        with open(dataset_file, "r") as f:
             data = json.load(f)
 
         total = 0
@@ -57,8 +64,8 @@ class AliasVector(FunctionalVector):
                     successful += 1
 
         coverage = successful / total if total > 0 else 0.0
-        passed = coverage >= 0.75
-        return passed, coverage, "Alias Coverage", f"{successful}/{total} alias variants resolved canonical target"
+        passed = coverage >= self.threshold
+        return passed, coverage, "Alias Coverage", f"{successful}/{total} alias variants resolved canonical target", False
 
 
 @VectorRegistry.register(3)
@@ -66,14 +73,14 @@ class TypoVector(FunctionalVector):
     def __init__(self):
         super().__init__(3, "Typo Tolerance")
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
         harness.request("ingest", "Redis is configured as an in-memory cache for session state.")
         time.sleep(0.3)
 
         resp = harness.request("query", "rediss")
         content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
         found = "redis" in content.lower()
-        return found, 1.0 if found else 0.0, "Typo Recall", "Typo query 'rediss' resolved canonical 'Redis' entity"
+        return found, 1.0 if found else 0.0, "Typo Recall", "Typo query 'rediss' resolved canonical 'Redis' entity", False
 
 
 @VectorRegistry.register(4)
@@ -81,14 +88,14 @@ class AcronymVector(FunctionalVector):
     def __init__(self):
         super().__init__(4, "Acronym Expansion")
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
         harness.request("ingest", "We use Reciprocal Rank Fusion (RRF) and Okapi BM25 for hybrid search ranking.")
         time.sleep(0.3)
 
         resp = harness.request("query", "RRF")
         content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
         found = "reciprocal rank fusion" in content.lower() or "rrf" in content.lower()
-        return found, 1.0 if found else 0.0, "Acronym Recall", "Acronym query 'RRF' matched full definition record"
+        return found, 1.0 if found else 0.0, "Acronym Recall", "Acronym query 'RRF' matched full definition record", False
 
 
 @VectorRegistry.register(5)
@@ -96,7 +103,7 @@ class DeduplicationVector(FunctionalVector):
     def __init__(self):
         super().__init__(5, "Memory Deduplication", higher_is_better=False)
 
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str]:
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
         stmt = "The default UDS socket location is /tmp/brain.sock."
         harness.request("ingest", stmt)
         harness.request("ingest", stmt)
@@ -109,8 +116,8 @@ class DeduplicationVector(FunctionalVector):
         unique = set(lines)
 
         dup_rate = (len(lines) - len(unique)) / len(lines) if lines else 0.0
-        passed = dup_rate == 0.0
-        return passed, dup_rate, "Duplicate Rate", f"{len(lines)} items rendered ({len(unique)} unique), duplicate rate = {dup_rate:.1%}"
+        passed = dup_rate <= self.threshold
+        return passed, dup_rate, "Duplicate Rate", f"{len(lines)} items rendered ({len(unique)} unique), duplicate rate = {dup_rate:.1%}", False
 
 
 @VectorRegistry.register(6)
@@ -118,8 +125,12 @@ class ConflictQualityVector(QualityVector):
     def __init__(self):
         super().__init__(6, "Conflicting Knowledge Visibility", threshold=0.9)
 
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "conflicts.json"), "r") as f:
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
+        dataset_file = os.path.join(dataset_dir, "conflicts.json")
+        if not os.path.exists(dataset_file):
+            return 0.0, "Conflict Visibility Rate", "Dataset conflicts.json missing", True
+
+        with open(dataset_file, "r") as f:
             data = json.load(f)
 
         total = len(data)
@@ -136,7 +147,7 @@ class ConflictQualityVector(QualityVector):
                 surfaced += 1
 
         score = surfaced / total if total > 0 else 0.0
-        return score, "Conflict Visibility Rate", f"{surfaced}/{total} conflict sets surfaced both disagreeing facts"
+        return score, "Conflict Visibility Rate", f"{surfaced}/{total} conflict sets surfaced both disagreeing facts", False
 
 
 @VectorRegistry.register(7)
@@ -144,8 +155,12 @@ class TemporalQualityVector(QualityVector):
     def __init__(self):
         super().__init__(7, "Temporal Evolution Recency", threshold=0.9)
 
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "temporal.json"), "r") as f:
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
+        dataset_file = os.path.join(dataset_dir, "temporal.json")
+        if not os.path.exists(dataset_file):
+            return 0.0, "Recency Order Alignment", "Dataset temporal.json missing", True
+
+        with open(dataset_file, "r") as f:
             data = json.load(f)
 
         aligned = 0
@@ -166,7 +181,7 @@ class TemporalQualityVector(QualityVector):
                 aligned += 1
 
         score = aligned / len(data) if data else 0.0
-        return score, "Recency Order Alignment", f"Newer timestamp ranked ahead of older timestamp ({aligned}/{len(data)})"
+        return score, "Recency Order Alignment", f"Newer timestamp ranked ahead of older timestamp ({aligned}/{len(data)})", False
 
 
 @VectorRegistry.register(8)
@@ -174,7 +189,7 @@ class BroadSynthesisVector(QualityVector):
     def __init__(self):
         super().__init__(8, "Broad Synthesis Completeness", threshold=0.6)
 
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
         resp = harness.request("query", "database architecture")
         chunks = [r.get("content", "") for r in resp if r.get("type") == "stream_chunk"]
         lines = [c.strip() for c in chunks if c.strip().startswith("•")]
@@ -183,7 +198,7 @@ class BroadSynthesisVector(QualityVector):
         relevant_count = sum(1 for l in top_5 if any(kw in l.lower() for kw in ["sqlite", "postgres", "redis", "database", "cache", "adr"]))
         precision_at_5 = relevant_count / 5.0
 
-        return precision_at_5, "Precision@5", f"Precision@5 = {precision_at_5:.2f} ({relevant_count}/5 top items relevant)"
+        return precision_at_5, "Precision@5", f"Precision@5 = {precision_at_5:.2f} ({relevant_count}/5 top items relevant)", False
 
 
 @VectorRegistry.register(9)
@@ -191,13 +206,13 @@ class ContextFollowupVector(QualityVector):
     def __init__(self):
         super().__init__(9, "Conversational Follow-ups", threshold=0.8)
 
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
         resp = harness.request("query", "session state cache")
         content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
 
         relevant = "redis" in content.lower() or "session" in content.lower()
         score = 1.0 if relevant else 0.0
-        return score, "Context Relevance", "Conversational session history context resolved relevant caching node"
+        return score, "Context Relevance", "Conversational session history context resolved relevant caching node", False
 
 
 @VectorRegistry.register(10)
@@ -205,8 +220,12 @@ class RankingStabilityVector(QualityVector):
     def __init__(self):
         super().__init__(10, "Ranking Stability", threshold=0.95)
 
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str]:
-        with open(os.path.join(dataset_dir, "stability.json"), "r") as f:
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
+        dataset_file = os.path.join(dataset_dir, "stability.json")
+        if not os.path.exists(dataset_file):
+            return 0.0, "Top-3 Stability Ratio", "Dataset stability.json missing", True
+
+        with open(dataset_file, "r") as f:
             data = json.load(f)
 
         total_runs = 0
@@ -230,4 +249,4 @@ class RankingStabilityVector(QualityVector):
                     stable_runs += 1
 
         stability_ratio = stable_runs / total_runs if total_runs > 0 else 0.0
-        return stability_ratio, "Top-3 Stability Ratio", f"Top-3 ordering remained stable across {stable_runs}/{total_runs} consecutive query runs ({stability_ratio:.1%})"
+        return stability_ratio, "Top-3 Stability Ratio", f"Top-3 ordering remained stable across {stable_runs}/{total_runs} consecutive query runs ({stability_ratio:.1%})", False

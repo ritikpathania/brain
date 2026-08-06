@@ -1,0 +1,104 @@
+{
+  "version": "2.0.0",
+  "policy": {
+    "weighted_rrr_threshold": 0.05,
+    "coverage_score_scaling": {
+      "scenario_weight": 4.0,
+      "entity_weight": 3.0,
+      "run_weight": 0.5,
+      "corpus_weight": 2.0
+    }
+  },
+  "vectors": [
+    {
+      "vector_id": 1,
+      "name": "Exact Retrieval",
+      "vector_type": "Functional",
+      "weight": 5,
+      "threshold": 1.0,
+      "direction": "maximize",
+      "dataset": null
+    },
+    {
+      "vector_id": 2,
+      "name": "Synonyms & Aliases",
+      "vector_type": "Functional",
+      "weight": 5,
+      "threshold": 0.75,
+      "direction": "maximize",
+      "dataset": "aliases.json"
+    },
+    {
+      "vector_id": 3,
+      "name": "Typo Tolerance",
+      "vector_type": "Functional",
+      "weight": 3,
+      "threshold": 1.0,
+      "direction": "maximize",
+      "dataset": null
+    },
+    {
+      "vector_id": 4,
+      "name": "Acronym Expansion",
+      "vector_type": "Functional",
+      "weight": 3,
+      "threshold": 1.0,
+      "direction": "maximize",
+      "dataset": null
+    },
+    {
+      "vector_id": 5,
+      "name": "Memory Deduplication",
+      "vector_type": "Functional",
+      "weight": 4,
+      "threshold": 0.0,
+      "direction": "minimize",
+      "dataset": null
+    },
+    {
+      "vector_id": 6,
+      "name": "Conflicting Knowledge Visibility",
+      "vector_type": "Quality",
+      "weight": 4,
+      "threshold": 0.90,
+      "direction": "maximize",
+      "dataset": "conflicts.json"
+    },
+    {
+      "vector_id": 7,
+      "name": "Temporal Evolution Recency",
+      "vector_type": "Quality",
+      "weight": 4,
+      "threshold": 0.90,
+      "direction": "maximize",
+      "dataset": "temporal.json"
+    },
+    {
+      "vector_id": 8,
+      "name": "Broad Synthesis Completeness",
+      "vector_type": "Quality",
+      "weight": 4,
+      "threshold": 0.60,
+      "direction": "maximize",
+      "dataset": null
+    },
+    {
+      "vector_id": 9,
+      "name": "Conversational Follow-ups",
+      "vector_type": "Quality",
+      "weight": 3,
+      "threshold": 0.80,
+      "direction": "maximize",
+      "dataset": null
+    },
+    {
+      "vector_id": 10,
+      "name": "Ranking Stability",
+      "vector_type": "Quality",
+      "weight": 2,
+      "threshold": 0.95,
+      "direction": "maximize",
+      "dataset": "stability.json"
+    }
+  ]
+}
