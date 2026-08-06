@@ -20,11 +20,11 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
 
-### Schema Invariants & Contract Testing (`additionalProperties: false`)
+### Schema Invariants & Executable Compatibility Tests (`additionalProperties: false`)
 - **Strict Property Validation**: All objects enforce `additionalProperties: false` to prevent unknown field drift.
 - **Stable Capability Identifiers**: Capabilities map `id` (e.g. `alias_normalization`) and `display_name` separately.
 - **Separation of Execution vs Quality**: Distinguishes `execution_status` (`COMPLETED`, `CRASHED`) from `quality_status` (`PASS`, `QUALITY_WARNING`, `BLOCKED`).
-- **Contract Test Suite**: Regression test fixtures under `schemas/benchmark-result/tests/valid/` and `invalid/`.
+- **Contract & Backward Compatibility Testing**: Test fixtures preserved under `schemas/benchmark-result/tests/` and `schemas/benchmark-result/compatibility/v1.0.0/`.
 
 ```json
 {
@@ -64,7 +64,7 @@ All specialized benchmark suites conform to the formal machine-readable JSON Sch
 
 Usability tooling around the framework focuses on operational usability without increasing engine complexity:
 - **CI Executable Governance**: Automated schema validation enforcing output compliance against `benchmark-result.schema.json`.
-- **Contract Test Execution**: CI pipeline runs schema validation tests over `schemas/benchmark-result/tests/`.
+- **Contract & Compatibility Testing**: Multi-version compatibility verification across `schemas/benchmark-result/compatibility/`.
 - **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
 - **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
 - **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
@@ -96,7 +96,17 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 6. Closed Continuous Production Feedback Loop
+## 6. Product Outcome Measurement Dimensions
+
+Engineering focuses on four measurable product dimensions:
+- **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
+- **Dataset Quality**: Coverage, diversity, real-world query representation, drift over time.
+- **Operational Quality**: Mean/P95/P99 latency, peak RSS memory, query throughput, database growth.
+- **User Quality**: Time-to-answer, query reformulation rate, search abandonment, relevance.
+
+---
+
+## 7. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -106,7 +116,27 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 7. Non-Goals of the RQB Platform
+## 8. Measured Empirical Baseline vs Target Forecasts
+
+| System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
+|---|:---:|:---:|:---:|:---:|
+| **Alias Normalization** | **71.0%** *(Quality Warning)* | **$\ge 78.0\%$** | **$\ge 86.0\%$** | 🟢 Target Improving ↑ |
+| **Context Resolution** | **96.0%** *(PASS)* | **$\ge 97.0\%$** | **$\ge 99.0\%$** | 🟢 Target Stable ↑ |
+| **Temporal Ordering** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
+| **Conflict Visibility** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
+
+---
+
+## 9. Practical Definition of "Contract Stability"
+
+**"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
+
+- 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
+- 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
+
+---
+
+## 10. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
