@@ -1,50 +1,76 @@
-# Knowledge Quality Corpus (KQC) — Dataset & Assertion Guidelines
+# Knowledge Quality Corpus (KQC) — Assertion Language & Guidelines
 
 The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class asset separate from the RQB execution engine.
 
 ---
 
-## 1. Declarative Assertion Primitives & Rich Outcome Schemas
+## 1. Composable Logical Assertion Language
 
-Dataset items define explicit outcome criteria to detect ranking and score regressions:
+KQC dataset items define composable logical assertions using boolean operators (`all`, `any`, `none`, `exactly_one`):
 
 ```json
 {
-  "id": "alias-postgres",
+  "id": "alias-postgres-composite",
   "canonical": "PostgreSQL",
   "aliases": ["postgres", "pgsql", "postgres database"],
   "sample_text": "PostgreSQL is configured as the primary relational database for metadata.",
   "expected": {
-    "must_contain": ["PostgreSQL"],
-    "must_not_contain": ["MySQL"],
-    "rank_constraints": {
-      "PostgreSQL": "<=1"
-    },
-    "score_constraints": {
-      "PostgreSQL": {
-        "min": 0.80
-      }
-    }
+    "all": [
+      { "contains": "PostgreSQL" },
+      { "rank": { "entity": "PostgreSQL", "max": 1 } },
+      { "score": { "entity": "PostgreSQL", "min": 0.80 } }
+    ],
+    "none": [
+      { "contains": "MySQL" }
+    ]
   }
 }
 ```
 
-### Core Assertion Primitives
-
-| Assertion Primitive | Purpose | Verification Behavior |
-|---|---|---|
-| `must_contain` | Term Presence | Fails if required terms are absent from retrieved candidate lines |
-| `must_not_contain` | Negative Constraint | Fails if forbidden terms appear in retrieved candidate lines |
-| `rank_constraints` | Position Bound | Fails if canonical term is ranked lower than maximum target position (e.g. `<=1`) |
-| `score_constraints` | Confidence Bound | Fails if confidence score drops below minimum threshold (e.g. `min: 0.80`) |
-| `ordering` | Sequential Ranking | Fails if temporal sequence is not ordered chronologically (`newest_first`) |
-| `contains_all` | Conflict Surface | Fails if both disagreeing facts are not surfaced simultaneously |
+```json
+{
+  "id": "alias-version-flexibility",
+  "expected": {
+    "any": [
+      { "contains": "PostgreSQL" },
+      { "contains": "PostgreSQL 17" }
+    ]
+  }
+}
+```
 
 ---
 
-## 2. Capability Package Architecture
+## 2. Categorized Assertion Taxonomy
 
-KQC is organized into independent capability packages:
+Assertions are categorized into seven domain classes:
+
+```
+Assertion
+├── RetrievalAssertion   (contains, must_not_contain)
+├── RankingAssertion     (rank.max, ordering)
+├── ScoringAssertion     (score.min)
+├── TemporalAssertion    (newest_first)
+├── VisibilityAssertion  (surface_both)
+├── StabilityAssertion   (stability_ratio_min)
+└── PerformanceAssertion (latency.max_ms)
+```
+
+---
+
+## 3. Five-Layer Quality Architecture
+
+```
+EBRA Gate           ──► Release correctness & release gate
+RQB Engine          ──► Benchmark execution & harness (FROZEN v2.2.0)
+KQC Datasets        ──► Ground-truth corpus packages (aliases, conflicts, etc.)
+Assertion Language  ──► Declarative evaluation rules (all/any/none/rank/score)
+Retrieval Engine    ──► System under test (brain-services hybrid search)
+```
+
+---
+
+## 4. Capability Package Architecture
 
 ```
 sdks/python/rqb/datasets/
@@ -60,10 +86,10 @@ sdks/python/rqb/datasets/
 
 ---
 
-## 3. Evidence-Based Engineering Directive
+## 5. Evidence-Based Engineering Directive
 
 > **Retrieval engine optimizations MUST be driven by empirical RQB benchmark failures, not by subjective intuition.**
 
-Engineering effort targets empirical shortfalls surfaced by RQB:
+Engineering effort directly targets empirical shortfalls surfaced by RQB:
 - **Primary Target**: Synonym & Alias Coverage ($0.71$ vs $0.75$ threshold target).
 - **Action Plan**: Expand `brain-services` alias graph normalization and synonym dictionary lookup.
