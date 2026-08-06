@@ -1,4 +1,4 @@
-# Knowledge Quality Corpus (KQC) — Architecture & Governance Model
+# Knowledge Quality Corpus (KQC) — Quality Architecture & Guidelines v1.0
 
 The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class product asset separate from the RQB execution engine.
 
@@ -16,9 +16,23 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. User Retrieval Failure Taxonomy
+## 2. End-to-End User Task Success Metrics
 
-To complement diagnostic reports, retrieval failures are categorized into five root-cause classes:
+To complement retrieval-centric evaluation, high-level user task success is tracked across five product dimensions:
+
+| Product Task Metric | Measurement Target | User Impact |
+|---|---|---|
+| **Task Success Rate** | Goal accomplishment without query reformulation | Measures overall query efficacy |
+| **First Answer Success** | Relevant target returned on initial query turn | Eliminates user friction |
+| **Reformulation Rate** | Frequency of query retries or rewordings | Identifies retrieval ambiguity |
+| **Citation Accuracy** | Cited memory nodes directly support synthesized answer | Ensures ground-truth factual rigor |
+| **Hallucination Rate** | Rate of unsupported synthesized statements | Prevents spurious memory generation |
+
+---
+
+## 3. User Retrieval Failure Taxonomy
+
+To complement diagnostic reports, retrieval shortfalls are classified into five root-cause categories:
 
 | Failure Type | Description & Example | Primary Remediation Target |
 |---|---|---|
@@ -30,7 +44,7 @@ To complement diagnostic reports, retrieval failures are categorized into five r
 
 ---
 
-## 3. Product Outcome Measurement Dimensions
+## 4. Product Outcome Measurement Dimensions
 
 Engineering focuses on four measurable product dimensions:
 - **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
@@ -40,7 +54,7 @@ Engineering focuses on four measurable product dimensions:
 
 ---
 
-## 4. Closed Continuous Production Feedback Loop
+## 5. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -50,7 +64,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 5. Measured Empirical Baseline vs Target Forecasts
+## 6. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -58,16 +72,6 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 | **Context Resolution** | **96.0%** *(PASS)* | **$\ge 97.0\%$** | **$\ge 99.0\%$** | 🟢 Target Stable ↑ |
 | **Temporal Ordering** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
 | **Conflict Visibility** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
-
----
-
-## 6. Productized KQC Asset Governance
-
-KQC packages in `sdks/python/rqb/datasets/` follow formal product asset rules:
-- **Bi-weekly Release Cadence**: Managed release cycle for new evaluation scenarios.
-- **Semantic Versioning**: Independent package versioning (e.g. `aliases v3.2.0`).
-- **Changelog & Provenance**: Tracked additions and updates per dataset package.
-- **Deprecation Policy**: Formal RFC before deprecating ground-truth scenario assertions.
 
 ---
 
