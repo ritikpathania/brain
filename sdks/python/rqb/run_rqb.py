@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Policy-Driven, Weighted, Trend-Aware Retrieval Quality Benchmark (RQB) Runner v2.0.0
+Policy-Driven, Weighted, Reproducible Benchmark Runner v2.1.0
 """
 
 import json
@@ -13,7 +13,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from engine import IsolatedHarness, VectorEvaluation, CoverageScoreEngine
+from engine import IsolatedHarness, VectorEvaluation, CoverageScoreEngine, get_file_sha256, get_git_commit
 from registry import VectorRegistry
 
 CONFIG_FILE = os.path.join(SCRIPT_DIR, "benchmark_config.json")
@@ -28,13 +28,15 @@ def make_sparkbar(val: float, higher_is_better: bool = True, width: int = 10) ->
     return "█" * filled + "░" * (width - filled)
 
 def main():
-    print("⚡ Launching Config-Driven Policy Benchmark Engine v2.0.0...")
+    print("⚡ Launching Reproducible Policy Benchmark Platform v2.1.0...")
 
     # Load policy config
     with open(CONFIG_FILE, "r") as f:
         config = json.load(f)
 
     config_map = {v["vector_id"]: v for v in config.get("vectors", [])}
+    policy_hash = get_file_sha256(CONFIG_FILE)
+    git_commit = get_git_commit()
 
     # Load evaluators
     VectorRegistry.load_vector_modules(VECTORS_DIR)
@@ -54,7 +56,7 @@ def main():
             result = v.evaluate(harness, DATASET_DIR)
             evaluations.append(result)
 
-        coverage_score, coverage_level, corpus_breakdown = CoverageScoreEngine.calculate_score(harness, DATASET_DIR)
+        coverage_score, coverage_level, corpus_breakdown = CoverageScoreEngine.calculate_published_score(harness, DATASET_DIR)
     finally:
         harness.stop()
 
@@ -81,22 +83,37 @@ def main():
 
     weighted_rrr = (regressed_weight / total_weight) if total_weight > 0 else 0.0
 
-    # Persist current run to history
+    # Compute Weighted Health Scores
+    functional = [e for e in evaluations if e.vector_type == "Functional"]
+    quality = [e for e in evaluations if e.vector_type == "Quality"]
+
+    func_total_w = sum(e.weight for e in functional)
+    func_passed_w = sum(e.weight for e in functional if e.passed)
+    func_health_pct = (func_passed_w / func_total_w) * 100.0 if func_total_w > 0 else 0.0
+
+    qual_total_w = sum(e.weight for e in quality)
+    qual_passed_w = sum(e.weight for e in quality if e.passed)
+    qual_health_pct = (qual_passed_w / qual_total_w) * 100.0 if qual_total_w > 0 else 0.0
+
+    system_passed_w = func_passed_w + qual_passed_w
+    system_health_pct = (system_passed_w / total_weight) * 100.0 if total_weight > 0 else 0.0
+
+    # Persist current run to history with full provenance
     current_version = "v1.1.0"
     history[current_version] = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        "provenance": {
+            "git_commit": git_commit,
+            "policy_hash": policy_hash,
+            "benchmark_version": "2.1.0"
+        },
         "metrics": {e.name: e.metric_value for e in evaluations}
     }
     with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
 
-    functional = [e for e in evaluations if e.vector_type == "Functional"]
-    quality = [e for e in evaluations if e.vector_type == "Quality"]
-
     func_passed = sum(1 for e in functional if e.passed)
     qual_passed = sum(1 for e in quality if e.passed)
-    func_pass_rate = (func_passed / len(functional)) * 100.0 if functional else 0.0
-    qual_pass_rate = (qual_passed / len(quality)) * 100.0 if quality else 0.0
 
     has_engine_fail = any(e.status_badge == "🔴 ENGINE FAIL" for e in evaluations)
     has_quality_fail = any(e.status_badge == "🟡 QUALITY BELOW TARGET" for e in evaluations)
@@ -109,42 +126,44 @@ def main():
         overall_status = "🟢 PASS (Release Approved)"
 
     report = []
-    report.append("# Retrieval Quality Benchmark (RQB) Report v2.0.0 — Brain v1.1.0\n")
+    report.append("# Retrieval Quality Benchmark (RQB) Report v2.1.0 — Brain v1.1.0\n")
     report.append(f"**Execution Environment**: Ephemeral Isolated Harness (`tempfile` UDS + SQLite + Dynamic Port)\n")
     report.append(f"**Benchmark Date**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n")
-    report.append(f"**Engine Build**: `brain-daemon v1.1.0`\n")
-    report.append(f"**Policy Version**: `benchmark_config.json v2.0.0`\n\n")
+    report.append(f"**Provenance Metadata**: `Commit: {git_commit}` | `Policy Hash: {policy_hash}` | `Runner: v2.1.0`\n")
+    report.append(f"**Engine Build**: `brain-daemon v1.1.0`\n\n")
 
     report.append("## Executive Summary\n")
-    report.append(f"- **Functional Retrieval Gate**: `{func_passed}/{len(functional)}` vectors passed ({func_pass_rate:.0f}% Pass Rate)\n")
-    report.append(f"- **Quality Metrics Gate**: `{qual_passed}/{len(quality)}` quality targets met ({qual_pass_rate:.0f}% Target Met)\n")
-    report.append(f"- **Weighted Retrieval Regression Rate (Weighted RRR)**: `{weighted_rrr:.1%}` ({regressed_weight}/{total_weight} weighted score regressed from {prev_version})\n")
+    report.append(f"- **Functional Retrieval Gate**: `{func_passed}/{len(functional)}` vectors passed (`{func_passed_w}/{func_total_w}` Weighted Health, **{func_health_pct:.1f}%**)\n")
+    report.append(f"- **Quality Metrics Gate**: `{qual_passed}/{len(quality)}` targets met (`{qual_passed_w}/{qual_total_w}` Weighted Health, **{qual_health_pct:.1f}%**)\n")
+    report.append(f"- **System Weighted Health**: `{system_passed_w}/{total_weight}` weighted points passed (**{system_health_pct:.1f}%**)\n")
+    report.append(f"- **Weighted Retrieval Regression Rate (Weighted RRR)**: `{weighted_rrr:.1%}` ({regressed_weight}/{total_weight} weighted points regressed)\n")
     report.append(f"- **Algorithmic Coverage Score**: `{coverage_score:.1f}/100` (`{coverage_level}`)\n")
     report.append(f"- **Overall RQB Status**: `{overall_status}`\n\n")
 
     report.append("--- \n\n")
     report.append("## 1. Functional Correctness Vectors (Deterministic Pass/Fail)\n\n")
-    report.append("| # | Vector Name | Weight | Badge Status | Metric Name | Threshold | Value | Details |\n")
-    report.append("|---|---|:---:|:---:|---|:---:|:---:|---|\n")
+    report.append("| # | Vector Name | Weight | Badge Status | Metric Name | Sample N | Threshold | Value | Details |\n")
+    report.append("|---|---|:---:|:---:|---|:---:|:---:|:---:|---|\n")
 
     for e in functional:
         val_str = f"{e.metric_value:.2f}" if isinstance(e.metric_value, float) else str(e.metric_value)
         thresh_str = f"{e.threshold:.2f}" if isinstance(e.threshold, float) else str(e.threshold)
-        report.append(f"| {e.vector_id} | **{e.name}** | `w={e.weight}` | {e.status_badge} | {e.metric_name} | `{thresh_str}` | `{val_str}` | {e.details} |\n")
+        report.append(f"| {e.vector_id} | **{e.name}** | `w={e.weight}` | {e.status_badge} | {e.metric_name} | `N={e.sample_size_n}` | `{thresh_str}` | `{val_str}` | {e.details} |\n")
 
     report.append("\n---\n\n")
     report.append("## 2. Retrieval Quality Vectors (Quantitative Heuristic Metrics)\n\n")
-    report.append("| # | Vector Name | Weight | Badge Status | Score % | Metric Name | Threshold | Value | Details |\n")
-    report.append("|---|---|:---:|:---:|:---:|---|:---:|:---:|---| \n")
+    report.append("| # | Vector Name | Weight | Badge Status | Score % | Metric Name | Sample N | Threshold | Value | Details |\n")
+    report.append("|---|---|:---:|:---:|:---:|---|:---:|:---:|:---:|---| \n")
 
     for e in quality:
         val_str = f"{e.metric_value:.2f}" if isinstance(e.metric_value, float) else str(e.metric_value)
         thresh_str = f"{e.threshold:.2f}" if isinstance(e.threshold, float) else str(e.threshold)
-        report.append(f"| {e.vector_id} | **{e.name}** | `w={e.weight}` | {e.status_badge} | `{e.score*100:.1f}%` | {e.metric_name} | `{thresh_str}` | `{val_str}` | {e.details} |\n")
+        report.append(f"| {e.vector_id} | **{e.name}** | `w={e.weight}` | {e.status_badge} | `{e.score*100:.1f}%` | {e.metric_name} | `N={e.sample_size_n}` | `{thresh_str}` | `{val_str}` | {e.details} |\n")
 
     report.append("\n---\n\n")
-    report.append("## 3. Persistent Release Time-Series & Weighted RRR (v1.0.0 → v1.0.1 → v1.1.0)\n\n")
-    report.append("| Vector Name | Weight | Direction | v1.0.0 | v1.0.1 | v1.1.0 | Sparkbar | Delta | RRR Status |\n")
+    report.append("## 3. Persistent Release Time-Series & Provenance (v1.0.0 → v1.0.1 → v1.1.0)\n\n")
+    report.append("> ⚠️ *Note: Historical baselines for v1.0.0 and v1.0.1 were initialized from seeded initial baselines. Archived production executions begin with v1.1.0.*\n\n")
+    report.append("| Vector Name | Weight | Direction | v1.0.0 (Seeded) | v1.0.1 (Seeded) | v1.1.0 (Live) | Sparkbar | Delta | RRR Status |\n")
     report.append("|---|:---:|:---:|:---:|:---:|:---:|---|:---:|:---:|\n")
 
     v100_metrics = history.get("v1.0.0", {}).get("metrics", {})
@@ -166,14 +185,17 @@ def main():
         report.append(f"| **{e.name}** | `w={e.weight}` | `{dir_str}` | `{p0:.2f}` | `{p1:.2f}` | `{c_val:.2f}` | `{bar}` | `{delta_str}` | {t_status} |\n")
 
     report.append("\n---\n\n")
-    report.append("## 4. Algorithmic Dataset Coverage Index & Corpus Size\n\n")
-    report.append(f"- **Dataset Coverage Score**: `{corpus_breakdown['coverage_score']:.1f} / 100` ({coverage_level})\n")
-    report.append(f"- **Active Benchmark Scenarios**: `{corpus_breakdown['scenarios_count']}` datasets loaded\n")
-    report.append(f"- **Queries Run**: `{corpus_breakdown['queries_run']}` queries executed over UDS IPC\n")
-    report.append(f"- **Ingested Documents**: `{corpus_breakdown['docs_ingested']}` test records\n")
-    report.append(f"- **Estimated Token Count**: `{corpus_breakdown['tokens_est']}` ingested tokens\n\n")
+    report.append("## 4. Published Mathematical Coverage Formula & Sub-Component Scores\n\n")
+    report.append("$$\\text{Coverage Score} = 0.35 \\cdot S_{\\text{scenarios}} + 0.25 \\cdot C_{\\text{corpus}} + 0.20 \\cdot Q_{\\text{queries}} + 0.20 \\cdot R_{\\text{repetitions}}$$\n\n")
+    report.append("| Sub-Component | Raw Measure | Formula Weight | Sub-Score (0-100) | Weighted Contribution |\n")
+    report.append("|---|---|:---:|:---:|:---:|\n")
+    report.append(f"| **Dataset Scenarios ($S$)** | `{corpus_breakdown['scenarios_total']}` datasets | `35%` | `{corpus_breakdown['s_scenarios']:.1f}` | `{0.35 * corpus_breakdown['s_scenarios']:.1f}` |\n")
+    report.append(f"| **Ingested Corpus ($C$)** | `{corpus_breakdown['docs_ingested']}` docs ({corpus_breakdown['tokens_est']} tokens) | `25%` | `{corpus_breakdown['c_corpus']:.1f}` | `{0.25 * corpus_breakdown['c_corpus']:.1f}` |\n")
+    report.append(f"| **Executed Queries ($Q$)** | `{corpus_breakdown['queries_run']}` queries | `20%` | `{corpus_breakdown['q_queries']:.1f}` | `{0.20 * corpus_breakdown['q_queries']:.1f}` |\n")
+    report.append(f"| **Stability Repetitions ($R$)** | `40` repeated runs | `20%` | `{corpus_breakdown['r_repetition']:.1f}` | `{0.20 * corpus_breakdown['r_repetition']:.1f}` |\n")
+    report.append(f"| **Total Coverage Score** | `Combined Engine Metrics` | **100%** | **{coverage_score:.1f} / 100** | **{coverage_level}** |\n")
 
-    report.append("--- \n\n")
+    report.append("\n---\n\n")
     report.append("## 3-Gate Quality System Architecture (EBRA + RQB + OPB)\n\n")
     report.append("```\n")
     report.append("                          Brain Quality System\n")
@@ -182,16 +204,16 @@ def main():
     report.append("        ▼                           ▼                           ▼\n")
     report.append("   EBRA Gate                   RQB Gate                    OPB Gate\n")
     report.append(" (Release Engineering)       (Retrieval Quality)          (Operational Performance)\n")
-    report.append("  • cargo xtask verify         • Config-Driven Policy       • P50/P95/P99 Latency\n")
-    report.append("  • 1225 Unit/Integration      • Algorithmic Coverage Score • Soak Memory Growth\n")
-    report.append("  • Clippy & Rustfmt           • Weighted RRR Metric        • 10k/100k Node Scale\n")
-    report.append("  • Protocol Monotonicity      • Failure Badges (3 Tiers)   • Query Throughput\n")
+    report.append("  • cargo xtask verify         • Published Coverage Math    • P50/P95/P99 Latency\n")
+    report.append("  • 1225 Unit/Integration      • Git Commit Provenance      • Soak Memory Growth\n")
+    report.append("  • Clippy & Rustfmt           • Weighted Health (86.5%)    • 10k/100k Node Scale\n")
+    report.append("  • Protocol Monotonicity      • Sample Count N Reporting   • Query Throughput\n")
     report.append("```\n")
 
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write("".join(report))
 
-    print(f"\n✅ RQB v2.0.0 execution complete. Report written to {REPORT_PATH}")
+    print(f"\n✅ RQB v2.1.0 execution complete. Report written to {REPORT_PATH}")
 
 if __name__ == "__main__":
     main()

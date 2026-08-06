@@ -30,7 +30,12 @@
     }
   },
   "v1.1.0": {
-    "timestamp": "2026-08-06 06:30:50 UTC",
+    "timestamp": "2026-08-06 06:35:24 UTC",
+    "provenance": {
+      "git_commit": "92f3cfb376",
+      "policy_hash": "97a0f2e91ed3",
+      "benchmark_version": "2.1.0"
+    },
     "metrics": {
       "Exact Retrieval": 1.0,
       "Synonyms & Aliases": 0.7142857142857143,

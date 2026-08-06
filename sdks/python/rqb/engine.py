@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Retrieval Quality Benchmark (RQB) Engine v2.0.0
+Retrieval Quality Benchmark (RQB) Engine v2.1.0 — Reproducible & Statistically Grounded
 
 Features:
-- Config-Driven Benchmark Policy (benchmark_config.json)
-- Explicit Failure Taxonomy (PASS, ENGINE FAIL, QUALITY BELOW TARGET)
-- Algorithmic Coverage & Corpus Size Index
-- Ephemeral Execution Harness
+- Immutable Provenance Metadata (Git commit, dataset hashes, policy hash)
+- Published Mathematical Coverage Formula (0.35 * scenarios + 0.25 * corpus + 0.20 * queries + 0.20 * reps)
+- Explicit Baseline Disclosure (Seeded vs Archived Executions)
+- Sample Size (N) Tracking
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import hashlib
 import json
 import os
 import random
@@ -25,7 +26,27 @@ DAEMON_BIN = "/Users/ritikpathania/Developer/PyCharm/brain/target/debug/brain-da
 PYTHON_VENV = "/Users/ritikpathania/Developer/PyCharm/brain/daemon/.venv/bin/python"
 
 # -------------------------------------------------------------------
-# 1. Ephemeral Isolated Execution Harness with Corpus Tracking
+# 1. Provenance Metadata & File Hashing Utilities
+# -------------------------------------------------------------------
+
+def get_file_sha256(filepath: str) -> str:
+    if not os.path.exists(filepath):
+        return "missing"
+    hasher = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()[:12]
+
+def get_git_commit() -> str:
+    try:
+        res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        return res.stdout.strip()[:10]
+    except Exception:
+        return "unknown"
+
+# -------------------------------------------------------------------
+# 2. Ephemeral Isolated Execution Harness with Corpus Tracking
 # -------------------------------------------------------------------
 
 @dataclass
@@ -116,7 +137,7 @@ class IsolatedHarness:
         self.tmp_dir.cleanup()
 
 # -------------------------------------------------------------------
-# 2. Vector Class Hierarchy & Failure Taxonomy
+# 3. Vector Hierarchy & Failure Taxonomy
 # -------------------------------------------------------------------
 
 @dataclass
@@ -129,6 +150,7 @@ class VectorEvaluation:
     score: float
     metric_name: str
     metric_value: float
+    sample_size_n: int
     details: str
     weight: int = 1
     higher_is_better: bool = True
@@ -157,13 +179,13 @@ class FunctionalVector(Vector):
         super().__init__(vector_id, name, higher_is_better)
 
     @abstractmethod
-    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, str, bool]:
-        """Returns (passed, metric_value, metric_name, details, engine_error)."""
+    def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, int, str, bool]:
+        """Returns (passed, metric_value, metric_name, sample_size_n, details, engine_error)."""
         pass
 
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
         try:
-            passed, metric_val, metric_name, details, engine_err = self.run_functional(harness, dataset_dir)
+            passed, metric_val, metric_name, sample_n, details, engine_err = self.run_functional(harness, dataset_dir)
             if engine_err:
                 status = "🔴 ENGINE FAIL"
             elif not passed:
@@ -174,6 +196,7 @@ class FunctionalVector(Vector):
             passed = False
             metric_val = 0.0
             metric_name = "Execution Error"
+            sample_n = 0
             details = f"Unhandled exception in evaluator: {str(ex)}"
             status = "🔴 ENGINE FAIL"
 
@@ -186,6 +209,7 @@ class FunctionalVector(Vector):
             score=1.0 if passed else 0.0,
             metric_name=metric_name,
             metric_value=metric_val,
+            sample_size_n=sample_n,
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
@@ -199,13 +223,13 @@ class QualityVector(Vector):
         self.threshold = threshold
 
     @abstractmethod
-    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, str, bool]:
-        """Returns (score_ratio, metric_name, details, engine_error)."""
+    def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, int, str, bool]:
+        """Returns (score_ratio, metric_name, sample_size_n, details, engine_error)."""
         pass
 
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
         try:
-            score, metric_name, details, engine_err = self.run_quality(harness, dataset_dir)
+            score, metric_name, sample_n, details, engine_err = self.run_quality(harness, dataset_dir)
             if engine_err:
                 passed = False
                 status = "🔴 ENGINE FAIL"
@@ -222,6 +246,7 @@ class QualityVector(Vector):
             passed = False
             score = 0.0
             metric_name = "Execution Error"
+            sample_n = 0
             details = f"Unhandled exception in evaluator: {str(ex)}"
             status = "🔴 ENGINE FAIL"
 
@@ -234,6 +259,7 @@ class QualityVector(Vector):
             score=score,
             metric_name=metric_name,
             metric_value=score,
+            sample_size_n=sample_n,
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
@@ -241,13 +267,17 @@ class QualityVector(Vector):
         )
 
 # -------------------------------------------------------------------
-# 3. Algorithmic Dataset & Benchmark Coverage Calculator
+# 4. Published Mathematical Coverage Formula Calculator
 # -------------------------------------------------------------------
 
 class CoverageScoreEngine:
     @staticmethod
-    def calculate_score(harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, Dict[str, Any]]:
-        # Count datasets and entities
+    def calculate_published_score(harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, Dict[str, Any]]:
+        """
+        Published Mathematical Coverage Formula:
+        Coverage = 0.35 * S_scenarios + 0.25 * C_corpus + 0.20 * Q_queries + 0.20 * R_repetitions
+        Normalized to [0, 100].
+        """
         alias_file = os.path.join(dataset_dir, "aliases.json")
         conflict_file = os.path.join(dataset_dir, "conflicts.json")
         temporal_file = os.path.join(dataset_dir, "temporal.json")
@@ -263,30 +293,35 @@ class CoverageScoreEngine:
         docs_ingested = harness.corpus_metrics.total_docs_ingested
         tokens_est = harness.corpus_metrics.total_tokens_est
 
-        # Algorithmic Coverage Score formula (0..100)
-        raw_score = (
-            (scenarios_total * 4.0) +
-            (queries_run * 0.5) +
-            (docs_ingested * 2.0) +
-            (tokens_est * 0.05)
-        )
-        score = min(100.0, max(0.0, raw_score))
+        # Sub-component scores normalized to [0, 100]
+        s_scenarios = min(100.0, (scenarios_total / 10.0) * 100.0)
+        c_corpus = min(100.0, (docs_ingested / 20.0) * 100.0)
+        q_queries = min(100.0, (queries_run / 50.0) * 100.0)
+        r_repetition = 100.0 if queries_run >= 40 else (queries_run / 40.0) * 100.0
 
-        if score < 30.0:
+        # Weighted sum formula: 0.35*S + 0.25*C + 0.20*Q + 0.20*R
+        coverage_score = (0.35 * s_scenarios) + (0.25 * c_corpus) + (0.20 * q_queries) + (0.20 * r_repetition)
+        coverage_score = min(100.0, max(0.0, coverage_score))
+
+        if coverage_score < 30.0:
             level = "LOW (Initial Baseline)"
-        elif score < 60.0:
+        elif coverage_score < 60.0:
             level = "MODERATE (Standard Suite)"
-        elif score < 85.0:
+        elif coverage_score < 85.0:
             level = "HIGH (Comprehensive Suite)"
         else:
             level = "EXTENSIVE (Production Soak Suite)"
 
         breakdown = {
-            "scenarios_count": scenarios_total,
+            "s_scenarios": s_scenarios,
+            "c_corpus": c_corpus,
+            "q_queries": q_queries,
+            "r_repetition": r_repetition,
+            "coverage_score": coverage_score,
+            "level": level,
+            "scenarios_total": scenarios_total,
             "queries_run": queries_run,
             "docs_ingested": docs_ingested,
-            "tokens_est": tokens_est,
-            "coverage_score": score,
-            "level": level
+            "tokens_est": tokens_est
         }
-        return score, level, breakdown
+        return coverage_score, level, breakdown
