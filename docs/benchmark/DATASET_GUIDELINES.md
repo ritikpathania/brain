@@ -16,20 +16,35 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Quality Orchestrator & Specialized Benchmark Suites
+## 2. Unified `BenchmarkResult` Schema Contract & Quality Orchestrator
 
-A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites:
+A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites emit a single unified result contract:
+
+```json
+{
+  "suite_id": "RQB",
+  "benchmark_id": "vector-2-aliases",
+  "capability": "Alias Normalization",
+  "status": "QUALITY_WARNING",
+  "score": 0.71,
+  "confidence": { "lower": 0.36, "upper": 0.92, "level": 0.95 },
+  "latency": { "mean_ms": 29.56, "p95_ms": 58.91 },
+  "evidence": ["5/7 alias variants resolved canonical target"],
+  "provenance": { "git_commit": "e777880", "policy_hash": "ecf5732" },
+  "recommendations": ["Expand brain-services synonym graph for 'pgsql' mapping"]
+}
+```
 
 ```
-                            Quality Orchestrator
-                                     │
-        ┌───────────────────┬────────┴───────────┬───────────────────┐
-        ▼                   ▼                    ▼                   ▼
-     EBRA Gate          RQB Suite            Agent Suite         OPB Suite
-  (Release Gate)   (Retrieval Quality)   (Planning & Tools)  (Operational Load)
-   • 1225 Unit/Int  • Alias Normalizer   • Tool Selection    • 24h Memory Soak
-   • Protocol Mono  • Context & Recency  • Planning Accuracy • P95/P99 Latency
-   • Clippy & Fmt   • Reasoning/Synthes  • Error Recovery    • Scale Throughput
+                            Quality Orchestrator (Unified Schema)
+                                              │
+        ┌───────────────────┬─────────────────┴───────────────────┬───────────────────┐
+        ▼                   ▼                                     ▼                   ▼
+     EBRA Gate          RQB Suite                             Agent Suite         OPB Suite
+  (Release Gate)   (Retrieval Quality)                    (Planning & Tools)   (Operational Load)
+   • 1225 Unit/Int  • Alias Normalization                 • Tool Selection     • 24h Memory Soak
+   • Protocol Mono  • Context & Recency                   • Planning Accuracy  • P95/P99 Latency
+   • Clippy & Fmt   • Reasoning & Synthesis               • Error Recovery     • Scale Throughput
 ```
 
 | Suite | Core Responsibility | Verification Target / Primary Metric |
@@ -43,7 +58,7 @@ A lightweight **Quality Orchestrator** manages execution ordering, provenance, s
 
 ## 3. Operational Quality Infrastructure
 
-Quality tooling around the framework focuses on operational usability without increasing engine complexity:
+Usability tooling around the framework focuses on operational usability without increasing engine complexity:
 - **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
 - **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
 - **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
