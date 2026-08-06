@@ -131,17 +131,7 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 7. Product Outcome Measurement Dimensions
-
-Engineering focuses on four measurable product dimensions:
-- **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
-- **Dataset Quality**: Coverage, diversity, real-world query representation, drift over time.
-- **Operational Quality**: Mean/P95/P99 latency, peak RSS memory, query throughput, database growth.
-- **User Quality**: Time-to-answer, query reformulation rate, search abandonment, relevance.
-
----
-
-## 8. Closed Continuous Production Feedback Loop
+## 7. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -151,7 +141,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 9. Measured Empirical Baseline vs Target Forecasts
+## 8. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -162,16 +152,17 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 10. Practical Definition of "Contract Stability"
+## 9. Practical Definition of "Contract Stability" & Schema Migration
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
 - 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
 - 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
+- 🛠️ **Schema Migration Tooling**: When future major schema revisions occur, migration tooling (`benchmark migrate --from 1.0.0 --to 2.0.0`) upgrades historical benchmark result archives automatically.
 
 ---
 
-## 11. Non-Goals of the RQB Platform
+## 10. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
