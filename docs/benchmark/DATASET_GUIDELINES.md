@@ -16,28 +16,28 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Parallel Quality Benchmark Suites Vision
+## 2. Quality Orchestrator & Specialized Benchmark Suites
 
-Quality evaluation is organized across four specialized parallel benchmark suites:
+A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites:
 
 ```
-                              Brain Quality Architecture v1.0
-                                             │
-        ┌───────────────────┬────────────────┴───────────────────┬───────────────────┐
-        ▼                   ▼                                    ▼                   ▼
-     EBRA Gate          RQB Suite                          Agent Suite           OPB Suite
-  (Release Gate)   (Retrieval Quality)                  (Planning & Tools)   (Operational Load)
-   • 1225 Unit/Int  • Alias Normalization                • Tool Selection     • 24h Memory Soak
-   • Protocol Mono  • Context & Recency                  • Planning Accuracy  • P95/P99 Latency
-   • Clippy & Fmt   • Reasoning & Synthesis              • Error Recovery     • Scale Throughput
+                            Quality Orchestrator
+                                     │
+        ┌───────────────────┬────────┴───────────┬───────────────────┐
+        ▼                   ▼                    ▼                   ▼
+     EBRA Gate          RQB Suite            Agent Suite         OPB Suite
+  (Release Gate)   (Retrieval Quality)   (Planning & Tools)  (Operational Load)
+   • 1225 Unit/Int  • Alias Normalizer   • Tool Selection    • 24h Memory Soak
+   • Protocol Mono  • Context & Recency  • Planning Accuracy • P95/P99 Latency
+   • Clippy & Fmt   • Reasoning/Synthes  • Error Recovery    • Scale Throughput
 ```
 
-| Benchmark Suite | Scope & Responsibility | Primary Metrics / Objectives |
+| Suite | Core Responsibility | Verification Target / Primary Metric |
 |---|---|---|
-| **EBRA Gate** | Release engineering & binary correctness | `cargo xtask verify` (1,225/1,225 PASS) |
-| **RQB Suite** | Retrieval quality, ranking, & synthesis | Alias Coverage (71%), Precision@5, Conflict Visibility |
-| **Agent Suite** | Tool selection & multi-step execution | Planning accuracy, execution success, error recovery |
-| **OPB Suite** | Operational performance & scalability | Mean/P95/P99 latency, 24h RSS memory soak, scale |
+| **EBRA Gate** | *"Is the software correct and releasable?"* | `cargo xtask verify` (1,225/1,225 PASS) |
+| **RQB Suite** | *"Does retrieval return the right knowledge?"* | Alias Coverage (71%), Precision@5, Conflict Visibility |
+| **Agent Suite** | *"Can the system plan and execute correctly?"* | Tool selection accuracy, planning, error recovery |
+| **OPB Suite** | *"Can the system sustain production load?"* | Mean/P95/P99 latency, 24h RSS memory soak, throughput |
 
 ---
 
