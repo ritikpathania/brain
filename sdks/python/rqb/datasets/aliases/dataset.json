@@ -1,0 +1,39 @@
+{
+  "package": "aliases",
+  "version": "3.1.0",
+  "description": "Canonical entity and alias variant resolution evaluation corpus",
+  "items": [
+    {
+      "id": "alias-postgres",
+      "canonical": "PostgreSQL",
+      "aliases": ["postgres", "pgsql", "postgres database"],
+      "sample_text": "PostgreSQL is configured as the primary relational database for metadata.",
+      "expected": {
+        "must_contain": ["PostgreSQL"],
+        "must_not_contain": ["MySQL"],
+        "top_k": 3
+      }
+    },
+    {
+      "id": "alias-k8s",
+      "canonical": "Kubernetes",
+      "aliases": ["k8s", "kube"],
+      "sample_text": "Kubernetes manages container orchestration in staging.",
+      "expected": {
+        "must_contain": ["Kubernetes"],
+        "must_not_contain": ["Docker Swarm"],
+        "top_k": 3
+      }
+    },
+    {
+      "id": "alias-redis",
+      "canonical": "Redis",
+      "aliases": ["in-memory cache", "key-value store"],
+      "sample_text": "Redis is configured as an in-memory cache for session state.",
+      "expected": {
+        "must_contain": ["Redis"],
+        "top_k": 3
+      }
+    }
+  ]
+}

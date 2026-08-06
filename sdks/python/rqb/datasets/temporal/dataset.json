@@ -1,0 +1,19 @@
+{
+  "package": "temporal",
+  "version": "2.0.0",
+  "description": "Timestamped decision evolution evaluation corpus",
+  "items": [
+    {
+      "id": "temporal-storage",
+      "topic": "memory storage",
+      "old_fact": "2025-01-10: We decided to use SQLite for initial memory storage.",
+      "new_fact": "2026-06-15: We migrated memory graph storage to PostgreSQL.",
+      "query": "memory graph storage",
+      "expected": {
+        "contains_all": ["2026-06-15", "2025-01-10"],
+        "ordering": "newest_first",
+        "top_k": 3
+      }
+    }
+  ]
+}

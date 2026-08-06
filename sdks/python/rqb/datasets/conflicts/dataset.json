@@ -1,0 +1,29 @@
+{
+  "package": "conflicts",
+  "version": "2.0.0",
+  "description": "Conflicting architectural decisions evaluation corpus",
+  "items": [
+    {
+      "id": "conflict-database",
+      "fact_a": "ADR-005 specifies SQLite as primary database.",
+      "fact_b": "ADR-024 specifies PostgreSQL as primary database.",
+      "query": "primary database",
+      "expected": {
+        "contains_all": ["ADR-005", "ADR-024"],
+        "visibility_mode": "surface_both",
+        "top_k": 5
+      }
+    },
+    {
+      "id": "conflict-auth",
+      "fact_a": "Auth Service uses OAuth2 JWT tokens.",
+      "fact_b": "Auth Service migrated to mTLS certificates.",
+      "query": "Auth Service authentication",
+      "expected": {
+        "contains_all": ["OAuth2", "mTLS"],
+        "visibility_mode": "surface_both",
+        "top_k": 5
+      }
+    }
+  ]
+}

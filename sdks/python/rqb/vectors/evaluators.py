@@ -44,12 +44,16 @@ class AliasVector(FunctionalVector):
         super().__init__(2, "Synonyms & Aliases")
 
     def run_functional(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[bool, float, str, int, str, bool]:
-        dataset_file = os.path.join(dataset_dir, "aliases.json")
+        pkg_file = os.path.join(dataset_dir, "aliases", "dataset.json")
+        fallback_file = os.path.join(dataset_dir, "aliases.json")
+        dataset_file = pkg_file if os.path.exists(pkg_file) else fallback_file
+
         if not os.path.exists(dataset_file):
-            return False, 0.0, "Alias Coverage", 0, "Dataset file aliases.json missing", True
+            return False, 0.0, "Alias Coverage", 0, "Dataset file aliases dataset.json missing", True
 
         with open(dataset_file, "r") as f:
-            data = json.load(f)
+            raw = json.load(f)
+            data = raw.get("items", raw)
 
         total = 0
         successful = 0
@@ -60,7 +64,16 @@ class AliasVector(FunctionalVector):
                 total += 1
                 resp = harness.request("query", alias)
                 content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-                if entry["canonical"].lower() in content.lower() or alias.lower() in content.lower():
+                
+                # Check explicit expected outcomes if present
+                expected = entry.get("expected", {})
+                must_contain = expected.get("must_contain", [entry["canonical"]])
+                must_not = expected.get("must_not_contain", [])
+
+                contains_pass = any(mc.lower() in content.lower() or alias.lower() in content.lower() for mc in must_contain)
+                forbidden_pass = not any(mn.lower() in content.lower() for mn in must_not)
+
+                if contains_pass and forbidden_pass:
                     successful += 1
 
         coverage = successful / total if total > 0 else 0.0
@@ -126,12 +139,16 @@ class ConflictQualityVector(QualityVector):
         super().__init__(6, "Conflicting Knowledge Visibility", threshold=0.9)
 
     def run_quality(self, harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, int, str, bool]:
-        dataset_file = os.path.join(dataset_dir, "conflicts.json")
+        pkg_file = os.path.join(dataset_dir, "conflicts", "dataset.json")
+        fallback_file = os.path.join(dataset_dir, "conflicts.json")
+        dataset_file = pkg_file if os.path.exists(pkg_file) else fallback_file
+
         if not os.path.exists(dataset_file):
-            return 0.0, "Conflict Visibility Rate", 0, "Dataset conflicts.json missing", True
+            return 0.0, "Conflict Visibility Rate", 0, "Dataset conflicts dataset.json missing", True
 
         with open(dataset_file, "r") as f:
-            data = json.load(f)
+            raw = json.load(f)
+            data = raw.get("items", raw)
 
         total = len(data)
         surfaced = 0
@@ -142,7 +159,10 @@ class ConflictQualityVector(QualityVector):
 
             resp = harness.request("query", entry["query"])
             content = "".join(r.get("content", "") for r in resp if r.get("type") == "stream_chunk")
-            both_found = all(ef.lower() in content.lower() for ef in entry["expected_facts"])
+            
+            expected = entry.get("expected", {})
+            contains_all = expected.get("contains_all", entry.get("expected_facts", []))
+            both_found = all(ef.lower() in content.lower() for ef in contains_all)
             if both_found:
                 surfaced += 1
 

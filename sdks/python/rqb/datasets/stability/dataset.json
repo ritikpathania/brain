@@ -1,0 +1,25 @@
+{
+  "package": "stability",
+  "version": "1.0.0",
+  "description": "Ranking stability repeated query evaluation corpus",
+  "items": [
+    {
+      "id": "stability-postgres",
+      "query": "postgres",
+      "runs": 20,
+      "top_k": 3,
+      "expected": {
+        "stability_ratio_min": 0.95
+      }
+    },
+    {
+      "id": "stability-session",
+      "query": "session state",
+      "runs": 20,
+      "top_k": 3,
+      "expected": {
+        "stability_ratio_min": 0.95
+      }
+    }
+  ]
+}
