@@ -1,0 +1,15 @@
+{
+  "release_policy_version": "1.0.0",
+  "name": "Production Release Approval Policy",
+  "rules": {
+    "critical_vectors_pass_required": true,
+    "max_allowed_weighted_rrr": 0.05,
+    "zero_engine_failures_required": true,
+    "min_coverage_score": 60.0
+  },
+  "severity_weights": {
+    "critical_threshold_weight": 5,
+    "major_threshold_weight": 3,
+    "minor_threshold_weight": 2
+  }
+}

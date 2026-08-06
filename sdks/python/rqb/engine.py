@@ -179,6 +179,7 @@ class VectorEvaluation:
     weight: int = 1
     higher_is_better: bool = True
     threshold: float = 0.8
+    severity: str = "Major"
 
 class Vector(ABC):
     def __init__(self, vector_id: int, name: str, higher_is_better: bool = True):
@@ -187,11 +188,13 @@ class Vector(ABC):
         self.higher_is_better = higher_is_better
         self.weight = 1
         self.threshold = 0.8
+        self.severity = "Major"
 
     def configure(self, cfg: Dict[str, Any]):
         self.weight = cfg.get("weight", 1)
         self.threshold = cfg.get("threshold", 0.8)
         self.higher_is_better = (cfg.get("direction", "maximize") == "maximize")
+        self.severity = cfg.get("severity", "Major")
 
     @abstractmethod
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
@@ -242,7 +245,8 @@ class FunctionalVector(Vector):
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
-            threshold=self.threshold
+            threshold=self.threshold,
+            severity=self.severity
         )
 
 class QualityVector(Vector):
@@ -297,7 +301,8 @@ class QualityVector(Vector):
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
-            threshold=self.threshold
+            threshold=self.threshold,
+            severity=self.severity
         )
 
 # -------------------------------------------------------------------

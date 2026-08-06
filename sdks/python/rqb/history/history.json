@@ -30,12 +30,18 @@
     }
   },
   "v1.1.0": {
-    "timestamp": "2026-08-06 06:41:31 UTC",
+    "timestamp": "2026-08-06 06:47:31 UTC",
     "provenance": {
-      "git_commit": "bfb8e7cc45",
-      "policy_hash": "97a0f2e91ed3",
+      "git_commit": "e7778802ec",
+      "policy_hash": "ecf5732fcfd3",
+      "release_policy_hash": "b256bc6d1718",
       "seed": 42,
-      "dataset_version": "v1.2.0",
+      "dataset_packages": {
+        "aliases": "v3.1.0",
+        "conflicts": "v2.0.0",
+        "temporal": "v2.0.0",
+        "stability": "v1.0.0"
+      },
       "runner_version": "v2.2.0"
     },
     "metrics": {
