@@ -17,3 +17,11 @@ brain-observability = { path = "../brain-observability", optional = true }
 brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
 brain-integrations = { path = "../brain-integrations" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "ui_benchmarks"
+harness = false
+

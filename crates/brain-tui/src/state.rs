@@ -270,6 +270,11 @@ impl IncrementalTokenizer {
         }
     }
 
+    /// Alias for `push_chunk` to feed text chunks to the tokenizer.
+    pub fn feed(&mut self, chunk: &str) -> Vec<RenderToken> {
+        self.push_chunk(chunk)
+    }
+
     /// Processes raw chunks, buffering split segments and returning completed semantic tokens.
     pub fn push_chunk(&mut self, chunk: &str) -> Vec<RenderToken> {
         self.buffer.push_str(chunk);
