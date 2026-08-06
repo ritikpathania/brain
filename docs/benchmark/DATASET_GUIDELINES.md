@@ -16,9 +16,9 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. End-to-End User Task Success & Calibration Metrics
+## 2. End-to-End User Task Success & Evidence Utilization Metrics
 
-To complement retrieval-centric evaluation, high-level user task success and score calibration are tracked across product dimensions:
+To complement retrieval-centric evaluation, user task success, score calibration, and evidence utilization are tracked across product dimensions:
 
 | Product Metric | Measurement Target | User Impact |
 |---|---|---|
@@ -27,6 +27,7 @@ To complement retrieval-centric evaluation, high-level user task success and sco
 | **Reformulation Rate** | Frequency of query retries or rewordings | Identifies retrieval ambiguity |
 | **Citation Accuracy** | Cited memory nodes directly support synthesized answer | Ensures ground-truth factual rigor |
 | **Confidence Calibration** | Confidence scores (e.g. 0.90) correlate with empirical accuracy (90%) | Enables reliable threshold filtering |
+| **Source Utilization** | Synthesized answer effectively utilizes all relevant retrieved evidence | Prevents over-reliance on a single source |
 
 ---
 
