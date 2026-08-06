@@ -16,9 +16,32 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. End-to-End User Task Success & Evidence Utilization Metrics
+## 2. Parallel Quality Benchmark Suites Vision
 
-To complement retrieval-centric evaluation, user task success, score calibration, and evidence utilization are tracked across product dimensions:
+Quality evaluation is organized across four specialized parallel benchmark suites:
+
+```
+                              Brain Quality Architecture v1.0
+                                             │
+        ┌───────────────────┬────────────────┴───────────────────┬───────────────────┐
+        ▼                   ▼                                    ▼                   ▼
+     EBRA Gate          RQB Suite                          Agent Suite           OPB Suite
+  (Release Gate)   (Retrieval Quality)                  (Planning & Tools)   (Operational Load)
+   • 1225 Unit/Int  • Alias Normalization                • Tool Selection     • 24h Memory Soak
+   • Protocol Mono  • Context & Recency                  • Planning Accuracy  • P95/P99 Latency
+   • Clippy & Fmt   • Reasoning & Synthesis              • Error Recovery     • Scale Throughput
+```
+
+| Benchmark Suite | Scope & Responsibility | Primary Metrics / Objectives |
+|---|---|---|
+| **EBRA Gate** | Release engineering & binary correctness | `cargo xtask verify` (1,225/1,225 PASS) |
+| **RQB Suite** | Retrieval quality, ranking, & synthesis | Alias Coverage (71%), Precision@5, Conflict Visibility |
+| **Agent Suite** | Tool selection & multi-step execution | Planning accuracy, execution success, error recovery |
+| **OPB Suite** | Operational performance & scalability | Mean/P95/P99 latency, 24h RSS memory soak, scale |
+
+---
+
+## 3. End-to-End User Task Success & Evidence Utilization Metrics
 
 | Product Metric | Measurement Target | User Impact |
 |---|---|---|
@@ -31,9 +54,7 @@ To complement retrieval-centric evaluation, user task success, score calibration
 
 ---
 
-## 3. User Retrieval Failure Taxonomy
-
-To complement diagnostic reports, retrieval shortfalls are classified into five root-cause categories:
+## 4. User Retrieval Failure Taxonomy
 
 | Failure Type | Description & Example | Primary Remediation Target |
 |---|---|---|
@@ -45,7 +66,7 @@ To complement diagnostic reports, retrieval shortfalls are classified into five 
 
 ---
 
-## 4. Product Outcome Measurement Dimensions
+## 5. Product Outcome Measurement Dimensions
 
 Engineering focuses on four measurable product dimensions:
 - **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
@@ -55,7 +76,7 @@ Engineering focuses on four measurable product dimensions:
 
 ---
 
-## 5. Closed Continuous Production Feedback Loop
+## 6. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -65,7 +86,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 6. Measured Empirical Baseline vs Target Forecasts
+## 7. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -76,7 +97,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 7. Practical Definition of "Contract Stability"
+## 8. Practical Definition of "Contract Stability"
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
@@ -85,7 +106,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 8. Non-Goals of the RQB Platform
+## 9. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
