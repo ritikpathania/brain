@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Policy-Driven, Severity-Graded, Statistically Grounded RQB Platform Runner v2.2.0
+Policy-Driven Statistically Grounded RQB Platform Runner v2.2.0
 """
 
 import json
@@ -30,7 +30,7 @@ def make_sparkbar(val: float, higher_is_better: bool = True, width: int = 10) ->
     return "█" * filled + "░" * (width - filled)
 
 def main():
-    print("⚡ Launching Policy-Driven Severity-Graded RQB Platform v2.2.0...")
+    print("⚡ Launching RQB Platform v2.2.0 (Domain Separation & Raw Sample Persistence)...")
 
     with open(CONFIG_FILE, "r") as f:
         config = json.load(f)
@@ -44,6 +44,7 @@ def main():
     rel_policy_hash = get_file_sha256(RELEASE_POLICY_FILE)
     git_commit = get_git_commit()
     seed = 42
+    benchmark_schema_ver = "v2.2.0"
 
     VectorRegistry.load_vector_modules(VECTORS_DIR)
     evaluators = VectorRegistry.get_evaluators()
@@ -66,7 +67,6 @@ def main():
     finally:
         harness.stop()
 
-    # Latency continuous statistics
     latencies = harness.perf_metrics.query_latencies_ms
     n_lat = len(latencies)
     mean_lat = sum(latencies) / n_lat if n_lat > 0 else 0.0
@@ -103,7 +103,6 @@ def main():
 
     weighted_rrr = (regressed_weight / total_weight) if total_weight > 0 else 0.0
 
-    # Severity Tier Health Calculations
     critical_vecs = [e for e in evaluations if e.severity == "Critical"]
     major_vecs = [e for e in evaluations if e.severity == "Major"]
     minor_vecs = [e for e in evaluations if e.severity == "Minor"]
@@ -116,21 +115,31 @@ def main():
     maj_pct = (maj_passed / len(major_vecs)) * 100.0 if major_vecs else 100.0
     min_pct = (min_passed / len(minor_vecs)) * 100.0 if minor_vecs else 100.0
 
-    # Release Policy Enforcement
+    # 1. Benchmark Result Domain
+    has_engine_fail = any(e.status_badge == "🔴 ENGINE FAIL" for e in evaluations)
+    has_quality_fail = any(e.status_badge == "🟡 QUALITY BELOW TARGET" for e in evaluations)
+
+    if has_engine_fail:
+        benchmark_result = "🔴 ENGINE FAILURE"
+    elif has_quality_fail:
+        benchmark_result = "🟡 QUALITY BELOW TARGET"
+    else:
+        benchmark_result = "🟢 PASS"
+
+    # 2. Release Decision Domain (from release_policy.json)
     rel_rules = release_policy.get("rules", {})
     block_crit = rel_rules.get("critical_vectors_pass_required", True) and crit_passed < len(critical_vecs)
     block_rrr = weighted_rrr > rel_rules.get("max_allowed_weighted_rrr", 0.05)
-    block_err = rel_rules.get("zero_engine_failures_required", True) and any(e.status_badge == "🔴 ENGINE FAIL" for e in evaluations)
+    block_err = rel_rules.get("zero_engine_failures_required", True) and has_engine_fail
 
-    if block_err:
-        overall_status = "🔴 ENGINE FAIL (Execution Error in Vector Engine)"
-    elif block_crit:
-        overall_status = "🟡 RELEASE BLOCKED (Critical Vector Target Unmet)"
-    elif block_rrr:
-        overall_status = "🟡 RELEASE BLOCKED (Weighted RRR Threshold Exceeded)"
+    if block_err or block_crit or block_rrr:
+        release_decision = "🟡 RELEASE BLOCKED (Critical Vector Target Unmet)"
+    elif has_quality_fail:
+        release_decision = "⚪ CONDITIONAL (Non-Critical Shortfalls Present)"
     else:
-        overall_status = "🟢 PASS (Release Approved by Release Policy)"
+        release_decision = "🟢 APPROVED (Release Criteria Met)"
 
+    # Store run with raw latency samples & schema versioning
     current_version = "v1.1.0"
     history[current_version] = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
@@ -139,10 +148,14 @@ def main():
             "policy_hash": policy_hash,
             "release_policy_hash": rel_policy_hash,
             "seed": seed,
+            "benchmark_schema_version": benchmark_schema_ver,
             "dataset_packages": pkg_versions,
             "runner_version": "v2.2.0"
         },
-        "metrics": {e.name: e.metric_value for e in evaluations}
+        "metrics": {e.name: e.metric_value for e in evaluations},
+        "raw_observations": {
+            "latencies_ms": latencies
+        }
     }
     with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
@@ -152,16 +165,17 @@ def main():
     report.append(f"**Execution Environment**: Ephemeral Isolated Harness (`tempfile` UDS + SQLite + Dynamic Port)\n")
     report.append(f"**Benchmark Date**: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n")
     report.append(f"**Provenance Metadata**: `Commit: {git_commit}` | `Policy: {policy_hash}` | `Release Policy: {rel_policy_hash}` | `Seed: {seed} (Deterministic)`\n")
-    report.append(f"**Dataset Packages**: `aliases {pkg_versions.get('aliases')}` | `conflicts {pkg_versions.get('conflicts')}` | `temporal {pkg_versions.get('temporal')}` | `stability {pkg_versions.get('stability')}`\n")
+    report.append(f"**Benchmark Schema**: `{benchmark_schema_ver}` | **Dataset Packages**: `aliases {pkg_versions.get('aliases')}` | `conflicts {pkg_versions.get('conflicts')}` | `temporal {pkg_versions.get('temporal')}`\n")
     report.append(f"**Engine Build**: `brain-daemon v1.1.0`\n\n")
 
     report.append("## Executive Summary\n")
+    report.append(f"- **Benchmark Performance Result**: `{benchmark_result}` (Evaluation Domain)\n")
+    report.append(f"- **Governance Release Decision**: `{release_decision}` (Release Domain)\n")
     report.append(f"- **Critical Severity Tier**: `{crit_passed}/{len(critical_vecs)}` passed (**{crit_pct:.1f}%** Pass Rate) — `Exact Retrieval`, `Synonyms & Aliases`\n")
     report.append(f"- **Major Severity Tier**: `{maj_passed}/{len(major_vecs)}` passed (**{maj_pct:.1f}%** Pass Rate) — Deduplication, Conflicts, Temporal, Synthesis, Context\n")
     report.append(f"- **Minor Severity Tier**: `{min_passed}/{len(minor_vecs)}` passed (**{min_pct:.1f}%** Pass Rate) — Ranking Stability\n")
     report.append(f"- **Weighted Retrieval Regression Rate (Weighted RRR)**: `{weighted_rrr:.1%}` ({regressed_weight}/{total_weight} weighted points regressed)\n")
-    report.append(f"- **Algorithmic Coverage Score**: `{coverage_score:.1f}/100` (`{coverage_level}`)\n")
-    report.append(f"- **Overall RQB Status**: `{overall_status}`\n\n")
+    report.append(f"- **Algorithmic Coverage Score**: `{coverage_score:.1f}/100` (`{coverage_level}` — Informational Corpus Index)\n\n")
 
     report.append("--- \n\n")
     report.append("## 1. Functional Correctness Vectors (Deterministic Pass/Fail)\n\n")
@@ -212,7 +226,7 @@ def main():
         report.append(f"| **{e.name}** | `{e.severity}` | `w={e.weight}` | `{dir_str}` | `{p0:.2f}` | `{p1:.2f}` | `{c_val:.2f}` | `{bar}` | `{delta_str}` | {t_status} |\n")
 
     report.append("\n---\n\n")
-    report.append("## 4. Continuous Operational Performance Statistics (OPB Precursor)\n\n")
+    report.append("## 4. Continuous Operational Performance & Raw Observations\n\n")
     report.append("| Latency & Performance Dimension | Measurement Value | Sample Size ($N$) | Operational Target |\n")
     report.append("|---|:---:|:---:|:---:|\n")
     report.append(f"| **Mean Query Latency** | `{mean_lat:.2f} ms` | `N={n_lat}` | `< 50.0 ms` |\n")
@@ -220,7 +234,7 @@ def main():
     report.append(f"| **Latency Standard Deviation (StdDev)** | `{stddev_lat:.2f} ms` | `N={n_lat}` | Low Variance |\n")
     report.append(f"| **P95 Query Latency** | `{p95_lat:.2f} ms` | `N={n_lat}` | `< 100.0 ms` |\n")
     report.append(f"| **P99 Query Latency** | `{p99_lat:.2f} ms` | `N={n_lat}` | `< 150.0 ms` |\n")
-    report.append(f"| **Dataset Coverage Level** | **{coverage_score:.1f} / 100** | **{corpus_breakdown['scenarios_total']} Datasets** | **{coverage_level}** |\n")
+    report.append(f"| **Persisted Raw Latencies** | `Saved to history.json` | `N={n_lat} samples` | `Post-Hoc Recomputation` |\n")
 
     report.append("\n---\n\n")
     report.append("## 3-Gate Quality System Architecture (EBRA + RQB + OPB)\n\n")
@@ -231,10 +245,10 @@ def main():
     report.append("        ▼                           ▼                           ▼\n")
     report.append("   EBRA Gate                    RQB Gate                   OPB Gate\n")
     report.append(" (Release Gate)          (Retrieval Quality)       (Operational Performance)\n")
-    report.append("  • cargo xtask verify         • Severity Tiers (Crit/Maj)  • Mean, Median, StdDev\n")
-    report.append("  • 1225 Unit/Integration      • Independent Datasets       • P95/P99 Latency Bounds\n")
-    report.append("  • Clippy & Rustfmt           • Decoupled Release Policy   • Memory & Cost Bounds\n")
-    report.append("  • Protocol Monotonicity      • 95% Wilson CI Ranges       • 10k/100k Node Scale\n")
+    report.append("  • cargo xtask verify         • Benchmark Result Domain    • Mean, Median, StdDev\n")
+    report.append("  • 1225 Unit/Integration      • Release Decision Domain    • P95/P99 Latency Bounds\n")
+    report.append("  • Clippy & Rustfmt           • Schema & Package Versions  • Raw Samples Persisted\n")
+    report.append("  • Protocol Monotonicity      • Severity Tiers (Crit/Maj)  • Query Throughput\n")
     report.append("```\n")
 
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
