@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-Retrieval Quality Benchmark (RQB) Engine v2.1.0 — Reproducible & Statistically Grounded
+Retrieval Quality Benchmark (RQB) Engine v2.2.0 — Production Benchmark Platform
 
 Features:
-- Immutable Provenance Metadata (Git commit, dataset hashes, policy hash)
-- Published Mathematical Coverage Formula (0.35 * scenarios + 0.25 * corpus + 0.20 * queries + 0.20 * reps)
-- Explicit Baseline Disclosure (Seeded vs Archived Executions)
-- Sample Size (N) Tracking
+- 95% Wilson Score Confidence Intervals for sample metrics
+- Operational Performance Normalization (Mean & P95 Query Latency, RSS Memory)
+- Dataset Schema Versioning (v1.2.0)
+- Deterministic Random Seed Provenance (Seed: 42)
+- Explicit Failure Taxonomy & Published Mathematical Coverage Formula
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 import hashlib
 import json
+import math
 import os
 import random
 import socket
@@ -26,8 +28,19 @@ DAEMON_BIN = "/Users/ritikpathania/Developer/PyCharm/brain/target/debug/brain-da
 PYTHON_VENV = "/Users/ritikpathania/Developer/PyCharm/brain/daemon/.venv/bin/python"
 
 # -------------------------------------------------------------------
-# 1. Provenance Metadata & File Hashing Utilities
+# 1. Statistical Confidence Interval Utilities
 # -------------------------------------------------------------------
+
+def calculate_wilson_ci(p_hat: float, n: int, z: float = 1.96) -> Tuple[float, float]:
+    """Computes 95% Wilson Score Confidence Interval for binomial proportion."""
+    if n <= 0:
+        return (0.0, 0.0)
+    denom = 1.0 + (z**2 / n)
+    centre_adj = p_hat + (z**2 / (2 * n))
+    spread = z * math.sqrt(max(0.0, (p_hat * (1.0 - p_hat) / n) + (z**2 / (4 * (n**2)))))
+    lower = max(0.0, (centre_adj - spread) / denom)
+    upper = min(1.0, (centre_adj + spread) / denom)
+    return (lower, upper)
 
 def get_file_sha256(filepath: str) -> str:
     if not os.path.exists(filepath):
@@ -46,26 +59,28 @@ def get_git_commit() -> str:
         return "unknown"
 
 # -------------------------------------------------------------------
-# 2. Ephemeral Isolated Execution Harness with Corpus Tracking
+# 2. Ephemeral Execution Harness with Latency & Memory Tracking
 # -------------------------------------------------------------------
 
 @dataclass
-class CorpusMetrics:
+class PerformanceMetrics:
     total_docs_ingested: int = 0
     total_tokens_est: int = 0
     total_queries_run: int = 0
-    alias_entities_count: int = 0
-    conflict_facts_count: int = 0
+    query_latencies_ms: List[float] = field(default_factory=list)
+    peak_rss_mb: float = 0.0
 
 class IsolatedHarness:
-    def __init__(self):
+    def __init__(self, seed: int = 42):
+        self.seed = seed
+        random.seed(seed)
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.socket_path = os.path.join(self.tmp_dir.name, "brain_rqb.sock")
         self.data_dir = os.path.join(self.tmp_dir.name, "data")
         os.makedirs(self.data_dir, exist_ok=True)
         self.http_port = str(random.randint(18000, 29000))
         self.proc: Optional[subprocess.Popen] = None
-        self.corpus_metrics = CorpusMetrics()
+        self.perf_metrics = PerformanceMetrics()
 
     def start(self):
         env = os.environ.copy()
@@ -91,11 +106,12 @@ class IsolatedHarness:
         raise RuntimeError(f"Isolated Harness failed to start. Stderr:\n{stderr_out}")
 
     def request(self, action: str, payload: str) -> List[Dict[str, Any]]:
+        t0 = time.perf_counter()
         if action == "ingest":
-            self.corpus_metrics.total_docs_ingested += 1
-            self.corpus_metrics.total_tokens_est += len(payload.split())
+            self.perf_metrics.total_docs_ingested += 1
+            self.perf_metrics.total_tokens_est += len(payload.split())
         elif action == "query":
-            self.corpus_metrics.total_queries_run += 1
+            self.perf_metrics.total_queries_run += 1
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect(self.socket_path)
@@ -119,12 +135,18 @@ class IsolatedHarness:
                             responses.append(obj)
                             if obj.get("type") == "stream_end":
                                 sock.close()
+                                dt_ms = (time.perf_counter() - t0) * 1000.0
+                                if action == "query":
+                                    self.perf_metrics.query_latencies_ms.append(dt_ms)
                                 return responses
                         except json.JSONDecodeError:
                             pass
         except socket.timeout:
             pass
         sock.close()
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        if action == "query":
+            self.perf_metrics.query_latencies_ms.append(dt_ms)
         return responses
 
     def stop(self):
@@ -151,6 +173,8 @@ class VectorEvaluation:
     metric_name: str
     metric_value: float
     sample_size_n: int
+    ci_lower: float
+    ci_upper: float
     details: str
     weight: int = 1
     higher_is_better: bool = True
@@ -186,6 +210,8 @@ class FunctionalVector(Vector):
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
         try:
             passed, metric_val, metric_name, sample_n, details, engine_err = self.run_functional(harness, dataset_dir)
+            ci_low, ci_high = calculate_wilson_ci(metric_val, sample_n)
+
             if engine_err:
                 status = "🔴 ENGINE FAIL"
             elif not passed:
@@ -197,6 +223,7 @@ class FunctionalVector(Vector):
             metric_val = 0.0
             metric_name = "Execution Error"
             sample_n = 0
+            ci_low, ci_high = (0.0, 0.0)
             details = f"Unhandled exception in evaluator: {str(ex)}"
             status = "🔴 ENGINE FAIL"
 
@@ -210,6 +237,8 @@ class FunctionalVector(Vector):
             metric_name=metric_name,
             metric_value=metric_val,
             sample_size_n=sample_n,
+            ci_lower=ci_low,
+            ci_upper=ci_high,
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
@@ -230,6 +259,8 @@ class QualityVector(Vector):
     def evaluate(self, harness: IsolatedHarness, dataset_dir: str) -> VectorEvaluation:
         try:
             score, metric_name, sample_n, details, engine_err = self.run_quality(harness, dataset_dir)
+            ci_low, ci_high = calculate_wilson_ci(score, sample_n)
+
             if engine_err:
                 passed = False
                 status = "🔴 ENGINE FAIL"
@@ -247,6 +278,7 @@ class QualityVector(Vector):
             score = 0.0
             metric_name = "Execution Error"
             sample_n = 0
+            ci_low, ci_high = (0.0, 0.0)
             details = f"Unhandled exception in evaluator: {str(ex)}"
             status = "🔴 ENGINE FAIL"
 
@@ -260,6 +292,8 @@ class QualityVector(Vector):
             metric_name=metric_name,
             metric_value=score,
             sample_size_n=sample_n,
+            ci_lower=ci_low,
+            ci_upper=ci_high,
             details=details,
             weight=self.weight,
             higher_is_better=self.higher_is_better,
@@ -267,17 +301,12 @@ class QualityVector(Vector):
         )
 
 # -------------------------------------------------------------------
-# 4. Published Mathematical Coverage Formula Calculator
+# 4. Mathematical Coverage Score Engine
 # -------------------------------------------------------------------
 
 class CoverageScoreEngine:
     @staticmethod
     def calculate_published_score(harness: IsolatedHarness, dataset_dir: str) -> Tuple[float, str, Dict[str, Any]]:
-        """
-        Published Mathematical Coverage Formula:
-        Coverage = 0.35 * S_scenarios + 0.25 * C_corpus + 0.20 * Q_queries + 0.20 * R_repetitions
-        Normalized to [0, 100].
-        """
         alias_file = os.path.join(dataset_dir, "aliases.json")
         conflict_file = os.path.join(dataset_dir, "conflicts.json")
         temporal_file = os.path.join(dataset_dir, "temporal.json")
@@ -289,17 +318,15 @@ class CoverageScoreEngine:
         stability_count = len(json.load(open(stability_file))) if os.path.exists(stability_file) else 0
 
         scenarios_total = alias_count + conflict_count + temporal_count + stability_count
-        queries_run = harness.corpus_metrics.total_queries_run
-        docs_ingested = harness.corpus_metrics.total_docs_ingested
-        tokens_est = harness.corpus_metrics.total_tokens_est
+        queries_run = harness.perf_metrics.total_queries_run
+        docs_ingested = harness.perf_metrics.total_docs_ingested
+        tokens_est = harness.perf_metrics.total_tokens_est
 
-        # Sub-component scores normalized to [0, 100]
         s_scenarios = min(100.0, (scenarios_total / 10.0) * 100.0)
         c_corpus = min(100.0, (docs_ingested / 20.0) * 100.0)
         q_queries = min(100.0, (queries_run / 50.0) * 100.0)
         r_repetition = 100.0 if queries_run >= 40 else (queries_run / 40.0) * 100.0
 
-        # Weighted sum formula: 0.35*S + 0.25*C + 0.20*Q + 0.20*R
         coverage_score = (0.35 * s_scenarios) + (0.25 * c_corpus) + (0.20 * q_queries) + (0.20 * r_repetition)
         coverage_score = min(100.0, max(0.0, coverage_score))
 
