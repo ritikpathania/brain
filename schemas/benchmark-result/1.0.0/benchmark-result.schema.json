@@ -4,6 +4,7 @@
   "title": "BenchmarkResult",
   "description": "Canonical machine-readable interchange schema contract across all specialized Quality Architecture benchmark suites (EBRA, RQB, Agent, OPB).",
   "type": "object",
+  "additionalProperties": false,
   "required": [
     "schema_version",
     "kind",
@@ -39,6 +40,7 @@
   "$defs": {
     "Metadata": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["suite_id", "benchmark_id"],
       "properties": {
         "suite_id": { "type": "string", "enum": ["EBRA", "RQB", "Agent", "OPB"] },
@@ -49,16 +51,29 @@
         }
       }
     },
+    "CapabilityIdentifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "display_name"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "display_name": { "type": "string" }
+      }
+    },
     "BenchmarkInfo": {
       "type": "object",
-      "required": ["capability", "status"],
+      "additionalProperties": false,
+      "required": ["capability", "execution_status", "quality_status"],
       "properties": {
-        "capability": { "type": "string" },
-        "status": { "type": "string", "enum": ["PASS", "QUALITY_WARNING", "ENGINE_FAIL", "BLOCKED"] }
+        "capability": { "$ref": "#/$defs/CapabilityIdentifier" },
+        "execution_status": { "type": "string", "enum": ["COMPLETED", "TIMED_OUT", "CANCELLED", "CRASHED"] },
+        "quality_status": { "type": "string", "enum": ["PASS", "QUALITY_WARNING", "BLOCKED"] },
+        "severity": { "type": "string", "enum": ["Critical", "Major", "Minor"] }
       }
     },
     "Measurements": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["score"],
       "properties": {
         "score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
@@ -68,6 +83,7 @@
     },
     "Confidence": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "lower": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
         "upper": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
@@ -76,6 +92,7 @@
     },
     "Latency": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "mean_ms": { "type": "number", "minimum": 0.0 },
         "p50_ms": { "type": "number", "minimum": 0.0 },
@@ -85,6 +102,7 @@
     },
     "Provenance": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["git_commit"],
       "properties": {
         "git_commit": { "type": "string", "pattern": "^[0-9a-fA-F]{7,40}$" },
@@ -94,6 +112,7 @@
     },
     "Diagnostics": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "probable_causes": { "type": "array", "items": { "type": "string" } },
         "suggested_capability": { "type": "string" }

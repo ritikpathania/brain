@@ -16,9 +16,15 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Machine-Readable `BenchmarkResult` JSON Schema & Version Evolution Policy
+## 2. Machine-Readable `BenchmarkResult` JSON Schema Contract
 
-All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json):
+All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
+
+### Schema Invariants & Contract Testing (`additionalProperties: false`)
+- **Strict Property Validation**: All objects enforce `additionalProperties: false` to prevent unknown field drift.
+- **Stable Capability Identifiers**: Capabilities map `id` (e.g. `alias_normalization`) and `display_name` separately.
+- **Separation of Execution vs Quality**: Distinguishes `execution_status` (`COMPLETED`, `CRASHED`) from `quality_status` (`PASS`, `QUALITY_WARNING`, `BLOCKED`).
+- **Contract Test Suite**: Regression test fixtures under `schemas/benchmark-result/tests/valid/` and `invalid/`.
 
 ```json
 {
@@ -26,11 +32,17 @@ All specialized benchmark suites conform to the formal machine-readable JSON Sch
   "kind": "BenchmarkResult",
   "metadata": {
     "suite_id": "RQB",
-    "benchmark_id": "vector-2-aliases"
+    "benchmark_id": "vector-2-aliases",
+    "timestamp": "2026-08-06T13:27:00Z"
   },
   "benchmark": {
-    "capability": "Alias Normalization",
-    "status": "QUALITY_WARNING"
+    "capability": {
+      "id": "alias_normalization",
+      "display_name": "Alias Normalization"
+    },
+    "execution_status": "COMPLETED",
+    "quality_status": "QUALITY_WARNING",
+    "severity": "Critical"
   },
   "measurements": {
     "score": 0.71,
@@ -38,7 +50,7 @@ All specialized benchmark suites conform to the formal machine-readable JSON Sch
     "latency": { "mean_ms": 29.56, "p95_ms": 58.91 }
   },
   "evidence": ["5/7 alias variants resolved canonical target"],
-  "provenance": { "git_commit": "e777880", "policy_hash": "ecf5732" },
+  "provenance": { "git_commit": "e7778802ec", "policy_hash": "ecf5732" },
   "diagnostics": {
     "probable_causes": ["Missing 'pgsql' variant mapping"]
   },
@@ -46,21 +58,16 @@ All specialized benchmark suites conform to the formal machine-readable JSON Sch
 }
 ```
 
-### Schema Semantic Versioning & Compatibility Rules
-- **Patch (v1.0.x)**: Schema documentation & validation rule bug fixes only. Backward compatible.
-- **Minor (v1.x.0)**: Additive non-breaking properties to `$defs`. Backward compatible for readers.
-- **Major (vX.0.0)**: Breaking property removals or type changes. Requires explicit migration.
-
 ---
 
 ## 3. Operational Quality Infrastructure & CI Governance
 
 Usability tooling around the framework focuses on operational usability without increasing engine complexity:
 - **CI Executable Governance**: Automated schema validation enforcing output compliance against `benchmark-result.schema.json`.
+- **Contract Test Execution**: CI pipeline runs schema validation tests over `schemas/benchmark-result/tests/`.
 - **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
 - **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
 - **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
-- **Dataset Provenance & Ownership Tracking**: Maintaining author provenance, SHA-256 policy hashes, and dataset versioning.
 
 ---
 
@@ -89,17 +96,7 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 6. Product Outcome Measurement Dimensions
-
-Engineering focuses on four measurable product dimensions:
-- **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
-- **Dataset Quality**: Coverage, diversity, real-world query representation, drift over time.
-- **Operational Quality**: Mean/P95/P99 latency, peak RSS memory, query throughput, database growth.
-- **User Quality**: Time-to-answer, query reformulation rate, search abandonment, relevance.
-
----
-
-## 7. Closed Continuous Production Feedback Loop
+## 6. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -109,27 +106,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 8. Measured Empirical Baseline vs Target Forecasts
-
-| System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
-|---|:---:|:---:|:---:|:---:|
-| **Alias Normalization** | **71.0%** *(Quality Warning)* | **$\ge 78.0\%$** | **$\ge 86.0\%$** | 🟢 Target Improving ↑ |
-| **Context Resolution** | **96.0%** *(PASS)* | **$\ge 97.0\%$** | **$\ge 99.0\%$** | 🟢 Target Stable ↑ |
-| **Temporal Ordering** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
-| **Conflict Visibility** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
-
----
-
-## 9. Practical Definition of "Contract Stability"
-
-**"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
-
-- 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
-- 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
-
----
-
-## 10. Non-Goals of the RQB Platform
+## 7. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.

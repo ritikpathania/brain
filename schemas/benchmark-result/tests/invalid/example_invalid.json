@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "BenchmarkResult",
+  "metadata": {
+    "suite_id": "UNKNOWN_SUITE",
+    "benchmark_id": "vector-2-aliases"
+  },
+  "benchmark": {
+    "capability": "RawStringNotObject",
+    "execution_status": "UNKNOWN_EXECUTION_STATUS",
+    "quality_status": "UNKNOWN_STATUS"
+  },
+  "measurements": {
+    "score": 1.5
+  },
+  "evidence": ["5/7 alias variants resolved canonical target"],
+  "provenance": { "git_commit": "invalid-git-hash!!!" },
+  "unexpected_extra_field": 123
+}
