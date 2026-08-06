@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ritikpathania/brain/main/schemas/benchmark-result/1.0.0/benchmark-result.schema.json",
+  "title": "BenchmarkResult",
+  "description": "Canonical machine-readable interchange schema contract across all specialized Quality Architecture benchmark suites (EBRA, RQB, Agent, OPB).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "metadata",
+    "benchmark",
+    "measurements",
+    "evidence",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "kind": {
+      "type": "string",
+      "const": "BenchmarkResult"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["suite_id", "benchmark_id"],
+      "properties": {
+        "suite_id": { "type": "string" },
+        "benchmark_id": { "type": "string" },
+        "timestamp": { "type": "string" }
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "required": ["capability", "status"],
+      "properties": {
+        "capability": { "type": "string" },
+        "status": { "type": "string", "enum": ["PASS", "QUALITY_WARNING", "ENGINE_FAIL", "BLOCKED"] }
+      }
+    },
+    "measurements": {
+      "type": "object",
+      "required": ["score"],
+      "properties": {
+        "score": { "type": "number" },
+        "confidence": {
+          "type": "object",
+          "properties": {
+            "lower": { "type": "number" },
+            "upper": { "type": "number" },
+            "level": { "type": "number" }
+          }
+        },
+        "latency": {
+          "type": "object",
+          "properties": {
+            "mean_ms": { "type": "number" },
+            "p50_ms": { "type": "number" },
+            "p95_ms": { "type": "number" },
+            "p99_ms": { "type": "number" }
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["git_commit"],
+      "properties": {
+        "git_commit": { "type": "string" },
+        "policy_hash": { "type": "string" },
+        "seed": { "type": "integer" }
+      }
+    },
+    "diagnostics": {
+      "type": "object",
+      "properties": {
+        "probable_causes": { "type": "array", "items": { "type": "string" } },
+        "suggested_capability": { "type": "string" }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

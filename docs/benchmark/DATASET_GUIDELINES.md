@@ -16,29 +16,38 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Unified `BenchmarkResult` Schema Contract & Quality Orchestrator
+## 2. Machine-Readable `BenchmarkResult` JSON Schema Contract
 
-A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites emit a single, independently versioned `BenchmarkResult` schema contract (`schema_version: "1.0.0"`, `kind: "BenchmarkResult"`):
+A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json):
 
 ```json
 {
   "schema_version": "1.0.0",
   "kind": "BenchmarkResult",
-  "suite_id": "RQB",
-  "benchmark_id": "vector-2-aliases",
-  "capability": "Alias Normalization",
-  "status": "QUALITY_WARNING",
-  "score": 0.71,
-  "confidence": { "lower": 0.36, "upper": 0.92, "level": 0.95 },
-  "latency": { "mean_ms": 29.56, "p95_ms": 58.91 },
+  "metadata": {
+    "suite_id": "RQB",
+    "benchmark_id": "vector-2-aliases"
+  },
+  "benchmark": {
+    "capability": "Alias Normalization",
+    "status": "QUALITY_WARNING"
+  },
+  "measurements": {
+    "score": 0.71,
+    "confidence": { "lower": 0.36, "upper": 0.92, "level": 0.95 },
+    "latency": { "mean_ms": 29.56, "p95_ms": 58.91 }
+  },
   "evidence": ["5/7 alias variants resolved canonical target"],
   "provenance": { "git_commit": "e777880", "policy_hash": "ecf5732" },
+  "diagnostics": {
+    "probable_causes": ["Missing 'pgsql' variant mapping"]
+  },
   "recommendations": ["Expand brain-services synonym graph for 'pgsql' mapping"]
 }
 ```
 
 ```
-                            Quality Orchestrator (Unified Schema)
+                            Quality Orchestrator (Schema Validation)
                                               │
         ┌───────────────────┬─────────────────┴───────────────────┬───────────────────┐
         ▼                   ▼                                     ▼                   ▼
