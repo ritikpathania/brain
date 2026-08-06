@@ -1,28 +1,62 @@
-# Knowledge Quality Corpus (KQC) — Dataset Guidelines
+# Knowledge Quality Corpus (KQC) — Dataset & Assertion Guidelines
 
 The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class asset separate from the RQB execution engine.
 
 ---
 
-## 1. Dataset Package Standards
+## 1. Declarative Assertion Primitives & Rich Outcome Schemas
 
-All KQC dataset packages in `sdks/python/rqb/datasets/` must conform to the following standards:
+Dataset items define explicit outcome criteria to detect ranking and score regressions:
 
-1. **Independent Package Versioning**: Every dataset file must specify a `version` field (e.g. `v3.1.0`).
-2. **Canonical Entity Normalization**: Canonical labels must be unambiguous, unique, and documented.
-3. **No Synthetic Oversimplification**: Include real-world variation (abbreviations, typos, context-mixed queries).
-4. **Deterministic Expected Facts**: Define precise verification keys (`expected_facts`, `canonical`, `expected_newer_keyword`).
+```json
+{
+  "id": "alias-postgres",
+  "canonical": "PostgreSQL",
+  "aliases": ["postgres", "pgsql", "postgres database"],
+  "sample_text": "PostgreSQL is configured as the primary relational database for metadata.",
+  "expected": {
+    "must_contain": ["PostgreSQL"],
+    "must_not_contain": ["MySQL"],
+    "rank_constraints": {
+      "PostgreSQL": "<=1"
+    },
+    "score_constraints": {
+      "PostgreSQL": {
+        "min": 0.80
+      }
+    }
+  }
+}
+```
+
+### Core Assertion Primitives
+
+| Assertion Primitive | Purpose | Verification Behavior |
+|---|---|---|
+| `must_contain` | Term Presence | Fails if required terms are absent from retrieved candidate lines |
+| `must_not_contain` | Negative Constraint | Fails if forbidden terms appear in retrieved candidate lines |
+| `rank_constraints` | Position Bound | Fails if canonical term is ranked lower than maximum target position (e.g. `<=1`) |
+| `score_constraints` | Confidence Bound | Fails if confidence score drops below minimum threshold (e.g. `min: 0.80`) |
+| `ordering` | Sequential Ranking | Fails if temporal sequence is not ordered chronologically (`newest_first`) |
+| `contains_all` | Conflict Surface | Fails if both disagreeing facts are not surfaced simultaneously |
 
 ---
 
-## 2. Capability Package Taxonomies
+## 2. Capability Package Architecture
 
-| Capability Package | Directory / File | Target Corpus Scale | Purpose |
-|---|---|:---:|---|
-| **Knowledge Retrieval** | `datasets/aliases.json`, `typos.json` | 800+ Scenarios | Canonical entity mapping, shorthand resolution, typo tolerance |
-| **Reasoning & Conflicts** | `datasets/conflicts.json`, `synthesis.json` | 350+ Scenarios | Disagreeing ADR handling, multidimensional topic synthesis |
-| **Memory Evolution** | `datasets/temporal.json` | 100+ Sequences | Recency-weighted timestamp ordering |
-| **User Traces** | `datasets/traces.json` | 500+ Traces | Anonymized historical user query traces |
+KQC is organized into independent capability packages:
+
+```
+sdks/python/rqb/datasets/
+├── aliases/         (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── conflicts/       (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── temporal/        (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── synthesis/       (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── multilingual/    (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── traces/          (dataset.json, README.md, CHANGELOG.md, VERSION)
+├── code/            (dataset.json, README.md, CHANGELOG.md, VERSION)
+└── architecture/    (dataset.json, README.md, CHANGELOG.md, VERSION)
+```
 
 ---
 
@@ -30,4 +64,6 @@ All KQC dataset packages in `sdks/python/rqb/datasets/` must conform to the foll
 
 > **Retrieval engine optimizations MUST be driven by empirical RQB benchmark failures, not by subjective intuition.**
 
-When an RQB run surfaces a shortfall (such as Synonym & Alias coverage at 0.71 vs 0.75 target), engineering effort targets that specific vector until the quality threshold is satisfied.
+Engineering effort targets empirical shortfalls surfaced by RQB:
+- **Primary Target**: Synonym & Alias Coverage ($0.71$ vs $0.75$ threshold target).
+- **Action Plan**: Expand `brain-services` alias graph normalization and synonym dictionary lookup.
