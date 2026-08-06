@@ -18,9 +18,9 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ## 2. Capability Health & Coverage Matrix
 
-Future RQB reports evaluate performance by high-level **Capability Health** and track **Dataset Scenario Coverage**:
+Future RQB reports evaluate performance by high-level **Capability Health** and track **Dataset Scenario Coverage** *(Illustrative Target Examples — Evaluated at Runtime)*:
 
-| System Capability | Dataset Coverage | Capability Health | Pervasiveness / Domain Evidence | Target Action |
+| System Capability | Dataset Coverage *(Illustrative)* | Capability Health | Pervasiveness / Domain Evidence | Target Action |
 |---|:---:|:---:|---|---|
 | **Alias Normalization** | **642 scenarios** | **71.0%** (Quality Warning) | Pervasive across Architecture & Trace datasets (18 failures) | Expand `brain-services` synonym graph |
 | **Temporal Ordering** | **188 scenarios** | **100.0%** (PASS) | Clean across Temporal decision chains (0 failures) | Maintain recency score boosting |
