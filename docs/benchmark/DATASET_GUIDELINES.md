@@ -16,12 +16,38 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Machine-Readable `BenchmarkResult` JSON Schema Contract
+## 2. Declarative Benchmark Execution Manifests (`benchmark-manifest.yaml`)
+
+Future multi-suite benchmark runs are declared via reproducible YAML manifests:
+
+```yaml
+schema: "1.0"
+
+suites:
+  - EBRA
+  - RQB
+  - Agent
+  - OPB
+
+datasets:
+  - aliases@3.2.0
+  - conflicts@2.0.0
+
+environment:
+  seed: 42
+
+outputs:
+  benchmark-result@1.0.0
+```
+
+---
+
+## 3. Machine-Readable `BenchmarkResult` JSON Schema Contract
 
 All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
 
-### Project-Wide Executable Governance & Environment Provenance (`cargo xtask verify`)
-Schema validation is integrated into project-wide verification (`cargo xtask verify` / `python3 schemas/benchmark-result/validate_schema.py`). Every result includes complete environmental reproducibility metadata:
+### Environmental Reproducibility Metadata
+All benchmark runs log complete environmental reproducibility metadata inside the `provenance` block:
 
 ```json
 {
@@ -67,7 +93,7 @@ Schema validation is integrated into project-wide verification (`cargo xtask ver
 
 ---
 
-## 3. Operational Quality Infrastructure & CI Governance
+## 4. Operational Quality Infrastructure & CI Governance
 
 Usability tooling around the framework focuses on operational usability without increasing engine complexity:
 - **CI Executable Governance**: Automated schema validation enforcing output compliance against `benchmark-result.schema.json`.
@@ -78,7 +104,7 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 4. End-to-End User Task Success & Evidence Utilization Metrics
+## 5. End-to-End User Task Success & Evidence Utilization Metrics
 
 | Product Metric | Measurement Target | User Impact |
 |---|---|---|
@@ -91,7 +117,7 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 5. User Retrieval Failure Taxonomy
+## 6. User Retrieval Failure Taxonomy
 
 | Failure Type | Description & Example | Primary Remediation Target |
 |---|---|---|
@@ -103,7 +129,7 @@ Usability tooling around the framework focuses on operational usability without 
 
 ---
 
-## 6. Product Outcome Measurement Dimensions
+## 7. Product Outcome Measurement Dimensions
 
 Engineering focuses on four measurable product dimensions:
 - **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
@@ -113,7 +139,7 @@ Engineering focuses on four measurable product dimensions:
 
 ---
 
-## 7. Closed Continuous Production Feedback Loop
+## 8. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -123,7 +149,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 8. Measured Empirical Baseline vs Target Forecasts
+## 9. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -134,7 +160,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 9. Practical Definition of "Contract Stability"
+## 10. Practical Definition of "Contract Stability"
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
@@ -143,7 +169,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 10. Non-Goals of the RQB Platform
+## 11. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
