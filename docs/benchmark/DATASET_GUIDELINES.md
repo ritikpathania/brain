@@ -18,10 +18,12 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ## 2. Unified `BenchmarkResult` Schema Contract & Quality Orchestrator
 
-A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites emit a single unified result contract:
+A lightweight **Quality Orchestrator** manages execution ordering, provenance, shared reporting, and CI integration across specialized benchmark suites. All suites emit a single, independently versioned `BenchmarkResult` schema contract (`schema_version: "1.0.0"`, `kind: "BenchmarkResult"`):
 
 ```json
 {
+  "schema_version": "1.0.0",
+  "kind": "BenchmarkResult",
   "suite_id": "RQB",
   "benchmark_id": "vector-2-aliases",
   "capability": "Alias Normalization",
