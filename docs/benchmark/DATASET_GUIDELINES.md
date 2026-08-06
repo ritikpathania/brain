@@ -20,11 +20,11 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
 
-### Schema Invariants & Executable Compatibility Tests (`additionalProperties: false`)
+### Immutable `$id` & Cross-Language Contract Testing
+- **Immutable Schema `$id`**: Published schema files under `schemas/benchmark-result/<version>/` are strictly append-only and immutable.
 - **Strict Property Validation**: All objects enforce `additionalProperties: false` to prevent unknown field drift.
-- **Stable Capability Identifiers**: Capabilities map `id` (e.g. `alias_normalization`) and `display_name` separately.
-- **Separation of Execution vs Quality**: Distinguishes `execution_status` (`COMPLETED`, `CRASHED`) from `quality_status` (`PASS`, `QUALITY_WARNING`, `BLOCKED`).
-- **Contract & Backward Compatibility Testing**: Test fixtures preserved under `schemas/benchmark-result/tests/` and `schemas/benchmark-result/compatibility/v1.0.0/`.
+- **Cross-Language Validation**: Validated independently across Rust (`brain-domain`/`brain-core`) and Python (`sdks/python/rqb`) harnesses.
+- **Compatibility Matrix**: Regression test fixtures preserved under `schemas/benchmark-result/compatibility/v1.0.0/`.
 
 ```json
 {
