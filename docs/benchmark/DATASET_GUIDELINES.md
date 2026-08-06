@@ -1,6 +1,6 @@
-# Knowledge Quality Corpus (KQC) — Architecture & Capability Guidelines
+# Knowledge Quality Corpus (KQC) — Architecture & Asset Guidelines
 
-The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class asset separate from the RQB execution engine.
+The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class product asset separate from the RQB execution engine.
 
 ---
 
@@ -16,42 +16,43 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Multi-Release Capability Trend Tracking
+## 2. Closed Continuous Production Feedback Loop
 
-| System Capability | v1.2 Baseline | v1.3 Target | v1.4 Target | Trend Status |
+```
+Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
+  ▲                                                                                                                            │
+  └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Measured Empirical Baseline vs Target Forecasts
+
+| System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
-| **Alias Normalization** | **71.0%** | **78.0%** | **86.0%** | 🟢 Improving ↑ |
-| **Context Resolution** | **96.0%** | **97.0%** | **99.0%** | 🟢 Stable ↑ |
-| **Temporal Ordering** | **100.0%** | **100.0%** | **100.0%** | ⚪ Stable → |
-| **Conflict Visibility** | **100.0%** | **100.0%** | **100.0%** | ⚪ Stable → |
+| **Alias Normalization** | **71.0%** *(Quality Warning)* | **$\ge 78.0\%$** | **$\ge 86.0\%$** | 🟢 Target Improving ↑ |
+| **Context Resolution** | **96.0%** *(PASS)* | **$\ge 97.0\%$** | **$\ge 99.0\%$** | 🟢 Target Stable ↑ |
+| **Temporal Ordering** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
+| **Conflict Visibility** | **100.0%** *(PASS)* | **$100.0\%$** | **$100.0\%$** | ⚪ Stable → |
 
 ---
 
-## 3. Real-World User Query Feedback Loop
+## 4. Productized KQC Asset Governance
 
-```
-User Query Logs ──► Curated & Anonymized ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Improvements
-```
+KQC packages in `sdks/python/rqb/datasets/` follow formal product asset rules:
+- **Bi-weekly Release Cadence**: Managed release cycle for new evaluation scenarios.
+- **Semantic Versioning**: Independent package versioning (e.g. `aliases v3.2.0`).
+- **Changelog & Provenance**: Tracked additions and updates per dataset package.
+- **Deprecation Policy**: Formal RFC before deprecating ground-truth scenario assertions.
 
 ---
 
-## 4. Practical Definition of "Contract Stability"
+## 5. Practical Definition of "Contract Stability"
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
 - 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
 - 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
-
----
-
-## 5. Non-Goals of the RQB Platform
-
-The RQB platform intentionally does **NOT**:
-- **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
-- **Benchmark Operational Load & Scalability**: The **OPB Gate** owns 24-hour RSS memory soak and load scaling.
-- **Automatically Tune Retrieval Algorithms**: RQB provides empirical metrics; engine developers optimize algorithms.
-- **Replace Human & Exploratory Evaluation**: RQB measures automated scenarios; dogfooding evaluates subjective feel.
-- **Define Retrieval Architecture**: RQB evaluates outputs; `brain-services` owns internal domain design.
 
 ---
 
