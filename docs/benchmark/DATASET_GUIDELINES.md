@@ -1,4 +1,4 @@
-# Knowledge Quality Corpus (KQC) — Architecture & Asset Guidelines
+# Knowledge Quality Corpus (KQC) — Architecture & Governance Model
 
 The **Knowledge Quality Corpus (KQC)** represents the ground-truth evaluation data powering the Retrieval Quality Benchmark (RQB). KQC is treated as a first-class product asset separate from the RQB execution engine.
 
@@ -16,7 +16,31 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Closed Continuous Production Feedback Loop
+## 2. User Retrieval Failure Taxonomy
+
+To complement diagnostic reports, retrieval failures are categorized into five root-cause classes:
+
+| Failure Type | Description & Example | Primary Remediation Target |
+|---|---|---|
+| **Missed Alias** | Variant or shorthand unmapped (`pgsql` not mapped to `PostgreSQL`) | Expand `brain-services` synonym graph |
+| **Poor Ranking** | Correct result retrieved at low position (Rank 8 vs Target Rank 1) | Re-calibrate RRF fusion & BM25 parameters |
+| **Missing Knowledge** | Fact absent from ingested memory graph | Ingestion pipeline & observation extractor |
+| **Wrong Synthesis** | Topic synthesis summary omitted key decision | Multi-node aggregation & synthesis prompt |
+| **Context Failure** | Conversational follow-up turn misunderstood | Session history projection & turn buffer |
+
+---
+
+## 3. Product Outcome Measurement Dimensions
+
+Engineering focuses on four measurable product dimensions:
+- **Retrieval Quality**: Alias normalization, acronym resolution, ranking quality, context resolution.
+- **Dataset Quality**: Coverage, diversity, real-world query representation, drift over time.
+- **Operational Quality**: Mean/P95/P99 latency, peak RSS memory, query throughput, database growth.
+- **User Quality**: Time-to-answer, query reformulation rate, search abandonment, relevance.
+
+---
+
+## 4. Closed Continuous Production Feedback Loop
 
 ```
 Production Queries ──► Curation ──► KQC Packages ──► RQB Execution ──► Capability Health ──► Retrieval Fixes ──► Production ──┐
@@ -26,7 +50,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 3. Measured Empirical Baseline vs Target Forecasts
+## 5. Measured Empirical Baseline vs Target Forecasts
 
 | System Capability | Measured Baseline (v1.2) | Planning Target (v1.3) | Planning Target (v1.4) | Trend Status |
 |---|:---:|:---:|:---:|:---:|
@@ -37,7 +61,7 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 4. Productized KQC Asset Governance
+## 6. Productized KQC Asset Governance
 
 KQC packages in `sdks/python/rqb/datasets/` follow formal product asset rules:
 - **Bi-weekly Release Cadence**: Managed release cycle for new evaluation scenarios.
@@ -47,7 +71,7 @@ KQC packages in `sdks/python/rqb/datasets/` follow formal product asset rules:
 
 ---
 
-## 5. Practical Definition of "Contract Stability"
+## 7. Practical Definition of "Contract Stability"
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
@@ -56,53 +80,11 @@ KQC packages in `sdks/python/rqb/datasets/` follow formal product asset rules:
 
 ---
 
-## 6. Structured Diagnostic Schema for Explainable Failures
+## 8. Non-Goals of the RQB Platform
 
-```json
-{
-  "vector_id": 2,
-  "severity": "Critical",
-  "expectation": "Canonical entity PostgreSQL",
-  "observation": "Returned SQLite at rank 3",
-  "probable_causes": [
-    "Alias graph lookup missing 'pgsql' variant mapping"
-  ],
-  "suggested_capability": "Alias Normalization",
-  "supporting_evidence": [
-    "UDS stream chunk contains 'SQLite'"
-  ]
-}
-```
-
----
-
-## 7. Composable Logical Assertion Language
-
-```json
-{
-  "id": "alias-postgres-composite",
-  "canonical": "PostgreSQL",
-  "aliases": ["postgres", "pgsql", "postgres database"],
-  "sample_text": "PostgreSQL is configured as the primary relational database for metadata.",
-  "expected": {
-    "all": [
-      { "contains": "PostgreSQL" },
-      { "rank": { "entity": "PostgreSQL", "max": 1 } },
-      { "score": { "entity": "PostgreSQL", "min": 0.80 } }
-    ],
-    "none": [
-      { "contains": "MySQL" }
-    ]
-  }
-}
-```
-
----
-
-## 8. Evidence-Based Engineering Directive
-
-> **Retrieval engine optimizations MUST be driven by empirical RQB benchmark failures, not by subjective intuition.**
-
-Engineering effort directly targets empirical shortfalls surfaced by RQB:
-- **Primary Target**: Alias Normalization ($71.0\%$ health vs $75.0\%$ threshold target).
-- **Target Capability**: `Alias Normalization` in `brain-services`.
+The RQB platform intentionally does **NOT**:
+- **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
+- **Benchmark Operational Load & Scalability**: The **OPB Gate** owns 24-hour RSS memory soak and load scaling.
+- **Automatically Tune Retrieval Algorithms**: RQB provides empirical metrics; engine developers optimize algorithms.
+- **Replace Human & Exploratory Evaluation**: RQB measures automated scenarios; dogfooding evaluates subjective feel.
+- **Define Retrieval Architecture**: RQB evaluates outputs; `brain-services` owns internal domain design.
