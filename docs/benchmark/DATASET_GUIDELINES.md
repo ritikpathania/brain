@@ -16,20 +16,37 @@ Retrieval Engine    ──► System under test (brain-services hybrid search)
 
 ---
 
-## 2. Capability Health & Failure Frequency Matrix
+## 2. Capability Health & Coverage Matrix
 
-Future RQB reports evaluate performance by high-level **Capability Health** and track **Failure Pervasiveness** across dataset domains:
+Future RQB reports evaluate performance by high-level **Capability Health** and track **Dataset Scenario Coverage**:
 
-| System Capability | Capability Health | Pervasiveness / Domain Evidence | Target Action |
-|---|:---:|---|---|
-| **Alias Normalization** | **71.0%** (Quality Warning) | Pervasive across Architecture & Trace datasets (18 failures) | Expand `brain-services` synonym graph |
-| **Temporal Ordering** | **100.0%** (PASS) | Clean across Temporal decision chains (0 failures) | Maintain recency score boosting |
-| **Conflict Visibility** | **100.0%** (PASS) | Clean across ADR conflict sets (0 failures) | Maintain dual-fact surfacing |
-| **Context Resolution** | **96.0%** (PASS) | Isolated edge case in long-turn session traces | Minor context projection tuning |
+| System Capability | Dataset Coverage | Capability Health | Pervasiveness / Domain Evidence | Target Action |
+|---|:---:|:---:|---|---|
+| **Alias Normalization** | **642 scenarios** | **71.0%** (Quality Warning) | Pervasive across Architecture & Trace datasets (18 failures) | Expand `brain-services` synonym graph |
+| **Temporal Ordering** | **188 scenarios** | **100.0%** (PASS) | Clean across Temporal decision chains (0 failures) | Maintain recency score boosting |
+| **Conflict Visibility** | **121 scenarios** | **100.0%** (PASS) | Clean across ADR conflict sets (0 failures) | Maintain dual-fact surfacing |
+| **Context Resolution** | **487 scenarios** | **96.0%** (PASS) | Isolated edge case in long-turn session traces | Minor context projection tuning |
 
 ---
 
-## 3. Non-Goals of the RQB Platform
+## 3. Capability Registry & Ownership Schema
+
+System capabilities are registered in an explicit **Capability Registry**:
+
+```json
+{
+  "capability_id": "alias_normalization",
+  "name": "Alias Normalization",
+  "description": "Maps shorthand and alias variants to canonical entities",
+  "owning_subsystem": "brain-services::alias_normalizer",
+  "related_vectors": [2],
+  "related_packages": ["aliases"]
+}
+```
+
+---
+
+## 4. Non-Goals of the RQB Platform
 
 The RQB platform intentionally does **NOT**:
 - **Determine Product Release Readiness**: The **EBRA Gate** (`cargo xtask verify`) owns release gating.
@@ -40,7 +57,7 @@ The RQB platform intentionally does **NOT**:
 
 ---
 
-## 4. Practical Definition of "Engine Freeze"
+## 5. Practical Definition of "Engine Freeze"
 
 **"Engine Freeze" at v2.2.0 means STABLE PUBLIC CONTRACTS, NOT ZERO CODE EDITS.**
 
@@ -49,7 +66,7 @@ The RQB platform intentionally does **NOT**:
 
 ---
 
-## 5. Structured Diagnostic Schema for Explainable Failures
+## 6. Structured Diagnostic Schema for Explainable Failures
 
 ```json
 {
@@ -69,7 +86,7 @@ The RQB platform intentionally does **NOT**:
 
 ---
 
-## 6. Composable Logical Assertion Language
+## 7. Composable Logical Assertion Language
 
 ```json
 {
@@ -92,7 +109,7 @@ The RQB platform intentionally does **NOT**:
 
 ---
 
-## 7. Evidence-Based Engineering Directive
+## 8. Evidence-Based Engineering Directive
 
 > **Retrieval engine optimizations MUST be driven by empirical RQB benchmark failures, not by subjective intuition.**
 
