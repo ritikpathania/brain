@@ -162,13 +162,13 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 10. Practical Definition of "Contract Stability" & Library-First Schema Migration
+## 10. Practical Definition of "Contract Stability" & DAG Schema Migration Chaining
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
 - 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
 - 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
-- 🛠️ **Library-First Schema Migrations**: When major schema revisions occur (e.g. `v1.0.0` $\rightarrow$ `v2.0.0`), migrations are implemented via a core library trait (`BenchmarkResultMigrator`), allowing SDKs, dashboards, and the CLI (`benchmark migrate --from 1.0.0 --to 2.0.0`) to share composable migration chains without code duplication.
+- 🛠️ **Library-First DAG Migration Chaining**: Schema migrations are structured as a Directed Acyclic Graph (`1.0.0 -> 2.0.0 -> 3.0.0`). The migration engine composes adjacent step transitions automatically via `BenchmarkResultMigrator`, keeping individual version transitions small, isolated, and unit-testable.
 
 ```rust
 pub trait BenchmarkResultMigrator {
