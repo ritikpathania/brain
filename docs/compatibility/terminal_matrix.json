@@ -1,0 +1,257 @@
+{
+  "schema_version": "1.0",
+  "matrix": [
+    {
+      "terminal": "macOS Terminal.app",
+      "validation_status": "Empirically Validated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "Truecolor",
+          "observed": "Truecolor",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": false,
+          "observed": false,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "pbcopy (macOS)",
+          "observed": "pbcopy (macOS)",
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "terminal": "iTerm2",
+      "validation_status": "Simulated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "Truecolor",
+          "observed": "Truecolor",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "pbcopy (macOS)",
+          "observed": "pbcopy (macOS)",
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "terminal": "WezTerm",
+      "validation_status": "Simulated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "Truecolor",
+          "observed": "Truecolor",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "Platform Standard",
+          "observed": "Platform Standard",
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "terminal": "Ghostty",
+      "validation_status": "Simulated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "Truecolor",
+          "observed": "Truecolor",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "Platform Standard",
+          "observed": "Platform Standard",
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "terminal": "Alacritty",
+      "validation_status": "Simulated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "Truecolor",
+          "observed": "Truecolor",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": false,
+          "observed": false,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "Platform Standard",
+          "observed": "Platform Standard",
+          "status": "PASS"
+        }
+      }
+    },
+    {
+      "terminal": "NO_COLOR / Plain VT",
+      "validation_status": "Simulated",
+      "capabilities": {
+        "unicode_borders": {
+          "level": "Required",
+          "expected": false,
+          "observed": false,
+          "status": "PASS"
+        },
+        "color_profile": {
+          "level": "Required",
+          "expected": "NO_COLOR",
+          "observed": "NO_COLOR",
+          "status": "PASS"
+        },
+        "no_color_degradation": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "alt_w_key_routing": {
+          "level": "Required",
+          "expected": true,
+          "observed": true,
+          "status": "PASS"
+        },
+        "osc8_hyperlinks": {
+          "level": "Optional",
+          "expected": false,
+          "observed": false,
+          "status": "PASS"
+        },
+        "clipboard_provider": {
+          "level": "Optional",
+          "expected": "In-Memory Fallback",
+          "observed": "In-Memory Fallback",
+          "status": "PASS"
+        }
+      }
+    }
+  ]
+}
