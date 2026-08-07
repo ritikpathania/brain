@@ -100,6 +100,7 @@ All benchmark runs log complete environmental reproducibility metadata inside th
 Usability tooling around the framework focuses on operational usability without increasing engine complexity:
 - **CI Executable Governance**: Automated schema validation enforcing output compliance against `benchmark-result.schema.json`.
 - **Contract & Compatibility Testing**: Multi-version compatibility verification across `schemas/benchmark-result/compatibility/`.
+- **Migration Invariant Safeguards**: End-to-end roundtrip test (`deserialize(v1) -> migrate() -> validate_against_schema() -> serialize() -> deserialize()`).
 - **Historical Capability Dashboards**: Visualizing multi-release capability trends ($v1.2 \rightarrow v1.3 \rightarrow v1.4$).
 - **CI Quality Gates**: Comparing pull request benchmark runs against baseline `main` branch time-series data.
 - **Automatic Regression Triage**: Grouping related vector failures into single engineering issues.
@@ -162,13 +163,13 @@ Production Queries ──► Curation ──► KQC Packages ──► RQB Execu
 
 ---
 
-## 10. Practical Definition of "Contract Stability" & DAG Schema Migration Chaining
+## 10. Practical Definition of "Contract Stability" & Discovered Migration Registry
 
 **"Stable Public Contracts" at v2.2.0 means STABLE PUBLIC INTERFACES, NOT ZERO CODE EDITS.**
 
 - 🔒 **Stable Public Contracts**: Interfaces, report schema, evaluator lifecycle, policy JSON structure.
 - 🔓 **Evolvable Maintenance**: Correctness bug fixes, performance optimizations, statistical accuracy fixes, dependency updates.
-- 🛠️ **Library-First DAG Migration Chaining**: Schema migrations are structured as a Directed Acyclic Graph (`1.0.0 -> 2.0.0 -> 3.0.0`). The migration engine composes adjacent step transitions automatically via `BenchmarkResultMigrator`, keeping individual version transitions small, isolated, and unit-testable.
+- 🛠️ **Discovered DAG Migration Registry**: Schema migrators register adjacent transitions (`1.0.0 -> 2.0.0`, `2.0.0 -> 3.0.0`). The `MigrationRegistry` auto-discovers registrees, verifies DAG acyclicity, and computes the shortest valid upgrade path. Migration invariant tests ensure zero data corruption during roundtrips.
 
 ```rust
 pub trait BenchmarkResultMigrator {
