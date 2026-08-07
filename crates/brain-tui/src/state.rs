@@ -756,6 +756,8 @@ pub struct UiState {
     pub automation_queue: Vec<brain_integrations::dto::v1::AutomationQueueItemDto>,
     /// Automation execution history log records.
     pub automation_execution_logs: Vec<brain_integrations::dto::v1::AutomationExecutionLogDto>,
+    /// Set of collapsed result group indices for progressive disclosure.
+    pub collapsed_groups: std::collections::HashSet<usize>,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -907,6 +909,8 @@ pub enum Action {
     DeleteSession(SessionId),
     /// Toggle the visibility of KPP reflection logs in TUI.
     ToggleReflectionLogs,
+    /// Toggle group expansion state for result groups.
+    ToggleGroupExpand(usize),
     /// Create a fresh conversation thread.
     NewSession,
     /// Scroll the viewport up by a specified line count.
@@ -1072,6 +1076,7 @@ impl UiState {
             automation_rules: Vec::new(),
             automation_queue: Vec::new(),
             automation_execution_logs: Vec::new(),
+            collapsed_groups: std::collections::HashSet::new(),
         }
     }
 
@@ -1149,6 +1154,7 @@ impl UiState {
             automation_rules: Vec::new(),
             automation_queue: Vec::new(),
             automation_execution_logs: Vec::new(),
+            collapsed_groups: std::collections::HashSet::new(),
         }
     }
 
@@ -1297,6 +1303,11 @@ impl UiState {
     /// Returns whether the typewriter backend has signalled completion.
     pub fn typewriter_backend_finished(&self) -> bool {
         self.typewriter.backend_finished
+    }
+
+    /// Returns true if the specified result group index is collapsed.
+    pub fn is_group_collapsed(&self, group_idx: usize) -> bool {
+        self.collapsed_groups.contains(&group_idx)
     }
 
     /// Pure reducer transitioning state based on Action.
@@ -1729,6 +1740,14 @@ impl UiState {
             }
             Action::ToggleReflectionLogs => {
                 self.enable_reflection_logs = !self.enable_reflection_logs;
+                UpdateResult::Changed
+            }
+            Action::ToggleGroupExpand(group_idx) => {
+                if self.collapsed_groups.contains(&group_idx) {
+                    self.collapsed_groups.remove(&group_idx);
+                } else {
+                    self.collapsed_groups.insert(group_idx);
+                }
                 UpdateResult::Changed
             }
             Action::NewSession => {
@@ -3518,5 +3537,17 @@ mod tests {
         assert_eq!(suggestions.len(), 2);
         assert_eq!(suggestions[0].name, "/plan");
         assert_eq!(suggestions[1].name, "/pin");
+    }
+
+    #[test]
+    fn test_collapsible_result_groups() {
+        let mut state = UiState::new();
+        assert!(!state.is_group_collapsed(0));
+
+        state.update(Action::ToggleGroupExpand(0));
+        assert!(state.is_group_collapsed(0));
+
+        state.update(Action::ToggleGroupExpand(0));
+        assert!(!state.is_group_collapsed(0));
     }
 }
