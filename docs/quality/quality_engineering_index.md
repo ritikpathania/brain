@@ -4,6 +4,28 @@ This document serves as the high-level index of the quality validation strategy,
 
 ---
 
+## Quality Signal Dashboard
+
+| Quality Signal | Latest Empirical Measurement | Threshold / Gate | Status / Trend | Target Artifact / Script |
+| :--- | :--- | :--- | :---: | :--- |
+| **Cold Startup Latency** | **497 ms** (Socket health poll) | $\le +10\%$ max delta | ↔ **Stable** | [`scripts/perf_runner.sh`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/perf_runner.sh) |
+| **Sampled Steady-State RSS** | **16,080 KB** (~16.08 MB) | $\le +5\%$ max growth | ↔ **Stable** | [`scripts/check_perf.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/check_perf.py) |
+| **Idle CPU Utilization** | **0.0 %** | $\le 1.0\%$ absolute CPU | ↔ **Stable** | [`scripts/perf_runner.sh`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/perf_runner.sh) |
+| **Frame Draw Latency (P95)** | **108.12 µs** | Criterion bench baseline | ↔ **Stable** | [`benches/ui_benchmarks.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/benches/ui_benchmarks.rs) |
+| **Tokenizer Throughput** | **516.59 ns** / chunk | Criterion bench baseline | ↔ **Stable** | [`benches/ui_benchmarks.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/benches/ui_benchmarks.rs) |
+| **Steady-State RSS Growth** | **0.17 %** (30 soak cycles) | $\le 5.0\%$ growth | ✅ **PASS** | [`scripts/soak_runner.sh`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/soak_runner.sh) |
+| **File Descriptor Delta ($\Delta$ FDs)**| **+0** (26 open FDs) | $\le +2$ lingering FDs | ✅ **PASS** | [`scripts/sample_telemetry.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/sample_telemetry.py) |
+| **Thread Count Delta ($\Delta$ Threads)**| **+0** (13 active threads) | $\le +1$ lingering thread | ✅ **PASS** | [`scripts/sample_telemetry.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/sample_telemetry.py) |
+| **Query Latency Drift** | **-0.3 ms** | Zero latency drift | ✅ **PASS** | [`scripts/soak_runner.sh`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/soak_runner.sh) |
+| **UDS Socket Health Rate** | **100.0 %** (30/30) | $100.0\%$ healthy | ✅ **PASS** | [`scripts/check_soak_gates.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/check_soak_gates.py) |
+| **Daemon Restart Recovery** | **PASSED** (100% data persistence) | Zero memory loss | ✅ **PASS** | [`scripts/test_fault_recovery.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/test_fault_recovery.py) |
+| **Socket File Deletion Recovery**| **PASSED** (Auto socket recreate) | Zero IPC deadlock | ✅ **PASS** | [`scripts/test_fault_recovery.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/test_fault_recovery.py) |
+| **Terminal Compatibility Matrix** | **36/36 gates passed** (6 profiles) | $100\%$ Required gates | ✅ **PASS** | [`scripts/validate_terminal_matrix.py`](file:///Users/ritikpathania/Developer/PyCharm/brain/scripts/validate_terminal_matrix.py) |
+| **Viewport Width Render Safety** | **40, 60, 80, 120 cols** | Zero overflow / panic | ✅ **PASS** | [`tests/terminal_matrix_tests.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/tests/terminal_matrix_tests.rs) |
+| **UX Virtualization & Footer** | **Passed all tests** | Autocomplete, Footer, Scroll | ✅ **PASS** | [`tests/ux_refinement_tests.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/tests/ux_refinement_tests.rs) |
+
+---
+
 ## Contributor Quality Checklist & Pipeline Policy
 
 ```mermaid
