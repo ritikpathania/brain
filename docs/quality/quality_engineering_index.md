@@ -4,6 +4,20 @@ This document serves as the high-level index of the quality validation strategy,
 
 ---
 
+## Contributor Quality Checklist
+
+Before opening a pull request or merging new features into the repository, every change must participate in the established quality framework:
+
+- [ ] **Unit Tests**: Domain logic, state reducers, and serialization logic are verified with unit tests.
+- [ ] **Integration Tests**: Feature interactions verified with `cargo test` in `crates/brain-tui/tests/`.
+- [ ] **Performance Impact Assessed**: Socket startup latency, sampled RSS, and CPU utilization evaluated via `./scripts/perf_runner.sh` and `./scripts/check_perf.py`.
+- [ ] **Reliability Impact Assessed**: Steady-state soak growth, FD/thread counts, and fault recovery evaluated via `./scripts/soak_runner.sh` and `./scripts/check_soak_gates.py`.
+- [ ] **Terminal Compatibility Impact**: Viewport width safety (40–120 cols), theme token resolution, and key routing verified via `./scripts/validate_terminal_matrix.py`.
+- [ ] **UX Implications Reviewed**: Navigation semantics, progressive disclosure, and status footer telemetry verified via `ux_refinement_tests.rs`.
+- [ ] **Documentation Updated**: Relevant baseline reports and architectural docs updated.
+
+---
+
 ## Quality Domain Index
 
 ```mermaid
