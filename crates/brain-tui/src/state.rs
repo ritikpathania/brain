@@ -1,6 +1,7 @@
 use crate::ui::interaction::MessageId;
 use brain_domain::SessionId;
 use serde::{Deserialize, Serialize};
+use std::cmp::{max, min};
 use std::collections::VecDeque;
 use std::time::{Instant, SystemTime};
 
@@ -126,6 +127,32 @@ pub struct SessionViewModel {
     pub pinned: bool,
     /// Whether the session is archived.
     pub archived: bool,
+}
+
+/// Individual visible row in a virtual scroll viewport.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VisibleRow {
+    /// Monotonic index of the row.
+    pub index: usize,
+    /// String content of the row.
+    pub content: String,
+    /// Whether the row is highlighted.
+    pub is_highlighted: bool,
+}
+
+/// Sliced viewport presentation model for virtual scrolling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PresentationModel {
+    /// Vector of rows currently visible within the viewport.
+    pub visible_rows: Vec<VisibleRow>,
+    /// Total count of rows in the dataset.
+    pub total_rows: usize,
+    /// Current scroll offset position.
+    pub scroll_offset: usize,
+    /// Height of the visible viewport.
+    pub viewport_height: usize,
+    /// Formatted scroll indicator text.
+    pub scroll_indicator: String,
 }
 
 /// Semantic outcome of a typewriter queue tick drain cycle.
@@ -886,6 +913,10 @@ pub enum Action {
     ScrollUp(usize),
     /// Scroll the viewport down by a specified line count.
     ScrollDown(usize),
+    /// Jump scroll offset to the top of the viewport.
+    JumpToTop,
+    /// Jump scroll offset to the bottom of the viewport given total row count.
+    JumpToBottom(usize),
     /// Navigate/inspect node details.
     InspectNode(brain_domain::NodeId),
     /// Inspector details loaded successfully.
@@ -1126,6 +1157,36 @@ impl UiState {
         self.pending_load = None;
         if matches!(self.session_load_state, SessionLoadState::Loading) {
             self.session_load_state = SessionLoadState::NotLoaded;
+        }
+    }
+
+    /// Returns a virtualized `PresentationModel` slicing total rows to viewport bounds.
+    pub fn presentation_model(&self, total_rows: usize, viewport_height: usize) -> PresentationModel {
+        let v_height = max(1, viewport_height);
+        let offset = min(self.viewport.scroll_offset, total_rows.saturating_sub(1));
+        let end = min(offset + v_height, total_rows);
+
+        let mut visible = Vec::new();
+        for i in offset..end {
+            visible.push(VisibleRow {
+                index: i,
+                content: format!("Row {}", i + 1),
+                is_highlighted: false,
+            });
+        }
+
+        let indicator = if total_rows == 0 {
+            "0 results".to_string()
+        } else {
+            format!("Showing {}-{} of {}", offset + 1, end, total_rows)
+        };
+
+        PresentationModel {
+            visible_rows: visible,
+            total_rows,
+            scroll_offset: offset,
+            viewport_height: v_height,
+            scroll_indicator: indicator,
         }
     }
 
@@ -1855,6 +1916,16 @@ impl UiState {
             }
             Action::ScrollDown(lines) => {
                 self.viewport.scroll_offset += lines;
+                self.viewport.follow_tail = false;
+                UpdateResult::Changed
+            }
+            Action::JumpToTop => {
+                self.viewport.scroll_offset = 0;
+                self.viewport.follow_tail = false;
+                UpdateResult::Changed
+            }
+            Action::JumpToBottom(total_rows) => {
+                self.viewport.scroll_offset = total_rows.saturating_sub(1);
                 self.viewport.follow_tail = false;
                 UpdateResult::Changed
             }
@@ -2653,6 +2724,22 @@ impl Default for UiState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_presentation_model_visible_rows_slice() {
+        let mut state = UiState::new();
+        state.viewport.scroll_offset = 10;
+
+        let model = state.presentation_model(50, 20);
+        assert_eq!(model.visible_rows.len(), 20);
+        assert_eq!(model.scroll_indicator, "Showing 11-30 of 50");
+
+        state.update(Action::JumpToTop);
+        assert_eq!(state.viewport.scroll_offset, 0);
+
+        state.update(Action::JumpToBottom(50));
+        assert_eq!(state.viewport.scroll_offset, 49);
+    }
 
     #[test]
     fn test_editor_input_append() {

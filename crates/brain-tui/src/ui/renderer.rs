@@ -1,4 +1,4 @@
-use crate::state::{ConnectionMode, FocusRegion, UiState};
+use crate::state::{ConnectionMode, FocusRegion, PresentationModel, UiState, VisibleRow};
 use crate::ui::interaction::markdown::{SelectionState, ViewportIndex, VisualLine, VisualLineKind};
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::{
@@ -583,6 +583,16 @@ impl Default for AppRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_presentation_model_rendering() {
+        let state = UiState::default();
+        let model: PresentationModel = state.presentation_model(10, 5);
+        assert_eq!(model.visible_rows.len(), 5);
+        assert_eq!(model.scroll_indicator, "Showing 1-5 of 10");
+        let first_row: Option<&VisibleRow> = model.visible_rows.first();
+        assert_eq!(first_row.map(|r| r.index), Some(0));
+    }
 
     #[test]
     fn test_layout_invariant_assertions_matrix() {
