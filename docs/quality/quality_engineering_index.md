@@ -4,17 +4,26 @@ This document serves as the high-level index of the quality validation strategy,
 
 ---
 
-## Contributor Quality Checklist
+## Contributor Quality Checklist & Release Policy
 
-Before opening a pull request or merging new features into the repository, every change must participate in the established quality framework:
+### 1. Merge Criteria (Per Pull Request)
+Before opening a pull request or merging new features into `main`, every change must pass the following automated checks:
 
-- [ ] **Unit Tests**: Domain logic, state reducers, and serialization logic are verified with unit tests.
-- [ ] **Integration Tests**: Feature interactions verified with `cargo test` in `crates/brain-tui/tests/`.
-- [ ] **Performance Impact Assessed**: Socket startup latency, sampled RSS, and CPU utilization evaluated via `./scripts/perf_runner.sh` and `./scripts/check_perf.py`.
-- [ ] **Reliability Impact Assessed**: Steady-state soak growth, FD/thread counts, and fault recovery evaluated via `./scripts/soak_runner.sh` and `./scripts/check_soak_gates.py`.
-- [ ] **Terminal Compatibility Impact**: Viewport width safety (40–120 cols), theme token resolution, and key routing verified via `./scripts/validate_terminal_matrix.py`.
-- [ ] **UX Implications Reviewed**: Navigation semantics, progressive disclosure, and status footer telemetry verified via `ux_refinement_tests.rs`.
+- [ ] **Unit Tests**: Domain logic, state reducers, and serialization logic pass unit tests (`cargo test`).
+- [ ] **Integration Tests**: Feature interactions pass integration suites in `crates/brain-tui/tests/`.
+- [ ] **Performance Impact Assessed**: Cold startup latency, RSS growth, and idle CPU pass thresholds (`./scripts/check_perf.py`).
+- [ ] **Reliability Impact Assessed**: Steady-state soak growth, FD/thread counts pass gates (`./scripts/check_soak_gates.py`).
+- [ ] **Terminal Compatibility Impact**: Multi-width viewport safety (40–120 cols) and theme tokens pass (`./scripts/validate_terminal_matrix.py`).
+- [ ] **UX Implications Reviewed**: Navigation semantics, virtual scrolling, and status footer pass (`ux_refinement_tests.rs`).
 - [ ] **Documentation Updated**: Relevant baseline reports and architectural docs updated.
+
+### 2. Release Criteria (Pre-Release & Tagging)
+Official releases additionally require the following release gates:
+
+- [ ] **CI Reliability Baseline**: 100% pass on 30-cycle CI baseline test.
+- [ ] **Nightly Extended Soak**: 6–12 hour extended soak run completed with zero panics or memory leaks.
+- [ ] **Performance Baseline**: Latest performance telemetry verified against baseline thresholds (`docs/benchmarks/benchmark_report.md`).
+- [ ] **Terminal Compatibility Matrix**: 100% pass rate on all `Required` capability matrix gates across target terminal profiles.
 
 ---
 
