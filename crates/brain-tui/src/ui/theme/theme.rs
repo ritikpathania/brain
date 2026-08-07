@@ -25,7 +25,11 @@ pub struct Theme {
     // Additional semantic token styles
     info: Style,
     text_primary: Style,
-    text_secondary: Style,
+    /// Public color accessor for secondary background.
+    pub bg_secondary: ratatui::style::Color,
+    /// Public color accessor for secondary text.
+    pub text_secondary: ratatui::style::Color,
+    text_secondary_style: Style,
     text_muted: Style,
     header_primary: Style,
     header_secondary: Style,
@@ -113,7 +117,9 @@ impl Theme {
             error: danger,
             info,
             text_primary,
-            text_secondary,
+            bg_secondary: palette.surface,
+            text_secondary: palette.text_secondary,
+            text_secondary_style: text_secondary,
             text_muted,
             header_primary,
             header_secondary,
@@ -178,6 +184,11 @@ impl Theme {
             .border_type(ratatui::widgets::BorderType::Rounded)
             .border_style(border_style)
     }
+
+    /// Checks if theme uses uncolored/reset profile.
+    pub fn is_no_color(&self) -> bool {
+        self.text_secondary == ratatui::style::Color::Reset
+    }
 }
 
 impl ActiveTheme for Theme {
@@ -192,7 +203,7 @@ impl ActiveTheme for Theme {
             ThemeToken::Danger => self.error,
             ThemeToken::Info => self.info,
             ThemeToken::TextPrimary => self.text_primary,
-            ThemeToken::TextSecondary => self.text_secondary,
+            ThemeToken::TextSecondary => self.text_secondary_style,
             ThemeToken::TextMuted => self.text_muted,
             ThemeToken::HeaderPrimary => self.header_primary,
             ThemeToken::HeaderSecondary => self.header_secondary,

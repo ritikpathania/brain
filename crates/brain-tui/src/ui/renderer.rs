@@ -1,5 +1,6 @@
-use crate::state::{ConnectionMode, FocusRegion, PresentationModel, UiState, VisibleRow};
+use crate::state::{ConnectionMode, FocusRegion, UiState};
 use crate::ui::interaction::markdown::{SelectionState, ViewportIndex, VisualLine, VisualLineKind};
+use crate::ui::status_footer::StatusFooterWidget;
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use crate::ui::widgets::{
     chat::{self, ChatView, VisibleChatLine},
@@ -8,7 +9,6 @@ use crate::ui::widgets::{
     inspector, pinned_overlay,
     prompt::{self, PromptView},
     sidebar,
-    status::{self, StatusView},
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
@@ -137,7 +137,7 @@ impl AppRenderer {
         let policy = crate::ui::render::CapabilityPolicy::default();
         let capabilities = crate::ui::render::CapabilityResolver::resolve(&caps, &policy);
 
-        let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, status_area) =
+        let (header_area, sidebar_area, chat_area, inspector_area, prompt_area, footer_area) =
             self.compute_layout(area, state);
 
         if state.mode == crate::state::TuiMode::RuntimeDashboard {
@@ -422,79 +422,10 @@ impl AppRenderer {
             submit_with_workspace: state.submit_with_workspace,
         };
 
-        // 5. Build Status ViewModel — message derives from runtime state so users
-        //    always see what the app is doing rather than static keyboard hints.
-        let status_message = {
-            if let Some((ref msg, _)) = state.transient_message {
-                format!(" 📌 {} ", msg)
-            } else if state.connection_mode == crate::state::ConnectionMode::Disconnected {
-                " ⚠  Connection lost — press Enter to retry".to_string()
-            } else if state.connection_mode == crate::state::ConnectionMode::Connecting
-                && !matches!(
-                    state.generation_state,
-                    crate::state::GenerationState::Starting
-                        | crate::state::GenerationState::Streaming { .. }
-                )
-            {
-                " ⚡ Connecting to daemon...".to_string()
-            } else if state.mode == crate::state::TuiMode::Exploration {
-                let p_hint = if state
-                    .active_inspector
-                    .as_ref()
-                    .map(|ai| state.pinned_nodes.iter().any(|pn| pn.node_id == ai.node_id))
-                    .unwrap_or(false)
-                {
-                    "p: Unpin"
-                } else {
-                    "p: Pin"
-                };
-                format!(" Backspace: Back  |  Tab: Focus  |  Esc: Close  |  ↑/↓: Nav Relations  |  Enter: Inspect  |  Ctrl+P: Context  |  {}", p_hint)
-            } else {
-                // Build workspace hint: show Alt+W option plus active state
-                let workspace_hint = if state.pinned_nodes.is_empty() {
-                    "".to_string()
-                } else if state.submit_with_workspace {
-                    format!(
-                        "  |  Alt+W: WS ✓ ({})  |  Ctrl+P: Context",
-                        state.pinned_nodes.len()
-                    )
-                } else {
-                    format!(
-                        "  |  Alt+W: WS  |  Ctrl+P: Context ({})",
-                        state.pinned_nodes.len()
-                    )
-                };
-                match &state.generation_state {
-                    crate::state::GenerationState::Starting => " 🔍 Searching...".to_string(),
-                    crate::state::GenerationState::Streaming { .. } => {
-                        " 📥 Receiving results...".to_string()
-                    }
-                    crate::state::GenerationState::Finished => format!(
-                        " ✓  Done  |  Tab: Switch Focus  |  Esc: New query{}  |  Ctrl+C: Quit",
-                        workspace_hint
-                    ),
-                    crate::state::GenerationState::Cancelled(_) => {
-                        " ✕  Cancelled  |  Tab: Switch Focus  |  Enter: Submit".to_string()
-                    }
-                    crate::state::GenerationState::Error(msg) => format!(
-                        " ⚠  Error: {}  |  Enter: Retry",
-                        msg.chars().take(60).collect::<String>()
-                    ),
-                    crate::state::GenerationState::Idle => format!(
-                        " Tab: Switch Focus  |  Esc: Quit  |  Ctrl+C: Cancel{}  |  Enter: Submit",
-                        workspace_hint
-                    ),
-                }
-            }
-        };
-        let status_view = StatusView {
-            message: status_message,
-        };
-
         // 6. Draw TUI widgets
         header::draw(f, header_area, &header_view, theme);
         prompt::draw(f, prompt_area, &prompt_view, theme);
-        status::draw(f, status_area, &status_view, theme);
+        StatusFooterWidget::draw(f, footer_area, state, theme);
 
         // 7. Draw tool approval dialog overlay (Command Palette and Slash Completion are
         //    DEFERRED — they have no keyboard entry points wired in lib.rs yet and are
@@ -583,6 +514,7 @@ impl Default for AppRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::{PresentationModel, VisibleRow};
 
     #[test]
     fn test_presentation_model_rendering() {

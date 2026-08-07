@@ -1,6 +1,9 @@
 /// Layout and constraints drawing coordinator.
 pub mod renderer;
 
+/// Status footer widget.
+pub mod status_footer;
+
 /// Semantic style definitions.
 pub mod theme;
 
@@ -18,6 +21,10 @@ pub mod primitives;
 
 /// Layout and geometry calculation module.
 pub mod layout;
+
+/// Read-only reasoning trace diagnostic visualizer.
+pub mod reasoning_trace_widget;
+pub use reasoning_trace_widget::*;
 
 /// Screen composition trait.
 pub mod screen;
