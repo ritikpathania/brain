@@ -4,10 +4,29 @@ This document serves as the high-level index of the quality validation strategy,
 
 ---
 
-## Contributor Quality Checklist & Release Policy
+## Contributor Quality Checklist & Pipeline Policy
 
-### 1. Merge Criteria (Per Pull Request)
-Before opening a pull request or merging new features into `main`, every change must pass the following automated checks:
+```mermaid
+flowchart LR
+    subgraph PR["1. PR Validation Pipeline (Merge Criteria)"]
+        PR1["Unit & Integration Tests"]
+        PR2["check_perf.py Gate"]
+        PR3["check_soak_gates.py Gate"]
+        PR4["validate_terminal_matrix.py Gate"]
+    end
+    subgraph Nightly["2. Nightly Pipeline"]
+        N1["6-12h Extended Soak"]
+        N2["Telemetry Trend Analysis"]
+    end
+    subgraph Release["3. Release Candidate Pipeline (Release Criteria)"]
+        R1["Full Telemetry Verification"]
+        R2["100% Matrix Gate Pass"]
+    end
+    PR --> Nightly --> Release
+```
+
+### 1. PR Validation Pipeline (Merge Criteria)
+Every pull request must pass the following automated gates before merging to `main`:
 
 - [ ] **Unit Tests**: Domain logic, state reducers, and serialization logic pass unit tests (`cargo test`).
 - [ ] **Integration Tests**: Feature interactions pass integration suites in `crates/brain-tui/tests/`.
@@ -17,13 +36,21 @@ Before opening a pull request or merging new features into `main`, every change 
 - [ ] **UX Implications Reviewed**: Navigation semantics, virtual scrolling, and status footer pass (`ux_refinement_tests.rs`).
 - [ ] **Documentation Updated**: Relevant baseline reports and architectural docs updated.
 
-### 2. Release Criteria (Pre-Release & Tagging)
-Official releases additionally require the following release gates:
+### 2. Nightly Pipeline (Long-Duration Observation)
+Scheduled nightly jobs run extended validation:
+
+- [ ] **Extended Soak Run**: 6–12 hour soak execution detecting memory drift, thread leaks, or socket degradation over time.
+- [ ] **Telemetry Trend Analysis**: Automated trend tracking comparing daily RSS growth and latency drift metrics.
+
+### 3. Release Candidate Pipeline (Release Criteria)
+Official releases require the following release gates:
 
 - [ ] **CI Reliability Baseline**: 100% pass on 30-cycle CI baseline test.
-- [ ] **Nightly Extended Soak**: 6–12 hour extended soak run completed with zero panics or memory leaks.
-- [ ] **Performance Baseline**: Latest performance telemetry verified against baseline thresholds (`docs/benchmarks/benchmark_report.md`).
+- [ ] **Performance Baseline Compliance**: Latest performance telemetry verified against baseline thresholds (`docs/benchmarks/benchmark_report.md`).
 - [ ] **Terminal Compatibility Matrix**: 100% pass rate on all `Required` capability matrix gates across target terminal profiles.
+
+### 4. Post-Release Observability
+- Runtime diagnostics and socket health reporting monitored via `brain health` and JSON telemetry.
 
 ---
 
