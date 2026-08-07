@@ -1,4 +1,4 @@
-//! Input translation and event mapping.
+//! Input translation, event mapping, and command routing.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 

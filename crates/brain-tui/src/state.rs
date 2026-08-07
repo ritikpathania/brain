@@ -498,6 +498,12 @@ impl EditorState {
             self.cursor = self.chars.len();
         }
     }
+
+    /// Sets the text buffer directly and positions cursor at the end.
+    pub fn set_text(&mut self, text: &str) {
+        self.chars = text.chars().collect();
+        self.cursor = self.chars.len();
+    }
 }
 
 impl Default for EditorState {
@@ -571,6 +577,17 @@ pub struct InspectorSession {
     pub scroll_offset: usize,
     /// Currently highlighted relation connection index.
     pub selected_relation_idx: usize,
+}
+
+/// Rich slash command metadata descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SlashCommand {
+    /// Command name string (e.g., "/memory").
+    pub name: String,
+    /// Detailed description of the command capability.
+    pub description: String,
+    /// Semantic category classification (e.g., "Graph", "Planning").
+    pub category: String,
 }
 
 /// Central application layout and editor context.
@@ -1110,6 +1127,31 @@ impl UiState {
         if matches!(self.session_load_state, SessionLoadState::Loading) {
             self.session_load_state = SessionLoadState::NotLoaded;
         }
+    }
+
+    /// Returns the static registry of available slash commands and their metadata.
+    pub fn slash_commands() -> Vec<SlashCommand> {
+        vec![
+            SlashCommand { name: "/memory".into(), description: "Query relational memory graph".into(), category: "Graph".into() },
+            SlashCommand { name: "/plan".into(), description: "Display execution roadmap".into(), category: "Planning".into() },
+            SlashCommand { name: "/pin".into(), description: "Pin item into active context overlay".into(), category: "Context".into() },
+            SlashCommand { name: "/unpin".into(), description: "Unpin item from context overlay".into(), category: "Context".into() },
+            SlashCommand { name: "/archive".into(), description: "Archive conversation session".into(), category: "Session".into() },
+            SlashCommand { name: "/restore".into(), description: "Restore archived conversation session".into(), category: "Session".into() },
+        ]
+    }
+
+    /// Returns matching slash command suggestions for the current prompt text.
+    pub fn get_slash_suggestions(&self) -> Vec<SlashCommand> {
+        let text_buf = self.editor.text();
+        let text = text_buf.trim();
+        if !text.starts_with('/') {
+            return Vec::new();
+        }
+        Self::slash_commands()
+            .into_iter()
+            .filter(|c| c.name.starts_with(text))
+            .collect()
     }
 
     /// Read-only accessor for CommandPaletteState.
@@ -3379,5 +3421,15 @@ mod tests {
             "Expected Error state, got {:?}",
             state.generation_state
         );
+    }
+
+    #[test]
+    fn test_rich_slash_command_suggestions() {
+        let mut state = UiState::new();
+        state.editor.set_text("/p");
+        let suggestions = state.get_slash_suggestions();
+        assert_eq!(suggestions.len(), 2);
+        assert_eq!(suggestions[0].name, "/plan");
+        assert_eq!(suggestions[1].name, "/pin");
     }
 }
