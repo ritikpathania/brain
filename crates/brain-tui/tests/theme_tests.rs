@@ -68,7 +68,7 @@ fn test_claude_rgb_palette_alignment() {
     );
     assert_eq!(
         theme.token_color(ThemeToken::BorderSubtle),
-        Color::Rgb(215, 119, 87)
+        Color::Rgb(80, 80, 80)
     );
     assert_eq!(
         theme.token_color(ThemeToken::Suggestion),

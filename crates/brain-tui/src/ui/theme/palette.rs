@@ -87,7 +87,7 @@ impl Palette {
             system: Color::Rgb(153, 153, 153),
             background: Color::Reset,
             surface: Color::Reset,
-            border_subtle: Color::Rgb(215, 119, 87),
+            border_subtle: Color::Rgb(80, 80, 80),
             suggestion: Color::Rgb(177, 185, 249),
         }
     }

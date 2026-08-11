@@ -14,10 +14,17 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(theme.style(ThemeToken::BorderSubtle))
+        .border_style(theme.style(ThemeToken::HeaderPrimary))
         .title(Line::from(vec![
+            Span::styled("─", theme.style(ThemeToken::HeaderPrimary)),
             Span::styled(
-                " Claude Code ",
+                " Claude ",
+                theme
+                    .style(ThemeToken::HeaderPrimary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Code ",
                 theme
                     .style(ThemeToken::HeaderPrimary)
                     .add_modifier(Modifier::BOLD),
@@ -42,13 +49,14 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let divider_area = chunks[1];
     let right_area = chunks[2];
 
-    // Render Vertical Divider at boundary (column x=47)
+    // Render Vertical Divider at boundary (column x=47) in subtle grey (#505050 / RGB(80, 80, 80))
     let buf = f.buffer_mut();
+    let divider_style = theme.style(ThemeToken::BorderSubtle);
     for y in divider_area.y..(divider_area.y + divider_area.height) {
         if divider_area.x < buf.area.width && y < buf.area.height {
             buf.get_mut(divider_area.x, y)
                 .set_symbol("│")
-                .set_style(theme.style(ThemeToken::BorderSubtle));
+                .set_style(divider_style);
         }
     }
 
@@ -124,3 +132,4 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let right_p = Paragraph::new(right_lines);
     f.render_widget(right_p, right_area);
 }
+
