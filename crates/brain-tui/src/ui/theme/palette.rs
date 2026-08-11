@@ -53,6 +53,10 @@ pub struct Palette {
     pub background: Color,
     /// Surface panel background color.
     pub surface: Color,
+    /// Subtle divider/border color.
+    pub border_subtle: Color,
+    /// Command palette suggestion / category color (#AFB9F9).
+    pub suggestion: Color,
 }
 
 impl Palette {
@@ -61,17 +65,17 @@ impl Palette {
         Self {
             primary: Color::Rgb(215, 119, 87),
             secondary: Color::Rgb(128, 90, 213),
-            accent: Color::Rgb(175, 135, 255),
+            accent: Color::Rgb(215, 119, 87),
             muted: Color::Rgb(153, 153, 153),
             success: Color::Rgb(78, 186, 101),
             warning: Color::Rgb(255, 193, 7),
             danger: Color::Rgb(255, 107, 128),
             info: Color::Rgb(106, 155, 204),
-            text_primary: Color::Rgb(240, 240, 240),
-            text_secondary: Color::Rgb(200, 200, 200),
+            text_primary: Color::Rgb(255, 255, 255),
+            text_secondary: Color::Rgb(153, 153, 153),
             header_primary: Color::Rgb(215, 119, 87), // brand orange — same as primary
-            selection_fg: Color::Black,
-            selection_bg: Color::Rgb(173, 216, 230),
+            selection_fg: Color::Rgb(255, 255, 255),
+            selection_bg: Color::Rgb(38, 79, 120),
             code_inline: Color::Rgb(255, 193, 7),
             code_block: Color::Rgb(153, 153, 153),
             link: Color::Rgb(106, 155, 204),
@@ -83,6 +87,8 @@ impl Palette {
             system: Color::Rgb(153, 153, 153),
             background: Color::Reset,
             surface: Color::Reset,
+            border_subtle: Color::Rgb(215, 119, 87),
+            suggestion: Color::Rgb(177, 185, 249),
         }
     }
 
@@ -114,6 +120,8 @@ impl Palette {
             system: Color::Rgb(102, 102, 102),
             background: Color::Reset, // Terminal's background color
             surface: Color::Reset,    // Terminal's background color
+            border_subtle: Color::Rgb(192, 86, 33),
+            suggestion: Color::Rgb(107, 70, 193),
         }
     }
 
@@ -145,6 +153,8 @@ impl Palette {
             system: Color::Gray,
             background: Color::Reset,
             surface: Color::Reset,
+            border_subtle: Color::Reset,
+            suggestion: Color::Cyan,
         }
     }
 
@@ -175,6 +185,8 @@ impl Palette {
             system: Color::Gray,
             background: Color::Reset,
             surface: Color::Reset,
+            border_subtle: Color::White,
+            suggestion: Color::White,
         }
     }
 }

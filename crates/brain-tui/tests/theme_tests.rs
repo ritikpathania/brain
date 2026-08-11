@@ -49,3 +49,29 @@ fn test_theme_palette_invariants() {
     assert_eq!(hc.style(ThemeToken::TextPrimary).fg, Some(Color::White));
     assert_eq!(hc.style(ThemeToken::HeaderPrimary).fg, Some(Color::White));
 }
+
+#[test]
+fn test_claude_rgb_palette_alignment() {
+    let theme = dark_theme();
+
+    assert_eq!(
+        theme.token_color(ThemeToken::HeaderPrimary),
+        Color::Rgb(215, 119, 87)
+    );
+    assert_eq!(
+        theme.token_color(ThemeToken::Accent),
+        Color::Rgb(215, 119, 87)
+    );
+    assert_eq!(
+        theme.token_color(ThemeToken::Selection),
+        Color::Rgb(38, 79, 120)
+    );
+    assert_eq!(
+        theme.token_color(ThemeToken::BorderSubtle),
+        Color::Rgb(215, 119, 87)
+    );
+    assert_eq!(
+        theme.token_color(ThemeToken::Suggestion),
+        Color::Rgb(177, 185, 249)
+    );
+}

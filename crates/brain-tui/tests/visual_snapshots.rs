@@ -85,7 +85,7 @@ fn snapshot(label: &str, state: &UiState, w: u16, h: u16) {
     fs::create_dir_all(&dir).unwrap();
 
     let artifact_dir = PathBuf::from("/Users/ritikpathania/.gemini/antigravity/brain/54e6a8e0-61d1-4873-a558-ce34a6f18907/snapshots");
-    fs::create_dir_all(&artifact_dir).unwrap();
+    let _ = fs::create_dir_all(&artifact_dir);
 
     // sanitize label for filename
     let fname = label
@@ -102,7 +102,7 @@ fn snapshot(label: &str, state: &UiState, w: u16, h: u16) {
     let path = dir.join(&filename);
     fs::write(&path, &output).unwrap();
     let artifact_path = artifact_dir.join(&filename);
-    fs::write(&artifact_path, &output).unwrap();
+    let _ = fs::write(&artifact_path, &output);
     println!("{}", output);
 }
 
