@@ -1,6 +1,5 @@
 use crate::ui::theme::Theme;
-use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Stylize;
+use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
@@ -18,7 +17,7 @@ pub struct HeaderView {
     pub pins_count: usize,
 }
 
-/// Renders the Header bar panel at the top of the interface.
+/// Renders the Header bar panel at the top of the interface using a clean single horizontal rule.
 pub fn draw(f: &mut Frame<'_>, area: Rect, view: &HeaderView, theme: &Theme) {
     let status_style = if view.connection_color_ok {
         theme.success
@@ -26,29 +25,31 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &HeaderView, theme: &Theme) {
         theme.inactive
     };
 
-    let title_block = theme.panel("", false);
+    let width = area.width as usize;
+    let left_title = format!(" {}", view.title);
+    let right_status = format!("{} ", view.connection_status);
 
-    let mut spans = vec![
-        ratatui::text::Span::styled(format!(" {} ", view.title), theme.header),
-        ratatui::text::Span::styled(format!("  {}", view.connection_status), status_style),
-    ];
-    if view.enable_reflection_logs {
-        spans.push(ratatui::text::Span::styled(
-            "  [Reflection Logs]",
-            theme.accent,
-        ));
+    let left_len = left_title.chars().count();
+    let right_len = right_status.chars().count();
+    let padding_len = width.saturating_sub(left_len + right_len);
+
+    let header_line = ratatui::text::Line::from(vec![
+        ratatui::text::Span::styled(left_title, theme.header),
+        ratatui::text::Span::raw(" ".repeat(padding_len)),
+        ratatui::text::Span::styled(right_status, status_style),
+    ]);
+
+    if area.height >= 2 {
+        let divider_char = if area.width > 0 { "─" } else { "-" };
+        let divider_line = ratatui::text::Line::from(vec![ratatui::text::Span::styled(
+            divider_char.repeat(width),
+            theme.border,
+        )]);
+
+        let p = Paragraph::new(vec![header_line, divider_line]);
+        f.render_widget(p, area);
+    } else {
+        let p = Paragraph::new(header_line);
+        f.render_widget(p, area);
     }
-    if view.pins_count > 0 {
-        spans.push(ratatui::text::Span::styled(
-            format!("  📌 Context ({})", view.pins_count),
-            theme.accent.bold(),
-        ));
-    }
-
-    let text = ratatui::text::Line::from(spans);
-    let p = Paragraph::new(text)
-        .block(title_block)
-        .alignment(Alignment::Left);
-
-    f.render_widget(p, area);
 }

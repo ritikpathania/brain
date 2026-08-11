@@ -70,7 +70,11 @@ fn test_four_theme_switching_and_token_resolution() {
 #[test]
 fn test_light_mode_wcag_aa_contrast_ratios() {
     let light = Palette::light();
-    let bg = light.background;
+    let bg = if light.background == Color::Reset {
+        Color::Rgb(255, 255, 255)
+    } else {
+        light.background
+    };
 
     assert!(
         contrast_ratio(light.text_primary, bg) >= 4.5,

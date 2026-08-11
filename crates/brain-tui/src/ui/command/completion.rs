@@ -25,6 +25,31 @@ impl SlashCompletionState {
             dismissed_query: None,
         }
     }
+
+    /// Select next item in slash completion list.
+    pub fn select_next(&mut self) {
+        let count = SlashCompletionEngine::matches(&self.query).count();
+        if count > 0 {
+            self.selected_index = (self.selected_index + 1) % count;
+        }
+    }
+
+    /// Select previous item in slash completion list.
+    pub fn select_prev(&mut self) {
+        let count = SlashCompletionEngine::matches(&self.query).count();
+        if count > 0 {
+            self.selected_index = if self.selected_index > 0 {
+                self.selected_index - 1
+            } else {
+                count - 1
+            };
+        }
+    }
+
+    /// Returns reference to the currently selected CommandDescriptor if matches exist.
+    pub fn selected_command(&self) -> Option<&'static CommandDescriptor> {
+        SlashCompletionEngine::matches(&self.query).nth(self.selected_index)
+    }
 }
 
 impl Default for SlashCompletionState {

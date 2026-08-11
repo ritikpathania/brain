@@ -577,3 +577,108 @@ async fn test_phase7_reasoning_runtime_facade_async_cycle_and_replay_equivalence
     assert_eq!(report1.session.id, report_replayed.session.id);
     assert_eq!(report1, report_replayed);
 }
+
+#[tokio::test]
+async fn test_phase8_replay_engine_and_policy_isolation() {
+    use brain_core::reasoning::{ReasoningRuntime, ReplayEngine};
+    use brain_domain::{RuntimeContext, RuntimePolicySet, RuntimeReplaySnapshot};
+    use std::sync::Arc;
+
+    let ctx = RuntimeContext::new();
+    let runtime = Arc::new(ReasoningRuntime::new());
+
+    let std_policy = RuntimePolicySet::default_standard();
+    let strict_policy = RuntimePolicySet::strict_policy();
+
+    let report_std = runtime
+        .run_cycle_with_policy(&ctx, "Query", std_policy.clone())
+        .await
+        .unwrap();
+    let report_strict = runtime
+        .run_cycle_with_policy(&ctx, "Query", strict_policy.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        report_std.policy_set.policy_version,
+        std_policy.policy_version
+    );
+    assert_eq!(
+        report_strict.policy_set.policy_version,
+        strict_policy.policy_version
+    );
+
+    let snapshot =
+        RuntimeReplaySnapshot::new(ctx.trace_id, ctx.clone(), "Query".to_string(), 12345);
+
+    let replay_engine = ReplayEngine::new(runtime);
+    let eval_metrics = replay_engine
+        .verify_replay(&snapshot, &report_std)
+        .await
+        .unwrap();
+
+    assert!(eval_metrics.replay_successful);
+    assert_eq!(eval_metrics.determinism_score, 1.0);
+}
+
+#[tokio::test]
+async fn test_phase9_schema_compatibility_policy_comparison_and_reproducibility() {
+    use brain_core::reasoning::{
+        PolicyComparisonFramework, QualityScorecard, ReasoningRuntime, ReplayEngine,
+    };
+    use brain_domain::{
+        BenchmarkScenario, EvaluationDataset, RuntimeContext, RuntimePolicySet,
+        RuntimeReplaySnapshot, RuntimeSchemaVersion,
+    };
+    use std::sync::Arc;
+
+    let runtime = Arc::new(ReasoningRuntime::new());
+    let std_policy = RuntimePolicySet::default_standard();
+    let strict_policy = RuntimePolicySet::strict_policy();
+
+    // 1. Policy Reproducibility Test: Run Policy A -> Policy B -> Policy A
+    let ctx = RuntimeContext::new();
+    let run1 = runtime
+        .run_cycle_with_policy(&ctx, "Query", std_policy.clone())
+        .await
+        .unwrap();
+    let _run2 = runtime
+        .run_cycle_with_policy(&ctx, "Query", strict_policy.clone())
+        .await
+        .unwrap();
+    let run3 = runtime
+        .run_cycle_with_policy(&ctx, "Query", std_policy.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(run1.policy_set, run3.policy_set);
+    assert_eq!(run1.session.stage, run3.session.stage);
+
+    // 2. Policy Comparison Framework Test over Evaluation Dataset
+    let scenario = BenchmarkScenario::new("Benchmark Scenario 1", "Benchmark Query");
+    let dataset = EvaluationDataset::new("Regression Dataset v1", vec![scenario]);
+    let comparator = PolicyComparisonFramework::new(runtime.clone());
+
+    let comparison_results = comparator
+        .compare_dataset(&dataset, &std_policy, &strict_policy)
+        .await
+        .unwrap();
+    assert_eq!(comparison_results.len(), 1);
+    assert!(comparison_results[0].decisions_diverged);
+
+    // 3. Schema Version Compatibility Test
+    let mut incompatible_snapshot =
+        RuntimeReplaySnapshot::new(ctx.trace_id, ctx.clone(), "Query".to_string(), 12345);
+    incompatible_snapshot.schema_version = RuntimeSchemaVersion::new(99, 0);
+
+    let replay_engine = ReplayEngine::new(runtime);
+    let replay_err = replay_engine
+        .verify_replay(&incompatible_snapshot, &run1)
+        .await;
+    assert!(replay_err.is_err());
+
+    // 4. Quality Scorecard Gate Test
+    let scorecard =
+        QualityScorecard::from_eval_metrics(&brain_domain::EvaluationMetrics::new(true, 1.0, 5));
+    assert!(scorecard.scorecard_passed);
+}

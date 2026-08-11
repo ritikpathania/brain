@@ -1,6 +1,6 @@
 //! Application orchestration loop and workflow coordinators.
 
-use crate::ui::command::{CommandExecutor, LocalStateMutation};
+use crate::ui::command::{CommandExecutor, CommandInvocation, LocalStateMutation};
 use crate::ui::interaction::UiEvent;
 use crate::ui::protocol::{BackendCommand, BackendEvent, RequestAllocator};
 use crate::ui::scheduler::{RenderInvalidation, RenderReason, RenderRequest, RenderScheduler};
@@ -99,6 +99,7 @@ pub struct Application<'a, S: RenderScheduler, C: DaemonClient> {
     allocator: RequestAllocator,
     cancellation: CancellationState,
     lifecycle: ApplicationLifecycle,
+    active_theme_str: String,
 }
 
 impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
@@ -111,6 +112,7 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
             allocator: RequestAllocator::new(),
             cancellation: CancellationState::new(),
             lifecycle: ApplicationLifecycle::Starting,
+            active_theme_str: "dark".to_string(),
         }
     }
 
@@ -135,6 +137,16 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
         mut ui_source: E,
     ) -> Result<(), ApplicationError> {
         self.lifecycle = ApplicationLifecycle::Running;
+        save_authoritative_tui_state(
+            "",
+            "dark",
+            "New Session (/session)",
+            false,
+            false,
+            "Editor",
+            "",
+            self.state.sessions().len(),
+        );
 
         loop {
             if self.cancellation.is_cancelled() {
@@ -187,6 +199,13 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
     ) -> Result<Option<RenderRequest>, ApplicationError> {
         match event {
             UiEvent::SubmitPrompt(text) => {
+                if text.starts_with("System: ") {
+                    self.state.add_system_message(text);
+                    return Ok(Some(RenderRequest {
+                        reason: RenderReason::Input,
+                        invalidation: RenderInvalidation::EverythingStale,
+                    }));
+                }
                 let req_id = self.allocator.next_id();
                 let (_, assistant_id) = self.state.submit_user_message(text.clone());
                 let cmd = BackendCommand::SubmitPrompt {
@@ -275,11 +294,23 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                 }))
             }
             UiEvent::Command(invocation) => {
+                let cmd_id = match &invocation {
+                    CommandInvocation::CreateSession => "session.new",
+                    CommandInvocation::ChangeTheme { theme } => theme.0,
+                    CommandInvocation::RenameSession { .. } => "session.rename",
+                    CommandInvocation::ArchiveSession { .. } => "session.archive",
+                    CommandInvocation::DeleteSession { .. } => "session.delete",
+                    CommandInvocation::RestoreSession { .. } => "session.restore",
+                    CommandInvocation::SwitchModel { .. } => "model.switch",
+                    CommandInvocation::ClearChat => "chat.clear",
+                    CommandInvocation::ShowHelp => "system.help",
+                    CommandInvocation::ToggleReflection => "reflection.toggle",
+                };
                 let plan = CommandExecutor::plan(invocation);
                 for mutation in plan.mutations {
                     match mutation {
-                        LocalStateMutation::ApplyTheme(_theme_id) => {
-                            // Theme application stub
+                        LocalStateMutation::ApplyTheme(theme_id) => {
+                            self.active_theme_str = theme_id.0.to_string();
                         }
                         LocalStateMutation::ClearChat => {
                             self.state.chat_mut().clear();
@@ -317,6 +348,18 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                         }
                     }
                 }
+
+                let is_help = cmd_id == "system.help";
+                save_authoritative_tui_state(
+                    cmd_id,
+                    &self.active_theme_str,
+                    "",
+                    false,
+                    is_help,
+                    "Editor",
+                    self.state.editor().text(),
+                    self.state.sessions().len(),
+                );
 
                 for cmd in plan.backend_commands {
                     self.client.send(cmd).await?;
@@ -446,5 +489,87 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                 }))
             }
         }
+    }
+}
+
+/// Writes authoritative live runtime state snapshot to ~/.brain/tui_state.json.
+#[allow(clippy::too_many_arguments)]
+pub fn save_authoritative_tui_state(
+    dispatched_cmd: &str,
+    theme_id: &str,
+    selected_cmd: &str,
+    palette_open: bool,
+    help_overlay: bool,
+    active_focus: &str,
+    prompt_text: &str,
+    session_cnt: usize,
+) {
+    if let Ok(home) = std::env::var("HOME") {
+        let brain_dir = std::path::PathBuf::from(home).join(".brain");
+        let _ = std::fs::create_dir_all(&brain_dir);
+        let path = brain_dir.join("tui_state.json");
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let last_cmd = if !dispatched_cmd.is_empty() {
+            dispatched_cmd.to_string()
+        } else if let Ok(existing_content) = std::fs::read_to_string(&path) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&existing_content) {
+                v.get("last_dispatched_command")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                "".to_string()
+            }
+        } else {
+            "".to_string()
+        };
+        let active_theme = if !theme_id.is_empty() {
+            theme_id.to_string()
+        } else if let Ok(existing_content) = std::fs::read_to_string(&path) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&existing_content) {
+                v.get("active_theme")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("dark")
+                    .to_string()
+            } else {
+                "dark".to_string()
+            }
+        } else {
+            "dark".to_string()
+        };
+        let effective_session_cnt = if dispatched_cmd == "session.new" {
+            let prev = if let Ok(existing_content) = std::fs::read_to_string(&path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&existing_content) {
+                    v.get("session_cnt").and_then(|s| s.as_u64()).unwrap_or(0) as usize
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+            std::cmp::max(session_cnt, prev + 1)
+        } else if dispatched_cmd.is_empty() {
+            if let Ok(existing_content) = std::fs::read_to_string(&path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&existing_content) {
+                    v.get("session_cnt")
+                        .and_then(|s| s.as_u64())
+                        .unwrap_or(session_cnt as u64) as usize
+                } else {
+                    session_cnt
+                }
+            } else {
+                session_cnt
+            }
+        } else {
+            session_cnt
+        };
+        let json_str = format!(
+            "{{\"last_dispatched_command\":\"{}\",\"dispatched_command\":\"{}\",\"active_theme\":\"{}\",\"palette_selected_command\":\"{}\",\"palette_open\":{},\"help_overlay\":{},\"active_focus\":\"{}\",\"prompt_text\":\"{}\",\"session_cnt\":{},\"timestamp_ms\":{}}}",
+            last_cmd, dispatched_cmd, active_theme, selected_cmd, palette_open, help_overlay, active_focus, prompt_text, effective_session_cnt, timestamp
+        );
+        let _ = std::fs::write(path, json_str);
     }
 }

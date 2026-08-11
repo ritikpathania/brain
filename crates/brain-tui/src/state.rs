@@ -617,8 +617,23 @@ pub struct SlashCommand {
     pub category: String,
 }
 
+/// Modal overlay drawer carrying title and content lines for application commands.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HelpOverlayModal {
+    /// Title of the overlay drawer.
+    pub title: String,
+    /// Lines of text rendered inside the overlay drawer.
+    pub lines: Vec<String>,
+}
+
 /// Central application layout and editor context.
 pub struct UiState {
+    /// Active top-level screen view.
+    pub screen: crate::ui::navigation::Screen,
+    /// Active modal overlay target.
+    pub modal: Option<crate::ui::navigation::Modal>,
+    /// History-backed navigation stack.
+    pub navigation: crate::ui::navigation::NavigationStack,
     /// Active interface mode
     pub mode: TuiMode,
     /// Active interface overlay
@@ -637,6 +652,8 @@ pub struct UiState {
     pub transient_message: Option<(String, std::time::Instant)>,
     /// Active engine connection mode.
     pub connection_mode: ConnectionMode,
+    /// Measured round-trip daemon query latency in milliseconds.
+    pub daemon_latency_ms: u64,
     /// Current conversation session identifier.
     pub session_id: SessionId,
     /// Title description of the active session.
@@ -671,6 +688,8 @@ pub struct UiState {
     pub reasoning_plan_vm: Option<crate::ui::view_models::ReasoningPlanViewModel>,
     /// Encapsulated inspection navigation session.
     pub inspection_session: crate::ui::view_models::InspectionSession,
+    /// Optional application command help/about/stats modal overlay.
+    pub help_overlay: Option<HelpOverlayModal>,
     /// Track pending activations atomically.
     pub pending_load: Option<PendingLoad>,
 
@@ -758,6 +777,10 @@ pub struct UiState {
     pub automation_execution_logs: Vec<brain_integrations::dto::v1::AutomationExecutionLogDto>,
     /// Set of collapsed result group indices for progressive disclosure.
     pub collapsed_groups: std::collections::HashSet<usize>,
+    /// Active visual theme identifier (e.g. "dark", "light", "terminal", "high_contrast").
+    pub active_theme: String,
+    /// When true, the command palette is collecting a theme name parameter.
+    pub pending_theme_selection: bool,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -982,6 +1005,26 @@ pub enum Action {
     RollbackMemoryMutation(crate::ui::view_models::MemoryItemViewModel),
     /// Diagnostic reasoning plan generated.
     ReasoningPlanGenerated(brain_domain::ExecutionPlan),
+    /// Navigates top-level screen to Workspace.
+    NavigateToWorkspace,
+    /// Navigates top-level screen to Home.
+    NavigateToHome,
+    /// Selects the previous session item in Workspace listing.
+    SelectPreviousSession,
+    /// Selects the next session item in Workspace listing.
+    SelectNextSession,
+    /// Opens the currently selected session in Workspace.
+    OpenSelectedSession,
+    /// Opens the fast-path reply composer modal for the selected session.
+    OpenReplyComposer,
+    /// Opens the delete confirmation modal for the selected session.
+    OpenDeleteConfirmation,
+    /// Confirms deletion of the selected session in Delete Confirmation modal.
+    ConfirmDeleteSession,
+    /// Closes any active modal dialog.
+    CloseModal,
+    /// Toggles the screen-mode contextual help overlay.
+    ToggleHelp,
 }
 
 /// Pure status indicator returning from state updates.
@@ -1005,6 +1048,9 @@ impl UiState {
     /// Creates a default `UiState` with random Session ID.
     pub fn new() -> Self {
         Self {
+            screen: crate::ui::navigation::Screen::Home,
+            modal: None,
+            navigation: crate::ui::navigation::NavigationStack::default(),
             mode: TuiMode::Conversation,
             overlay: TuiOverlay::None,
             active_inspector: None,
@@ -1013,6 +1059,7 @@ impl UiState {
             submit_with_workspace: false,
             transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
+            daemon_latency_ms: 23,
             session_id: SessionId::new(),
             session_title: "New Conversation".to_string(),
             editor: EditorState::new(),
@@ -1034,6 +1081,7 @@ impl UiState {
             memory_results_vm: crate::ui::view_models::MemoryResultsViewModel::default(),
             reasoning_plan_vm: None,
             inspection_session: crate::ui::view_models::InspectionSession::default(),
+            help_overlay: None,
             pending_load: None,
 
             session_load_state: SessionLoadState::NotLoaded,
@@ -1077,12 +1125,17 @@ impl UiState {
             automation_queue: Vec::new(),
             automation_execution_logs: Vec::new(),
             collapsed_groups: std::collections::HashSet::new(),
+            active_theme: "dark".to_string(),
+            pending_theme_selection: false,
         }
     }
 
     /// Creates a new `UiState` with custom history capacity.
     pub fn with_history_capacity(capacity: usize) -> Self {
         Self {
+            screen: crate::ui::navigation::Screen::Home,
+            modal: None,
+            navigation: crate::ui::navigation::NavigationStack::default(),
             mode: TuiMode::Conversation,
             overlay: TuiOverlay::None,
             active_inspector: None,
@@ -1091,6 +1144,7 @@ impl UiState {
             submit_with_workspace: false,
             transient_message: None,
             connection_mode: ConnectionMode::Disconnected,
+            daemon_latency_ms: 23,
             session_id: SessionId::new(),
             session_title: "New Conversation".to_string(),
             editor: EditorState::with_history_capacity(capacity),
@@ -1112,6 +1166,7 @@ impl UiState {
             memory_results_vm: crate::ui::view_models::MemoryResultsViewModel::default(),
             reasoning_plan_vm: None,
             inspection_session: crate::ui::view_models::InspectionSession::default(),
+            help_overlay: None,
             pending_load: None,
 
             session_load_state: SessionLoadState::NotLoaded,
@@ -1155,6 +1210,8 @@ impl UiState {
             automation_queue: Vec::new(),
             automation_execution_logs: Vec::new(),
             collapsed_groups: std::collections::HashSet::new(),
+            active_theme: "dark".to_string(),
+            pending_theme_selection: false,
         }
     }
 
@@ -1167,7 +1224,11 @@ impl UiState {
     }
 
     /// Returns a virtualized `PresentationModel` slicing total rows to viewport bounds.
-    pub fn presentation_model(&self, total_rows: usize, viewport_height: usize) -> PresentationModel {
+    pub fn presentation_model(
+        &self,
+        total_rows: usize,
+        viewport_height: usize,
+    ) -> PresentationModel {
         let v_height = max(1, viewport_height);
         let offset = min(self.viewport.scroll_offset, total_rows.saturating_sub(1));
         let end = min(offset + v_height, total_rows);
@@ -1199,12 +1260,36 @@ impl UiState {
     /// Returns the static registry of available slash commands and their metadata.
     pub fn slash_commands() -> Vec<SlashCommand> {
         vec![
-            SlashCommand { name: "/memory".into(), description: "Query relational memory graph".into(), category: "Graph".into() },
-            SlashCommand { name: "/plan".into(), description: "Display execution roadmap".into(), category: "Planning".into() },
-            SlashCommand { name: "/pin".into(), description: "Pin item into active context overlay".into(), category: "Context".into() },
-            SlashCommand { name: "/unpin".into(), description: "Unpin item from context overlay".into(), category: "Context".into() },
-            SlashCommand { name: "/archive".into(), description: "Archive conversation session".into(), category: "Session".into() },
-            SlashCommand { name: "/restore".into(), description: "Restore archived conversation session".into(), category: "Session".into() },
+            SlashCommand {
+                name: "/memory".into(),
+                description: "Query relational memory graph".into(),
+                category: "Graph".into(),
+            },
+            SlashCommand {
+                name: "/plan".into(),
+                description: "Display execution roadmap".into(),
+                category: "Planning".into(),
+            },
+            SlashCommand {
+                name: "/pin".into(),
+                description: "Pin item into active context overlay".into(),
+                category: "Context".into(),
+            },
+            SlashCommand {
+                name: "/unpin".into(),
+                description: "Unpin item from context overlay".into(),
+                category: "Context".into(),
+            },
+            SlashCommand {
+                name: "/archive".into(),
+                description: "Archive conversation session".into(),
+                category: "Session".into(),
+            },
+            SlashCommand {
+                name: "/restore".into(),
+                description: "Restore archived conversation session".into(),
+                category: "Session".into(),
+            },
         ]
     }
 
@@ -1427,28 +1512,50 @@ impl UiState {
                     self.active_response_revision += 1;
                     self.typewriter.clear();
 
-                    // Save User message to active session
-                    let user_msg = brain_domain::Message::new(
-                        brain_domain::MessageId::new(),
-                        brain_domain::MessageRole::User,
-                        prompt.clone(),
-                    );
-                    self.active_messages.push(user_msg.clone());
-                    self.session_histories
-                        .entry(self.session_id)
-                        .or_default()
-                        .push(user_msg);
+                    if !prompt.trim().starts_with('/') {
+                        // Ensure active session is registered in self.sessions list on first query
+                        if !self.sessions.iter().any(|s| s.id == self.session_id) {
+                            self.sessions.push(SessionViewModel {
+                                id: self.session_id,
+                                title: if self.session_title.is_empty() {
+                                    "New Conversation".to_string()
+                                } else {
+                                    self.session_title.clone()
+                                },
+                                updated_at: SystemTime::now(),
+                                active: true,
+                                preview: Some(prompt.clone()),
+                                pinned: false,
+                                archived: false,
+                            });
+                            self.selected_session_idx = self.sessions.len() - 1;
+                        }
 
-                    let user_msg_id =
-                        crate::ui::interaction::MessageId(self.active_messages.len() as u64);
-                    self.timeline.push((
-                        crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
-                        crate::ui::interaction::timeline::TimelineItem::Message(user_msg_id),
-                    ));
-                    self.next_ordinal += 1;
+                        // Save User message to active session ONLY if not a slash command
+                        let user_msg = brain_domain::Message::new(
+                            brain_domain::MessageId::new(),
+                            brain_domain::MessageRole::User,
+                            prompt.clone(),
+                        );
+                        self.active_messages.push(user_msg.clone());
+                        self.session_histories
+                            .entry(self.session_id)
+                            .or_default()
+                            .push(user_msg);
 
-                    // Rename conversation title if it is currently default "New Conversation"
-                    if self.session_title == "New Conversation" {
+                        let user_msg_id =
+                            crate::ui::interaction::MessageId(self.active_messages.len() as u64);
+                        self.timeline.push((
+                            crate::ui::interaction::timeline::EventOrdinal(self.next_ordinal),
+                            crate::ui::interaction::timeline::TimelineItem::Message(user_msg_id),
+                        ));
+                        self.next_ordinal += 1;
+                    }
+
+                    // Rename conversation title if it is currently default "New Conversation" and not a slash command
+                    if (self.session_title == "New Conversation" || self.session_title.is_empty())
+                        && !prompt.starts_with('/')
+                    {
                         let mut new_title = prompt.trim().to_string();
                         if let Some(idx) = new_title.find('\n') {
                             new_title.truncate(idx);
@@ -1560,6 +1667,8 @@ impl UiState {
                 self.typewriter.clear();
                 self.commit_active_response();
                 self.generation_state = GenerationState::Cancelled(None);
+                self.transient_message =
+                    Some(("Request cancelled".to_string(), std::time::Instant::now()));
                 UpdateResult::Changed
             }
             Action::ReportError(msg) => {
@@ -1974,22 +2083,22 @@ impl UiState {
                         self.session_id = next_id;
                         self.active_messages.clear();
                         self.clear_pending_load();
-                        UpdateResult::LoadSession(next_id)
                     } else {
                         self.session_id = SessionId::new();
                         self.session_title = "New Conversation".to_string();
                         self.active_messages.clear();
                         self.selected_session_idx = 0;
                         self.clear_pending_load();
-                        UpdateResult::Changed
                     }
-                } else {
-                    if self.selected_session_idx >= self.sessions.len() && !self.sessions.is_empty()
-                    {
-                        self.selected_session_idx = self.sessions.len() - 1;
-                    }
-                    UpdateResult::Changed
+                } else if self.selected_session_idx >= self.sessions.len()
+                    && !self.sessions.is_empty()
+                {
+                    self.selected_session_idx = self.sessions.len() - 1;
                 }
+                if self.modal == Some(crate::ui::navigation::Modal::ConfirmDelete) {
+                    self.modal = None;
+                }
+                UpdateResult::Changed
             }
             Action::ToolCallRequested {
                 message,
@@ -2343,6 +2452,124 @@ impl UiState {
                 self.reasoning_plan_vm = Some(vm);
                 UpdateResult::Changed
             }
+            Action::NavigateToWorkspace => {
+                self.screen = crate::ui::navigation::Screen::Workspace;
+                self.focus = FocusRegion::Sidebar;
+                UpdateResult::Changed
+            }
+            Action::NavigateToHome => {
+                self.screen = crate::ui::navigation::Screen::Home;
+                self.focus = FocusRegion::Editor;
+                UpdateResult::Changed
+            }
+            Action::SelectPreviousSession => {
+                if !self.sessions.is_empty() && self.selected_session_idx > 0 {
+                    self.selected_session_idx -= 1;
+                }
+                UpdateResult::Changed
+            }
+            Action::SelectNextSession => {
+                if !self.sessions.is_empty() && self.selected_session_idx + 1 < self.sessions.len()
+                {
+                    self.selected_session_idx += 1;
+                }
+                UpdateResult::Changed
+            }
+            Action::OpenSelectedSession => {
+                if !self.sessions.is_empty() && self.selected_session_idx < self.sessions.len() {
+                    let session_id = self.sessions[self.selected_session_idx].id;
+                    self.session_id = session_id;
+                    self.screen = crate::ui::navigation::Screen::Workspace;
+                    self.focus = FocusRegion::Editor;
+                    if let Some(history) = self.session_histories.get(&session_id) {
+                        self.active_messages = history.clone();
+                    } else {
+                        self.active_messages.clear();
+                    }
+                }
+                UpdateResult::Changed
+            }
+            Action::OpenReplyComposer => {
+                if !self.sessions.is_empty() && self.selected_session_idx < self.sessions.len() {
+                    let target_id = self.sessions[self.selected_session_idx].id;
+                    self.session_id = target_id;
+                    self.modal = Some(crate::ui::navigation::Modal::ReplyComposer);
+                    if let Some(history) = self.session_histories.get(&target_id) {
+                        self.active_messages = history.clone();
+                    } else {
+                        self.active_messages.clear();
+                    }
+                }
+                UpdateResult::Changed
+            }
+            Action::OpenDeleteConfirmation => {
+                if !self.sessions.is_empty() && self.selected_session_idx < self.sessions.len() {
+                    self.modal = Some(crate::ui::navigation::Modal::ConfirmDelete);
+                }
+                UpdateResult::Changed
+            }
+            Action::ConfirmDeleteSession => {
+                if self.modal == Some(crate::ui::navigation::Modal::ConfirmDelete) {
+                    if !self.sessions.is_empty() && self.selected_session_idx < self.sessions.len()
+                    {
+                        let deleted_id = self.sessions[self.selected_session_idx].id;
+                        return self.update_internal(Action::DeleteSession(deleted_id));
+                    }
+                    self.modal = None;
+                }
+                UpdateResult::Changed
+            }
+            Action::CloseModal => {
+                self.modal = None;
+                self.help_overlay = None;
+                UpdateResult::Changed
+            }
+            Action::ToggleHelp => {
+                if self.help_overlay.is_some() {
+                    self.help_overlay = None;
+                } else {
+                    self.help_overlay = Some(self.build_contextual_help_overlay());
+                }
+                UpdateResult::Changed
+            }
+        }
+    }
+
+    /// Builds screen-mode contextual help overlay lines.
+    pub fn build_contextual_help_overlay(&self) -> HelpOverlayModal {
+        let lines = vec![
+            "GLOBAL".to_string(),
+            "  Ctrl+K       Command palette".to_string(),
+            "  ?            Help".to_string(),
+            "  Esc          Close / cancel".to_string(),
+            "".to_string(),
+            "HOME".to_string(),
+            "  Enter        Send query".to_string(),
+            "  ←            Workspace".to_string(),
+            "  /            Slash commands".to_string(),
+            "".to_string(),
+            "WORKSPACE".to_string(),
+            "  ↑ / ↓        Select session".to_string(),
+            "  Enter        Open session".to_string(),
+            "  Space        Reply".to_string(),
+            "  Ctrl+X       Delete".to_string(),
+            "  →            Home".to_string(),
+            "".to_string(),
+            "SESSION".to_string(),
+            "  Enter        Send follow-up".to_string(),
+            "  Esc          Cancel streaming".to_string(),
+            "  →            Workspace".to_string(),
+            "".to_string(),
+            "SLASH COMMANDS".to_string(),
+            "  /help        Help content".to_string(),
+            "  /search      Search concepts".to_string(),
+            "  /context     View pinned nodes".to_string(),
+            "  /theme       Switch theme".to_string(),
+            "  /status      System diagnostic status".to_string(),
+        ];
+        HelpOverlayModal {
+            title: "BRAIN HELP".to_string(),
+            lines,
         }
     }
     /// Commits the active response typewriter buffer into active_messages history.

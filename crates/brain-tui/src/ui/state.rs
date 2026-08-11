@@ -293,6 +293,11 @@ impl<'a> AppState<'a> {
         (user_id, assistant_id)
     }
 
+    /// Domain operation to append a system application note without network streaming.
+    pub fn add_system_message(&mut self, text: String) -> MessageId {
+        self.chat.push_message(MessageRole::System, text)
+    }
+
     /// Domain operation to append a streaming token response cell.
     pub fn append_stream_token(
         &mut self,

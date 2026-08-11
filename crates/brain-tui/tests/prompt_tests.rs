@@ -19,6 +19,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 cursor_position: 2,
                 has_focus: true,
                 submit_with_workspace: false,
+                is_welcome: false,
             };
             prompt::draw(f, area, &view, theme);
         })
@@ -35,6 +36,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 cursor_position: 2,
                 has_focus: true,
                 submit_with_workspace: false,
+                is_welcome: false,
             };
             prompt::draw(f, area, &view, theme);
         })
@@ -51,6 +53,7 @@ fn test_prompt_minimized_rendering_no_panic() {
                 cursor_position: 2,
                 has_focus: true,
                 submit_with_workspace: false,
+                is_welcome: false,
             };
             prompt::draw(f, area, &view, theme);
         })

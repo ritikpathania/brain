@@ -1,9 +1,11 @@
-//! Floating list suggestions renderer for slash command autocompletion.
+//! Floating borderless suggestions renderer for slash command autocompletion.
+//! Visual style deliberately mirrors PaletteWidget — no box border, Clear background.
 
 use crate::ui::command::completion::{SlashCompletionEngine, SlashCompletionState};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::widgets::{Clear, List, ListItem};
+use ratatui::style::Modifier;
+use ratatui::widgets::{Clear, Paragraph};
 use ratatui::Frame;
 
 /// Renders the floating slash command autocompletion popup list.
@@ -13,27 +15,37 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &SlashCompletionState, theme: 
         return;
     }
 
-    let items: Vec<ListItem> = matches
+    let lines: Vec<ratatui::text::Line> = matches
         .iter()
         .enumerate()
         .map(|(idx, cmd)| {
-            let style = if idx == state.selected_index {
-                theme
-                    .primary
-                    .add_modifier(ratatui::style::Modifier::REVERSED)
+            let is_selected = idx == state.selected_index;
+            let (cmd_style, desc_style) = if is_selected {
+                (
+                    theme.style(ThemeToken::Accent).add_modifier(Modifier::BOLD),
+                    theme
+                        .style(ThemeToken::TextPrimary)
+                        .add_modifier(Modifier::BOLD),
+                )
             } else {
-                theme.text
+                (
+                    theme.style(ThemeToken::TextPrimary),
+                    theme.style(ThemeToken::TextMuted),
+                )
             };
-            let text = format!("  /{} - {}", cmd.aliases.first().unwrap_or(&""), cmd.title);
-            ListItem::new(text).style(style)
+            let name = cmd.aliases.first().copied().unwrap_or("");
+            ratatui::text::Line::from(vec![
+                ratatui::text::Span::styled("  ", theme.style(ThemeToken::TextMuted)),
+                ratatui::text::Span::styled(format!("/{:<18}", name), cmd_style),
+                ratatui::text::Span::styled(cmd.title, desc_style),
+            ])
         })
         .collect();
 
-    let block = theme.panel(" Commands ", true);
+    let render_height = (lines.len() as u16).min(area.height);
+    let render_area = Rect::new(area.x, area.y, area.width, render_height);
 
-    let list = List::new(items).block(block).style(theme.text);
-
-    // Clear background to prevent overlay bleeding
-    f.render_widget(Clear, area);
-    f.render_widget(list, area);
+    // Clear background to prevent overlay bleeding — no border box
+    f.render_widget(Clear, render_area);
+    f.render_widget(Paragraph::new(lines), render_area);
 }

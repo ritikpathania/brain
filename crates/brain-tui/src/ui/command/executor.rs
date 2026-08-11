@@ -26,6 +26,8 @@ pub enum LocalStateMutation {
 /// A parsed, type-safe command invocation representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandInvocation {
+    /// Create new reasoning session.
+    CreateSession,
     /// Change application theme.
     ChangeTheme {
         /// Opaque theme identifier.
@@ -74,6 +76,7 @@ impl CommandInvocation {
         active_session: Option<SessionId>,
     ) -> Option<Self> {
         match command_id {
+            crate::ui::command::CREATE_SESSION => Some(CommandInvocation::CreateSession),
             crate::ui::command::CHANGE_THEME => {
                 let theme_param = collected.iter().find(|p| p.id.0 == "theme")?;
                 if let crate::ui::command::palette::ParameterValue::Theme(theme_id) =
@@ -83,12 +86,18 @@ impl CommandInvocation {
                 } else if let crate::ui::command::palette::ParameterValue::String(ref s) =
                     theme_param.value
                 {
+                    let lower = s.to_lowercase();
+                    let theme_str = if lower.contains("contrast") {
+                        "high_contrast"
+                    } else if lower.contains("light") {
+                        "light"
+                    } else if lower.contains("terminal") {
+                        "terminal"
+                    } else {
+                        "dark"
+                    };
                     Some(CommandInvocation::ChangeTheme {
-                        theme: crate::ui::command::ThemeId(if s.contains("contrast") {
-                            "high_contrast"
-                        } else {
-                            "dark"
-                        }),
+                        theme: crate::ui::command::ThemeId(theme_str),
                     })
                 } else {
                     None
@@ -162,6 +171,14 @@ impl CommandExecutor {
     /// Pure function computing the execution plan for the given invocation.
     pub fn plan(invocation: CommandInvocation) -> ExecutionPlan {
         match invocation {
+            CommandInvocation::CreateSession => ExecutionPlan {
+                mutations: vec![LocalStateMutation::ClearChat],
+                backend_commands: vec![BackendCommand::SubmitPrompt {
+                    request: crate::ui::protocol::RequestId::new(1),
+                    message: crate::ui::interaction::MessageId(1),
+                    text: "System: Initializing session".to_string(),
+                }],
+            },
             CommandInvocation::ChangeTheme { theme } => ExecutionPlan {
                 mutations: vec![LocalStateMutation::ApplyTheme(theme)],
                 backend_commands: vec![],

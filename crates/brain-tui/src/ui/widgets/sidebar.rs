@@ -80,15 +80,18 @@ pub fn draw(
     unicode: UnicodeSupport,
 ) {
     let title = match view.filter {
-        SessionFilter::Active => " Sessions (Active) ",
-        SessionFilter::Archived => " Sessions (Archived) ",
+        SessionFilter::Active => "Sessions",
+        SessionFilter::Archived => "Sessions (Archived)",
     };
 
-    let block = theme.panel(title, view.has_focus);
+    let block = ratatui::widgets::Block::default()
+        .borders(ratatui::widgets::Borders::RIGHT)
+        .border_style(theme.style(ThemeToken::BorderSubtle))
+        .title(ratatui::text::Line::from(title).style(theme.style(ThemeToken::TextSecondary)));
 
     let inner_area = block.inner(area);
 
-    // Draw the block frame
+    // Draw the quiet sidebar frame
     f.render_widget(block, area);
 
     if inner_area.width == 0 || inner_area.height == 0 {
@@ -120,8 +123,22 @@ pub fn draw(
     };
 
     if view.sessions.is_empty() {
-        let placeholder =
-            Paragraph::new("  No active sessions").style(theme.style(ThemeToken::TextMuted));
+        let empty_lines = vec![
+            ratatui::text::Line::from(ratatui::text::Span::styled(
+                " No sessions",
+                theme.style(ThemeToken::TextPrimary),
+            )),
+            ratatui::text::Line::from(ratatui::text::Span::raw("")),
+            ratatui::text::Line::from(ratatui::text::Span::styled(
+                " Create one with",
+                theme.style(ThemeToken::TextMuted),
+            )),
+            ratatui::text::Line::from(ratatui::text::Span::styled(
+                " /session new",
+                theme.style(ThemeToken::Accent),
+            )),
+        ];
+        let placeholder = Paragraph::new(empty_lines);
         f.render_widget(placeholder, list_area);
         return;
     }
@@ -153,7 +170,22 @@ pub fn draw(
                     ""
                 };
                 let prefix = if s.active { "● " } else { "  " };
-                format!("{}{}{}", prefix, pin_prefix, s.title)
+                let raw_title = &s.title;
+                let title_budget =
+                    (list_area.width as usize).saturating_sub(prefix.len() + pin_prefix.len());
+                let title = if raw_title.chars().count() > title_budget && title_budget > 3 {
+                    let ell = if unicode_mode { "…" } else { "..." };
+                    let ell_len = if unicode_mode { 1 } else { 3 };
+                    let take_len = title_budget.saturating_sub(ell_len);
+                    format!(
+                        "{}{}",
+                        raw_title.chars().take(take_len).collect::<String>(),
+                        ell
+                    )
+                } else {
+                    raw_title.clone()
+                };
+                format!("{}{}{}", prefix, pin_prefix, title)
             };
 
             let style = if is_selected {

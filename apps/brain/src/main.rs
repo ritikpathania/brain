@@ -161,6 +161,10 @@ async fn check_daemon_before_ui() -> bool {
         return true;
     }
 
+    if try_start_daemon() {
+        return true;
+    }
+
     if std::io::stdin().is_terminal() {
         println!("Daemon is not running.\n");
         print!("Start it now? [Y/n] ");

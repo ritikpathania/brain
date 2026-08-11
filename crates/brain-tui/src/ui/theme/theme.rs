@@ -163,7 +163,8 @@ impl Theme {
         let mut block = ratatui::widgets::Block::default()
             .borders(ratatui::widgets::Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
-            .border_style(border_style);
+            .border_style(border_style)
+            .style(self.background);
 
         let trimmed = title.trim();
         if !trimmed.is_empty() {
@@ -183,6 +184,7 @@ impl Theme {
             .borders(ratatui::widgets::Borders::ALL)
             .border_type(ratatui::widgets::BorderType::Rounded)
             .border_style(border_style)
+            .style(self.background)
     }
 
     /// Checks if theme uses uncolored/reset profile.

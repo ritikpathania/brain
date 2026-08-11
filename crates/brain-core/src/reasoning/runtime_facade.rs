@@ -9,7 +9,7 @@ use crate::reasoning::{
 };
 use brain_domain::{
     DomainError, ReasoningPhaseReport, ReasoningSession, RuntimeContext, RuntimeExecutionReport,
-    SessionTransition, StewardshipPhaseReport,
+    RuntimePolicySet, SessionTransition, StewardshipPhaseReport,
 };
 use std::sync::Arc;
 
@@ -18,6 +18,7 @@ use std::sync::Arc;
 /// Invariants:
 /// - `ReasoningRuntime` may orchestrate capability services but may not implement capability logic (zero business logic façade).
 /// - Asynchronous entry point (`async fn run_cycle`).
+/// - The runtime façade is the only supported orchestration entry point for end-to-end reasoning execution.
 #[derive(Debug, Clone)]
 pub struct ReasoningRuntime {
     synthesizer: Arc<SynthesizerService>,
@@ -46,11 +47,22 @@ impl ReasoningRuntime {
         }
     }
 
-    /// Executes an end-to-end reasoning cycle asynchronously.
+    /// Executes an end-to-end reasoning cycle asynchronously with default policy set.
     pub async fn run_cycle(
         &self,
         ctx: &RuntimeContext,
         query: &str,
+    ) -> Result<RuntimeExecutionReport, DomainError> {
+        self.run_cycle_with_policy(ctx, query, RuntimePolicySet::default())
+            .await
+    }
+
+    /// Executes an end-to-end reasoning cycle asynchronously with a specific `RuntimePolicySet`.
+    pub async fn run_cycle_with_policy(
+        &self,
+        ctx: &RuntimeContext,
+        query: &str,
+        policy_set: RuntimePolicySet,
     ) -> Result<RuntimeExecutionReport, DomainError> {
         let exec_id = ctx.execution_id;
         let mut session = ReasoningSession::new(exec_id);
@@ -117,6 +129,8 @@ impl ReasoningRuntime {
 
         session = session.transition(SessionTransition::Complete)?;
 
+        let provenance = brain_domain::RuntimeProvenance::new(exec_id, policy_set.clone(), None);
+
         let reasoning_phase = ReasoningPhaseReport::new(
             Some(reasoning_result),
             Some(reflection_report),
@@ -127,6 +141,8 @@ impl ReasoningRuntime {
 
         Ok(RuntimeExecutionReport::new(
             exec_id,
+            policy_set,
+            provenance,
             session,
             reasoning_phase,
             stewardship_phase,

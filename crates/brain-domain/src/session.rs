@@ -1,7 +1,7 @@
 //! Immutable ReasoningSession aggregate and ReasoningSessionStage transition state machine.
 
 use crate::errors::DomainError;
-use crate::evolution::EvolutionPlan;
+use crate::evolution::LegacyEvolutionPlan as EvolutionPlan;
 use crate::execution::ExecutionId;
 use crate::reasoning_reflection::ReflectionReport;
 use crate::synthesis::ReasoningResult;

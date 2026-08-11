@@ -99,7 +99,7 @@ fn test_final_visual_qa_matrix_coverage() {
         if w >= 80 {
             assert!(
                 ws_text.contains(
-                    "● Connected · ↑↓ Navigate  Enter Open  Space Reply  Ctrl+X Delete  → Home"
+                    "enter to return · space to reply · ctrl+x to delete · ? for shortcuts"
                 ),
                 "Workspace footer format mismatch at {}x{}",
                 w,

@@ -199,3 +199,55 @@ fn test_streaming_snapshots_lifecycle_with_resizing() {
         common::assert_snapshot(&buf, &ctx, "screens/chat/stream_complete");
     }
 }
+
+#[test]
+fn test_streaming_does_not_move_manual_scroll_position() {
+    use brain_tui::ui::widgets::scroll_anchor::ScrollAnchor;
+
+    // 1. Start streaming -> auto-pin at bottom
+    let mut anchor = ScrollAnchor::new();
+    assert_eq!(anchor, ScrollAnchor::Pinned);
+    assert!(anchor.should_follow_bottom());
+
+    // 2. User ScrollUp -> transition to Unpinned
+    anchor.on_scroll_up();
+    assert_eq!(anchor, ScrollAnchor::Unpinned);
+    assert!(!anchor.should_follow_bottom());
+
+    // 3. Receive 50 tokens while at offset 5 of max 20 -> viewport position remains unpinned
+    for _ in 0..50 {
+        anchor.update_position(5, 20);
+    }
+    assert_eq!(anchor, ScrollAnchor::Unpinned);
+    assert!(!anchor.should_follow_bottom());
+
+    // 4. User scrolls back to bottom (max_offset 20) -> auto-pin re-enables
+    anchor.update_position(20, 20);
+    assert_eq!(anchor, ScrollAnchor::Pinned);
+    assert!(anchor.should_follow_bottom());
+
+    // 5. Receive another token -> viewport follows bottom
+    anchor.update_position(21, 21);
+    assert_eq!(anchor, ScrollAnchor::Pinned);
+    assert!(anchor.should_follow_bottom());
+}
+
+#[test]
+fn test_typewriter_completion_flush_immediately() {
+    use brain_tui::state::{RenderToken, TypewriterQueue};
+
+    let mut queue = TypewriterQueue::new();
+    for i in 0..10 {
+        queue.push(RenderToken::Text(format!("token_{} ", i)));
+    }
+
+    // Backend finishes
+    queue.finish_backend();
+    assert!(!queue.is_finished());
+
+    // Next tick drains all tokens immediately
+    let result = queue.drain_for_tick(std::time::Instant::now());
+    assert_eq!(result.emitted.len(), 10);
+    assert!(result.finished);
+    assert!(queue.is_finished());
+}

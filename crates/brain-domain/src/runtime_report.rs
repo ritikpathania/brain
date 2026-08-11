@@ -91,10 +91,15 @@ impl StewardshipPhaseReport {
 /// Invariants:
 /// - Read model for composition and telemetry observation; not a transactional aggregate.
 /// - Every externally observable state transition must be reconstructable from immutable execution artifacts, reports, and audit logs.
+/// - Every RuntimeExecutionReport must record the policy configuration used to produce it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct RuntimeExecutionReport {
     /// Execution run identifier.
     pub execution_id: ExecutionId,
+    /// Policy set provenance configuration recorded at execution start.
+    pub policy_set: crate::telemetry::RuntimePolicySet,
+    /// Immutable canonical three-dimensional execution provenance.
+    pub provenance: crate::provenance::RuntimeProvenance,
     /// Reasoning session aggregate.
     pub session: ReasoningSession,
     /// Grouped reasoning phase report.
@@ -107,12 +112,16 @@ impl RuntimeExecutionReport {
     /// Instantiates a new immutable `RuntimeExecutionReport`.
     pub fn new(
         execution_id: ExecutionId,
+        policy_set: crate::telemetry::RuntimePolicySet,
+        provenance: crate::provenance::RuntimeProvenance,
         session: ReasoningSession,
         reasoning: ReasoningPhaseReport,
         stewardship: StewardshipPhaseReport,
     ) -> Self {
         Self {
             execution_id,
+            policy_set,
+            provenance,
             session,
             reasoning,
             stewardship,

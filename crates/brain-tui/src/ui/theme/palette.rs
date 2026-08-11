@@ -69,7 +69,7 @@ impl Palette {
             info: Color::Rgb(106, 155, 204),
             text_primary: Color::Rgb(240, 240, 240),
             text_secondary: Color::Rgb(200, 200, 200),
-            header_primary: Color::Rgb(255, 255, 255),
+            header_primary: Color::Rgb(215, 119, 87), // brand orange — same as primary
             selection_fg: Color::Black,
             selection_bg: Color::Rgb(173, 216, 230),
             code_inline: Color::Rgb(255, 193, 7),
@@ -81,38 +81,39 @@ impl Palette {
             assistant: Color::Rgb(215, 119, 87),
             tool: Color::Rgb(253, 93, 177),
             system: Color::Rgb(153, 153, 153),
-            background: Color::Black,
-            surface: Color::Rgb(55, 55, 55),
+            background: Color::Reset,
+            surface: Color::Reset,
         }
     }
 
     /// Returns the light theme color palette for light-background terminals.
+    /// Returns the soft Paper light theme color palette.
     pub fn light() -> Self {
         Self {
-            primary: Color::Rgb(180, 80, 50),
-            secondary: Color::Rgb(90, 50, 160),
-            accent: Color::Rgb(120, 60, 200),
-            muted: Color::Rgb(100, 100, 100),
-            success: Color::Rgb(20, 110, 50),
-            warning: Color::Rgb(140, 90, 0),
-            danger: Color::Rgb(200, 40, 60),
-            info: Color::Rgb(30, 100, 180),
-            text_primary: Color::Rgb(20, 20, 20),
-            text_secondary: Color::Rgb(60, 60, 60),
-            header_primary: Color::Rgb(10, 10, 10),
+            primary: Color::Rgb(192, 86, 33),          // Soft Orange
+            secondary: Color::Rgb(107, 70, 193),       // Soft Purple
+            accent: Color::Rgb(43, 108, 176),          // Soft Blue
+            muted: Color::Rgb(102, 102, 102),          // Border & muted tone (WCAG AA compliant)
+            success: Color::Rgb(20, 100, 40),          // Green (WCAG AA compliant)
+            warning: Color::Rgb(140, 85, 10),          // Amber (WCAG AA compliant)
+            danger: Color::Rgb(197, 48, 48),           // Red
+            info: Color::Rgb(43, 108, 176),            // Blue
+            text_primary: Color::Rgb(32, 33, 36),      // Dark Charcoal
+            text_secondary: Color::Rgb(102, 102, 102), // Secondary Gray
+            header_primary: Color::Rgb(192, 86, 33),   // brand orange — same as primary
             selection_fg: Color::White,
-            selection_bg: Color::Rgb(50, 100, 180),
-            code_inline: Color::Rgb(160, 90, 0),
-            code_block: Color::Rgb(80, 80, 80),
-            link: Color::Rgb(20, 80, 160),
-            thinking: Color::Rgb(30, 100, 180),
-            streaming: Color::Rgb(180, 80, 50),
-            user: Color::Rgb(30, 100, 180),
-            assistant: Color::Rgb(180, 80, 50),
-            tool: Color::Rgb(190, 40, 130),
-            system: Color::Rgb(100, 100, 100),
-            background: Color::Rgb(245, 245, 245),
-            surface: Color::Rgb(230, 230, 230),
+            selection_bg: Color::Rgb(43, 108, 176),
+            code_inline: Color::Rgb(183, 121, 31),
+            code_block: Color::Rgb(102, 102, 102),
+            link: Color::Rgb(43, 108, 176),
+            thinking: Color::Rgb(43, 108, 176),
+            streaming: Color::Rgb(192, 86, 33),
+            user: Color::Rgb(43, 108, 176),
+            assistant: Color::Rgb(192, 86, 33),
+            tool: Color::Rgb(107, 70, 193),
+            system: Color::Rgb(102, 102, 102),
+            background: Color::Reset, // Terminal's background color
+            surface: Color::Reset,    // Terminal's background color
         }
     }
 
@@ -172,8 +173,8 @@ impl Palette {
             assistant: Color::White,
             tool: Color::White,
             system: Color::Gray,
-            background: Color::Black,
-            surface: Color::Black,
+            background: Color::Reset,
+            surface: Color::Reset,
         }
     }
 }

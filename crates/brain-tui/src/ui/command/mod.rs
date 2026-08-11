@@ -1,11 +1,28 @@
-//! Command Palette and Slash Commands infrastructure data models and registry.
+pub mod index;
+pub mod matcher;
+pub mod provider;
+pub mod ranker;
+pub mod registry;
+pub mod widget;
 
-/// Type-safe, opaque identifier for commands.
+pub use index::CommandIndex;
+pub use matcher::{CandidateMatch, FuzzyMatcher, RankingFactors};
+pub use provider::{CommandProvider, PaletteItem, PaletteProvider, PaletteSection};
+pub use ranker::CommandRanker;
+pub use registry::{
+    CommandAvailability, CommandCategory as RegistryCategory, CommandIcon, CommandMetadata,
+    CommandRegistry as DynamicCommandRegistry,
+};
+pub use widget::PaletteWidget;
+
+/// Opaque type-safe command identifier wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CommandId(pub &'static str);
 
 /// Constant identifier for theme change command.
 pub const CHANGE_THEME: CommandId = CommandId("theme.change");
+/// Constant identifier for creating new sessions.
+pub const CREATE_SESSION: CommandId = CommandId("session.new");
 /// Constant identifier for renaming sessions.
 pub const RENAME_SESSION: CommandId = CommandId("session.rename");
 /// Constant identifier for archiving sessions.
@@ -133,6 +150,17 @@ pub struct CommandDescriptor {
 
 /// Immutable static slice registry of all system commands.
 pub static COMMANDS: &[CommandDescriptor] = &[
+    CommandDescriptor {
+        id: CREATE_SESSION,
+        title: "New Session",
+        description: "Start a new reasoning session in active workspace",
+        category: CommandCategory::Sessions,
+        visibility: CommandVisibility::Both,
+        priority: 100,
+        aliases: &["session", "new"],
+        keywords: &["session", "new", "create", "start"],
+        parameters: &[],
+    },
     CommandDescriptor {
         id: CHANGE_THEME,
         title: "Change Theme",

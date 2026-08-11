@@ -27,7 +27,11 @@ This document defines the interface, layout constraints, states, accessibility, 
 * **Accessibility**: List items are prefix-numbered (e.g. `[1]`, `[2]`) in screen reader mode for direct selection.
 * **Motion**: Instantly scrolls list viewport to track selection index.
 * **Keyboard Behavior**: `Up`/`Down` Arrow keys move selector; `Enter` activates the chosen session; `Backspace`/`Delete` archives or removes session.
-* **Layout Constraints**: Locked to exactly `25` columns. Hidden in Compact mode (< 80 columns).
+* **Layout Constraints**:
+  - `Compact Mode (< 70 columns)`: Hidden (sidebar collapses to width 0).
+  - `Standard Mode (70–119 columns)`: Locked to 22 columns (providing 48–97 columns for chat viewport).
+  - `Wide Mode (≥ 120 columns)`: Dynamically scaled (`(c * 20 / 100).clamp(22, 28)`).
+  - *Rationale*: Retaining the `< 70` column threshold preserves sidebar session navigation on medium viewports ($70\text{--}79$ columns) without overcrowding the chat viewport.
 * **Design Invariants**: The active selection indicator must remain visible within the sidebar viewport boundaries.
 
 ---
@@ -98,3 +102,20 @@ This document defines the interface, layout constraints, states, accessibility, 
 * **Keyboard Behavior**: `y` / `n` keystrokes select; `Enter` confirms default option; `Esc` dismisses.
 * **Layout Constraints**: Centered box (Height: 5, Width: 40).
 * **Design Invariants**: Completely intercepts keyboard focus; cannot be dismissed without explicit keystroke.
+
+---
+
+## 8. EvidenceCard & ConfidenceBadge
+* **Purpose**: Displays query provenance, retrieval scores, weight classifications, and confidence badges.
+* **Responsibilities**: Shows read-only evidence metadata (score, source provenance, retrieval weight, matched terms).
+* **Inputs**: `EvidenceItem`, `ConfidenceAssessment`.
+* **Outputs**: None (read-only presentation projection).
+* **Categorical Confidence Thresholds**:
+  - `High`: $\text{score} \ge 0.85$ (`● HIGH` / `High Confidence`)
+  - `Medium`: $\text{score} \ge 0.65$ (`◐ MED ` / `Medium Confidence`)
+  - `Low`: $\text{score} \ge 0.40$ (`○ LOW ` / `Low Confidence`)
+  - `Uncertain`: $\text{score} < 0.40$ (`Uncertain`)
+* **Design Invariants**:
+  - `MemoryGroupingEngine` partitions results by confidence tier while **strictly preserving** original retrieval score ordering within each tier.
+  - TUI renders metadata as provided; it never recalculates relevance, scores, or retrieval weights.
+

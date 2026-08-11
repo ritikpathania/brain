@@ -26,8 +26,14 @@ pub mod layout;
 pub mod reasoning_trace_widget;
 pub use reasoning_trace_widget::*;
 
+/// Navigation, modal, and shortcut routing.
+pub mod navigation;
+
 /// Screen composition trait.
 pub mod screen;
+
+/// Full-viewport screen components.
+pub mod screens;
 
 /// Focus manager.
 pub mod focus;

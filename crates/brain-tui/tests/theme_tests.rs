@@ -20,18 +20,18 @@ fn test_theme_palette_invariants() {
     let dark = dark_theme();
     assert_eq!(
         dark.style(ThemeToken::HeaderPrimary).fg,
-        Some(Color::Rgb(255, 255, 255))
+        Some(Color::Rgb(215, 119, 87)) // brand orange
     );
 
     // 2. Light theme invariants
     let light = light_theme();
     assert_eq!(
         light.style(ThemeToken::TextPrimary).fg,
-        Some(Color::Rgb(20, 20, 20))
+        Some(Color::Rgb(32, 33, 36))
     );
     assert_eq!(
         light.style(ThemeToken::HeaderPrimary).fg,
-        Some(Color::Rgb(10, 10, 10))
+        Some(Color::Rgb(192, 86, 33)) // brand orange
     );
 
     // 3. Adaptive terminal theme invariants:

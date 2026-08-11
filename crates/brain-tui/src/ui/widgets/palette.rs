@@ -50,9 +50,9 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
 
             // 2. Draw list of matching search results
             let items: Vec<ListItem> = if state.search_aggregator.is_some() {
-                let results = state.results();
-                results
-                    .iter()
+                state
+                    .results()
+                    .into_iter()
                     .enumerate()
                     .map(|(idx, res)| {
                         let is_selected = idx == state.selected_index;
@@ -75,7 +75,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                         let line = ratatui::text::Line::from(vec![
                             ratatui::text::Span::styled(prefix, prefix_style),
                             ratatui::text::Span::styled(
-                                res.title.as_deref().unwrap_or("(untitled)"),
+                                res.title.as_deref().unwrap_or("(untitled)").to_string(),
                                 if is_selected {
                                     theme
                                         .primary
@@ -86,7 +86,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                             ),
                             ratatui::text::Span::styled(" - ", theme.inactive),
                             ratatui::text::Span::styled(
-                                res.subtitle.as_deref().unwrap_or(""),
+                                res.subtitle.as_deref().unwrap_or("").to_string(),
                                 theme.inactive,
                             ),
                         ]);
@@ -95,7 +95,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                     })
                     .collect()
             } else {
-                let matches: Vec<_> = state.matches().collect();
+                let matches = state.matches();
                 matches
                     .iter()
                     .enumerate()

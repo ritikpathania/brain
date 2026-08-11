@@ -1,6 +1,6 @@
 use brain_domain::{
-    FindingEvidence, FindingKind, ReflectionDomainCommand, ReflectionFinding, ReflectionPassId,
-    ReflectionPlan, ReflectionPolicy, ReflectionRecommendation,
+    FindingEvidence, LegacyFindingKind as FindingKind, ReflectionDomainCommand, ReflectionFinding,
+    ReflectionPassId, ReflectionPlan, ReflectionPolicy, ReflectionRecommendation,
 };
 
 /// Evaluates reflection findings, generates recommendations with strict total ordering, and applies policy filters.

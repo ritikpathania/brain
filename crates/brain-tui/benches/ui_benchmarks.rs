@@ -1,7 +1,7 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use brain_tui::state::{IncrementalTokenizer, UiState};
 use brain_tui::ui::renderer::AppRenderer;
 use brain_tui::ui::theme::Theme;
-use brain_tui::state::{UiState, IncrementalTokenizer};
+use criterion::{criterion_group, criterion_main, Criterion};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
@@ -14,10 +14,12 @@ fn bench_frame_draw_empty(c: &mut Criterion) {
 
     c.bench_function("frame_draw_empty_120x40", |b| {
         b.iter(|| {
-            terminal.draw(|f| {
-                let area = f.size();
-                renderer.draw(f, area, &state, &theme);
-            }).unwrap();
+            terminal
+                .draw(|f| {
+                    let area = f.size();
+                    renderer.draw(f, area, &state, &theme);
+                })
+                .unwrap();
         });
     });
 }

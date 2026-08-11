@@ -1,3 +1,33 @@
+//! Retrieval domain model.
+//!
+//! This module defines the canonical retrieval representation used by the daemon,
+//! IPC layer, CLI, TUI, and future APIs.
+//!
+//! **Domain Invariants**:
+//! - The domain is presentation-agnostic. No ratatui or UI dependencies allowed.
+//! - Rendering concerns belong strictly to `brain-tui`.
+//! - Transport concerns belong strictly to the IPC layer.
+
+/// Canonical transport-independent retrieval result aggregates.
+pub mod canonical;
+/// Categorical and numeric confidence assessment.
+pub mod confidence;
+/// EvidenceItem domain aggregate representations.
+pub mod evidence;
+/// Extensible match explanation reasons.
+pub mod explanation;
+/// Opaque newtype identifiers.
+pub mod ids;
+/// Detailed retrieval stage timing breakdowns.
+pub mod timing;
+
+pub use canonical::{CanonicalRetrievalResult, RelationshipReference, RetrievalMetadata};
+pub use confidence::{ConfidenceAssessment, ConfidenceLevel};
+pub use evidence::EvidenceItem;
+pub use explanation::{EvidenceReason, StructuredRetrievalExplanation};
+pub use ids::{EvidenceId, QueryId};
+pub use timing::RetrievalTiming;
+
 /// Layered query execution caching.
 pub mod cache;
 /// Metric value objects, datasets, and report structures.

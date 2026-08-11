@@ -4,6 +4,7 @@
 //! network, and execution runtime layers.
 
 #![deny(missing_docs)]
+#![allow(ambiguous_glob_reexports)]
 
 /// Data Transfer Objects (DTOs) for API and UI boundary isolation.
 pub mod dtos;
@@ -66,6 +67,15 @@ pub use memory::*;
 pub mod retrieval;
 pub use retrieval::*;
 
+/// Knowledge graph domain models.
+pub mod graph;
+
+/// Reflection and Memory Stewardship domain models.
+pub mod reflection;
+
+/// Knowledge Evolution domain models.
+pub mod evolution;
+
 /// First-class temporal domain models and abstractions.
 pub mod temporal;
 pub use temporal::*;
@@ -78,8 +88,6 @@ pub use consolidation::*;
 pub mod jobs;
 pub use jobs::*;
 
-/// Knowledge Graph self-reflection and consolidation models.
-pub mod reflection;
 pub use reflection::*;
 
 /// Knowledge lifecycle states.
@@ -154,8 +162,6 @@ pub use match_domain::*;
 pub mod consolidation_decision;
 pub use consolidation_decision::*;
 
-/// Declarative Knowledge Evolution models.
-pub mod evolution;
 pub use evolution::*;
 
 /// Immutable ReasoningSession aggregate and stage transition state machine.
@@ -169,3 +175,23 @@ pub use mutation::*;
 /// Read models and execution context for Runtime Composition.
 pub mod runtime_report;
 pub use runtime_report::*;
+
+/// Minimal deterministic replay snapshot.
+pub mod replay;
+pub use replay::*;
+
+/// Operational telemetry, evaluation metrics, events, and policy sets.
+pub mod telemetry;
+pub use telemetry::*;
+
+/// Runtime schema versioning and compatibility checks.
+pub mod version;
+pub use version::*;
+
+/// Canonical three-dimensional execution provenance.
+pub mod provenance;
+pub use provenance::*;
+
+/// Domain-neutral regression dataset models.
+pub mod dataset;
+pub use dataset::*;

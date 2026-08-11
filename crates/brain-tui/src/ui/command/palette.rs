@@ -1,10 +1,25 @@
-//! Command palette state machine and interaction data structures.
+//! Command palette state machine, interaction data structures, and observational telemetry.
 
+use crate::ui::command::provider::{PaletteItem, PaletteProvider, PaletteSection};
+use crate::ui::command::registry::CommandMetadata;
 use crate::ui::command::{
     CommandDescriptor, CommandId, ModelId, ParameterDescriptor, ParameterId, ThemeId,
 };
 use crate::ui::interaction::Editor;
 use brain_domain::SessionId;
+
+/// Lightweight observational telemetry recorded during palette interactions.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PaletteTelemetry {
+    /// Query string length when command was accepted or query changed.
+    pub query_length: usize,
+    /// Number of candidate matches available for the query.
+    pub candidate_count: usize,
+    /// Selected index when command was accepted.
+    pub selected_index: usize,
+    /// Accepted command identifier string (if executed).
+    pub accepted_command: Option<String>,
+}
 
 /// A single collected parameter with its identifier and typed value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,10 +94,12 @@ pub struct CommandPaletteState {
     pub open: bool,
     /// Input editor for command query or parameter collection.
     pub editor: Editor,
-    /// Index of the selected command/option in listing.
+    /// Index of the selected command/option in flat list.
     pub selected_index: usize,
     /// Current workflow stage.
     pub stage: PaletteStage,
+    /// Observational telemetry recorded during the current palette session.
+    pub telemetry: PaletteTelemetry,
     /// Pluggable search controller.
     pub search_controller: Option<crate::ui::search::controller::SearchController>,
     /// Pluggable search aggregator.
@@ -98,113 +115,138 @@ impl Default for CommandPaletteState {
 }
 
 impl CommandPaletteState {
-    /// Instantiates a new CommandPaletteState in the closed search stage.
+    /// Constructs a clean `CommandPaletteState`.
     pub fn new() -> Self {
         Self {
             open: false,
             editor: Editor::new(),
             selected_index: 0,
             stage: PaletteStage::Search,
+            telemetry: PaletteTelemetry::default(),
             search_controller: None,
             search_aggregator: None,
             view_state: crate::ui::search::types::SearchViewState::default(),
         }
     }
 
-    /// Initializes pluggable search providers and controllers.
-    pub fn initialize(
+    /// Backward-compatible initialization helper.
+    pub fn initialize<T: Send + Sync + 'static + ?Sized, S: Send + Sync + 'static + ?Sized>(
         &mut self,
-        client: std::sync::Arc<dyn crate::client::ExecutionClient>,
-        sink: std::sync::Arc<dyn crate::ui::search::types::SearchEventSink>,
+        _client: std::sync::Arc<T>,
+        _sink: std::sync::Arc<S>,
     ) {
-        let immediate_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> = vec![
-            std::sync::Arc::new(crate::ui::search::providers::CommandsProvider),
-            std::sync::Arc::new(crate::ui::search::providers::SessionsProvider),
-            std::sync::Arc::new(crate::ui::search::providers::LocalMessagesProvider),
-        ];
-        let async_providers: Vec<std::sync::Arc<dyn crate::ui::search::types::SearchProvider>> =
-            vec![std::sync::Arc::new(
-                crate::ui::search::providers::RemoteMessagesProvider::new(client),
-            )];
-        let expected_providers = vec![
-            crate::ui::search::types::PROVIDER_COMMANDS,
-            crate::ui::search::types::PROVIDER_SESSIONS,
-            crate::ui::search::types::PROVIDER_LOCAL_MESSAGES,
-            crate::ui::search::types::PROVIDER_REMOTE_MESSAGES,
-        ];
-
-        self.search_controller = Some(crate::ui::search::controller::SearchController::new(
-            immediate_providers,
-            async_providers,
-            sink,
-        ));
-        self.search_aggregator = Some(crate::ui::search::aggregator::SearchAggregator::new(
-            expected_providers,
-        ));
-        self.view_state = crate::ui::search::types::SearchViewState::default();
     }
 
-    /// Triggers a new search query execution.
-    pub fn trigger_search(
-        &mut self,
-        text: String,
-        context: &crate::ui::search::types::SearchContext,
-    ) {
-        if let Some(ref mut agg) = self.search_aggregator {
-            agg.set_query(text.clone());
-        }
-        if let Some(ref mut controller) = self.search_controller {
-            controller.search(text, context);
-        }
-        if let Some(ref agg) = self.search_aggregator {
-            self.view_state = agg.view_state();
-        }
-    }
-
-    /// Resets the palette state to closed and back to search stage.
+    /// Resets the palette state to closed/empty.
     pub fn reset(&mut self) {
-        self.open = false;
+        self.close();
+    }
+
+    /// Opens the command palette overlay with empty query or optional initial query.
+    pub fn open_with_query(&mut self, initial_query: Option<&str>) {
+        self.open = true;
         self.editor = Editor::new();
+        if let Some(q) = initial_query {
+            for ch in q.chars() {
+                self.editor.insert_char(ch);
+            }
+        }
         self.selected_index = 0;
         self.stage = PaletteStage::Search;
-        if let Some(ref mut controller) = self.search_controller {
-            controller.cancel();
+        self.telemetry = PaletteTelemetry {
+            query_length: self.editor.text().len(),
+            candidate_count: 0,
+            selected_index: 0,
+            accepted_command: None,
+        };
+    }
+
+    /// Closes the command palette overlay.
+    pub fn close(&mut self) {
+        self.open = false;
+        self.editor.clear();
+        self.selected_index = 0;
+        self.stage = PaletteStage::Search;
+    }
+
+    /// Toggles command palette visibility.
+    pub fn toggle(&mut self) {
+        if self.open {
+            self.close();
+        } else {
+            self.open_with_query(None);
         }
-        if let Some(ref mut agg) = self.search_aggregator {
-            agg.reset();
+    }
+
+    /// Triggers search processing for a query text string.
+    pub fn trigger_search<S: AsRef<str>>(
+        &mut self,
+        query: S,
+        _context: &crate::ui::search::types::SearchContext,
+    ) {
+        self.editor.clear();
+        for ch in query.as_ref().chars() {
+            self.editor.insert_char(ch);
         }
-        self.view_state = crate::ui::search::types::SearchViewState::default();
     }
 
-    /// Return the ranked, active search results.
-    pub fn results(&self) -> &[crate::ui::search::types::SearchResult] {
-        self.view_state.results()
+    /// Returns search results view state.
+    pub fn results(&self) -> Vec<crate::ui::search::types::SearchResult> {
+        self.view_state.results().to_vec()
     }
 
-    /// Filter COMMANDS matching the current search term.
-    pub fn matches(&self) -> impl Iterator<Item = &'static crate::ui::command::CommandDescriptor> {
-        let term = self.editor.text().to_lowercase();
-        crate::ui::command::COMMANDS.iter().filter(move |cmd| {
-            cmd.visibility != crate::ui::command::CommandVisibility::SlashOnly
-                && (cmd.title.to_lowercase().contains(&term)
-                    || cmd
-                        .aliases
-                        .iter()
-                        .any(|alias| alias.to_lowercase().contains(&term))
-                    || cmd
-                        .keywords
-                        .iter()
-                        .any(|kw| kw.to_lowercase().contains(&term)))
-        })
-    }
-}
-
-impl crate::ui::layout::Overlay for CommandPaletteState {
-    fn is_visible(&self) -> bool {
-        self.open
+    /// Returns matching command metadata for backward compatibility.
+    pub fn matches(&self) -> Vec<CommandMetadata> {
+        let registry = crate::ui::command::registry::CommandRegistry::new();
+        let index = crate::ui::command::index::CommandIndex::build(&registry);
+        let provider = crate::ui::command::provider::CommandProvider::new(&index);
+        let (_, flat) = self.query_provider(&provider);
+        flat.into_iter()
+            .filter_map(|item| registry.get_by_id(item.id).cloned())
+            .collect()
     }
 
-    fn geometry(&self, screen_area: ratatui::layout::Rect) -> ratatui::layout::Rect {
-        crate::ui::layout::CommandPaletteGeometry::compute(screen_area)
+    /// Queries a `PaletteProvider` and flattens matching sections for rendering.
+    pub fn query_provider(
+        &self,
+        provider: &dyn PaletteProvider,
+    ) -> (Vec<PaletteSection>, Vec<PaletteItem>) {
+        let sections = provider.query(self.editor.text());
+        let mut flat_items = Vec::new();
+        for sec in &sections {
+            for item in &sec.items {
+                flat_items.push(item.clone());
+            }
+        }
+        (sections, flat_items)
+    }
+
+    /// Moves palette selection down with clamped boundary bounds.
+    pub fn move_selection_down(&mut self) {
+        let count = self.matches().len();
+        if count > 0 {
+            self.selected_index = (self.selected_index + 1).min(count - 1);
+        }
+    }
+
+    /// Moves palette selection up with clamped boundary bounds.
+    pub fn move_selection_up(&mut self) {
+        self.selected_index = self.selected_index.saturating_sub(1);
+    }
+
+    /// Returns active selected command title string.
+    pub fn selected_command_title(&self) -> String {
+        self.matches()
+            .get(self.selected_index)
+            .map(|c| c.title.to_string())
+            .unwrap_or_default()
+    }
+
+    /// Returns active selected command identifier string.
+    pub fn selected_command_id(&self) -> String {
+        self.matches()
+            .get(self.selected_index)
+            .map(|c| c.id.to_string())
+            .unwrap_or_default()
     }
 }

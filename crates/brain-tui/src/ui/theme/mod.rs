@@ -3,15 +3,25 @@
 use std::sync::OnceLock;
 
 pub mod palette;
+pub mod provider;
 pub mod style;
 #[allow(clippy::module_inception)]
 pub mod theme;
 pub mod token;
 
 pub use palette::Palette;
+pub use provider::{Appearance, AppearanceProvider, MacOSPollingProvider, StaticProvider};
 pub use style::ActiveTheme;
 pub use theme::Theme;
 pub use token::ThemeToken;
+
+/// Returns the theme corresponding to active macOS system appearance.
+pub fn system_theme() -> &'static Theme {
+    match Appearance::detect_system() {
+        Appearance::Dark => dark_theme(),
+        Appearance::Light => light_theme(),
+    }
+}
 
 /// Static thread-safe reference for the default dark theme.
 pub static DARK_THEME: OnceLock<Theme> = OnceLock::new();

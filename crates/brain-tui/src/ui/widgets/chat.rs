@@ -1,7 +1,7 @@
 use crate::ui::interaction::markdown::{SelectionState, VisualLine, VisualSpan, VisualStyle};
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
@@ -29,7 +29,7 @@ pub struct ChatView {
 
 /// Renders the scrollable message window viewport in the center.
 pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
-    let block = theme.panel(view.title.as_str(), false);
+    let block = ratatui::widgets::Block::default();
 
     let mut items = Vec::new();
     for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {
@@ -38,6 +38,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
         if let Some(ref sender) = visible.sender_header {
             let sender_style = if is_sel {
                 theme.style(ThemeToken::Selection)
+            } else if sender.eq_ignore_ascii_case("You") {
+                theme.secondary
             } else {
                 theme.accent.add_modifier(Modifier::BOLD)
             };
@@ -66,8 +68,12 @@ fn map_span<'a>(span: &VisualSpan, theme: &Theme, is_selected: bool) -> Span<'a>
         VisualStyle::Heading1 | VisualStyle::Heading2 | VisualStyle::Heading3 => {
             theme.style(ThemeToken::HeaderSecondary)
         }
-        VisualStyle::Bold => Style::default().add_modifier(Modifier::BOLD),
-        VisualStyle::Italic => Style::default().add_modifier(Modifier::ITALIC),
+        VisualStyle::Bold => theme
+            .style(ThemeToken::TextPrimary)
+            .add_modifier(Modifier::BOLD),
+        VisualStyle::Italic => theme
+            .style(ThemeToken::TextPrimary)
+            .add_modifier(Modifier::ITALIC),
         VisualStyle::InlineCode => theme.style(ThemeToken::CodeInline),
         VisualStyle::CodeKeyword => theme
             .style(ThemeToken::Secondary)

@@ -1,8 +1,8 @@
 //! EvolutionPlannerService deriving declarative EvolutionPlans strictly from ReflectionReports.
 
 use brain_domain::{
-    DomainError, EvolutionAction, EvolutionActionId, EvolutionPlan, ReflectionFindingKind,
-    ReflectionReport,
+    DomainError, EvolutionActionId, LegacyEvolutionAction as EvolutionAction,
+    LegacyEvolutionPlan as EvolutionPlan, ReflectionFindingKind, ReflectionReport,
 };
 
 /// Pure domain service deriving declarative evolution action plans from ReflectionReports.

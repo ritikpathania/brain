@@ -61,10 +61,26 @@ pub enum AppEvent {
     Connected,
     /// Explicit connectivity probe confirmed daemon is unreachable.
     Disconnected,
+    /// Backend session deletion succeeded.
+    SessionDeleted(brain_domain::SessionId),
+    /// Backend session deletion failed.
+    DeleteSessionFailed {
+        /// Target session ID.
+        session_id: brain_domain::SessionId,
+        /// Diagnostic error description.
+        error: String,
+    },
     /// Workspace nodes that materially influenced retrieval, echoed from
     /// `stream_end.metadata.context_used` by the daemon. Used to display a
     /// transient confirmation message after a workspace-attached query.
     ContextUsed(Vec<String>),
+    /// Explicit request cancellation acknowledged.
+    StreamCancelled {
+        /// Session ID of the cancelled request.
+        session_id: brain_domain::SessionId,
+        /// Request ID of the cancelled request.
+        request_id: String,
+    },
 }
 
 /// Combined event stream container.

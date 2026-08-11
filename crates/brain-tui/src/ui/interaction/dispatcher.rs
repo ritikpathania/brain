@@ -4,15 +4,12 @@ use crate::ui::command::completion::SlashCompletionState;
 use crate::ui::command::palette::{
     CollectedParameter, CommandPaletteState, PaletteStage, ParameterCollectionState, ParameterValue,
 };
-use crate::ui::command::{
-    Availability, CommandAvailabilityContext, CommandInvocation, CommandPolicy, CommandRegistry,
-};
+use crate::ui::command::{CommandAvailabilityContext, CommandInvocation, CommandRegistry};
 use crate::ui::focus::FocusManager;
 use crate::ui::input::{Command, InputAction, TextInput};
 use crate::ui::interaction::editor::Editor;
 use crate::ui::interaction::scroll::ScrollState;
 use crate::ui::interaction::sidebar::{SessionLookup, SidebarEvent, SidebarInteraction};
-use crate::ui::search::types::SearchResultAction;
 use crate::ui::widgets::view_models::FocusTarget;
 use brain_domain::SessionId;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -229,14 +226,14 @@ impl Dispatcher {
                     active_messages: ctx.active_messages.to_vec(),
                 };
                 ctx.command_palette
-                    .trigger_search("".to_string(), &search_context);
+                    .trigger_search("", &search_context);
             }
             return DispatchResult::render();
         }
 
         // If Command Palette is focused, intercept all keys
         if ctx.focus.current() == FocusTarget::CommandPalette {
-            let avail_ctx = CommandAvailabilityContext {
+            let _avail_ctx = CommandAvailabilityContext {
                 has_selected_session: ctx.sidebar.browse.selected.is_some(),
                 is_connected: ctx.is_connected,
                 is_generating: ctx.is_generating,
@@ -252,173 +249,145 @@ impl Dispatcher {
                         return DispatchResult::render();
                     }
                     Command::ScrollUp => {
-                        if ctx.command_palette.stage == PaletteStage::Search {
-                            let count = if ctx.command_palette.search_aggregator.is_some() {
-                                ctx.command_palette.results().len()
-                            } else {
-                                ctx.command_palette.matches().count()
-                            };
-                            if count > 0 {
-                                if ctx.command_palette.selected_index == 0 {
-                                    ctx.command_palette.selected_index = count - 1;
+                        let count = match &ctx.command_palette.stage {
+                            PaletteStage::Search => {
+                                if ctx.command_palette.search_aggregator.is_some() {
+                                    ctx.command_palette.results().len()
                                 } else {
-                                    ctx.command_palette.selected_index -= 1;
+                                    ctx.command_palette.matches().len()
                                 }
+                            }
+                            PaletteStage::CollectParameter(state) => {
+                                let descriptor = CommandRegistry::find_by_id(state.command_id);
+                                if let Some(desc) = descriptor {
+                                    if let Some(param_desc) = state.current_parameter(desc) {
+                                        match param_desc.kind {
+                                            crate::ui::command::ParameterKind::Theme => 4,
+                                            _ => 0,
+                                        }
+                                    } else {
+                                        0
+                                    }
+                                } else {
+                                    0
+                                }
+                            }
+                            _ => 0,
+                        };
+                        if count > 0 {
+                            if ctx.command_palette.selected_index == 0 {
+                                ctx.command_palette.selected_index = count - 1;
+                            } else {
+                                ctx.command_palette.selected_index -= 1;
                             }
                         }
                         return DispatchResult::render();
                     }
                     Command::ScrollDown => {
-                        if ctx.command_palette.stage == PaletteStage::Search {
-                            let count = if ctx.command_palette.search_aggregator.is_some() {
-                                ctx.command_palette.results().len()
-                            } else {
-                                ctx.command_palette.matches().count()
-                            };
-                            if count > 0 {
-                                ctx.command_palette.selected_index =
-                                    (ctx.command_palette.selected_index + 1) % count;
+                        let count = match &ctx.command_palette.stage {
+                            PaletteStage::Search => {
+                                if ctx.command_palette.search_aggregator.is_some() {
+                                    ctx.command_palette.results().len()
+                                } else {
+                                    ctx.command_palette.matches().len()
+                                }
                             }
+                            PaletteStage::CollectParameter(state) => {
+                                let descriptor = CommandRegistry::find_by_id(state.command_id);
+                                if let Some(desc) = descriptor {
+                                    if let Some(param_desc) = state.current_parameter(desc) {
+                                        match param_desc.kind {
+                                            crate::ui::command::ParameterKind::Theme => 4,
+                                            _ => 0,
+                                        }
+                                    } else {
+                                        0
+                                    }
+                                } else {
+                                    0
+                                }
+                            }
+                            _ => 0,
+                        };
+                        if count > 0 {
+                            ctx.command_palette.selected_index =
+                                (ctx.command_palette.selected_index + 1) % count;
                         }
                         return DispatchResult::render();
                     }
                     Command::Submit => {
                         match &mut ctx.command_palette.stage {
                             PaletteStage::Search => {
-                                if ctx.command_palette.search_aggregator.is_some() {
-                                    let results = ctx.command_palette.results();
-                                    let matched_res =
-                                        results.get(ctx.command_palette.selected_index).cloned();
-                                    if let Some(res) = matched_res {
-                                        match res.action {
-                                            SearchResultAction::InvokeCommand(command_id) => {
-                                                let matched_cmd = crate::ui::command::COMMANDS
-                                                    .iter()
-                                                    .find(|c| c.id == command_id);
-                                                if let Some(cmd) = matched_cmd {
-                                                    if let Availability::Enabled =
-                                                        CommandPolicy::availability(cmd, &avail_ctx)
-                                                    {
-                                                        if !cmd.parameters.is_empty() {
-                                                            ctx.command_palette.stage =
-                                                                PaletteStage::CollectParameter(
-                                                                    ParameterCollectionState::new(
-                                                                        cmd.id,
-                                                                    ),
-                                                                );
-                                                            ctx.command_palette.editor.clear();
-                                                            ctx.command_palette.selected_index = 0;
-                                                        } else {
-                                                            let inv_opt = CommandInvocation::build(
-                                                                cmd.id,
-                                                                &[],
-                                                                ctx.sidebar.browse.selected,
-                                                            );
-                                                            ctx.command_palette.reset();
-                                                            if let Some(saved) =
-                                                                ctx.focus.pop_saved_focus()
-                                                            {
-                                                                ctx.focus.set_focus(saved);
-                                                            }
-                                                            if let Some(inv) = inv_opt {
-                                                                return DispatchResult::event(
-                                                                    UiEvent::Command(inv),
-                                                                );
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            SearchResultAction::SwitchSession(session_id) => {
-                                                ctx.command_palette.reset();
-                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
-                                                    ctx.focus.set_focus(saved);
-                                                }
-                                                return DispatchResult::event(UiEvent::Sidebar(
-                                                    SidebarEvent::Open(session_id),
-                                                ));
-                                            }
-                                            SearchResultAction::JumpToMessage { message_id } => {
-                                                ctx.command_palette.reset();
-                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
-                                                    ctx.focus.set_focus(saved);
-                                                }
-                                                return DispatchResult::event(
-                                                    UiEvent::SearchSelect(
-                                                        SearchResultAction::JumpToMessage {
-                                                            message_id,
-                                                        },
-                                                    ),
+                                let matched_cmd = ctx
+                                    .command_palette
+                                    .matches()
+                                    .get(ctx.command_palette.selected_index)
+                                    .cloned();
+                                if let Some(cmd) = matched_cmd {
+                                    let command_id = crate::ui::command::CommandId(cmd.id);
+                                    if let Some(desc) = CommandRegistry::find_by_id(command_id) {
+                                        if !desc.parameters.is_empty() {
+                                            ctx.command_palette.stage =
+                                                PaletteStage::CollectParameter(
+                                                    ParameterCollectionState::new(command_id),
                                                 );
-                                            }
-                                            SearchResultAction::OpenMemoryDetail { entity_id } => {
-                                                // Phase 2.5: memory detail view not yet implemented.
-                                                // Dismiss the palette and emit the event for future handling.
-                                                ctx.command_palette.reset();
-                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
-                                                    ctx.focus.set_focus(saved);
-                                                }
-                                                return DispatchResult::event(
-                                                    UiEvent::SearchSelect(
-                                                        SearchResultAction::OpenMemoryDetail {
-                                                            entity_id,
-                                                        },
-                                                    ),
-                                                );
-                                            }
+                                            ctx.command_palette.editor.clear();
+                                            ctx.command_palette.selected_index = 0;
+                                            return DispatchResult::render();
                                         }
-                                    }
-                                } else {
-                                    let matched_cmd = ctx
-                                        .command_palette
-                                        .matches()
-                                        .nth(ctx.command_palette.selected_index);
-                                    if let Some(cmd) = matched_cmd {
-                                        if let Availability::Enabled =
-                                            CommandPolicy::availability(cmd, &avail_ctx)
-                                        {
-                                            if !cmd.parameters.is_empty() {
-                                                ctx.command_palette.stage =
-                                                    PaletteStage::CollectParameter(
-                                                        ParameterCollectionState::new(cmd.id),
-                                                    );
-                                                ctx.command_palette.editor.clear();
-                                                ctx.command_palette.selected_index = 0;
-                                            } else {
-                                                let inv_opt = CommandInvocation::build(
-                                                    cmd.id,
-                                                    &[],
-                                                    ctx.sidebar.browse.selected,
-                                                );
-                                                ctx.command_palette.reset();
-                                                if let Some(saved) = ctx.focus.pop_saved_focus() {
-                                                    ctx.focus.set_focus(saved);
-                                                }
-                                                if let Some(inv) = inv_opt {
-                                                    return DispatchResult::event(
-                                                        UiEvent::Command(inv),
-                                                    );
-                                                }
-                                            }
+                                        let inv_opt = CommandInvocation::build(
+                                            command_id,
+                                            &[],
+                                            ctx.sidebar.browse.selected,
+                                        );
+                                        ctx.command_palette.reset();
+                                        if let Some(saved) = ctx.focus.pop_saved_focus() {
+                                            ctx.focus.set_focus(saved);
+                                        }
+                                        if let Some(inv) = inv_opt {
+                                            return DispatchResult::event(UiEvent::Command(inv));
                                         }
                                     }
                                 }
                             }
-
                             PaletteStage::CollectParameter(state) => {
                                 let descriptor = CommandRegistry::find_by_id(state.command_id);
                                 if let Some(desc) = descriptor {
                                     if let Some(param_desc) = state.current_parameter(desc) {
-                                        let text =
-                                            ctx.command_palette.editor.text().trim().to_string();
-                                        if !text.is_empty() {
+                                         let mut text =
+                                             ctx.command_palette.editor.text().trim().to_string();
+                                         if text.is_empty() {
+                                             text = match param_desc.kind {
+                                                 crate::ui::command::ParameterKind::Theme => {
+                                                     match ctx.command_palette.selected_index {
+                                                         0 => "dark".to_string(),
+                                                         1 => "light".to_string(),
+                                                         2 => "terminal".to_string(),
+                                                         3 => "high_contrast".to_string(),
+                                                         _ => "dark".to_string(),
+                                                     }
+                                                 }
+                                                 _ => "default".to_string(),
+                                             };
+                                         }
+                                         if !text.is_empty() {
                                             let val = match param_desc.kind {
                                                 crate::ui::command::ParameterKind::String => {
                                                     Some(ParameterValue::String(text))
                                                 }
                                                 crate::ui::command::ParameterKind::Theme => {
+                                                    let lower = text.to_lowercase();
+                                                    let theme_str = if lower.contains("contrast") {
+                                                        "high_contrast"
+                                                    } else if lower.contains("light") {
+                                                        "light"
+                                                    } else if lower.contains("terminal") {
+                                                        "terminal"
+                                                    } else {
+                                                        "dark"
+                                                    };
                                                     Some(ParameterValue::Theme(
-                                                        crate::ui::command::ThemeId("dark"),
+                                                        crate::ui::command::ThemeId(theme_str),
                                                     ))
                                                 }
                                                 _ => Some(ParameterValue::String(text)),
@@ -487,15 +456,39 @@ impl Dispatcher {
                             let descriptor = CommandRegistry::find_by_id(state.command_id);
                             if let Some(desc) = descriptor {
                                 if let Some(param_desc) = state.current_parameter(desc) {
-                                    let text = ctx.command_palette.editor.text().trim().to_string();
+                                    let mut text = ctx.command_palette.editor.text().trim().to_string();
+                                    if text.is_empty() {
+                                        text = match param_desc.kind {
+                                            crate::ui::command::ParameterKind::Theme => {
+                                                match ctx.command_palette.selected_index {
+                                                    0 => "dark".to_string(),
+                                                    1 => "light".to_string(),
+                                                    2 => "terminal".to_string(),
+                                                    3 => "high_contrast".to_string(),
+                                                    _ => "dark".to_string(),
+                                                }
+                                            }
+                                            _ => "default".to_string(),
+                                        };
+                                    }
                                     if !text.is_empty() {
                                         let val = match param_desc.kind {
                                             crate::ui::command::ParameterKind::String => {
                                                 Some(ParameterValue::String(text))
                                             }
                                             crate::ui::command::ParameterKind::Theme => {
+                                                let lower = text.to_lowercase();
+                                                let theme_str = if lower.contains("contrast") {
+                                                    "high_contrast"
+                                                } else if lower.contains("light") {
+                                                    "light"
+                                                } else if lower.contains("terminal") {
+                                                    "terminal"
+                                                } else {
+                                                    "dark"
+                                                };
                                                 Some(ParameterValue::Theme(
-                                                    crate::ui::command::ThemeId("dark"),
+                                                    crate::ui::command::ThemeId(theme_str),
                                                 ))
                                             }
                                             _ => Some(ParameterValue::String(text)),
@@ -708,6 +701,9 @@ impl Dispatcher {
                         ctx.slash_completion.visible = false;
 
                         match command_name.to_lowercase().as_str() {
+                            "session" | "new" => DispatchResult::event(UiEvent::Command(
+                                CommandInvocation::CreateSession,
+                            )),
                             "theme" => {
                                 let theme_id = match arg.to_lowercase().as_str() {
                                     "light" => crate::ui::command::THEME_LIGHT,
