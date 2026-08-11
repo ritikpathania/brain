@@ -134,5 +134,6 @@ pub use knowledge_evolution::{
     KnowledgeEvolutionState,
 };
 pub use knowledge_explorer::{draw_knowledge_explorer, ExplorerIntent, KnowledgeExplorerState};
+pub use palette::CommandPaletteWidget;
 pub use runtime_dashboard::{draw_runtime_dashboard, RuntimeDashboardState};
 pub use screen_state::ScreenState;

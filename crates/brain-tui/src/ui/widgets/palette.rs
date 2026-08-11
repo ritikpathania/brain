@@ -1,10 +1,31 @@
 //! Modal centered overlay renderer for Command Palette.
 
 use crate::ui::command::palette::{CommandPaletteState, PaletteStage};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Modifier;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, Paragraph};
 use ratatui::Frame;
+
+/// Command Palette overlay widget.
+pub struct CommandPaletteWidget<'a> {
+    /// Command palette interaction state.
+    pub state: &'a CommandPaletteState,
+    /// Active theme tokens.
+    pub theme: &'a Theme,
+}
+
+impl<'a> CommandPaletteWidget<'a> {
+    /// Creates a new `CommandPaletteWidget`.
+    pub fn new(state: &'a CommandPaletteState, theme: &'a Theme) -> Self {
+        Self { state, theme }
+    }
+
+    /// Renders the command palette widget into the frame area.
+    pub fn draw(&self, f: &mut Frame<'_>, area: Rect) {
+        draw(f, area, self.state, self.theme);
+    }
+}
 
 /// Renders the modal centered Command Palette overlay.
 pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &Theme) {
@@ -100,15 +121,41 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &CommandPaletteState, theme: &
                     .iter()
                     .enumerate()
                     .map(|(idx, cmd)| {
-                        let style = if idx == state.selected_index {
-                            theme
-                                .primary
-                                .add_modifier(ratatui::style::Modifier::REVERSED)
+                        let is_selected = idx == state.selected_index;
+                        let (name_style, cat_style, desc_style) = if is_selected {
+                            (
+                                theme
+                                    .style(ThemeToken::Accent)
+                                    .add_modifier(Modifier::BOLD)
+                                    .add_modifier(Modifier::REVERSED),
+                                theme
+                                    .style(ThemeToken::TextMuted)
+                                    .add_modifier(Modifier::REVERSED),
+                                theme
+                                    .style(ThemeToken::TextSecondary)
+                                    .add_modifier(Modifier::REVERSED),
+                            )
                         } else {
-                            theme.text
+                            (
+                                theme
+                                    .style(ThemeToken::Accent)
+                                    .add_modifier(Modifier::BOLD),
+                                theme.style(ThemeToken::TextMuted),
+                                theme.style(ThemeToken::TextSecondary),
+                            )
                         };
-                        let text = format!("  {} - {}", cmd.title, cmd.description);
-                        ListItem::new(text).style(style)
+
+                        let col1 = format!("  {:<20}", cmd.name);
+                        let col2 = format!("{:<15}", cmd.category.label());
+                        let col3 = cmd.description.to_string();
+
+                        let line = ratatui::text::Line::from(vec![
+                            ratatui::text::Span::styled(col1, name_style),
+                            ratatui::text::Span::styled(col2, cat_style),
+                            ratatui::text::Span::styled(col3, desc_style),
+                        ]);
+
+                        ListItem::new(line)
                     })
                     .collect()
             };
