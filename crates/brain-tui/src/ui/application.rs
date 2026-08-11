@@ -381,7 +381,11 @@ impl<'a, S: RenderScheduler, C: DaemonClient> Application<'a, S, C> {
                     invalidation: RenderInvalidation::EverythingStale,
                 }))
             }
-            UiEvent::SearchSelect(_action) => Ok(Some(RenderRequest {
+            UiEvent::SearchSelect(_)
+            | UiEvent::NavigateDown
+            | UiEvent::NavigateUp
+            | UiEvent::SelectSession
+            | UiEvent::Escape => Ok(Some(RenderRequest {
                 reason: RenderReason::Input,
                 invalidation: RenderInvalidation::EverythingStale,
             })),

@@ -1029,6 +1029,14 @@ pub enum Action {
     CloseModal,
     /// Toggles the screen-mode contextual help overlay.
     ToggleHelp,
+    /// Navigate down selection index in Workspace or active view.
+    NavigateDown,
+    /// Navigate up selection index in Workspace or active view.
+    NavigateUp,
+    /// Select/open current session in Workspace (transitions screen to Conversation).
+    SelectSession,
+    /// Escape/back action (pops navigation stack, returning to previous foreground screen).
+    Escape,
 }
 
 /// Pure status indicator returning from state updates.
@@ -2459,13 +2467,60 @@ impl UiState {
                 UpdateResult::Changed
             }
             Action::NavigateToWorkspace => {
+                self.navigation.push(crate::ui::navigation::Screen::Workspace);
                 self.screen = crate::ui::navigation::Screen::Workspace;
                 self.focus = FocusRegion::Sidebar;
                 UpdateResult::Changed
             }
             Action::NavigateToHome => {
+                self.navigation.push(crate::ui::navigation::Screen::Home);
                 self.screen = crate::ui::navigation::Screen::Home;
                 self.focus = FocusRegion::Editor;
+                UpdateResult::Changed
+            }
+            Action::NavigateDown => {
+                let max_len = if self.sessions.is_empty() {
+                    3
+                } else {
+                    self.sessions.len()
+                };
+                if self.selected_session_idx + 1 < max_len {
+                    self.selected_session_idx += 1;
+                }
+                UpdateResult::Changed
+            }
+            Action::NavigateUp => {
+                if self.selected_session_idx > 0 {
+                    self.selected_session_idx -= 1;
+                }
+                UpdateResult::Changed
+            }
+            Action::SelectSession => {
+                if !self.sessions.is_empty() && self.selected_session_idx < self.sessions.len() {
+                    let session_id = self.sessions[self.selected_session_idx].id;
+                    self.session_id = session_id;
+                    if let Some(history) = self.session_histories.get(&session_id) {
+                        self.active_messages = history.clone();
+                    } else {
+                        self.active_messages.clear();
+                    }
+                }
+                if self.navigation.current() == crate::ui::navigation::Screen::Workspace {
+                    self.navigation.pop();
+                }
+                self.navigation.push(crate::ui::navigation::Screen::Conversation);
+                self.screen = crate::ui::navigation::Screen::Conversation;
+                self.focus = FocusRegion::Editor;
+                UpdateResult::Changed
+            }
+            Action::Escape => {
+                if self.modal.is_some() {
+                    self.modal = None;
+                } else if self.help_overlay.is_some() {
+                    self.help_overlay = None;
+                } else if self.navigation.pop().is_some() {
+                    self.screen = self.navigation.current();
+                }
                 UpdateResult::Changed
             }
             Action::SelectPreviousSession => {

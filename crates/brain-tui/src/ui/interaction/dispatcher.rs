@@ -64,6 +64,14 @@ pub enum UiEvent {
     },
     /// Intent to select a search result action.
     SearchSelect(crate::ui::search::types::SearchResultAction),
+    /// Focus navigation move down in Workspace or task list.
+    NavigateDown,
+    /// Focus navigation move up in Workspace or task list.
+    NavigateUp,
+    /// Intent to select the currently highlighted session in Workspace.
+    SelectSession,
+    /// Intent to escape back to previous screen.
+    Escape,
 }
 
 /// Dispatcher result codes representing TUI state changes.
@@ -750,7 +758,7 @@ impl Dispatcher {
                     }
                 }
                 Command::ToggleCommandPalette => DispatchResult::render(),
-                Command::Escape => DispatchResult::none(),
+                Command::Escape => DispatchResult::event(UiEvent::Escape),
             },
 
             InputAction::Text(text_input) => match text_input {
