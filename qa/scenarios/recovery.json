@@ -1,0 +1,11 @@
+{
+  "name": "Failure Injection & Auto-Recovery",
+  "description": "Tests daemon process termination (kill -9), process restart, and database error resilience",
+  "steps": [
+    "verify_daemon_healthy",
+    "send_kill_9_signal",
+    "observe_ui_resilience",
+    "restart_daemon_process",
+    "verify_reconnect_and_persistence"
+  ]
+}

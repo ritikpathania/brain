@@ -1,0 +1,81 @@
+{
+  "name": "Command Discovery & Slash Command Verification",
+  "mode": "usability",
+  "description": "Comprehensive individual verification of /session new, /search, /help, /theme dark, /theme light, /theme terminal, /theme high_contrast",
+  "goals": [
+    {
+      "id": "create_session",
+      "label": "Create Session (/session new)",
+      "strategy": "command_palette",
+      "command": "/session",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "execute_first_query",
+      "label": "Natural Knowledge Search (/search)",
+      "strategy": "direct_prompt",
+      "query": "How do I store memories in Brain?",
+      "expect": {
+        "ocr_contains": ["Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "show_help",
+      "label": "Shortcuts & System Help (/help)",
+      "strategy": "command_palette",
+      "command": "help",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "change_theme_dark",
+      "label": "Apply Dark Theme (/theme dark)",
+      "strategy": "command_palette",
+      "command": "theme",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "change_theme_light",
+      "label": "Apply Light Theme (/theme light)",
+      "strategy": "command_palette",
+      "command": "theme",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "change_theme_terminal",
+      "label": "Apply Terminal Theme (/theme terminal)",
+      "strategy": "command_palette",
+      "command": "theme",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "change_theme_contrast",
+      "label": "Apply High Contrast Theme (/theme high_contrast)",
+      "strategy": "command_palette",
+      "command": "theme",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    }
+  ],
+  "expect": {
+    "ocr_forbidden": ["PANIC", "FATAL"],
+    "min_database_tables": 1
+  }
+}

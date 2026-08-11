@@ -1,0 +1,38 @@
+{
+  "name": "Command Palette Navigation & Keyboard Selection",
+  "mode": "usability",
+  "description": "Interactive verification of Command Palette arrow navigation, boundary wrapping, Enter selection, and Escape focus restoration",
+  "goals": [
+    {
+      "id": "palette_arrow_selection",
+      "label": "Command Palette Arrow Navigation & Enter Selection",
+      "strategy": "command_palette_navigation",
+      "key_sequence": ["ctrl_k", "down", "down", "up", "up", "return"],
+      "expected_command": "session.new",
+      "selected_command_before": "New Session",
+      "selected_after_down_1": "Clear Chat",
+      "selected_after_down_2": "Search Memory",
+      "selected_after_up_1": "Clear Chat",
+      "selected_after_up_2": "New Session",
+      "expect": {
+        "ocr_contains": ["Connected", "BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "palette_escape_restoration",
+      "label": "Command Palette Escape & Focus Restoration",
+      "strategy": "esc_recovery",
+      "expected_command": "esc_recovery",
+      "expect": {
+        "ocr_contains": ["Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    }
+  ],
+  "expect": {
+    "ocr_contains": ["BRAIN", "Connected"],
+    "ocr_forbidden": ["PANIC", "FATAL"],
+    "min_database_tables": 1
+  }
+}

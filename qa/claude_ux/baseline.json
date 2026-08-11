@@ -1,0 +1,22 @@
+{
+  "claude_version": "2.1.226",
+  "timestamp": "20260810_055105",
+  "summary": {
+    "pass": 92,
+    "fail": 0,
+    "invalid": 8,
+    "capture_decision_count": 27,
+    "successful_capture_count": 27,
+    "filesystem_png_count": 27,
+    "ocr_run_count": 27,
+    "metric_equality_status": "PASSED",
+    "screenshots_skipped": 73
+  },
+  "geometry_checks": {
+    "status": "NOT_AVAILABLE",
+    "exact_measured_count": 0,
+    "unavailable_count": 100,
+    "total_processed": 100
+  },
+  "run_dir": "qa/claude_ux/runs/20260810_055105"
+}

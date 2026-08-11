@@ -1,0 +1,20 @@
+{
+  "name": "Keyboard Shortcuts",
+  "actions": [
+    {"shortcut": "ctrl_k"},
+    {"key": "esc"},
+    {"key": "tab"},
+    {"shortcut": "shift_tab"},
+    {"key": "home"},
+    {"key": "end"},
+    {"key": "page_up"},
+    {"key": "page_down"},
+    {"clear_input": true},
+    {"clear_input": true}
+  ],
+  "expect": {
+    "ocr_contains": ["Brain"],
+    "ocr_forbidden": ["panic", "k lrz"],
+    "db_integrity": true
+  }
+}

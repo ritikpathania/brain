@@ -106,10 +106,9 @@ where
     let collector = Arc::new(TelemetryCollector {
         events: Mutex::new(Vec::new()),
     });
-    let result = tracing::subscriber::with_default(collector.clone(), || {
-        tracing::callsite::rebuild_interest_cache();
-        f()
-    });
+    let _ = tracing::subscriber::set_global_default(collector.clone());
+    tracing::callsite::rebuild_interest_cache();
+    let result = tracing::subscriber::with_default(collector.clone(), || f());
     (collector, result)
 }
 

@@ -1,0 +1,12 @@
+{
+  "name": "Retrieval Quality & Knowledge Graph Evaluation",
+  "description": "Evaluates follow-up queries, pronouns, entity linking, contradictory memories, ranking quality, and graph recall",
+  "queries": [
+    "Who is the lead architect of Brain?",
+    "What database does it use?",
+    "Does it support vector search?",
+    "Explain its 6-pass knowledge compiler pipeline",
+    "What is the difference between STM and LTM in Brain?",
+    "Retrieve all facts related to UDS socket protocol"
+  ]
+}

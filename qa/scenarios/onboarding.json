@@ -1,0 +1,24 @@
+{
+  "name": "Onboarding & Feature Discovery",
+  "mode": "usability",
+  "description": "Evaluates initial boot screen, welcome banner readability, command palette hints, and first-turn interaction flow",
+  "actions": [
+    { "delay": 1.0 },
+    { "type": "/" },
+    { "delay": 0.8 },
+    { "type": "help" },
+    { "delay": 0.5 },
+    { "key": "return" },
+    { "delay": 1.0 },
+    { "key": "esc" }
+  ],
+  "expect": {
+    "ocr_contains": [
+      "Brain"
+    ],
+    "ocr_forbidden": [
+      "Error",
+      "Panic"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Random & Heavy Typing Input Torture",
+  "description": "Pipes unformatted, unicode, emoji, mashing, and edge-case text inputs",
+  "payloads": [
+    "aaaaaaa",
+    "😊😊😊😊🚀🧠✨",
+    "漢字 testing unicode multi-byte characters",
+    "////////////////////",
+    "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"",
+    "DROP TABLE nodes; -- SQL injection probe",
+    "<script>alert('xss')</script>",
+    "Very long string block with thousands of repeating characters ... "
+  ]
+}

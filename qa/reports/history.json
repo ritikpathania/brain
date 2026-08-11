@@ -1,0 +1,642 @@
+[
+  {
+    "run_id": 1,
+    "timestamp": "2026-08-08 09:52:00",
+    "time_to_first_screen_sec": 15.29,
+    "time_to_task_accomplished_sec": 27.642,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 2,
+    "timestamp": "2026-08-08 09:59:09",
+    "time_to_first_screen_sec": 10.177,
+    "time_to_task_accomplished_sec": 24.196,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 3,
+    "timestamp": "2026-08-08 10:34:14",
+    "time_to_first_screen_sec": 11.225,
+    "time_to_task_accomplished_sec": 23.808,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 4,
+    "timestamp": "2026-08-08 10:36:20",
+    "time_to_first_screen_sec": 4.447,
+    "time_to_task_accomplished_sec": 16.228,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 5,
+    "timestamp": "2026-08-08 21:27:55",
+    "time_to_first_screen_sec": 9.166,
+    "time_to_task_accomplished_sec": 27.903,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 6,
+    "timestamp": "2026-08-08 21:29:47",
+    "time_to_first_screen_sec": 9.119,
+    "time_to_task_accomplished_sec": 27.849,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 7,
+    "timestamp": "2026-08-08 21:30:25",
+    "time_to_first_screen_sec": 3.491,
+    "time_to_task_accomplished_sec": 25.058,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 8,
+    "timestamp": "2026-08-08 21:30:59",
+    "time_to_first_screen_sec": 3.38,
+    "time_to_task_accomplished_sec": 25.752,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 9,
+    "timestamp": "2026-08-08 21:31:55",
+    "time_to_first_screen_sec": 4.36,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 10,
+    "timestamp": "2026-08-08 21:32:53",
+    "time_to_first_screen_sec": 6.37,
+    "time_to_task_accomplished_sec": 30.07,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 11,
+    "timestamp": "2026-08-08 21:34:41",
+    "time_to_first_screen_sec": 7.125,
+    "time_to_task_accomplished_sec": 31.032,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 12,
+    "timestamp": "2026-08-08 21:35:33",
+    "time_to_first_screen_sec": 4.52,
+    "time_to_task_accomplished_sec": 38.821,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 13,
+    "timestamp": "2026-08-08 21:36:44",
+    "time_to_first_screen_sec": 3.758,
+    "time_to_task_accomplished_sec": 38.21,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 14,
+    "timestamp": "2026-08-09 01:57:31",
+    "time_to_first_screen_sec": 10.144,
+    "time_to_task_accomplished_sec": 44.454,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 15,
+    "timestamp": "2026-08-09 01:57:42",
+    "time_to_first_screen_sec": 3.675,
+    "time_to_task_accomplished_sec": 8.225,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 16,
+    "timestamp": "2026-08-09 02:08:22",
+    "time_to_first_screen_sec": 8.778,
+    "time_to_task_accomplished_sec": 18.5,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 17,
+    "timestamp": "2026-08-09 02:09:37",
+    "time_to_first_screen_sec": 3.506,
+    "time_to_task_accomplished_sec": 68.375,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 18,
+    "timestamp": "2026-08-09 02:22:34",
+    "time_to_first_screen_sec": 7.707,
+    "time_to_task_accomplished_sec": 17.076,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 19,
+    "timestamp": "2026-08-09 02:23:26",
+    "time_to_first_screen_sec": 3.907,
+    "time_to_task_accomplished_sec": 15.122,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 20,
+    "timestamp": "2026-08-09 02:23:53",
+    "time_to_first_screen_sec": 3.197,
+    "time_to_task_accomplished_sec": 14.592,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 21,
+    "timestamp": "2026-08-09 04:30:50",
+    "time_to_first_screen_sec": 6.853,
+    "time_to_task_accomplished_sec": 18.298,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 22,
+    "timestamp": "2026-08-09 04:31:16",
+    "time_to_first_screen_sec": 3.176,
+    "time_to_task_accomplished_sec": 14.003,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 23,
+    "timestamp": "2026-08-09 04:31:57",
+    "time_to_first_screen_sec": 3.594,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 24,
+    "timestamp": "2026-08-09 04:32:40",
+    "time_to_first_screen_sec": 4.103,
+    "time_to_task_accomplished_sec": 15.654,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 25,
+    "timestamp": "2026-08-09 04:33:17",
+    "time_to_first_screen_sec": 4.044,
+    "time_to_task_accomplished_sec": 15.041,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 26,
+    "timestamp": "2026-08-09 04:34:48",
+    "time_to_first_screen_sec": 6.79,
+    "time_to_task_accomplished_sec": 17.972,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 27,
+    "timestamp": "2026-08-09 04:36:31",
+    "time_to_first_screen_sec": 7.833,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 28,
+    "timestamp": "2026-08-09 04:37:16",
+    "time_to_first_screen_sec": 8.39,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 29,
+    "timestamp": "2026-08-09 04:38:00",
+    "time_to_first_screen_sec": 4.094,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 30,
+    "timestamp": "2026-08-09 04:39:07",
+    "time_to_first_screen_sec": 6.613,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 31,
+    "timestamp": "2026-08-09 04:39:38",
+    "time_to_first_screen_sec": 3.766,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 32,
+    "timestamp": "2026-08-09 04:41:34",
+    "time_to_first_screen_sec": 17.981,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 33,
+    "timestamp": "2026-08-09 04:43:44",
+    "time_to_first_screen_sec": 10.682,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 34,
+    "timestamp": "2026-08-09 04:44:17",
+    "time_to_first_screen_sec": 3.594,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 35,
+    "timestamp": "2026-08-09 04:45:49",
+    "time_to_first_screen_sec": 12.824,
+    "time_to_task_accomplished_sec": 22.021,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 36,
+    "timestamp": "2026-08-09 04:46:19",
+    "time_to_first_screen_sec": 3.649,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 37,
+    "timestamp": "2026-08-09 04:47:05",
+    "time_to_first_screen_sec": 3.939,
+    "time_to_task_accomplished_sec": 20.654,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 38,
+    "timestamp": "2026-08-09 05:30:12",
+    "time_to_first_screen_sec": 11.283,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 39,
+    "timestamp": "2026-08-09 05:30:58",
+    "time_to_first_screen_sec": 4.898,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 40,
+    "timestamp": "2026-08-09 05:31:35",
+    "time_to_first_screen_sec": 3.907,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 41,
+    "timestamp": "2026-08-09 05:32:01",
+    "time_to_first_screen_sec": 4.968,
+    "time_to_task_accomplished_sec": 14.272,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 42,
+    "timestamp": "2026-08-09 05:32:27",
+    "time_to_first_screen_sec": 3.82,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 43,
+    "timestamp": "2026-08-09 05:33:03",
+    "time_to_first_screen_sec": 5.643,
+    "time_to_task_accomplished_sec": 22.755,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 44,
+    "timestamp": "2026-08-09 10:45:18",
+    "time_to_first_screen_sec": 15.621,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 2,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 45,
+    "timestamp": "2026-08-09 10:46:45",
+    "time_to_first_screen_sec": 11.716,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 46,
+    "timestamp": "2026-08-09 10:47:15",
+    "time_to_first_screen_sec": 3.77,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 47,
+    "timestamp": "2026-08-09 10:47:49",
+    "time_to_first_screen_sec": 3.903,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 48,
+    "timestamp": "2026-08-09 10:50:08",
+    "time_to_first_screen_sec": 11.073,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 49,
+    "timestamp": "2026-08-09 10:50:55",
+    "time_to_first_screen_sec": 11.705,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 50,
+    "timestamp": "2026-08-09 10:51:57",
+    "time_to_first_screen_sec": 4.5,
+    "time_to_task_accomplished_sec": 13.838,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 51,
+    "timestamp": "2026-08-09 10:52:34",
+    "time_to_first_screen_sec": 4.255,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 52,
+    "timestamp": "2026-08-09 10:53:15",
+    "time_to_first_screen_sec": 3.772,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 53,
+    "timestamp": "2026-08-09 10:53:51",
+    "time_to_first_screen_sec": 3.564,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 54,
+    "timestamp": "2026-08-09 10:55:13",
+    "time_to_first_screen_sec": 12.181,
+    "time_to_task_accomplished_sec": 27.887,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 55,
+    "timestamp": "2026-08-09 10:55:47",
+    "time_to_first_screen_sec": 3.603,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 56,
+    "timestamp": "2026-08-09 10:56:46",
+    "time_to_first_screen_sec": 15.739,
+    "time_to_task_accomplished_sec": 31.213,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 57,
+    "timestamp": "2026-08-09 12:22:44",
+    "time_to_first_screen_sec": 13.327,
+    "time_to_task_accomplished_sec": 29.62,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 58,
+    "timestamp": "2026-08-09 12:49:26",
+    "time_to_first_screen_sec": 11.858,
+    "time_to_task_accomplished_sec": 28.048,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 59,
+    "timestamp": "2026-08-09 13:06:28",
+    "time_to_first_screen_sec": 12.27,
+    "time_to_task_accomplished_sec": 28.243,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 60,
+    "timestamp": "2026-08-09 13:40:55",
+    "time_to_first_screen_sec": 16.682,
+    "time_to_task_accomplished_sec": 33.305,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 61,
+    "timestamp": "2026-08-10 01:55:31",
+    "time_to_first_screen_sec": 9.995,
+    "time_to_task_accomplished_sec": 26.374,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 62,
+    "timestamp": "2026-08-11 02:59:34",
+    "time_to_first_screen_sec": 3.907,
+    "time_to_task_accomplished_sec": 19.501,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 63,
+    "timestamp": "2026-08-11 02:59:51",
+    "time_to_first_screen_sec": 3.756,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 64,
+    "timestamp": "2026-08-11 03:00:44",
+    "time_to_first_screen_sec": 10.37,
+    "time_to_task_accomplished_sec": 19.913,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 65,
+    "timestamp": "2026-08-11 03:01:28",
+    "time_to_first_screen_sec": 3.689,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 66,
+    "timestamp": "2026-08-11 03:02:25",
+    "time_to_first_screen_sec": 3.754,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 67,
+    "timestamp": "2026-08-11 03:03:31",
+    "time_to_first_screen_sec": 4.036,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 68,
+    "timestamp": "2026-08-11 03:05:20",
+    "time_to_first_screen_sec": 10.553,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 69,
+    "timestamp": "2026-08-11 03:06:49",
+    "time_to_first_screen_sec": 10.037,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 70,
+    "timestamp": "2026-08-11 03:08:30",
+    "time_to_first_screen_sec": 10.607,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 71,
+    "timestamp": "2026-08-11 03:09:28",
+    "time_to_first_screen_sec": 4.35,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 72,
+    "timestamp": "2026-08-11 03:10:43",
+    "time_to_first_screen_sec": 10.752,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 73,
+    "timestamp": "2026-08-11 03:12:14",
+    "time_to_first_screen_sec": 14.518,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 74,
+    "timestamp": "2026-08-11 03:13:12",
+    "time_to_first_screen_sec": 4.172,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 75,
+    "timestamp": "2026-08-11 03:15:19",
+    "time_to_first_screen_sec": 10.451,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 3,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 76,
+    "timestamp": "2026-08-11 03:27:59",
+    "time_to_first_screen_sec": 33.24,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 4,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 77,
+    "timestamp": "2026-08-11 11:44:21",
+    "time_to_first_screen_sec": 13.265,
+    "time_to_task_accomplished_sec": 47.35,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 78,
+    "timestamp": "2026-08-11 11:44:57",
+    "time_to_first_screen_sec": 5.254,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 1,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  },
+  {
+    "run_id": 79,
+    "timestamp": "2026-08-11 11:46:31",
+    "time_to_first_screen_sec": 6.859,
+    "time_to_task_accomplished_sec": 23.126,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe2 PRODUCTION READY"
+  },
+  {
+    "run_id": 80,
+    "timestamp": "2026-08-11 18:43:30",
+    "time_to_first_screen_sec": 0.0,
+    "time_to_task_accomplished_sec": 0.0,
+    "true_hesitations_count": 0,
+    "verdict": "\ud83d\udfe1 SHIP WITH MINOR FIXES"
+  }
+]

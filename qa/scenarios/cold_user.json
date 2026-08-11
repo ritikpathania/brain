@@ -1,0 +1,63 @@
+{
+  "name": "Cold User First-Time Experience",
+  "mode": "usability",
+  "description": "Goal-driven cold user evaluation simulating a senior developer discovering Brain v2.0 via strategy planner",
+  "goals": [
+    {
+      "id": "discover_onboarding",
+      "label": "Discover Onboarding Screen & System Status",
+      "strategy": "direct_action",
+      "actions": [
+        { "delay": 1.0 }
+      ],
+      "expect": {
+        "ocr_contains": ["BRAIN", "Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "execute_first_query",
+      "label": "Execute Initial Natural Knowledge Query",
+      "strategy": "direct_prompt",
+      "query": "How do I store memories in Brain?",
+      "expect": {
+        "ocr_contains": ["Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "create_session",
+      "label": "Attempt Memory Session Creation",
+      "strategy": "command_palette",
+      "command": "/session",
+      "expect": {
+        "ocr_contains": ["BRAIN"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "change_theme_light",
+      "label": "Discover & Change Theme Palette",
+      "strategy": "command_palette",
+      "command": "theme",
+      "expect": {
+        "ocr_contains": ["Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    },
+    {
+      "id": "recover_ui",
+      "label": "Restore Stack & Reset Focus via Escape",
+      "strategy": "esc_recovery",
+      "expect": {
+        "ocr_contains": ["Connected"],
+        "ocr_forbidden": ["PANIC", "FATAL"]
+      }
+    }
+  ],
+  "expect": {
+    "ocr_contains": ["BRAIN", "Connected"],
+    "ocr_forbidden": ["PANIC", "FATAL"],
+    "min_database_tables": 1
+  }
+}

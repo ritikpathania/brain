@@ -1,0 +1,131 @@
+{
+  "timestamp": "2026-08-10T05:49:49.891796",
+  "viewport": "80x24",
+  "logical_states_count": 4,
+  "transitions_count": 5,
+  "discovered_states": {
+    "state_left_nav_workspace_71fbab24e2": {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "logical_fingerprint": {
+        "semantics_key": "/effort_/init_/login_/release-notes_added_agents_back!_billing",
+        "controls_key": "default_controls",
+        "focus_region": "prompt_input",
+        "prompt_mode": "left_nav_workspace",
+        "overlay_identity": "none",
+        "footer_grammar": "standard_footer"
+      },
+      "visual_variant": "80x24",
+      "text_sample": [
+        "Last login: Mon Aug 10 05:48:53 on ttys002",
+        "/Users/ritikpathania/.local/bin/claude",
+        "ritikpathania@Rickys-MacBook ~ % /Users/ritikpathania/.local/bin/claude",
+        "\u256d\u2500\u2500\u2500 Claude Code v2.1.226 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e",
+        "\u2502                                                    \u2502 Tips for getting        \u2502"
+      ]
+    },
+    "state_slash_completion_4dd83b1545": {
+      "state_id": "state_slash_completion_4dd83b1545",
+      "logical_fingerprint": {
+        "semantics_key": "/effort_/init_/login_/release-notes_added_agents_awaiting_back!",
+        "controls_key": "default_controls",
+        "focus_region": "prompt_input",
+        "prompt_mode": "slash_completion",
+        "overlay_identity": "none",
+        "footer_grammar": "standard_footer"
+      },
+      "visual_variant": "80x24",
+      "text_sample": [
+        "Last login: Mon Aug 10 05:49:02 on ttys002",
+        "/Users/ritikpathania/.local/bin/claude",
+        "ritikpathania@Rickys-MacBook ~ % /Users/ritikpathania/.local/bin/claude",
+        "\u256d\u2500\u2500\u2500 Claude Code v2.1.226 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e",
+        "\u2502                                                    \u2502 Tips for getting        \u2502"
+      ]
+    },
+    "state_slash_completion_93dd9aae99": {
+      "state_id": "state_slash_completion_93dd9aae99",
+      "logical_fingerprint": {
+        "semantics_key": "(removed)_.claude/agents/_/add-dir_/agents_/autocompact_/background_/branch_/btw",
+        "controls_key": "default_controls",
+        "focus_region": "prompt_input",
+        "prompt_mode": "slash_completion",
+        "overlay_identity": "none",
+        "footer_grammar": "standard_footer"
+      },
+      "visual_variant": "80x24",
+      "text_sample": [
+        "Last login: Mon Aug 10 05:49:09 on ttys001",
+        "/Users/ritikpathania/.local/bin/claude",
+        "ritikpathania@Rickys-MacBook ~ % /Users/ritikpathania/.local/bin/claude",
+        "\u256d\u2500\u2500\u2500 Claude Code v2.1.226 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e",
+        "\u2502                                                    \u2502 Tips for getting        \u2502"
+      ]
+    },
+    "state_left_nav_workspace_d84ea359df": {
+      "state_id": "state_left_nav_workspace_d84ea359df",
+      "logical_fingerprint": {
+        "semantics_key": "$editor_/btw_/init_/keybindings_/release-notes_added_auto-accept_back!",
+        "controls_key": "default_controls",
+        "focus_region": "prompt_input",
+        "prompt_mode": "left_nav_workspace",
+        "overlay_identity": "none",
+        "footer_grammar": "standard_footer"
+      },
+      "visual_variant": "80x24",
+      "text_sample": [
+        "Last login: Mon Aug 10 05:49:26 on ttys000",
+        "/Users/ritikpathania/.local/bin/claude",
+        "ritikpathania@Rickys-MacBook ~ % /Users/ritikpathania/.local/bin/claude",
+        "\u256d\u2500\u2500\u2500 Claude Code v2.1.226 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e",
+        "\u2502                                                    \u2502 Tips for getting        \u2502"
+      ]
+    }
+  },
+  "transitions": [
+    {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "trigger_key": "left",
+      "next_state_id": "state_slash_completion_4dd83b1545",
+      "observed_effect": "Left Arrow from Home prompt",
+      "is_new_state": true,
+      "classification": "VERIFIED",
+      "safety": "SAFE"
+    },
+    {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "trigger_key": "/",
+      "next_state_id": "state_slash_completion_93dd9aae99",
+      "observed_effect": "Slash completion trigger",
+      "is_new_state": true,
+      "classification": "VERIFIED",
+      "safety": "SAFE"
+    },
+    {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "trigger_key": "ctrl+k",
+      "next_state_id": "state_left_nav_workspace_71fbab24e2",
+      "observed_effect": "Global search trigger",
+      "is_new_state": false,
+      "classification": "VERIFIED",
+      "safety": "SAFE"
+    },
+    {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "trigger_key": "?",
+      "next_state_id": "state_left_nav_workspace_d84ea359df",
+      "observed_effect": "Quick help trigger",
+      "is_new_state": true,
+      "classification": "VERIFIED",
+      "safety": "SAFE"
+    },
+    {
+      "state_id": "state_left_nav_workspace_71fbab24e2",
+      "trigger_key": "right",
+      "next_state_id": "state_left_nav_workspace_71fbab24e2",
+      "observed_effect": "Right Arrow from Home prompt",
+      "is_new_state": false,
+      "classification": "VERIFIED",
+      "safety": "SAFE"
+    }
+  ]
+}

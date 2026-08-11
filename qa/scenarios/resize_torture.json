@@ -1,0 +1,14 @@
+{
+  "name": "Resize Geometry",
+  "geometries": [
+    {"cols": 30, "rows": 10, "w": 320, "h": 200},
+    {"cols": 50, "rows": 20, "w": 480, "h": 350},
+    {"cols": 80, "rows": 24, "w": 720, "h": 420},
+    {"cols": 120, "rows": 40, "w": 1040, "h": 650},
+    {"cols": 160, "rows": 50, "w": 1300, "h": 800}
+  ],
+  "expect": {
+    "ocr_forbidden": ["panic", "FATAL"],
+    "db_integrity": true
+  }
+}

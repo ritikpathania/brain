@@ -792,7 +792,7 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                         let res = state.update(act);
                         let focus_str = format!("{:?}", state.focus);
                         crate::ui::application::save_authoritative_tui_state(
-                            "",
+                            &state.last_dispatched_command,
                             &state.active_theme.clone(),
                             "",
                             state.command_palette().open,
@@ -930,10 +930,11 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                         }
                                     });
                                 } else if prompt.trim() == "/help" || prompt.trim().starts_with("/help") {
+                                    state.last_dispatched_command = "system.help".to_string();
                                     state.update(Action::ToggleHelp);
                                     let focus_str = format!("{:?}", state.focus);
                                     crate::ui::application::save_authoritative_tui_state(
-                                        "system.help",
+                                        &state.last_dispatched_command,
                                         &state.active_theme.clone(),
                                         "",
                                         state.command_palette().open,
@@ -952,9 +953,10 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                             _ => "dark",
                                         };
                                         state.active_theme = theme.to_string();
+                                        state.last_dispatched_command = format!("theme.{}", theme);
                                         let focus_str = format!("{:?}", state.focus);
                                         crate::ui::application::save_authoritative_tui_state(
-                                            theme,
+                                            &state.last_dispatched_command,
                                             &state.active_theme.clone(),
                                             "",
                                             false,
@@ -965,10 +967,11 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                         );
                                     }
                                 } else if prompt.trim() == "/session new" || prompt.trim() == "/session" {
+                                    state.last_dispatched_command = "session.new".to_string();
                                     state.update(Action::NewSession);
                                     let focus_str = format!("{:?}", state.focus);
                                     crate::ui::application::save_authoritative_tui_state(
-                                        "session.new",
+                                        &state.last_dispatched_command,
                                         &state.active_theme.clone(),
                                         "",
                                         false,
