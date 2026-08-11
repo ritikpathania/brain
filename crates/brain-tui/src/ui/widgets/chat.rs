@@ -1,7 +1,7 @@
 use crate::ui::interaction::markdown::{SelectionState, VisualLine, VisualSpan, VisualStyle};
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Stylize};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
@@ -53,8 +53,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 sender_style,
             )])));
         } else {
-            let user_bg = if visible.is_user {
-                Some(ratatui::style::Color::Rgb(55, 55, 55))
+            let user_style = if visible.is_user {
+                Some(theme.style(ThemeToken::User))
             } else {
                 None
             };
@@ -65,15 +65,15 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 .iter()
                 .map(|span| {
                     let mut s = map_span(span, theme, is_sel);
-                    if let Some(bg) = user_bg {
-                        s = s.bg(bg);
+                    if let Some(style) = user_style {
+                        s.style = s.style.patch(style);
                     }
                     s
                 })
                 .collect();
             let mut line = Line::from(spans);
-            if let Some(bg) = user_bg {
-                line = line.style(ratatui::style::Style::default().bg(bg));
+            if let Some(style) = user_style {
+                line = line.style(style);
             }
             items.push(ListItem::new(line));
         }

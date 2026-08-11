@@ -135,7 +135,7 @@ impl Theme {
             tag,
             thinking: Style::default().fg(palette.thinking),
             streaming: Style::default().fg(palette.streaming),
-            user: Style::default().fg(palette.user),
+            user: Style::default().bg(palette.user),
             assistant: Style::default().fg(palette.assistant),
             tool: Style::default().fg(palette.tool),
             system: Style::default().fg(palette.system),

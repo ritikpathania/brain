@@ -81,7 +81,7 @@ impl Palette {
             link: Color::Rgb(106, 155, 204),
             thinking: Color::Rgb(106, 155, 204),
             streaming: Color::Rgb(215, 119, 87),
-            user: Color::Rgb(106, 155, 204),
+            user: Color::Rgb(55, 55, 55),
             assistant: Color::Rgb(215, 119, 87),
             tool: Color::Rgb(253, 93, 177),
             system: Color::Rgb(153, 153, 153),
