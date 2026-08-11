@@ -59,7 +59,7 @@ fn test_phase4_home_screen_hero_and_prompt_anchoring() {
     let state_24 = UiState::new();
     let area_24 = Rect::new(0, 0, 80, 24);
     let (_, _, _, _, p_area_24, _, _) = renderer.compute_layout(area_24, &state_24);
-    assert_eq!(p_area_24.y, 16, "Prompt y at 80x24 must be row 16");
+    assert_eq!(p_area_24.y, 20, "Prompt y at 80x24 must be row 20");
 
     // 182x53 tall terminal: prompt centered at ~67% height (row 35)
     let state_53 = UiState::new();

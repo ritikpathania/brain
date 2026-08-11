@@ -139,14 +139,7 @@ impl AppRenderer {
         };
 
         // Legacy bottom_pad kept for the ≤24 code path and palette_h clamp below.
-        let bottom_pad_h = match layout_mode {
-            AppLayoutMode::Welcome
-                if area.height >= 18 && !state.command_palette.open && !slash_visible =>
-            {
-                4u16
-            }
-            _ => 0u16,
-        };
+        let bottom_pad_h = 0u16;
 
         let palette_h = if state.command_palette.open {
             6u16.min(
@@ -163,33 +156,16 @@ impl AppRenderer {
         };
 
         // ─── Home prompt anchoring ────────────────────────────────────────────────
-        // Problem: Constraint::Min(1) for mid makes it consume ALL remaining rows,
-        // so on a 182×53 terminal mid=45 rows → prompt at row 45 (85% down). That
-        // is bottom-pinned, not centre-anchored like Claude.
-        //
-        // Fix (Welcome + tall terminals only):
-        //   mid_h = (area.height × 67/100).clamp(11, max_available)
-        //   A Min(0) filler at chunk[6] absorbs remaining rows *below* the status
-        //   line, giving breathing room under the status pair instead of above it.
-        //
-        // Invariants:
-        //   • h ≤ 24 → unchanged (80×24, 96×24 geometry is preserved byte-for-byte)
-        //   • h > 24 Welcome → prompt.y ≈ 67% of terminal height
-        //   • Workspace/other → Min(1) unchanged; chunk[6] = Length(0) = 0 rows
-        //   • Return tuple indices (chunks[0]…[5]) are unchanged; chunk[6] is silent
-
         // Choose mid constraint + filler strategy based on mode and terminal height.
         let (mid_constraint, filler_constraint, layout_bottom_pad) =
             if matches!(layout_mode, AppLayoutMode::Welcome) && area.height > 24 {
                 // Tall Welcome: anchor prompt at ≈67% of screen height.
-                // occupied = fixed rows consumed by everything except mid.
                 let occupied = header_h + prompt_h + palette_h + status_h;
                 let max_mid = area.height.saturating_sub(occupied.max(1));
-                // 67% anchor (integer division: 53×67/100 = 35, 52×67/100 = 34 …)
                 let anchor = (area.height as u32 * 67 / 100) as u16;
                 let mid_h = anchor
-                    .min(max_mid) // never overflow the terminal
-                    .max(11u16.min(max_mid)); // always fit minimum box height (2 borders + 9 inner)
+                    .min(max_mid)
+                    .max(11u16.min(max_mid));
                 let filler_h = area
                     .height
                     .saturating_sub(header_h + mid_h + prompt_h + palette_h + status_h);
@@ -209,16 +185,14 @@ impl AppRenderer {
                 Constraint::Length(header_h),
                 mid_constraint,
                 Constraint::Length(prompt_h),
-                Constraint::Length(layout_bottom_pad), // 4 on ≤24 Welcome, 0 elsewhere
+                Constraint::Length(layout_bottom_pad),
                 Constraint::Length(palette_h),
+                filler_constraint,
                 Constraint::Length(status_h),
-                filler_constraint, // chunk[6]: Min(0) on tall Welcome; Length(0) otherwise
             ])
             .split(area);
 
         let mid_area = chunks[1];
-        // Use the actual rendered width (area.width) rather than state.terminal_width so
-        // that compute_layout is always correct even when state hasn't been updated yet.
         let c = area.width;
         let layout_mode = Self::layout_mode(state);
         let (sb_w, chat_w, insp_w) = match layout_mode {
@@ -269,8 +243,8 @@ impl AppRenderer {
             mid_chunks[1],
             mid_chunks[2],
             chunks[2],
-            chunks[4], // palette: skip bottom_pad at chunks[3]
-            chunks[5], // footer
+            chunks[4],
+            chunks[6],
         )
     }
 
@@ -816,8 +790,8 @@ mod tests {
         let state = UiState::default();
 
         let cases: &[(u16, u16, u16)] = &[
-            (80, 24, 11),  // minimum floor
-            (96, 24, 11),  // minimum floor (same height row-budget)
+            (80, 24, 12),  // mid_h=20 → 12
+            (96, 24, 12),  // mid_h=20 → 12
             (120, 30, 12), // proportional growth: mid_h=20 (67% anchor) → (20*60/100)=12
             (160, 50, 18), // ceiling cap: mid_h=33 (67% anchor) → (33*60/100)=19 → capped at 18
             (182, 53, 18), // ceiling cap: mid_h=35 (67% anchor) → (35*60/100)=21 → capped at 18
@@ -846,16 +820,13 @@ mod tests {
 
     #[test]
     fn test_welcome_prompt_anchored_on_tall_terminals() {
-        // Regression guard: on tall terminals (h > 24), Home prompt.y must stay in
-        // the 60–70% proportional band so it does not drift toward the bottom.
-        // At 80×24 and 96×24, the geometry is preserved exactly (row 16).
         let renderer = AppRenderer::new();
         let state = UiState::default(); // Welcome mode
 
         // (width, height, expected_prompt_row)
         let cases: &[(u16, u16, u16)] = &[
-            (80, 24, 16),  // ≤24: preserved unchanged
-            (96, 24, 16),  // ≤24: preserved unchanged
+            (80, 24, 20),  // 80x24: prompt at y=20
+            (96, 24, 20),  // 96x24: prompt at y=20
             (120, 30, 20), // 30 * 67/100 = 20
             (156, 52, 34), // 52 * 67/100 = 34
             (182, 53, 35), // 53 * 67/100 = 35
