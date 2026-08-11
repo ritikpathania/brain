@@ -4,20 +4,56 @@ pub mod chat;
 pub mod compiler_panel;
 /// Header widget displaying app title and status.
 pub mod header;
+/// Composable Home dashboard widgets.
+pub mod home;
+/// Bounded welcome component with integrated title and 2-column split.
+pub mod home_welcome;
+/// Right-aligned ambient status line widget.
+pub mod ambient_status;
 /// Interactive knowledge inspector widget.
 pub mod inspector;
+/// Markdown block cache enforcing zero-flicker block immutability.
+pub mod markdown_cache;
+/// Static Raven/Owl mascot identity widget.
+pub mod mascot;
 /// Memory stewardship list widget.
 pub mod memory_list;
 /// Prompt input buffer bar widget.
 pub mod prompt;
 /// Diagnostic reasoning plan execution DAG widget.
 pub mod reasoning_plan;
+/// Reasoning progress visualization widget and observer state machine.
+pub mod reasoning_progress;
 /// Reflection subsystem inspection panel widget.
 pub mod reflection_panel;
+/// ScrollAnchor state machine.
+pub mod scroll_anchor;
 /// Sidebar widget listing session threads.
 pub mod sidebar;
-/// Status footer widget carrying shortcuts list.
-pub mod status;
+
+/// Confidence badge widget.
+pub mod confidence_badge;
+/// Generic Document Inspector modal widget.
+pub mod document_inspector;
+/// Scannable bordered EvidenceCard widget.
+pub mod evidence_card;
+
+/// Pure Canvas widget rendering PositionedGraph.
+pub mod graph_canvas;
+/// Node Inspector drawer widget.
+pub mod node_inspector;
+
+/// Side-by-side contradiction card widget.
+pub mod contradiction_card;
+/// Reflection dashboard overview widget.
+pub mod reflection_dashboard;
+/// Stewardship list widget.
+pub mod stewardship_list;
+
+/// Evolution overview list widget.
+pub mod evolution_overview;
+/// Semantic graph diff viewer widget.
+pub mod proposal_diff;
 
 /// Widget rendering trait.
 pub mod brain_widget;
