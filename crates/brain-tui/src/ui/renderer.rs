@@ -616,14 +616,11 @@ impl AppRenderer {
         prompt::draw(f, prompt_area, &prompt_view, theme);
 
         if state.command_palette.open && palette_area.height > 0 {
-            let registry = crate::ui::command::DynamicCommandRegistry::new();
-            let index = crate::ui::command::CommandIndex::build(&registry);
-            let provider = crate::ui::command::CommandProvider::new(&index);
-            let palette_widget = crate::ui::command::PaletteWidget {
-                state: &state.command_palette,
-                provider: &provider,
-            };
-            palette_widget.render(palette_area, f.buffer_mut(), theme);
+            let palette_widget = crate::ui::widgets::palette::CommandPaletteWidget::new(
+                &state.command_palette,
+                theme,
+            );
+            palette_widget.draw(f, palette_area);
         }
 
         if footer_area.height > 0 {
