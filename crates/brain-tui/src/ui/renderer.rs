@@ -9,7 +9,7 @@ use crate::ui::widgets::{
     header::{self, HeaderView},
     home_welcome, inspector, pinned_overlay,
     prompt::{self, PromptView},
-    sidebar,
+    sidebar, workspace_dashboard,
 };
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
@@ -225,6 +225,7 @@ impl AppRenderer {
             AppLayoutMode::Welcome => (0u16, c, 0u16),
             AppLayoutMode::Workspace => {
                 if state.screen == crate::ui::navigation::Screen::Home
+                    || state.screen == crate::ui::navigation::Screen::Workspace
                     || state.focus != crate::state::FocusRegion::Sidebar
                 {
                     (0u16, c, 0u16)
@@ -569,6 +570,8 @@ impl AppRenderer {
                 let status_y = prompt_area.y.saturating_sub(1);
                 let status_rect = Rect::new(area.x, status_y, area.width, 1);
                 ambient_status::draw(f, status_rect, state, theme);
+            } else if state.screen == crate::ui::navigation::Screen::Workspace {
+                workspace_dashboard::draw(f, chat_area, state, theme);
             } else {
                 let chat_view = ChatView {
                     title: chat_title,

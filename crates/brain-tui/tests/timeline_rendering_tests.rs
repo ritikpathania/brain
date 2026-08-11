@@ -128,6 +128,12 @@ fn test_timeline_state_transitions_and_ordering() {
 #[test]
 fn test_timeline_rendering_output() {
     let mut state = UiState::new();
+    state.screen = brain_tui::ui::navigation::Screen::Home;
+    state.active_messages.push(brain_domain::Message::new(
+        brain_domain::MessageId::new(),
+        brain_domain::MessageRole::User,
+        "Explain Rust Structs".to_string(),
+    ));
     let theme = Theme::default();
     let renderer = AppRenderer::new();
 

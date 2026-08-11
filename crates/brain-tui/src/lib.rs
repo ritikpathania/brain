@@ -20,6 +20,9 @@ pub mod ui;
 /// Clipboard abstractions and platform implementations.
 pub mod clipboard;
 
+/// Layout engines and viewport geometry calculations.
+pub mod layout;
+
 use crate::client::ExecutionClient;
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::state::{Action, UiState, UpdateResult};
@@ -87,8 +90,6 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         .command_palette_mut()
         .initialize(client.clone(), search_sink);
 
-    let theme = crate::ui::theme::Theme::default();
-
     let mut active_cancel: Option<tokio_util::sync::CancellationToken> = None;
     let mut tokenizer = crate::state::IncrementalTokenizer::new();
     let mut request_id_counter = 0u64;
@@ -134,10 +135,11 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
         state.recalculate_viewport();
 
         // Render tick cycle
+        let current_theme = crate::ui::theme::system_theme();
         terminal
             .draw(|f| {
                 let area = f.size();
-                renderer.draw(f, area, &state, &theme);
+                renderer.draw(f, area, &state, current_theme);
             })
             .map_err(|e| BrainError::Validation {
                 message: format!("Failed to draw terminal frame: {}", e),
@@ -178,6 +180,48 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             }
                             _ => None,
                         }
+                    } else if let Some(modal) = state.modal {
+                        match modal {
+                            crate::ui::navigation::Modal::ConfirmDelete => match key.code {
+                                crossterm::event::KeyCode::Enter => {
+                                    if state.selected_session_idx < state.sessions.len() {
+                                        let session_id =
+                                            state.sessions[state.selected_session_idx].id;
+                                        let client_clone = client.clone();
+                                        let sender = events.sender();
+                                        tokio::spawn(async move {
+                                            match client_clone.delete_session(session_id).await {
+                                                Ok(()) => {
+                                                    let _ = sender.send(Event::App(
+                                                        AppEvent::SessionDeleted(session_id),
+                                                    ));
+                                                }
+                                                Err(err) => {
+                                                    let _ = sender.send(Event::App(
+                                                        AppEvent::DeleteSessionFailed {
+                                                            session_id,
+                                                            error: err.to_string(),
+                                                        },
+                                                    ));
+                                                }
+                                            }
+                                        });
+                                    }
+                                    None
+                                }
+                                crossterm::event::KeyCode::Esc => Some(Action::CloseModal),
+                                _ => None,
+                            },
+                            crate::ui::navigation::Modal::ReplyComposer => match key.code {
+                                crossterm::event::KeyCode::Esc
+                                | crossterm::event::KeyCode::Enter => Some(Action::CloseModal),
+                                _ => None,
+                            },
+                            _ => match key.code {
+                                crossterm::event::KeyCode::Esc => Some(Action::CloseModal),
+                                _ => None,
+                            },
+                        }
                     } else if state.overlay == crate::state::TuiOverlay::PinnedContext {
                         match key.code {
                             crossterm::event::KeyCode::Esc => Some(Action::ClosePinnedOverlay),
@@ -201,6 +245,177 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             crossterm::event::KeyCode::Char('c')
                             | crossterm::event::KeyCode::Char('C') => Some(Action::ClearAllPins),
                             _ => None, // Focus is locked inside overlay
+                        }
+                    } else if state.command_palette().open {
+                        match key.code {
+                            crossterm::event::KeyCode::Esc => {
+                                state.command_palette_mut().close();
+                                state.pending_theme_selection = false;
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    "",
+                                    false,
+                                    false,
+                                    "Editor",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            crossterm::event::KeyCode::Up => {
+                                state.command_palette_mut().move_selection_up();
+                                let sel = state.command_palette().selected_command_title();
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    &sel,
+                                    true,
+                                    false,
+                                    "CommandPalette",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            crossterm::event::KeyCode::Down => {
+                                state.command_palette_mut().move_selection_down();
+                                let sel = state.command_palette().selected_command_title();
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    &sel,
+                                    true,
+                                    false,
+                                    "CommandPalette",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            crossterm::event::KeyCode::Enter => {
+                                if state.pending_theme_selection {
+                                    // Second Enter: collect theme parameter from editor text.
+                                    let raw = state.command_palette().editor.text().to_string();
+                                    let lower = raw.trim().to_lowercase();
+                                    let theme = if lower.contains("contrast") {
+                                        "high_contrast"
+                                    } else if lower.contains("light") {
+                                        "light"
+                                    } else if lower.contains("terminal") {
+                                        "terminal"
+                                    } else {
+                                        "dark"
+                                    };
+                                    state.active_theme = theme.to_string();
+                                    state.pending_theme_selection = false;
+                                    state.command_palette_mut().close();
+                                    crate::ui::application::save_authoritative_tui_state(
+                                        theme,
+                                        &state.active_theme.clone(),
+                                        "",
+                                        false,
+                                        false,
+                                        "Editor",
+                                        &state.editor.text(),
+                                        state.sessions.len(),
+                                    );
+                                    None
+                                } else {
+                                    let selected_id =
+                                        state.command_palette().selected_command_id();
+                                    if selected_id == "theme.change" {
+                                        // First Enter on theme.change: keep palette open,
+                                        // clear editor, wait for theme name parameter.
+                                        state.pending_theme_selection = true;
+                                        state.command_palette_mut().editor.clear();
+                                        crate::ui::application::save_authoritative_tui_state(
+                                            "",
+                                            &state.active_theme.clone(),
+                                            "theme.change",
+                                            true,
+                                            false,
+                                            "CommandPalette",
+                                            &state.editor.text(),
+                                            state.sessions.len(),
+                                        );
+                                        None
+                                    } else {
+                                        state.command_palette_mut().close();
+                                        let dispatched = if selected_id.is_empty() {
+                                            "session.new".to_string()
+                                        } else {
+                                            selected_id
+                                        };
+                                        let is_help = dispatched == "system.help";
+                                        crate::ui::application::save_authoritative_tui_state(
+                                            &dispatched,
+                                            &state.active_theme.clone(),
+                                            "",
+                                            false,
+                                            is_help,
+                                            "Editor",
+                                            &state.editor.text(),
+                                            state.sessions.len(),
+                                        );
+                                        if dispatched == "session.new" {
+                                            Some(Action::NewSession)
+                                        } else if dispatched == "system.help" {
+                                            Some(Action::ToggleHelp)
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                }
+                            }
+                            crossterm::event::KeyCode::Char('k')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                state.command_palette_mut().close();
+                                state.pending_theme_selection = false;
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    "",
+                                    false,
+                                    false,
+                                    "Editor",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            crossterm::event::KeyCode::Char(c) => {
+                                state.command_palette_mut().editor.insert_char(c);
+                                let sel = state.command_palette().selected_command_title();
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    &sel,
+                                    true,
+                                    false,
+                                    "CommandPalette",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            crossterm::event::KeyCode::Backspace => {
+                                state.command_palette_mut().editor.backspace();
+                                let sel = state.command_palette().selected_command_title();
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    &sel,
+                                    true,
+                                    false,
+                                    "CommandPalette",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
+                            _ => None,
                         }
                     } else if state.mode == crate::state::TuiMode::Exploration {
                         match key.code {
@@ -334,6 +549,23 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             {
                                 Some(Action::NewSession)
                             }
+                            crossterm::event::KeyCode::Char('k')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                state.command_palette_mut().open_with_query(None);
+                                let sel = state.command_palette().selected_command_title();
+                                crate::ui::application::save_authoritative_tui_state(
+                                    "",
+                                    &state.active_theme.clone(),
+                                    &sel,
+                                    true,
+                                    false,
+                                    "CommandPalette",
+                                    &state.editor.text(),
+                                    state.sessions.len(),
+                                );
+                                None
+                            }
                             // Alt+W toggles "Submit with Workspace" mode.
                             // Selected after terminal compatibility testing (RFC-007 validation):
                             //   - Ctrl+W is intercepted by VS Code (closes editor tab) — CONFLICT
@@ -378,6 +610,25 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                             {
                                 Some(Action::ScrollDown(1))
                             }
+                            crossterm::event::KeyCode::Char('x')
+                                if key.modifiers == crossterm::event::KeyModifiers::CONTROL =>
+                            {
+                                if state.screen == crate::ui::navigation::Screen::Workspace {
+                                    Some(Action::OpenDeleteConfirmation)
+                                } else {
+                                    None
+                                }
+                            }
+                            crossterm::event::KeyCode::Char(' ') => {
+                                if state.screen == crate::ui::navigation::Screen::Workspace
+                                    && (state.focus == FocusRegion::Sidebar
+                                        || state.editor.text().is_empty())
+                                {
+                                    Some(Action::OpenReplyComposer)
+                                } else {
+                                    Some(Action::InsertChar(' '))
+                                }
+                            }
                             crossterm::event::KeyCode::Tab => Some(Action::ToggleFocus),
                             crossterm::event::KeyCode::Char(c) => Some(Action::InsertChar(c)),
                             crossterm::event::KeyCode::Backspace => {
@@ -414,24 +665,63 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                     Some(Action::Delete)
                                 }
                             }
-                            crossterm::event::KeyCode::Left => Some(Action::MoveCursorLeft),
-                            crossterm::event::KeyCode::Right => Some(Action::MoveCursorRight),
+                            crossterm::event::KeyCode::Left => {
+                                if state.screen == crate::ui::navigation::Screen::Home
+                                    && (state.focus == FocusRegion::Sidebar
+                                        || state.editor.text().is_empty())
+                                {
+                                    Some(Action::NavigateToWorkspace)
+                                } else {
+                                    Some(Action::MoveCursorLeft)
+                                }
+                            }
+                            crossterm::event::KeyCode::Right => {
+                                if state.screen == crate::ui::navigation::Screen::Workspace
+                                    && (state.focus == FocusRegion::Sidebar
+                                        || state.editor.text().is_empty())
+                                {
+                                    Some(Action::NavigateToHome)
+                                } else {
+                                    Some(Action::MoveCursorRight)
+                                }
+                            }
                             crossterm::event::KeyCode::Up => {
-                                if state.focus == FocusRegion::Sidebar {
-                                    Some(Action::MoveSidebarCursorUp)
+                                if state.screen == crate::ui::navigation::Screen::Workspace
+                                    || state.focus == FocusRegion::Sidebar
+                                {
+                                    Some(Action::SelectPreviousSession)
                                 } else {
                                     Some(Action::RecallPrevious)
                                 }
                             }
                             crossterm::event::KeyCode::Down => {
-                                if state.focus == FocusRegion::Sidebar {
-                                    Some(Action::MoveSidebarCursorDown)
+                                if state.screen == crate::ui::navigation::Screen::Workspace
+                                    || state.focus == FocusRegion::Sidebar
+                                {
+                                    Some(Action::SelectNextSession)
                                 } else {
                                     Some(Action::RecallNext)
                                 }
                             }
                             crossterm::event::KeyCode::Enter => {
-                                if state.focus == FocusRegion::Sidebar {
+                                if state.screen == crate::ui::navigation::Screen::Workspace
+                                    && state.focus == FocusRegion::Sidebar
+                                {
+                                    if state.selected_session_idx < state.sessions.len() {
+                                        let session_id =
+                                            state.sessions[state.selected_session_idx].id;
+                                        request_id_counter += 1;
+                                        let req_id = LoadRequestId(request_id_counter);
+                                        trigger_history_load(
+                                            &client,
+                                            events.sender(),
+                                            session_id,
+                                            req_id,
+                                        )
+                                        .await;
+                                    }
+                                    Some(Action::OpenSelectedSession)
+                                } else if state.focus == FocusRegion::Sidebar {
                                     if state.selected_session_idx < state.sessions.len() {
                                         let session_id =
                                             state.sessions[state.selected_session_idx].id;
@@ -500,6 +790,17 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
 
                     if let Some(act) = action {
                         let res = state.update(act);
+                        let focus_str = format!("{:?}", state.focus);
+                        crate::ui::application::save_authoritative_tui_state(
+                            "",
+                            &state.active_theme.clone(),
+                            "",
+                            state.command_palette().open,
+                            state.help_overlay.is_some(),
+                            &focus_str,
+                            &state.editor.text(),
+                            state.sessions.len(),
+                        );
                         match res {
                             UpdateResult::Exit => break,
                             UpdateResult::Changed => {}
@@ -628,96 +929,144 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                                             ));
                                         }
                                     });
-                                }
-
-                                // Cancel any in-flight stream before starting a new one.
-                                if let Some(old_token) = active_cancel.take() {
-                                    old_token.cancel();
-                                }
-                                let cancellation_token = tokio_util::sync::CancellationToken::new();
-                                active_cancel = Some(cancellation_token.clone());
-                                tokenizer = crate::state::IncrementalTokenizer::new();
-
-                                // Capture workspace context before the request is dispatched.
-                                // The flag is reset ONLY after client.execute() returns Ok so
-                                // that a failed dispatch can be retried with the same context.
-                                let workspace_context = if state.submit_with_workspace
-                                    && !state.pinned_nodes.is_empty()
-                                {
-                                    Some(
-                                        state
-                                            .pinned_nodes
-                                            .iter()
-                                            .map(|pn| pn.node_id)
-                                            .collect::<Vec<_>>(),
-                                    )
-                                } else {
-                                    None
-                                };
-
-                                let req = crate::client::ExecutionRequest {
-                                    session_id: state.session_id,
-                                    prompt,
-                                    options: crate::client::ExecutionOptions::default(),
-                                    cancellation_token,
-                                    workspace_context,
-                                };
-                                if let Ok(mut event_receiver) = client.execute(req).await {
-                                    // Dispatch succeeded — safe to reset the flag.
-                                    // The user must re-toggle to attach context again.
-                                    state.update(Action::ResetSubmitWithWorkspace);
-
-                                    // Only show Connecting if we were previously Disconnected —
-                                    // avoids flickering the header on every query when already Daemon.
-                                    if state.connection_mode
-                                        == crate::state::ConnectionMode::Disconnected
-                                    {
-                                        state.update(Action::SetConnectionMode(
-                                            crate::state::ConnectionMode::Connecting,
-                                        ));
+                                } else if prompt.trim() == "/help" || prompt.trim().starts_with("/help") {
+                                    state.update(Action::ToggleHelp);
+                                    let focus_str = format!("{:?}", state.focus);
+                                    crate::ui::application::save_authoritative_tui_state(
+                                        "system.help",
+                                        &state.active_theme.clone(),
+                                        "",
+                                        state.command_palette().open,
+                                        state.help_overlay.is_some(),
+                                        &focus_str,
+                                        &state.editor.text(),
+                                        state.sessions.len(),
+                                    );
+                                } else if prompt.trim().starts_with("/theme") {
+                                    let parts: Vec<&str> = prompt.trim().split_whitespace().collect();
+                                    if parts.len() >= 2 {
+                                        let theme = match parts[1] {
+                                            "light" => "light",
+                                            "terminal" => "terminal",
+                                            "contrast" | "high_contrast" => "high_contrast",
+                                            _ => "dark",
+                                        };
+                                        state.active_theme = theme.to_string();
+                                        let focus_str = format!("{:?}", state.focus);
+                                        crate::ui::application::save_authoritative_tui_state(
+                                            theme,
+                                            &state.active_theme.clone(),
+                                            "",
+                                            false,
+                                            state.help_overlay.is_some(),
+                                            &focus_str,
+                                            &state.editor.text(),
+                                            state.sessions.len(),
+                                        );
                                     }
-                                    let tx = events.sender();
-                                    tokio::spawn(async move {
-                                        let mut stream_completed = false;
-                                        while let Some(res) = event_receiver.recv().await {
-                                            match res {
-                                                Ok(event) => {
-                                                    // Mark the stream as completed so the
-                                                    // EOF path below can tell the difference
-                                                    // between a clean finish and a crash.
-                                                    if matches!(
+                                } else if prompt.trim() == "/session new" || prompt.trim() == "/session" {
+                                    state.update(Action::NewSession);
+                                    let focus_str = format!("{:?}", state.focus);
+                                    crate::ui::application::save_authoritative_tui_state(
+                                        "session.new",
+                                        &state.active_theme.clone(),
+                                        "",
+                                        false,
+                                        state.help_overlay.is_some(),
+                                        &focus_str,
+                                        &state.editor.text(),
+                                        state.sessions.len(),
+                                    );
+                                } else if !prompt.trim().starts_with('/') {
+                                    // Cancel any in-flight stream before starting a new one.
+                                    if let Some(old_token) = active_cancel.take() {
+                                        old_token.cancel();
+                                    }
+                                    let cancellation_token =
+                                        tokio_util::sync::CancellationToken::new();
+                                    active_cancel = Some(cancellation_token.clone());
+                                    tokenizer = crate::state::IncrementalTokenizer::new();
+
+                                    // Capture workspace context before the request is dispatched.
+                                    let workspace_context = if state.submit_with_workspace
+                                        && !state.pinned_nodes.is_empty()
+                                    {
+                                        Some(
+                                            state
+                                                .pinned_nodes
+                                                .iter()
+                                                .map(|pn| pn.node_id)
+                                                .collect::<Vec<_>>(),
+                                        )
+                                    } else {
+                                        None
+                                    };
+
+                                    let req = crate::client::ExecutionRequest {
+                                        session_id: state.session_id,
+                                        prompt,
+                                        options: crate::client::ExecutionOptions::default(),
+                                        cancellation_token,
+                                        workspace_context,
+                                    };
+                                    if let Ok(mut event_receiver) = client.execute(req).await {
+                                        // Dispatch succeeded — safe to reset the flag.
+                                        state.update(Action::ResetSubmitWithWorkspace);
+
+                                        // Only show Connecting if we were previously Disconnected —
+                                        // avoids flickering the header on every query when already Daemon.
+                                        if state.connection_mode
+                                            == crate::state::ConnectionMode::Disconnected
+                                        {
+                                            state.update(Action::SetConnectionMode(
+                                                crate::state::ConnectionMode::Connecting,
+                                            ));
+                                        }
+                                        let tx = events.sender();
+                                        tokio::spawn(async move {
+                                            let mut stream_completed = false;
+                                            while let Some(res) = event_receiver.recv().await {
+                                                match res {
+                                                    Ok(event) => {
+                                                        // Mark the stream as completed so the
+                                                        // EOF path below can tell the difference
+                                                        // between a clean finish and a crash.
+                                                        if matches!(
                                                         event.kind,
                                                         brain_core::events::StreamEventKind::Finished { .. }
                                                             | brain_core::events::StreamEventKind::Cancelled
                                                     ) {
                                                         stream_completed = true;
                                                     }
-                                                    if tx
-                                                        .send(Event::App(AppEvent::Stream(event)))
-                                                        .is_err()
-                                                    {
+                                                        if tx
+                                                            .send(Event::App(AppEvent::Stream(
+                                                                event,
+                                                            )))
+                                                            .is_err()
+                                                        {
+                                                            break;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        let _ = tx.send(Event::App(
+                                                            AppEvent::Error(e.to_string()),
+                                                        ));
                                                         break;
                                                     }
                                                 }
-                                                Err(e) => {
-                                                    let _ = tx.send(Event::App(AppEvent::Error(
-                                                        e.to_string(),
-                                                    )));
-                                                    break;
-                                                }
                                             }
-                                        }
-                                        // Channel closed. If we never received a Finished or
-                                        // Cancelled event the daemon disconnected unexpectedly.
-                                        if !stream_completed {
-                                            let _ = tx.send(Event::App(AppEvent::StreamEof));
-                                        }
-                                    });
-                                } else {
-                                    // execute() itself failed — socket unreachable.
-                                    state.update(Action::SetConnectionMode(
-                                        crate::state::ConnectionMode::Disconnected,
-                                    ));
+                                            // Channel closed. If we never received a Finished or
+                                            // Cancelled event the daemon disconnected unexpectedly.
+                                            if !stream_completed {
+                                                let _ = tx.send(Event::App(AppEvent::StreamEof));
+                                            }
+                                        });
+                                    } else {
+                                        // execute() itself failed — socket unreachable.
+                                        state.update(Action::SetConnectionMode(
+                                            crate::state::ConnectionMode::Disconnected,
+                                        ));
+                                    }
                                 }
                             }
                             UpdateResult::LoadSession(session_id) => {
@@ -807,6 +1156,20 @@ pub async fn run(client: Box<dyn ExecutionClient>) -> Result<(), BrainError> {
                         request_id,
                         error,
                     });
+                }
+                Event::App(AppEvent::SessionDeleted(session_id)) => {
+                    state.update(Action::DeleteSession(session_id));
+                    state.update(Action::CloseModal);
+                }
+                Event::App(AppEvent::DeleteSessionFailed {
+                    session_id: _,
+                    error,
+                }) => {
+                    state.update(Action::ReportError(format!(
+                        "Failed to delete session: {}",
+                        error
+                    )));
+                    state.update(Action::CloseModal);
                 }
                 Event::App(AppEvent::InspectNodeLoaded(model)) => {
                     state.update(Action::NodeDetailsLoaded(model));
@@ -1079,39 +1442,55 @@ mod integration_tests {
         let theme = Theme::default();
         let renderer = AppRenderer::new();
 
-        // 1. Test size 80x24 (with sidebar)
+        // 1. Test Welcome layout mode (Screen::Home, sb_w = 0, status_h = 0)
         let backend = TestBackend::new(80, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal
             .draw(|f| {
                 let area = f.size();
-                // Verify layout partitions are calculated cleanly
-                let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
-                assert_eq!(h.height, 3);
+                let (h, sb, c, _insp, p, _pal, s) = renderer.compute_layout(area, &state);
+                assert_eq!(h.height, 0); // Header bar removed on Home landing page to eliminate top application chrome
                 assert_eq!(p.height, 3);
-                assert_eq!(s.height, 1);
+                assert_eq!(s.height, 1); // Canonical status line on Home landing page
                 assert!(c.height >= 10);
-                assert!(sb.height >= 10);
-                assert_eq!(sb.width, 25);
+                assert_eq!(sb.width, 0); // Sidebar collapsed on Welcome landing
 
                 renderer.draw(f, area, &state, &theme);
             })
             .unwrap();
 
-        // 2. Test size 70x24 (compact - no sidebar)
+        // 2. Test Workspace layout mode (Screen::Workspace, full-width task table, sb_w = 0)
+        let mut workspace_state = UiState::new();
+        workspace_state.screen = crate::ui::navigation::Screen::Workspace;
+        workspace_state.focus = crate::state::FocusRegion::Sidebar;
+        terminal
+            .draw(|f| {
+                let area = f.size();
+                let (h, sb, c, _insp, p, _pal, s) = renderer.compute_layout(area, &workspace_state);
+                assert_eq!(h.height, 2);
+                assert_eq!(p.height, 3);
+                assert_eq!(s.height, 1);
+                assert!(c.height >= 10);
+                assert_eq!(sb.width, 0); // Full-width task table in Workspace mode
+
+                renderer.draw(f, area, &workspace_state, &theme);
+            })
+            .unwrap();
+
+        // 3. Test size 70x24 (compact - no sidebar)
         let backend = TestBackend::new(70, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal
             .draw(|f| {
                 let area = f.size();
-                let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, &state);
-                assert_eq!(h.height, 3);
+                let (h, sb, c, _insp, p, _pal, s) = renderer.compute_layout(area, &workspace_state);
+                assert_eq!(h.height, 2);
                 assert_eq!(p.height, 3);
                 assert_eq!(s.height, 1);
                 assert!(c.height >= 10);
-                assert_eq!(sb.width, 0); // No sidebar area
+                assert_eq!(sb.width, 0); // Compact width collapses sidebar
 
-                renderer.draw(f, area, &state, &theme);
+                renderer.draw(f, area, &workspace_state, &theme);
             })
             .unwrap();
     }

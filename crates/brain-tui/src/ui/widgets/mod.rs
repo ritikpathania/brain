@@ -10,6 +10,8 @@ pub mod home;
 pub mod home_welcome;
 /// Right-aligned ambient status line widget.
 pub mod ambient_status;
+/// Full-width workspace dashboard task table widget.
+pub mod workspace_dashboard;
 /// Interactive knowledge inspector widget.
 pub mod inspector;
 /// Markdown block cache enforcing zero-flicker block immutability.

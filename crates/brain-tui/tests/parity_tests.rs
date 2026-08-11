@@ -16,20 +16,22 @@ fn test_layout_partitions_verification() {
     let backend = TestBackend::new(120, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     let mut state = UiState::new();
+    state.screen = brain_tui::ui::navigation::Screen::Workspace;
     state.terminal_width = 120;
-    state.terminal_height = 30;
+    state.focus = brain_tui::state::FocusRegion::Sidebar;
 
     let state_ref = &state;
     terminal
         .draw(|f| {
             let area = f.size();
-            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_ref);
-            assert_eq!(h.height, 3);
+            let (h, sb, c, _insp, p, _pal, s) = renderer.compute_layout(area, state_ref);
+            assert_eq!(h.height, 2);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);
-            assert_eq!(sb.width, 25);
-            assert_eq!(c.height, 23);
-            assert_eq!(sb.height, 23);
+            assert_eq!(sb.width, 0);
+            assert_eq!(c.width, 120);
+            assert_eq!(c.height, 24);
+            assert_eq!(sb.height, 24);
 
             renderer.draw(f, area, state_ref, &theme);
         })
@@ -39,6 +41,7 @@ fn test_layout_partitions_verification() {
     let backend = TestBackend::new(70, 30);
     let mut terminal = Terminal::new(backend).unwrap();
     let mut state_compact = UiState::new();
+    state_compact.screen = brain_tui::ui::navigation::Screen::Workspace;
     state_compact.terminal_width = 70;
     state_compact.terminal_height = 30;
 
@@ -46,13 +49,13 @@ fn test_layout_partitions_verification() {
     terminal
         .draw(|f| {
             let area = f.size();
-            let (h, sb, c, _insp, p, s) = renderer.compute_layout(area, state_compact_ref);
-            assert_eq!(h.height, 3);
+            let (h, sb, c, _insp, p, _pal, s) = renderer.compute_layout(area, state_compact_ref);
+            assert_eq!(h.height, 2);
             assert_eq!(p.height, 3);
             assert_eq!(s.height, 1);
             assert_eq!(sb.width, 0); // hidden
             assert_eq!(c.width, 70); // chat uses full width
-            assert_eq!(c.height, 23);
+            assert_eq!(c.height, 24);
 
             renderer.draw(f, area, state_compact_ref, &theme);
         })
