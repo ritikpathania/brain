@@ -11,30 +11,42 @@ pub struct StatusFooterWidget;
 impl StatusFooterWidget {
     /// Renders the status footer line into the target area.
     pub fn draw(f: &mut Frame, area: Rect, state: &UiState, theme: &Theme) {
-        let conn_str = match state.connection_mode {
-            crate::state::ConnectionMode::Daemon => "Daemon ● Connected",
-            crate::state::ConnectionMode::Embedded => "Embedded ● Connected",
-            crate::state::ConnectionMode::Connecting => "Daemon ◐ Connecting",
-            crate::state::ConnectionMode::Disconnected => "Daemon ○ Offline",
+        let dot = match state.connection_mode {
+            crate::state::ConnectionMode::Daemon | crate::state::ConnectionMode::Embedded => "●",
+            crate::state::ConnectionMode::Connecting => "◐",
+            crate::state::ConnectionMode::Disconnected => "○",
         };
 
-        let footer_text = if area.width >= 80 {
-            // Wide viewport
-            let ws_str = if state.submit_with_workspace { "Workspace: ON" } else { "Workspace: OFF" };
-            let lat_str = "23 ms";
-            let count_str = format!("{} results", state.sessions.len());
-            let profile_str = if theme.is_no_color() { "ASCII" } else { "Truecolor" };
-            format!(
-                " {} │ Theme: Default │ {} │ {} │ {} │ UTF-8 │ {} ",
-                conn_str, ws_str, lat_str, count_str, profile_str
-            )
+        let footer_text = if let Some((ref msg, instant)) = state.transient_message {
+            if instant.elapsed() < std::time::Duration::from_secs(5) {
+                format!(" {} {}", dot, msg)
+            } else {
+                Self::build_default_footer(state)
+            }
         } else {
-            // Compact viewport (<80 cols)
-            format!(" ● Connected │ 23 ms │ {} results ", state.sessions.len())
+            Self::build_default_footer(state)
         };
 
-        let style = Style::default().bg(theme.bg_secondary).fg(theme.text_secondary);
+        let style = Style::default()
+            .bg(theme.bg_secondary)
+            .fg(theme.text_secondary);
         let widget = Paragraph::new(footer_text).style(style);
         f.render_widget(widget, area);
     }
+
+    fn build_default_footer(state: &UiState) -> String {
+        match state.screen {
+            crate::ui::navigation::Screen::Home => {
+                " ▍▍ manual mode on · ? for shortcuts · ⬅ 3 agents".to_string()
+            }
+            crate::ui::navigation::Screen::Workspace => {
+                " enter to return · space to reply · ctrl+x to delete · ? for shortcuts".to_string()
+            }
+            _ => {
+                " ▍▍ manual mode on · ? for shortcuts".to_string()
+            }
+        }
+    }
 }
+
+
