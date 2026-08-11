@@ -467,12 +467,14 @@ impl AppRenderer {
                                         spans: vec![],
                                     },
                                     sender_header: Some(sender.clone()),
+                                    is_user: block.is_user,
                                 });
                             } else if local_line <= block.visual_lines.len() as u32 {
                                 let line_idx = (local_line - 1) as usize;
                                 visible_lines.push(VisibleChatLine {
                                     line: block.visual_lines[line_idx].clone(),
                                     sender_header: None,
+                                    is_user: block.is_user,
                                 });
                             } else {
                                 visible_lines.push(VisibleChatLine {
@@ -481,6 +483,7 @@ impl AppRenderer {
                                         spans: vec![],
                                     },
                                     sender_header: None,
+                                    is_user: block.is_user,
                                 });
                             }
                         } else {
@@ -488,6 +491,7 @@ impl AppRenderer {
                                 visible_lines.push(VisibleChatLine {
                                     line: block.visual_lines[local_line as usize].clone(),
                                     sender_header: None,
+                                    is_user: block.is_user,
                                 });
                             } else {
                                 visible_lines.push(VisibleChatLine {
@@ -496,6 +500,7 @@ impl AppRenderer {
                                         spans: vec![],
                                     },
                                     sender_header: None,
+                                    is_user: block.is_user,
                                 });
                             }
                         }
@@ -547,13 +552,32 @@ impl AppRenderer {
             } else if state.screen == crate::ui::navigation::Screen::Workspace {
                 workspace_dashboard::draw(f, chat_area, state, theme);
             } else {
+                let welcome_h = (9usize).saturating_sub(state.viewport.scroll_offset) as u16;
+                let chat_msg_area = if welcome_h > 0 && welcome_h < chat_area.height {
+                    let surface_rect = Rect::new(
+                        chat_area.x.saturating_add(1),
+                        chat_area.y,
+                        chat_area.width.saturating_sub(2),
+                        welcome_h,
+                    );
+                    home_welcome::draw(f, surface_rect, state, theme);
+                    Rect::new(
+                        chat_area.x,
+                        chat_area.y.saturating_add(welcome_h),
+                        chat_area.width,
+                        chat_area.height.saturating_sub(welcome_h),
+                    )
+                } else {
+                    chat_area
+                };
+
                 let chat_view = ChatView {
                     title: chat_title,
                     visible_lines,
-                    scroll_offset: state.viewport.scroll_offset,
+                    scroll_offset: state.viewport.scroll_offset.saturating_sub(9),
                     selection: SelectionState::new(),
                 };
-                chat::draw(f, chat_area, &chat_view, theme);
+                chat::draw(f, chat_msg_area, &chat_view, theme);
             }
         }
 

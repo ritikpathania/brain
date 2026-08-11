@@ -1,7 +1,7 @@
 use crate::ui::interaction::markdown::{SelectionState, VisualLine, VisualSpan, VisualStyle};
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::Modifier;
+use ratatui::style::{Modifier, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 use ratatui::Frame;
@@ -13,6 +13,8 @@ pub struct VisibleChatLine {
     pub line: VisualLine,
     /// Message sender header title.
     pub sender_header: Option<String>,
+    /// Indicates if line is part of a user message bubble.
+    pub is_user: bool,
 }
 
 /// ViewModel carrying Message items and scroll parameters.
@@ -32,7 +34,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
     let block = ratatui::widgets::Block::default();
 
     let mut items = Vec::new();
-    for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {
+    let lines_to_process = view.visible_lines.iter().skip(view.scroll_offset);
+    for (line_idx, visible) in (view.scroll_offset..).zip(lines_to_process) {
         let is_sel = view.selection.is_selected(line_idx);
 
         if let Some(ref sender) = visible.sender_header {
@@ -40,6 +43,8 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 theme.style(ThemeToken::Selection)
             } else if sender.eq_ignore_ascii_case("You") {
                 theme.secondary
+            } else if sender.eq_ignore_ascii_case("Claude") || sender.eq_ignore_ascii_case("Brain") {
+                theme.style(ThemeToken::HeaderPrimary)
             } else {
                 theme.accent.add_modifier(Modifier::BOLD)
             };
@@ -48,13 +53,29 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 sender_style,
             )])));
         } else {
+            let user_bg = if visible.is_user {
+                Some(ratatui::style::Color::Rgb(55, 55, 55))
+            } else {
+                None
+            };
+
             let spans: Vec<Span> = visible
                 .line
                 .spans
                 .iter()
-                .map(|span| map_span(span, theme, is_sel))
+                .map(|span| {
+                    let mut s = map_span(span, theme, is_sel);
+                    if let Some(bg) = user_bg {
+                        s = s.bg(bg);
+                    }
+                    s
+                })
                 .collect();
-            items.push(ListItem::new(Line::from(spans)));
+            let mut line = Line::from(spans);
+            if let Some(bg) = user_bg {
+                line = line.style(ratatui::style::Style::default().bg(bg));
+            }
+            items.push(ListItem::new(line));
         }
     }
 

@@ -781,6 +781,8 @@ pub struct UiState {
     pub active_theme: String,
     /// When true, the command palette is collecting a theme name parameter.
     pub pending_theme_selection: bool,
+    /// Last command dispatched by palette or slash command.
+    pub last_dispatched_command: String,
 }
 
 /// TimelineBlock is a pure presentation model. It wraps AST-parsed markdown visual lines along with structural headers
@@ -789,10 +791,12 @@ pub struct UiState {
 /// beyond the rendering tick.
 #[derive(Debug, Clone)]
 pub struct TimelineBlock {
-    /// Optional sender header name (e.g. "You", "Brain").
+    /// Optional sender header name (e.g. "You", "Claude").
     pub header: Option<String>,
     /// Chronological list of visual lines wrapped to the column width.
     pub visual_lines: Vec<crate::ui::interaction::markdown::VisualLine>,
+    /// Indicates if block is a user message.
+    pub is_user: bool,
 }
 
 /// Structured user action triggering pure state transitions.
@@ -1127,6 +1131,7 @@ impl UiState {
             collapsed_groups: std::collections::HashSet::new(),
             active_theme: "dark".to_string(),
             pending_theme_selection: false,
+            last_dispatched_command: String::new(),
         }
     }
 
@@ -1212,6 +1217,7 @@ impl UiState {
             collapsed_groups: std::collections::HashSet::new(),
             active_theme: "dark".to_string(),
             pending_theme_selection: false,
+            last_dispatched_command: String::new(),
         }
     }
 
@@ -2711,17 +2717,19 @@ impl UiState {
                                     &highlighter,
                                 );
                             blocks.push(TimelineBlock {
-                                header: Some("Brain".to_string()),
+                                header: Some("Claude".to_string()),
                                 visual_lines,
+                                is_user: false,
                             });
                         }
                     } else {
                         let idx = (msg_id.0 - 1) as usize;
                         if idx < self.active_messages.len() {
                             let msg = &self.active_messages[idx];
+                            let is_user = matches!(msg.role, brain_domain::MessageRole::User);
                             let sender = match msg.role {
                                 brain_domain::MessageRole::User => "You".to_string(),
-                                brain_domain::MessageRole::Assistant => "Brain".to_string(),
+                                brain_domain::MessageRole::Assistant => "Claude".to_string(),
                                 brain_domain::MessageRole::System => "System".to_string(),
                             };
                             let ast = crate::ui::interaction::markdown::MarkdownParser::parse(
@@ -2736,6 +2744,7 @@ impl UiState {
                             blocks.push(TimelineBlock {
                                 header: Some(sender),
                                 visual_lines,
+                                is_user,
                             });
                         }
                     }
@@ -2759,6 +2768,7 @@ impl UiState {
                         blocks.push(TimelineBlock {
                             header: None,
                             visual_lines: format_tool_execution(tool, expanded),
+                            is_user: false,
                         });
                     } else {
                         blocks.push(TimelineBlock {
@@ -2770,6 +2780,7 @@ impl UiState {
                                     crate::ui::interaction::markdown::VisualStyle::Normal,
                                 )],
                             }],
+                            is_user: false,
                         });
                     }
                 }
@@ -2778,6 +2789,7 @@ impl UiState {
                         blocks.push(TimelineBlock {
                             header: None,
                             visual_lines: format_retrieval_info(retrieval),
+                            is_user: false,
                         });
                     } else {
                         blocks.push(TimelineBlock {
@@ -2789,6 +2801,7 @@ impl UiState {
                                     crate::ui::interaction::markdown::VisualStyle::Normal,
                                 )],
                             }],
+                            is_user: false,
                         });
                     }
                 }

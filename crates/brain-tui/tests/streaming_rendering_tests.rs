@@ -251,3 +251,106 @@ fn test_typewriter_completion_flush_immediately() {
     assert!(result.finished);
     assert!(queue.is_finished());
 }
+
+#[test]
+fn test_conversation_canvas_preserves_home_welcome_and_formats_messages() {
+    use brain_domain::{Message, MessageId, MessageRole};
+    use brain_tui::state::UiState;
+    use brain_tui::ui::navigation::Screen;
+    use brain_tui::ui::renderer::AppRenderer;
+    use brain_tui::ui::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::style::Color;
+    use ratatui::Terminal;
+
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut state = UiState::default();
+    let theme = Theme::default();
+    let renderer = AppRenderer::new();
+
+    state.screen = Screen::Conversation;
+    state.active_messages = vec![
+        Message::new(
+            MessageId::new(),
+            MessageRole::User,
+            "How does Brain store relational memories?".to_string(),
+        ),
+        Message::new(
+            MessageId::new(),
+            MessageRole::Assistant,
+            "Brain uses SQLite and a relational graph.".to_string(),
+        ),
+    ];
+    state.timeline = vec![
+        (
+            brain_tui::ui::interaction::timeline::EventOrdinal(1),
+            brain_tui::ui::interaction::timeline::TimelineItem::Message(
+                brain_tui::ui::interaction::MessageId(1),
+            ),
+        ),
+        (
+            brain_tui::ui::interaction::timeline::EventOrdinal(2),
+            brain_tui::ui::interaction::timeline::TimelineItem::Message(
+                brain_tui::ui::interaction::MessageId(2),
+            ),
+        ),
+    ];
+
+    terminal
+        .draw(|f| {
+            renderer.draw(f, Rect::new(0, 0, 80, 24), &state, &theme);
+        })
+        .unwrap();
+
+    let buf = terminal.backend().buffer();
+
+    // 1. In Screen::Conversation, HomeWelcomeSurface is preserved at top of scroll canvas
+    let title_cells: String = (3..=24).map(|x| buf.get(x, 2).symbol()).collect();
+    assert_eq!(
+        title_cells, " Claude Code v2.1.226 ",
+        "HomeWelcomeSurface title must be preserved at top of canvas"
+    );
+
+    // 2. User message bubble renders with container background Color::Rgb(55, 55, 55)
+    let mut found_user_bg = false;
+    for y in 0..24 {
+        let line: String = (0..80).map(|x| buf.get(x, y).symbol()).collect();
+        if line.contains("How does Brain") {
+            for x in 0..80 {
+                if buf.get(x, y).symbol() == "H" {
+                    assert_eq!(
+                        buf.get(x, y).style().bg,
+                        Some(Color::Rgb(55, 55, 55)),
+                        "User message container background must be RGB(55, 55, 55)"
+                    );
+                    found_user_bg = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(found_user_bg, "Must find user message text with container background");
+
+    // 3. Assistant header 'Claude:' renders in terracotta Color::Rgb(215, 119, 87)
+    let mut found_assistant_header = false;
+    for y in 0..24 {
+        let line: String = (0..80).map(|x| buf.get(x, y).symbol()).collect();
+        if line.contains("Claude:") {
+            for x in 0..80 {
+                if buf.get(x, y).symbol() == "C" {
+                    assert_eq!(
+                        buf.get(x, y).style().fg,
+                        Some(Color::Rgb(215, 119, 87)),
+                        "Assistant header 'Claude:' must render in terracotta RGB(215, 119, 87)"
+                    );
+                    found_assistant_header = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(found_assistant_header, "Must find assistant header 'Claude:'");
+}
+
