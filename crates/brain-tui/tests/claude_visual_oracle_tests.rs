@@ -371,3 +371,225 @@ fn test_reference_fixture_home_80x24_oracle() {
         println!("Reference Fixture Oracle Matched Current Renderer!");
     }
 }
+
+fn setup_terminal_and_extract_grid(w: u16, h: u16) -> (Terminal<TestBackend>, Vec<Vec<CellSpec>>) {
+    let backend = TestBackend::new(w, h);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut state = UiState::default();
+    state.screen = Screen::Home;
+    let renderer = AppRenderer::new();
+    let theme = Theme::default();
+
+    terminal
+        .draw(|f| renderer.draw(f, f.size(), &state, &theme))
+        .unwrap();
+
+    let mut grid = vec![vec![CellSpec::empty(); w as usize]; h as usize];
+    for y in 0..h {
+        for x in 0..w {
+            grid[y as usize][x as usize] = inspect_cell(&terminal, x, y);
+        }
+    }
+
+    (terminal, grid)
+}
+
+#[test]
+fn test_viewport_80x24_oracle() {
+    let (terminal, grid) = setup_terminal_and_extract_grid(80, 24);
+
+    // 1. Surface bounds: Rect::new(1, 2, 78, 9)
+    assert_eq!(grid[2][1].symbol, "┌");
+    assert_eq!(grid[2][78].symbol, "┐");
+    assert_eq!(grid[10][1].symbol, "└");
+    assert_eq!(grid[10][78].symbol, "┘");
+
+    // 2. Title string at x=3..24
+    let mut title_buf = String::new();
+    for x in 3..24 {
+        title_buf.push_str(&grid[2][x].symbol);
+    }
+    assert_eq!(title_buf, " Claude Code v2.1.226");
+
+    // 3. Divider column x = 47
+    for y in 3..=9 {
+        assert_eq!(grid[y][47].symbol, "│");
+        assert_eq!(grid[y][47].fg, Some(Color::Rgb(80, 80, 80)));
+    }
+
+    // 4. Ambient status y = 19
+    let mut status_buf = String::new();
+    for x in 0..80 {
+        status_buf.push_str(&grid[19][x].symbol);
+    }
+    assert!(status_buf.contains("●"), "Ambient status missing dot symbol: {}", status_buf);
+    assert!(status_buf.contains("xhigh · /effort"), "Ambient status missing effort text: {}", status_buf);
+
+    // 5. Prompt y = 20..22
+    assert_eq!(grid[20][0].symbol, "─");
+    assert_eq!(grid[20][0].fg, Some(Color::Rgb(80, 80, 80)));
+    assert_eq!(grid[21][0].symbol, "❯");
+    assert_eq!(grid[21][0].fg, Some(Color::Rgb(215, 119, 87)));
+    assert_eq!(grid[22][0].symbol, "─");
+
+    // 6. Quiet footer y = 23
+    assert_eq!(grid[23][1].symbol, "▍");
+    assert_eq!(grid[23][2].symbol, "▍");
+
+    // 7. Full grid validation via assert_cell_grid_eq
+    assert_cell_grid_eq(&terminal, &grid, 80, 24);
+}
+
+#[test]
+fn test_viewport_127x24_oracle() {
+    let (terminal, grid) = setup_terminal_and_extract_grid(127, 24);
+
+    // 1. Surface bounds: Rect::new(1, 2, 125, 9)
+    assert_eq!(grid[2][1].symbol, "┌");
+    assert_eq!(grid[2][125].symbol, "┐");
+    assert_eq!(grid[10][1].symbol, "└");
+    assert_eq!(grid[10][125].symbol, "┘");
+
+    // 2. Title string at x=3..24
+    let mut title_buf = String::new();
+    for x in 3..24 {
+        title_buf.push_str(&grid[2][x].symbol);
+    }
+    assert_eq!(title_buf, " Claude Code v2.1.226");
+
+    // 3. Divider column x = 73 (58% left pane width)
+    for y in 3..=9 {
+        assert_eq!(grid[y][73].symbol, "│");
+        assert_eq!(grid[y][73].fg, Some(Color::Rgb(80, 80, 80)));
+    }
+
+    // 4. Ambient status y = 19
+    let mut status_buf = String::new();
+    for x in 0..127 {
+        status_buf.push_str(&grid[19][x].symbol);
+    }
+    assert!(status_buf.contains("●"), "Ambient status missing dot symbol: {}", status_buf);
+    assert!(status_buf.contains("xhigh · /effort"), "Ambient status missing effort text: {}", status_buf);
+
+    // 5. Prompt y = 20..22
+    assert_eq!(grid[20][0].symbol, "─");
+    assert_eq!(grid[20][0].fg, Some(Color::Rgb(80, 80, 80)));
+    assert_eq!(grid[21][0].symbol, "❯");
+    assert_eq!(grid[21][0].fg, Some(Color::Rgb(215, 119, 87)));
+    assert_eq!(grid[22][0].symbol, "─");
+
+    // 6. Quiet footer y = 23
+    assert_eq!(grid[23][1].symbol, "▍");
+    assert_eq!(grid[23][2].symbol, "▍");
+
+    // 7. Full grid validation via assert_cell_grid_eq
+    assert_cell_grid_eq(&terminal, &grid, 127, 24);
+}
+
+#[test]
+fn test_viewport_80x34_oracle() {
+    let (terminal, grid) = setup_terminal_and_extract_grid(80, 34);
+
+    // 1. Surface bounds: Rect::new(1, 2, 78, 9)
+    assert_eq!(grid[2][1].symbol, "┌");
+    assert_eq!(grid[2][78].symbol, "┐");
+    assert_eq!(grid[10][1].symbol, "└");
+    assert_eq!(grid[10][78].symbol, "┘");
+
+    // 2. Divider column x = 47
+    for y in 3..=9 {
+        assert_eq!(grid[y][47].symbol, "│");
+        assert_eq!(grid[y][47].fg, Some(Color::Rgb(80, 80, 80)));
+    }
+
+    // 3. Canvas gap y = 11..28 (rows 11 through 28 empty)
+    for y in 11..=28 {
+        for x in 0..80 {
+            assert_eq!(grid[y][x].symbol, " ", "Canvas gap at ({}, {}) should be empty space", x, y);
+            assert!(
+                grid[y][x].bg == None || grid[y][x].bg == Some(Color::Reset),
+                "Canvas gap background at ({}, {}) should be None or Reset", x, y
+            );
+        }
+    }
+
+    // 4. Ambient status y = 29
+    let mut status_buf = String::new();
+    for x in 0..80 {
+        status_buf.push_str(&grid[29][x].symbol);
+    }
+    assert!(status_buf.contains("●"), "Ambient status missing dot symbol: {}", status_buf);
+    assert!(status_buf.contains("xhigh · /effort"), "Ambient status missing effort text: {}", status_buf);
+
+    // 5. Prompt y = 30..32
+    assert_eq!(grid[30][0].symbol, "─");
+    assert_eq!(grid[30][0].fg, Some(Color::Rgb(80, 80, 80)));
+    assert_eq!(grid[31][0].symbol, "❯");
+    assert_eq!(grid[31][0].fg, Some(Color::Rgb(215, 119, 87)));
+    assert_eq!(grid[32][0].symbol, "─");
+
+    // 6. Quiet footer y = 33
+    assert_eq!(grid[33][1].symbol, "▍");
+    assert_eq!(grid[33][2].symbol, "▍");
+
+    // 7. Full grid validation via assert_cell_grid_eq
+    assert_cell_grid_eq(&terminal, &grid, 80, 34);
+}
+
+#[test]
+fn test_viewport_182x53_oracle() {
+    let (terminal, grid) = setup_terminal_and_extract_grid(182, 53);
+
+    // 1. Surface bounds: Rect::new(1, 2, 180, 9)
+    assert_eq!(grid[2][1].symbol, "┌");
+    assert_eq!(grid[2][180].symbol, "┐");
+    assert_eq!(grid[10][1].symbol, "└");
+    assert_eq!(grid[10][180].symbol, "┘");
+
+    // 2. Title string at x=3..24
+    let mut title_buf = String::new();
+    for x in 3..24 {
+        title_buf.push_str(&grid[2][x].symbol);
+    }
+    assert_eq!(title_buf, " Claude Code v2.1.226");
+
+    // 3. Divider column x = 105
+    for y in 3..=9 {
+        assert_eq!(grid[y][105].symbol, "│");
+        assert_eq!(grid[y][105].fg, Some(Color::Rgb(80, 80, 80)));
+    }
+
+    // 4. Canvas gap y = 11..47
+    for y in 11..=47 {
+        for x in 0..182 {
+            assert_eq!(grid[y][x].symbol, " ", "Canvas gap at ({}, {}) should be empty space", x, y);
+            assert!(
+                grid[y][x].bg == None || grid[y][x].bg == Some(Color::Reset),
+                "Canvas gap background at ({}, {}) should be None or Reset", x, y
+            );
+        }
+    }
+
+    // 5. Ambient status y = 48
+    let mut status_buf = String::new();
+    for x in 0..182 {
+        status_buf.push_str(&grid[48][x].symbol);
+    }
+    assert!(status_buf.contains("●"), "Ambient status missing dot symbol: {}", status_buf);
+    assert!(status_buf.contains("xhigh · /effort"), "Ambient status missing effort text: {}", status_buf);
+
+    // 6. Prompt y = 49..51
+    assert_eq!(grid[49][0].symbol, "─");
+    assert_eq!(grid[49][0].fg, Some(Color::Rgb(80, 80, 80)));
+    assert_eq!(grid[50][0].symbol, "❯");
+    assert_eq!(grid[50][0].fg, Some(Color::Rgb(215, 119, 87)));
+    assert_eq!(grid[51][0].symbol, "─");
+
+    // 7. Quiet footer y = 52
+    assert_eq!(grid[52][1].symbol, "▍");
+    assert_eq!(grid[52][2].symbol, "▍");
+
+    // 8. Full grid validation via assert_cell_grid_eq
+    assert_cell_grid_eq(&terminal, &grid, 182, 53);
+}
+

@@ -128,8 +128,8 @@ fn test_master_home_viewport_120x30() {
     let title_line = (0..120).map(|x| buf.get(x, 2).symbol()).collect::<String>();
     assert!(title_line.contains("Claude Code v2.1.226"));
 
-    // At 120x30, prompt is anchored at 67% (y=20), prompt input row is y=21
-    assert_eq!(buf.get(0, 21).symbol(), "❯");
+    // At 120x30, prompt is bottom-anchored (y=26..28), prompt input row is y=27
+    assert_eq!(buf.get(0, 27).symbol(), "❯");
 
     let footer_line = (0..120).map(|x| buf.get(x, 29).symbol()).collect::<String>();
     assert!(footer_line.contains("manual mode on") || footer_line.contains("? for shortcuts"));
@@ -152,8 +152,8 @@ fn test_master_home_viewport_182x53() {
     let title_line = (0..182).map(|x| buf.get(x, 2).symbol()).collect::<String>();
     assert!(title_line.contains("Claude Code v2.1.226"));
 
-    // At 182x53, prompt is anchored at 67% (y=35), prompt input row is y=36
-    assert_eq!(buf.get(0, 36).symbol(), "❯");
+    // At 182x53, prompt is bottom-anchored (y=49..51), prompt input row is y=50
+    assert_eq!(buf.get(0, 50).symbol(), "❯");
 
     let footer_line = (0..182).map(|x| buf.get(x, 52).symbol()).collect::<String>();
     assert!(footer_line.contains("manual mode on") || footer_line.contains("? for shortcuts"));

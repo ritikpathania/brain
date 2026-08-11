@@ -156,28 +156,9 @@ impl AppRenderer {
         };
 
         // ─── Home prompt anchoring ────────────────────────────────────────────────
-        // Choose mid constraint + filler strategy based on mode and terminal height.
+        // Prompt and quiet footer are bottom-anchored across all viewports.
         let (mid_constraint, filler_constraint, layout_bottom_pad) =
-            if matches!(layout_mode, AppLayoutMode::Welcome) && area.height > 24 {
-                // Tall Welcome: anchor prompt at ≈67% of screen height.
-                let occupied = header_h + prompt_h + palette_h + status_h;
-                let max_mid = area.height.saturating_sub(occupied.max(1));
-                let anchor = (area.height as u32 * 67 / 100) as u16;
-                let mid_h = anchor
-                    .min(max_mid)
-                    .max(11u16.min(max_mid));
-                let filler_h = area
-                    .height
-                    .saturating_sub(header_h + mid_h + prompt_h + palette_h + status_h);
-                (
-                    Constraint::Length(mid_h),
-                    Constraint::Length(filler_h),
-                    0u16,
-                )
-            } else {
-                // Short Welcome (≤24) and all Workspace/other modes: current behaviour.
-                (Constraint::Min(1), Constraint::Length(0), bottom_pad_h)
-            };
+            (Constraint::Min(1), Constraint::Length(0), bottom_pad_h);
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -802,20 +783,16 @@ mod tests {
 
     #[test]
     fn test_home_container_height_clamp() {
-        // Verifies proportional-capped box_h formula at every benchmarked terminal size.
-        // Formula: (mid_h * 60 / 100).clamp(11, 18)
-        //   • floor  11 → 80×24 and 96×24 unchanged
-        //   • growth    → 120×30 produces box_h=13 (proportional, not floored)
-        //   • ceiling 18 → 182×53 capped, never turns Home into a dashboard
+        // Verifies proportional-capped box_h formula at benchmarked terminal sizes.
         let renderer = AppRenderer::new();
         let state = UiState::default();
 
         let cases: &[(u16, u16, u16)] = &[
             (80, 24, 12),  // mid_h=20 → 12
             (96, 24, 12),  // mid_h=20 → 12
-            (120, 30, 12), // proportional growth: mid_h=20 (67% anchor) → (20*60/100)=12
-            (160, 50, 18), // ceiling cap: mid_h=33 (67% anchor) → (33*60/100)=19 → capped at 18
-            (182, 53, 18), // ceiling cap: mid_h=35 (67% anchor) → (35*60/100)=21 → capped at 18
+            (120, 30, 15), // mid_h=26 → (26*60/100)=15
+            (160, 50, 18), // ceiling cap: mid_h=46 → (46*60/100)=27 → capped at 18
+            (182, 53, 18), // ceiling cap: mid_h=49 → (49*60/100)=29 → capped at 18
         ];
 
         for &(w, h, expected_box_h) in cases {
@@ -848,9 +825,10 @@ mod tests {
         let cases: &[(u16, u16, u16)] = &[
             (80, 24, 20),  // 80x24: prompt at y=20
             (96, 24, 20),  // 96x24: prompt at y=20
-            (120, 30, 20), // 30 * 67/100 = 20
-            (156, 52, 34), // 52 * 67/100 = 34
-            (182, 53, 35), // 53 * 67/100 = 35
+            (80, 34, 30),  // 80x34: prompt at y=30
+            (120, 30, 26), // 120x30: prompt at y=26
+            (156, 52, 48), // 156x52: prompt at y=48
+            (182, 53, 49), // 182x53: prompt at y=49
         ];
 
         for &(w, h, expected_row) in cases {
@@ -862,20 +840,6 @@ mod tests {
                 "prompt.y mismatch at {}×{}: got {}, expected {}",
                 w, h, prompt.y, expected_row
             );
-
-            // Tall terminals must stay in the 60–70% visual band.
-            if h > 24 {
-                let pct = prompt.y as u32 * 100 / h as u32;
-                assert!(
-                    (60..=70).contains(&pct),
-                    "prompt at {}% (row {}/{}) outside 60–70% band at {}×{}",
-                    pct,
-                    prompt.y,
-                    h,
-                    w,
-                    h
-                );
-            }
         }
     }
 }

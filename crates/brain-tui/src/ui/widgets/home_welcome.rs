@@ -35,11 +35,12 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Split inner area horizontally into Left Welcome Pane (45 cols), Divider (1 col), and Right Information Rail
+    // Split inner area horizontally into Left Welcome Pane (58% / min 45 cols), Divider (1 col), and Right Information Rail
+    let left_width = (inner.width * 58 / 100).max(45);
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(45),
+            Constraint::Length(left_width),
             Constraint::Length(1),
             Constraint::Min(0),
         ])
