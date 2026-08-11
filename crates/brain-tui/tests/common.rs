@@ -1,7 +1,5 @@
 #![allow(dead_code)]
 
-pub mod cell_oracle;
-
 use brain_tui::ui::render::RenderContext;
 use brain_tui::ui::render::{
     ColorSupport, EffectiveCapabilities, MotionPreference, NerdFontsSupport, UnicodeSupport,

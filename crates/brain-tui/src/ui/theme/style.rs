@@ -1,22 +1,12 @@
 //! ActiveTheme trait definitions.
 
 use crate::ui::theme::token::ThemeToken;
-use ratatui::style::{Color, Style};
+use ratatui::style::Style;
 
 /// A trait implemented by styles that can resolve theme tokens.
 pub trait ActiveTheme: Send + Sync {
     /// Returns the resolved ratatui style for a given theme token.
     fn style(&self, token: ThemeToken) -> Style;
-
-    /// Returns the primary color associated with a given theme token.
-    fn token_color(&self, token: ThemeToken) -> Color {
-        let style = self.style(token);
-        if token == ThemeToken::Selection {
-            style.bg.unwrap_or(Color::Reset)
-        } else {
-            style.fg.unwrap_or(Color::Reset)
-        }
-    }
 }
 
 /// Simplified appearance modes (Dark or Light Paper theme).

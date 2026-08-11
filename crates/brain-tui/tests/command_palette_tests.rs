@@ -560,7 +560,6 @@ fn test_command_palette_widget_rendering() {
     let mut terminal = Terminal::new(backend).unwrap();
     let theme = Theme::default();
     let mut state = CommandPaletteState::new();
-    state.open = true;
     state.stage = PaletteStage::Search;
     state.editor.insert('t');
     state.editor.insert('h');
@@ -573,21 +572,21 @@ fn test_command_palette_widget_rendering() {
         .unwrap();
 
     let buffer = terminal.backend().buffer();
-    // Validate centering/sizing and text exists in buffer
-    let mut text_found = false;
+    // Validate centering/sizing and title text exists in buffer
+    let mut title_found = false;
     for y in 0..20 {
         for x in 0..80 {
             let cell = buffer.get(x, y);
-            if cell.symbol() == "t" || cell.symbol() == "T" {
-                text_found = true;
+            if cell.symbol() == "P" {
+                // "Palette" contains 'P'
+                title_found = true;
             }
         }
     }
-    assert!(text_found);
+    assert!(title_found);
 
     // 2. Render CollectParameter Stage
     let mut state_param = CommandPaletteState::new();
-    state_param.open = true;
     state_param.stage = PaletteStage::CollectParameter(ParameterCollectionState::new(
         brain_tui::ui::command::CHANGE_THEME,
     ));

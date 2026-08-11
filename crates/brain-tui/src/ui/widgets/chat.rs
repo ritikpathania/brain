@@ -13,8 +13,6 @@ pub struct VisibleChatLine {
     pub line: VisualLine,
     /// Message sender header title.
     pub sender_header: Option<String>,
-    /// Indicates if line is part of a user message bubble.
-    pub is_user: bool,
 }
 
 /// ViewModel carrying Message items and scroll parameters.
@@ -34,8 +32,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
     let block = ratatui::widgets::Block::default();
 
     let mut items = Vec::new();
-    let lines_to_process = view.visible_lines.iter().skip(view.scroll_offset);
-    for (line_idx, visible) in (view.scroll_offset..).zip(lines_to_process) {
+    for (line_idx, visible) in (view.scroll_offset..).zip(&view.visible_lines) {
         let is_sel = view.selection.is_selected(line_idx);
 
         if let Some(ref sender) = visible.sender_header {
@@ -43,8 +40,6 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 theme.style(ThemeToken::Selection)
             } else if sender.eq_ignore_ascii_case("You") {
                 theme.secondary
-            } else if sender.eq_ignore_ascii_case("Claude") || sender.eq_ignore_ascii_case("Brain") {
-                theme.style(ThemeToken::HeaderPrimary)
             } else {
                 theme.accent.add_modifier(Modifier::BOLD)
             };
@@ -53,29 +48,13 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, view: &ChatView, theme: &Theme) {
                 sender_style,
             )])));
         } else {
-            let user_style = if visible.is_user {
-                Some(theme.style(ThemeToken::User))
-            } else {
-                None
-            };
-
             let spans: Vec<Span> = visible
                 .line
                 .spans
                 .iter()
-                .map(|span| {
-                    let mut s = map_span(span, theme, is_sel);
-                    if let Some(style) = user_style {
-                        s.style = s.style.patch(style);
-                    }
-                    s
-                })
+                .map(|span| map_span(span, theme, is_sel))
                 .collect();
-            let mut line = Line::from(spans);
-            if let Some(style) = user_style {
-                line = line.style(style);
-            }
-            items.push(ListItem::new(line));
+            items.push(ListItem::new(Line::from(spans)));
         }
     }
 

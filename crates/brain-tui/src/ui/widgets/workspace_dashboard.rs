@@ -1,7 +1,7 @@
 use crate::state::UiState;
 use crate::ui::theme::{ActiveTheme, Theme, ThemeToken};
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
@@ -56,57 +56,38 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &UiState, theme: &Theme) {
     )));
 
     if state.sessions.is_empty() {
-        let fallback_items = [
-            ("current session", "brain", "2s"),
-            ("/??/", "login required - run /login", "19h"),
-            ("////ctrl+k/?///tab/", "login required - run /login", "23h"),
-        ];
-
-        for (idx, (title, detail, time_str)) in fallback_items.iter().enumerate() {
-            let is_sel = idx == state.selected_session_idx;
-            let prefix = if is_sel { "* " } else { "  " };
-            let line_style = if is_sel {
-                theme.style(ThemeToken::Selection)
-            } else {
-                Style::default()
-            };
-            lines.push(Line::from(vec![
-                Span::styled(prefix, theme.style(ThemeToken::Accent).patch(line_style)),
-                Span::styled(
-                    format!("{:<30}", title),
-                    theme
-                        .style(ThemeToken::TextPrimary)
-                        .patch(line_style)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    format!("{:<35}", detail),
-                    theme.style(ThemeToken::TextSecondary).patch(line_style),
-                ),
-                Span::styled(*time_str, theme.style(ThemeToken::TextMuted).patch(line_style)),
-            ]).style(line_style));
-        }
+        lines.push(Line::from(vec![
+            Span::styled("* ", theme.style(ThemeToken::Accent)),
+            Span::styled(
+                format!("{:<30}", "current session"),
+                theme
+                    .style(ThemeToken::TextPrimary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{:<35}", "brain"),
+                theme.style(ThemeToken::TextSecondary),
+            ),
+            Span::styled("2s", theme.style(ThemeToken::TextMuted)),
+        ]));
     } else {
         for (idx, session) in state.sessions.iter().enumerate() {
             let is_sel = idx == state.selected_session_idx;
-            let prefix = if is_sel { "* " } else { "  " };
-            let line_style = if is_sel {
+            let style = if is_sel {
                 theme.style(ThemeToken::Selection)
             } else {
-                Style::default()
+                theme.style(ThemeToken::TextPrimary)
             };
+            let prefix = if is_sel { "* " } else { "  " };
             lines.push(Line::from(vec![
-                Span::styled(prefix, theme.style(ThemeToken::Accent).patch(line_style)),
-                Span::styled(
-                    format!("{:<30}", session.title),
-                    theme.style(ThemeToken::TextPrimary).patch(line_style),
-                ),
+                Span::styled(prefix, theme.style(ThemeToken::Accent)),
+                Span::styled(format!("{:<30}", session.title), style),
                 Span::styled(
                     format!("{:<35}", "active"),
-                    theme.style(ThemeToken::TextMuted).patch(line_style),
+                    theme.style(ThemeToken::TextMuted),
                 ),
-                Span::styled("1m", theme.style(ThemeToken::TextMuted).patch(line_style)),
-            ]).style(line_style));
+                Span::styled("1m", theme.style(ThemeToken::TextMuted)),
+            ]));
         }
     }
 
@@ -131,20 +112,7 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, state: &UiState, theme: &Theme) {
         ),
         Span::styled("11h", theme.style(ThemeToken::TextMuted)),
     ]));
-    lines.push(Line::from(vec![
-        Span::styled("· ", theme.style(ThemeToken::TextMuted)),
-        Span::styled(
-            format!("{:<30}", "/ ctrl+k /..."),
-            theme.style(ThemeToken::TextSecondary),
-        ),
-        Span::styled(
-            format!("{:<35}", "stuck on a startup dialog"),
-            theme.style(ThemeToken::TextMuted),
-        ),
-        Span::styled("8h", theme.style(ThemeToken::TextMuted)),
-    ]));
 
     let p = Paragraph::new(lines);
     f.render_widget(p, area);
 }
-

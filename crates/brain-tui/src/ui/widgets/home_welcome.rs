@@ -14,17 +14,10 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(theme.style(ThemeToken::HeaderPrimary))
+        .border_style(theme.style(ThemeToken::BorderSubtle))
         .title(Line::from(vec![
-            Span::styled("─", theme.style(ThemeToken::HeaderPrimary)),
             Span::styled(
-                " Claude ",
-                theme
-                    .style(ThemeToken::HeaderPrimary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                "Code ",
+                " Claude Code ",
                 theme
                     .style(ThemeToken::HeaderPrimary)
                     .add_modifier(Modifier::BOLD),
@@ -35,12 +28,11 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    // Split inner area horizontally into Left Welcome Pane (58% / min 45 cols), Divider (1 col), and Right Information Rail
-    let left_width = (inner.width * 58 / 100).max(45);
+    // Split inner area horizontally into Left Welcome Pane (45 cols), Divider (1 col), and Right Information Rail
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(left_width),
+            Constraint::Length(45),
             Constraint::Length(1),
             Constraint::Min(0),
         ])
@@ -50,14 +42,13 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let divider_area = chunks[1];
     let right_area = chunks[2];
 
-    // Render Vertical Divider at boundary (column x=47) in subtle grey (#505050 / RGB(80, 80, 80))
+    // Render Vertical Divider at boundary (column x=47)
     let buf = f.buffer_mut();
-    let divider_style = theme.style(ThemeToken::BorderSubtle);
     for y in divider_area.y..(divider_area.y + divider_area.height) {
         if divider_area.x < buf.area.width && y < buf.area.height {
             buf.get_mut(divider_area.x, y)
                 .set_symbol("│")
-                .set_style(divider_style);
+                .set_style(theme.style(ThemeToken::BorderSubtle));
         }
     }
 
@@ -133,4 +124,3 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, _state: &UiState, theme: &Theme) {
     let right_p = Paragraph::new(right_lines);
     f.render_widget(right_p, right_area);
 }
-

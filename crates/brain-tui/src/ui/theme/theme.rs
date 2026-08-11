@@ -36,7 +36,6 @@ pub struct Theme {
     selection: Style,
     focus: Style,
     border_subtle: Style,
-    suggestion: Style,
     code_inline: Style,
     code_block: Style,
     link: Style,
@@ -97,8 +96,7 @@ impl Theme {
 
         let border = Style::default().fg(palette.muted);
         let border_active = primary;
-        let border_subtle = Style::default().fg(palette.border_subtle);
-        let suggestion = Style::default().fg(palette.suggestion);
+        let border_subtle = Style::default().fg(palette.muted);
 
         let code_inline = Style::default().fg(palette.code_inline);
         let code_block = Style::default().fg(palette.code_block);
@@ -128,14 +126,13 @@ impl Theme {
             selection,
             focus,
             border_subtle,
-            suggestion,
             code_inline,
             code_block,
             link,
             tag,
             thinking: Style::default().fg(palette.thinking),
             streaming: Style::default().fg(palette.streaming),
-            user: Style::default().bg(palette.user),
+            user: Style::default().fg(palette.user),
             assistant: Style::default().fg(palette.assistant),
             tool: Style::default().fg(palette.tool),
             system: Style::default().fg(palette.system),
@@ -217,7 +214,6 @@ impl ActiveTheme for Theme {
             ThemeToken::Border => self.border,
             ThemeToken::BorderActive => self.border_active,
             ThemeToken::BorderSubtle => self.border_subtle,
-            ThemeToken::Suggestion => self.suggestion,
             ThemeToken::Cursor => self.cursor,
             ThemeToken::CodeInline => self.code_inline,
             ThemeToken::CodeBlock => self.code_block,
@@ -265,7 +261,6 @@ mod tests {
         ThemeToken::Border,
         ThemeToken::BorderActive,
         ThemeToken::BorderSubtle,
-        ThemeToken::Suggestion,
         ThemeToken::Cursor,
         ThemeToken::CodeInline,
         ThemeToken::CodeBlock,

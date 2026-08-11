@@ -55,8 +55,6 @@ pub enum ThemeToken {
     Link,
     /// Tag/badge style.
     Tag,
-    /// Command palette suggestion / category color (#AFB9F9).
-    Suggestion,
 
     /// Active thinking state.
     Thinking,

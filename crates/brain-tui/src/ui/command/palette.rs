@@ -221,24 +221,17 @@ impl CommandPaletteState {
         (sections, flat_items)
     }
 
-    /// Moves palette selection down with wrapped boundary bounds.
+    /// Moves palette selection down with clamped boundary bounds.
     pub fn move_selection_down(&mut self) {
         let count = self.matches().len();
         if count > 0 {
-            self.selected_index = (self.selected_index + 1) % count;
+            self.selected_index = (self.selected_index + 1).min(count - 1);
         }
     }
 
-    /// Moves palette selection up with wrapped boundary bounds.
+    /// Moves palette selection up with clamped boundary bounds.
     pub fn move_selection_up(&mut self) {
-        let count = self.matches().len();
-        if count > 0 {
-            if self.selected_index == 0 {
-                self.selected_index = count - 1;
-            } else {
-                self.selected_index -= 1;
-            }
-        }
+        self.selected_index = self.selected_index.saturating_sub(1);
     }
 
     /// Returns active selected command title string.
