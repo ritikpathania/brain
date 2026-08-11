@@ -5,11 +5,11 @@
 **Goal:** Reconstruct Brain TUI's rendering, component hierarchy, geometry, styling, and state interactivity to achieve bit-exact cell-level parity with the local Claude reference implementation (`/Users/ritikpathania/Developer/src`) and screenshots across viewports (`80×24`, `127×24`, `80×34`, `182×53`).
 
 **Architecture:** Rebuild the presentation layer in `crates/brain-tui/src/ui/` around a **Bit-Exact Cell Oracle** (`CellSpec` matrix comparison of 8 properties: symbol, foreground RGB, background RGB, bold, italic, underlined, dim, reversed):
-- `CellOracle`: Full-grid cell specification test harness comparing all 8 properties per cell with structured diff diagnostics on failure showing `(x, y)`, `Expected`, and `Actual`.
-- `Reference Authority`: Fixtures extracted from `/Users/ritikpathania/Developer/src`. NEVER generated from Brain output.
+- `CellOracle`: Full-grid cell specification test harness (`assert_cell_grid_eq`) comparing all 8 properties per cell with structured diff diagnostics on failure showing `(x, y)`, `Expected`, and `Actual`.
+- `Reference Authority`: Fixtures extracted from `/Users/ritikpathania/Developer/src` saved in `crates/brain-tui/tests/fixtures/claude_reference/*.json`. NEVER generated from Brain output.
 - `Allowed Scope`: `crates/brain-tui/src/ui/`, `crates/brain-tui/src/state.rs`, `crates/brain-tui/src/ui/interaction/dispatcher.rs`, `crates/brain-tui/tests/`.
 - `ThemeSystem`: Canonical RGB palette (`claude` orange `#D77757`, `suggestion` blue-purple `#AFB9F9`, `selectionBg` `#264F78`, `subtle` `#505050`, `promptBorder` `#888888`).
-- `HomeWelcomeWidget`: Terracotta surface at `y = 2`, integrated title, 2-column split at col 47, right rail, ambient status `● xhigh · /effort`.
+- `HomeWelcomeWidget`: Terracotta surface at `y = 2`, top border title at `x = 3..24` (`" Claude Code v2.1.226 "`), left pane `x = 2..46`, divider at `x = 47`, right rail `x = 48..77`, right edge `x = 78`, ambient status `● xhigh · /effort`.
 - `WorkspaceDashboardWidget`: Full-width task table, multi-agent counts header, background banner, interactive `Up`/`Down` session selection, `Enter` to open session, `Esc` to return to previous foreground screen.
 - `PromptWidget` & `QuietFooter`: Chevron prefix `❯ `, contextual placeholders, quiet status footer `▍▍ manual mode on · ? for shortcuts · ⬅ 3 agents`.
 - `CommandPaletteWidget`: 3-column dropdown (Name, Type/Category in `#AFB9F9`, Description), key navigation (`Up`/`Down`/`Enter`/`Esc`), backed by real Brain commands.
@@ -27,17 +27,19 @@
 
 **Files:**
 - Create: `crates/brain-tui/tests/common/cell_oracle.rs`
+- Create: `crates/brain-tui/tests/fixtures/claude_reference/80x24_home.json`
 - Create: `crates/brain-tui/tests/claude_visual_oracle_tests.rs`
 
-- [ ] **Step 1: Implement 8-property `CellSpec` and `inspect_cell_grid` helper with structured diff diagnostics**
+- [ ] **Step 1: Implement 8-property `CellSpec` and `assert_cell_grid_eq` oracle helper with structured diff diagnostics**
 
 ```rust
 // crates/brain-tui/tests/common/cell_oracle.rs
 use ratatui::backend::TestBackend;
 use ratatui::style::{Color, Modifier};
 use ratatui::Terminal;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CellSpec {
     pub symbol: String,
     pub fg: Option<Color>,
@@ -63,12 +65,33 @@ pub fn inspect_cell(terminal: &Terminal<TestBackend>, x: u16, y: u16) -> CellSpe
         reversed: cell.style().add_modifier.contains(Modifier::REVERSED),
     }
 }
+
+pub fn assert_cell_grid_eq(actual: &Terminal<TestBackend>, expected: &[Vec<CellSpec>], w: u16, h: u16) {
+    let mut mismatches = Vec::new();
+    for y in 0..h {
+        for x in 0..w {
+            let act = inspect_cell(actual, x, y);
+            let exp = &expected[y as usize][x as usize];
+            if &act != exp {
+                mismatches.push((x, y, exp.clone(), act));
+            }
+        }
+    }
+    if !mismatches.is_empty() {
+        let mut msg = format!("\nVisual Oracle Failure at Viewport {}x{} [Mismatch Count: {}]\n", w, h, mismatches.length());
+        for (x, y, exp, act) in mismatches.iter().take(20) {
+            msg.push_str(&format!("Coordinate ({}, {}):\n  Expected: {:?}\n  Actual:   {:?}\n", x, y, exp, act));
+        }
+        panic!("{}", msg);
+    }
+}
 ```
 
-- [ ] **Step 2: Write initial failing oracle test in `claude_visual_oracle_tests.rs`** asserting border corner cell `(1, 2)` foreground is `Color::Rgb(215, 119, 87)`.
-- [ ] **Step 3: Run test to verify it fails** (`cargo test -p brain-tui --test claude_visual_oracle_tests`).
-- [ ] **Step 4: Phase 1 Gate Check**: Verify 0 production UI files modified, oracle infrastructure and reference fixtures complete.
-- [ ] **Step 5: Commit**: `git commit -m "test(ui): add cell-level visual oracle test infrastructure with structured diff diagnostics"`.
+- [ ] **Step 2: Add canonical reference fixture `80x24_home.json` extracted from `/Users/ritikpathania/Developer/src`**.
+- [ ] **Step 3: Write initial failing oracle test in `claude_visual_oracle_tests.rs`** executing `assert_cell_grid_eq`.
+- [ ] **Step 4: Run test to verify it fails** (`cargo test -p brain-tui --test claude_visual_oracle_tests`).
+- [ ] **Step 5: Phase 1 Gate Check**: Verify 0 production UI files modified, oracle infrastructure and reference fixtures complete.
+- [ ] **Step 6: Commit**: `git commit -m "test(ui): add full-grid cell-level visual oracle test infrastructure and reference fixtures"`.
 
 ---
 
@@ -94,7 +117,7 @@ pub fn inspect_cell(terminal: &Terminal<TestBackend>, x: u16, y: u16) -> CellSpe
 - Modify: `crates/brain-tui/src/ui/renderer.rs`
 - Test: `crates/brain-tui/tests/home_welcome_tests.rs`
 
-- [ ] **Step 1: Write cell-oracle tests verifying border box at `y = 2`, integrated title color `#D77757`, vertical divider `│` at `x = 47` in `#505050`, ambient status at `y = 19`**.
+- [ ] **Step 1: Write cell-oracle tests verifying top border at `y = 2`, title at `x = 3..24`, left pane `x = 2..46`, divider `│` at `x = 47` in `#505050`, right rail `x = 48..77`, right edge `x = 78`, ambient status at `y = 19`**.
 - [ ] **Step 2: Update `home_welcome.rs` and `renderer.rs`**.
 - [ ] **Step 3: Run test to verify it passes** (`cargo test -p brain-tui --test home_welcome_tests`).
 - [ ] **Step 4: Commit**: `git commit -m "feat(ui): reconstruct HomeWelcomeWidget with exact terracotta border and cell geometry"`.
