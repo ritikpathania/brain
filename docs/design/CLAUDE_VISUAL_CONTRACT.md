@@ -8,9 +8,10 @@
 ## 1. Zero-Trust Cell-Level Oracle Infrastructure
 
 ### Cell Specification Contract
-Visual parity MUST NOT be asserted using loose substring matching (`contains()`). Parity is defined as a bit-exact cell-by-cell equality across every `(x, y)` coordinate in the terminal buffer:
+Visual parity MUST NOT be asserted using loose substring matching (`contains()`). Parity is defined as a bit-exact equality of **all 8 cell properties** across every `(x, y)` coordinate in the terminal buffer:
 
 ```rust
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CellSpec {
     pub symbol: String,
     pub fg: Option<ratatui::style::Color>,
@@ -23,11 +24,52 @@ pub struct CellSpec {
 }
 ```
 
-A cell mismatch in any property (`symbol`, `fg`, `bg`, `bold`, `italic`, `dim`, `reversed`) at any coordinate `(x, y)` is a **CRITICAL TEST FAILURE**.
+A cell mismatch in ANY of the 8 properties (`symbol`, `fg`, `bg`, `bold`, `italic`, `underlined`, `dim`, `reversed`) at any coordinate `(x, y)` is a **CRITICAL TEST FAILURE**.
+
+### Full-Buffer Diagnostic Formatting
+When a cell oracle comparison fails, the test harness MUST output a structured diff detailing:
+- Viewport size (`W × H`)
+- Precise coordinate `(x, y)`
+- Expected `CellSpec` vs Actual `CellSpec`
+
+```text
+Visual Oracle Failure at Viewport 80×24
+Coordinate: (47, 3)
+
+Expected:
+  symbol = "│"
+  fg = Rgb(80, 80, 80)
+  bg = None
+  bold = false
+  italic = false
+  underlined = false
+  dim = false
+  reversed = false
+
+Actual:
+  symbol = "|"
+  fg = Reset
+  bg = None
+  bold = false
+  italic = false
+  underlined = false
+  dim = false
+  reversed = false
+```
 
 ---
 
-## 2. Canonical Theme Tokens & Cell Styles
+## 2. Allowed Implementation Scope
+
+To prevent architectural drift while enabling full state machine fidelity:
+- **Presentation Layer**: `crates/brain-tui/src/ui/`
+- **TUI State & Reducer Layer**: `crates/brain-tui/src/state.rs`, `crates/brain-tui/src/ui/interaction/dispatcher.rs`
+- **TUI Test Suite**: `crates/brain-tui/tests/`
+- **Forbidden Crates**: `brain-domain`, `brain-core`, `brain-storage`, `brain-services`, `brain-events`. ZERO changes permitted.
+
+---
+
+## 3. Canonical Theme Tokens & RGB Palette
 
 Source: `/Users/ritikpathania/Developer/src/DESIGN.md` (Lines 31–119)
 
@@ -45,7 +87,7 @@ Source: `/Users/ritikpathania/Developer/src/DESIGN.md` (Lines 31–119)
 
 ---
 
-## 3. Viewport Geometry & Component Allocations
+## 4. Viewport Geometry & Component Allocations
 
 ### Certified Viewport Matrix
 
@@ -82,9 +124,9 @@ Source: `/Users/ritikpathania/Developer/src/DESIGN.md` (Lines 31–119)
 
 ---
 
-## 4. State & Reducer Interaction Matrix
+## 5. State & Reducer Interaction Matrix
 
-### Interactivity Verification Protocol
+### Authoritative State Transitions (Verified from Claude Reference `/Users/ritikpathania/Developer/src`)
 
 ```text
 [State::Home]
@@ -118,7 +160,7 @@ Source: `/Users/ritikpathania/Developer/src/DESIGN.md` (Lines 31–119)
 
 ---
 
-## 5. Negative Assertion Invariants
+## 6. Negative Assertion Invariants
 
 The following legacy structures MUST emit ZERO matches across all cell buffers:
 1. `!buffer.contains("System Status")`

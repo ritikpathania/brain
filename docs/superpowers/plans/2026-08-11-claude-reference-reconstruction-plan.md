@@ -4,20 +4,21 @@
 
 **Goal:** Reconstruct Brain TUI's rendering, component hierarchy, geometry, styling, and state interactivity to achieve bit-exact cell-level parity with the local Claude reference implementation (`/Users/ritikpathania/Developer/src`) and screenshots across viewports (`80×24`, `127×24`, `80×34`, `182×53`).
 
-**Architecture:** Rebuild the presentation layer in `crates/brain-tui/src/ui/` around a **Bit-Exact Cell Oracle** (`CellSpec` matrix comparison of symbol, foreground RGB, background RGB, and ANSI modifiers):
-- `CellOracle`: Full-grid cell specification test harness comparing `(symbol, fg, bg, bold, italic, dim, reversed)` per cell.
+**Architecture:** Rebuild the presentation layer in `crates/brain-tui/src/ui/` around a **Bit-Exact Cell Oracle** (`CellSpec` matrix comparison of 8 properties: symbol, foreground RGB, background RGB, bold, italic, underlined, dim, reversed):
+- `CellOracle`: Full-grid cell specification test harness comparing all 8 properties per cell with structured diff diagnostics on failure showing `(x, y)`, `Expected`, and `Actual`.
+- `Allowed Scope`: `crates/brain-tui/src/ui/`, `crates/brain-tui/src/state.rs`, `crates/brain-tui/src/ui/interaction/dispatcher.rs`, `crates/brain-tui/tests/`.
 - `ThemeSystem`: Canonical RGB palette (`claude` orange `#D77757`, `suggestion` blue-purple `#AFB9F9`, `selectionBg` `#264F78`, `subtle` `#505050`, `promptBorder` `#888888`).
 - `HomeWelcomeWidget`: Terracotta surface at `y = 2`, integrated title, 2-column split at col 47, right rail, ambient status `● xhigh · /effort`.
-- `WorkspaceDashboardWidget`: Full-width task table, multi-agent counts header, background banner, interactive `Up`/`Down` session selection, `Enter` to open session, `Esc` to return.
+- `WorkspaceDashboardWidget`: Full-width task table, multi-agent counts header, background banner, interactive `Up`/`Down` session selection, `Enter` to open session, `Esc` to return to `Screen::Home`/`Screen::Conversation`.
 - `PromptWidget` & `QuietFooter`: Chevron prefix `❯ `, contextual placeholders, quiet status footer `▍▍ manual mode on · ? for shortcuts · ⬅ 3 agents`.
 - `CommandPaletteWidget`: 3-column dropdown (Name, Type/Category in `#AFB9F9`, Description), key navigation (`Up`/`Down`/`Enter`/`Esc`), backed by real Brain commands.
 
 **Tech Stack:** Rust, Ratatui (TUI rendering framework), Crossterm.
 
 ## Global Constraints
-- **Zero Synthetic Approximations**: Do NOT substitute loose text matching for cell geometry. Cell-by-cell equality is mandatory.
+- **Zero Synthetic Approximations**: Do NOT substitute loose text matching for cell geometry. Cell-by-cell equality across all 8 properties is mandatory.
 - **Zero Backend Mutation**: Do NOT modify `brain-domain`, `brain-core`, `brain-storage`, `brain-services`, or `brain-events`.
-- **Strict Visual Scope**: All implementation changes are strictly confined to `crates/brain-tui/src/ui/` and `crates/brain-tui/tests/`.
+- **Allowed Scope Boundary**: Changes permitted strictly within `crates/brain-tui/src/ui/`, `crates/brain-tui/src/state.rs`, `crates/brain-tui/src/ui/interaction/dispatcher.rs`, and `crates/brain-tui/tests/`.
 
 ---
 
@@ -27,15 +28,15 @@
 - Create: `crates/brain-tui/tests/common/cell_oracle.rs`
 - Create: `crates/brain-tui/tests/claude_visual_oracle_tests.rs`
 
-- [ ] **Step 1: Implement `CellSpec` and `buffer_to_cell_grid` helper**
+- [ ] **Step 1: Implement 8-property `CellSpec` and `inspect_cell_grid` helper with structured diff diagnostics**
 
 ```rust
 // crates/brain-tui/tests/common/cell_oracle.rs
 use ratatui::backend::TestBackend;
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier};
 use ratatui::Terminal;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CellSpec {
     pub symbol: String,
     pub fg: Option<Color>,
@@ -54,18 +55,18 @@ pub fn inspect_cell(terminal: &Terminal<TestBackend>, x: u16, y: u16) -> CellSpe
         symbol: cell.symbol().to_string(),
         fg: cell.style().fg,
         bg: cell.style().bg,
-        bold: cell.style().add_modifier.contains(ratatui::style::Modifier::BOLD),
-        italic: cell.style().add_modifier.contains(ratatui::style::Modifier::ITALIC),
-        underlined: cell.style().add_modifier.contains(ratatui::style::Modifier::UNDERLINED),
-        dim: cell.style().add_modifier.contains(ratatui::style::Modifier::DIM),
-        reversed: cell.style().add_modifier.contains(ratatui::style::Modifier::REVERSED),
+        bold: cell.style().add_modifier.contains(Modifier::BOLD),
+        italic: cell.style().add_modifier.contains(Modifier::ITALIC),
+        underlined: cell.style().add_modifier.contains(Modifier::UNDERLINED),
+        dim: cell.style().add_modifier.contains(Modifier::DIM),
+        reversed: cell.style().add_modifier.contains(Modifier::REVERSED),
     }
 }
 ```
 
 - [ ] **Step 2: Write initial failing oracle test in `claude_visual_oracle_tests.rs`** asserting cell `(1, 2)` foreground is `Color::Rgb(215, 119, 87)`.
 - [ ] **Step 3: Run test to verify it fails** (`cargo test -p brain-tui --test claude_visual_oracle_tests`).
-- [ ] **Step 4: Commit**: `git commit -m "test(ui): add cell-level visual oracle test infrastructure"`.
+- [ ] **Step 4: Commit**: `git commit -m "test(ui): add cell-level visual oracle test infrastructure with structured diff diagnostics"`.
 
 ---
 
@@ -125,7 +126,7 @@ pub fn inspect_cell(terminal: &Terminal<TestBackend>, x: u16, y: u16) -> CellSpe
   - Dispatch `Action::NavigateDown` -> assert selected row index changes to 1, row background is `selectionBg` (`#264F78`).
   - Dispatch `Action::NavigateUp` -> assert selected row index returns to 0.
   - Dispatch `Action::SelectSession` -> assert `screen` transitions to `Screen::Conversation`.
-  - Dispatch `Action::Escape` -> assert `screen` returns to `Screen::Workspace`.
+  - Dispatch `Action::Escape` -> assert `screen` transitions back to `Screen::Home` / `Screen::Conversation`.
 - [ ] **Step 2: Run test to verify it fails** (`cargo test -p brain-tui --test workspace_dashboard_tests`).
 - [ ] **Step 3: Implement keyboard routing and reducer transitions in `dispatcher.rs` and `state.rs`**.
 - [ ] **Step 4: Run test to verify it passes** (`cargo test -p brain-tui --test workspace_dashboard_tests`).
