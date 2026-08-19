@@ -122,6 +122,13 @@ plugin({
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterLeftSide.tsx') };
     });
 
+    build.onResolve({ filter: /PromptInputFooter(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('PromptInput')) {
+        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooter.tsx') };
+      }
+      return undefined;
+    });
+
     build.onResolve({ filter: /useTextInput(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('shims/useTextInput.ts')) {
         return undefined;
