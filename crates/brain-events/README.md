@@ -1,22 +1,27 @@
 # brain-events
 
 ## Purpose
-Command & Event message envelopes, and Event Bus interfaces.
+In-memory event bus and typed event envelope dispatching.
 
 ## Responsibilities
-* Define synchronous command enum taxonomies (`SessionCommand`, `StorageCommand`, `PluginCommand`, etc.).
-* Define asynchronous fire-and-forget event structures (`SystemEvent`, `SessionEvent`, `AgentEvent`, etc.) wrapped in metadata-rich envelopes.
-* Implement traits for Event Publishers and Event Subscribers.
-* Isolate sync request-response logic from async telemetry/notifications.
+* Provide broadcast and mpsc async event channels for domain and stream events.
+* Package domain events into versioned `EventEnvelope` wrappers with sequence IDs.
 
-## Dependencies
-* **Allowed:** `brain-domain`, `brain-core`.
-* **Forbidden:** `brain-storage`, `brain-services`, `brain-tui`, `brain-python`, `brain-plugins`.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `tokio`, `serde`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Commands: `Command`, `CommandResult`, `SessionCommand`, `StorageCommand`, `PluginCommand`, `ToolCommand`, `ConfigCommand`, `AgentCommand`, `CommandDispatcher`
-* Events: `EventEnvelope`, `DomainEvent`, `SystemEvent`, `SessionEvent`, `AgentEvent`, `StorageEvent`, `PluginEvent`, `UIEvent`
-* Messaging: `EventPublisher`, `EventSubscriber`
+## Public API & Facades
+* `EventBus`, `EventEnvelope`, `EventSubscriber`.
 
-## Owner
-Infrastructure Team
+## Invariants Protected
+* Strict separation between DomainEvent, EventEnvelope, and StreamEvent.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-events`
+
+## Maintainer
+See `CODEOWNERS`.

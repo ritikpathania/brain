@@ -67,6 +67,11 @@ pub enum ApplicationRequest {
     CompileIrSummary,
     /// List active chat sessions
     ListSessions,
+    /// Retrieve historical messages for a session
+    GetSession {
+        /// Session identifier string
+        session_id: String,
+    },
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
@@ -119,6 +124,8 @@ pub enum ApplicationResponse {
     CompileIrSummary(v1::CompilerIrSummaryDto),
     /// Sessions list JSON string
     ListSessions(String),
+    /// Session messages JSON string
+    GetSession(String),
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -180,8 +187,8 @@ impl RequestDispatcher {
                 Ok(ApplicationResponse::Reflect(report))
             }
             ApplicationRequest::ReflectStatus => {
-                let status = self.app.reflect_status().await?;
-                Ok(ApplicationResponse::ReflectStatus(status))
+                let report = self.app.reflect_status().await?;
+                Ok(ApplicationResponse::ReflectStatus(report))
             }
             ApplicationRequest::ReflectReport => {
                 let report = self.app.last_reflection_report().await?;
@@ -252,6 +259,25 @@ impl RequestDispatcher {
                     }
                     Err(e) => Err(ApplicationError::Internal(format!(
                         "list_sessions failed: {}",
+                        e
+                    ))),
+                }
+            }
+            ApplicationRequest::GetSession { session_id } => {
+                let id = session_id.parse::<brain_domain::SessionId>().map_err(|e| {
+                    ApplicationError::Internal(format!("Invalid session_id: {}", e))
+                })?;
+                let storage = self.app.runtime().sqlite_storage();
+                use brain_core::repositories::SessionRepository;
+                match storage.load_session(&id) {
+                    Ok(Some(session)) => {
+                        let wire = serde_json::to_string(&session.messages)
+                            .unwrap_or_else(|_| "[]".to_string());
+                        Ok(ApplicationResponse::GetSession(wire))
+                    }
+                    Ok(None) => Ok(ApplicationResponse::GetSession("[]".to_string())),
+                    Err(e) => Err(ApplicationError::Internal(format!(
+                        "load_session failed: {}",
                         e
                     ))),
                 }

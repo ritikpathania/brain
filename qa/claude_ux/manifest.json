@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-08-16T09:47:00.000Z",
+  "target": "Claude Code v2.1.232 Hosted Runtime",
+  "seam": "QueryDeps.callModel (vendor/claude/query/deps.ts)",
+  "summary": {
+    "total_features_cataloged": 22,
+    "keep_count": 14,
+    "replace_count": 4,
+    "adapt_count": 4,
+    "remove_count": 0,
+    "defer_count": 0,
+    "unknown_count": 0
+  },
+  "categories": [
+    "startup",
+    "composer",
+    "commands",
+    "permissions",
+    "tools",
+    "streaming",
+    "rendering",
+    "sessions",
+    "reasoning",
+    "config"
+  ]
+}

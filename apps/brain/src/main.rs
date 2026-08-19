@@ -254,7 +254,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(status.code().unwrap_or(0));
             }
             Some(DaemonAction::Run) => {
-                CLIHost::run_daemon().await?;
+                let (bin_path, origin) =
+                    resolve_daemon_executable().map_err(std::io::Error::other)?;
+                if std::env::var("BRAIN_DEBUG").is_ok() {
+                    eprintln!(
+                        "[daemon resolver] Resolved daemon binary from {:?} ({})",
+                        origin,
+                        bin_path.display()
+                    );
+                }
+                let status = std::process::Command::new(bin_path)
+                    .args(["daemon", "run"])
+                    .status()?;
+                std::process::exit(status.code().unwrap_or(0));
             }
             None => {
                 println!("brain daemon subcommands: start, stop, status, run");

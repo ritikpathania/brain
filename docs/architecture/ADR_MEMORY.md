@@ -85,7 +85,7 @@ Regardless of entry point (search hit, memory item, context node, or graph link)
 
 ## 6. Architectural Invariant Traceability
 
-This ADR explicitly enforces the canonical invariants defined in [ARCHITECTURAL_INVARIANTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/ARCHITECTURAL_INVARIANTS.md):
+This ADR explicitly enforces the canonical invariants defined in [ARCHITECTURAL_INVARIANTS.md](ARCHITECTURAL_INVARIANTS.md):
 
 - **Invariant 1 (DDD Layering)**: `brain-domain` owns memory models (`MemoryId`, `Observation`) with zero UI dependencies.
 - **Invariant 4 (Presentation ViewModel Separation)**: Memory inspection views use immutable projections (`MemoryViewModel`).

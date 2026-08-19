@@ -1,18 +1,14 @@
-# Historical Documentation Archive Index
+# Brain Historical Documentation Archive
 
-This directory contains historical design discussions, sprint reports, migration retrospectives, and superseded ADRs preserved for historical reference under `docs/archive/`.
+## Archival Governance
+This directory contains historical design discussions, superseded ADRs, migration plans, and forensic sprint logs.
 
-> [!NOTE]
-> Active specifications live under `docs/architecture/` and `docs/reference/`. Documents in this archive describe past development iterations and design evolution.
+> Active documentation describes the system as it exists today. Artifacts under `docs/archive/` are preserved for provenance and auditability and are not authoritative for current system behavior.
 
-## Archive Index
-
-* **[historical/grok_build_research.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/historical/grok_build_research.md)**: Architectural analysis of third-party Grok Build TUI & design system.
-* **[historical-adrs/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/historical-adrs/)**: Superseded and historical ADRs (ADR-000 through ADR-009, ADR-030).
-    * `ADR-000.md` to `ADR-009.md`
-    * `ADR-030-migration-completed.md`
-* **[migration/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/migration/)**: Native Ratatui & TUI migration parity and audit reports.
-    * `parity_audit_report.md`
-    * `native_ratatui_migration_report.md`
-    * `purge_report.md`
-* **[sprint-reports/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/sprint-reports/)**: Sprint retrospectives, feature design plans, and execution logs (37 reports).
+## Archive Subsystems
+* **[frontend-parity/](frontend-parity/README.md)**: Ratatui TUI reconstruction sprint reports, parity audits, and verification logs.
+* **[historical-adrs/](historical-adrs/ADR-009.md)**: Superseded Architectural Decision Records (e.g. Ink TUI adoption).
+* **[migration/](migration/native_ratatui_migration_report.md)**: Framework migration reports and purge verification logs.
+* **[sprint-reports/](sprint-reports/README.md)**: Chronological sprint deliverables (2026-Q2, 2026-Q3).
+* **[evaluation/](evaluation/README.md)**: Historical model calibration and ranking evaluation benchmarks.
+* **[release-history/](release-history/README.md)**: Point-in-time release certification records.

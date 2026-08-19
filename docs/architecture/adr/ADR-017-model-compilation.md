@@ -18,7 +18,7 @@ We decouple model representation into serializable definitions and compiled layo
 * **JIT Compilation**: Dynamic runtime code generation. Rejected due to security concerns, platform portability issues, and complex toolchain dependency.
 
 ## Related ADRs
-* [ADR-015 (Strategy Interfaces)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)
+* [ADR-015 (Strategy Interfaces)](ADR-015-strategy-interfaces.md)
 
 ## Consequences & Tradeoffs
 * **Startup / Load Latency**: Introduces a compilation step when instantiating the scoring model.

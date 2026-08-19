@@ -27,7 +27,7 @@ impl StateReducer for JobProjectionReducer {
 
     fn reduce(
         &self,
-        conn: &rusqlite::Connection,
+        conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         let seq = envelope.sequence.ok_or_else(|| BrainError::Storage {
@@ -154,7 +154,7 @@ impl StateReducer for JobProjectionReducer {
         Ok(())
     }
 
-    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, conn: &brain_storage::Connection) -> Result<(), BrainError> {
         self.repo.clear_all_conn(conn)
     }
 }

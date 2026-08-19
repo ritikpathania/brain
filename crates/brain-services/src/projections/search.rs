@@ -28,7 +28,7 @@ impl StateReducer for SearchProjectionReducer {
 
     fn reduce(
         &self,
-        conn: &rusqlite::Connection,
+        conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         let seq = envelope.sequence.ok_or_else(|| BrainError::Storage {
@@ -186,7 +186,7 @@ impl StateReducer for SearchProjectionReducer {
         Ok(())
     }
 
-    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, conn: &brain_storage::Connection) -> Result<(), BrainError> {
         self.repo.clear_all_conn(conn)
     }
 }

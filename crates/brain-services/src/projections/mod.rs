@@ -30,12 +30,12 @@ pub trait StateReducer: Send + Sync {
     /// Runs atomically inside the active transaction on the provided connection.
     fn reduce(
         &self,
-        conn: &rusqlite::Connection,
+        conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError>;
     /// Resets the reducer state back to initial/empty conditions.
     /// Runs atomically inside the active transaction on the provided connection.
-    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError>;
+    fn reset(&self, conn: &brain_storage::Connection) -> Result<(), BrainError>;
 }
 
 pub use jobs::JobProjectionReducer;

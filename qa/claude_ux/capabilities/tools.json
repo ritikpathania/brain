@@ -1,0 +1,101 @@
+[
+  {
+    "id": "tools.tool_call_stream",
+    "name": "Streaming Tool Invocation Header",
+    "category": "tools",
+    "user_action": "Model emits tool_use content block",
+    "frontend": [
+      "REPL",
+      "ToolUseLoader",
+      "Messages"
+    ],
+    "state_transition": "content_block_start(type: tool_use) -> setStreamMode(tool-input)",
+    "orchestration": [
+      "query.ts::queryLoop()",
+      "StreamingToolExecutor.ts"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::handleMessageFromStream()"
+    ],
+    "backend": [
+      "Brain Engine Tool Call Generator"
+    ],
+    "events": [
+      "content_block_start",
+      "input_json_delta",
+      "content_block_stop"
+    ],
+    "state_mutation": "streamingToolUses.push({ name, inputJson })",
+    "rendered_ui": "Tool use card mounted (e.g. Bash(command: ...)) with spinner",
+    "persistence": [],
+    "classification": "ADAPT",
+    "rationale": "Brain generates tool_use blocks; Claude streams & renders the invocation.",
+    "seam_impact": "Seam: QueryDeps.callModel yields tool_use blocks."
+  },
+  {
+    "id": "tools.permission_prompt",
+    "name": "Interactive Tool Permission Confirmation",
+    "category": "tools",
+    "user_action": "Tool requires confirmation (e.g. mutating bash command)",
+    "frontend": [
+      "PermissionRequest",
+      "Dialog",
+      "Button"
+    ],
+    "state_transition": "StreamingToolExecutor prompts user for permission approval",
+    "orchestration": [
+      "utils/permissions/permissionSetup.ts",
+      "Tool.call()"
+    ],
+    "runtime_services": [
+      "utils/permissions/permissions.ts"
+    ],
+    "backend": [
+      "Local security policy"
+    ],
+    "events": [],
+    "state_mutation": "Permission decision: allowOnce | allowAlways | deny",
+    "rendered_ui": "Bordered permission modal: Allow command: git commit? [Y/n/always]",
+    "persistence": [
+      "~/.claude/settings.json (for always-allow rules)"
+    ],
+    "classification": "KEEP",
+    "rationale": "Claude owns permission checks and UI dialogs; ensures zero security regression.",
+    "seam_impact": "None. Executed natively by Claude queryLoop."
+  },
+  {
+    "id": "tools.native_execution",
+    "name": "Native Tool Execution (Bash, Edit, Read, Glob, Grep)",
+    "category": "tools",
+    "user_action": "Approved tool runs on host system",
+    "frontend": [
+      "REPL",
+      "Messages",
+      "ToolResultMessage"
+    ],
+    "state_transition": "Executes Tool.call(input) -> produces ToolResultBlock",
+    "orchestration": [
+      "StreamingToolExecutor.ts",
+      "tools/BashTool.ts",
+      "tools/EditTool.ts"
+    ],
+    "runtime_services": [
+      "tools/BashTool/BashTool.ts",
+      "tools/FileEditTool/FileEditTool.ts"
+    ],
+    "backend": [
+      "Host OS process / filesystem / MCP"
+    ],
+    "events": [
+      "progress"
+    ],
+    "state_mutation": "Constructs UserMessage with ToolResultBlock",
+    "rendered_ui": "Tool output box rendered (syntax-highlighted code / diff / command stdout)",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "KEEP",
+    "rationale": "Claude executes tools locally; preserves complete tool ecosystem.",
+    "seam_impact": "Seam: Subsequent callModel receives paired tool_use + tool_result."
+  }
+]

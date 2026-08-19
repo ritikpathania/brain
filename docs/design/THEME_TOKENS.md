@@ -1,56 +1,29 @@
 ---
-status: active
-owner: tui
-canonical: true
-review_cycle: quarterly
-last_reviewed: 2026-07-30
-applies_to: v0.8+
+status: superseded
+superseded_by: docs/design/CLAUDE_VISUAL_CONTRACT.md
+date_superseded: 2026-08-14
+historical_category: legacy-ui
 ---
 
-# TUI Theme Token Palette Specification
+# TUI Theme Token Palette Specification (HISTORICAL ARCHIVE RECORD)
 
-This document defines the canonical theme token palette for the Brain Terminal User Interface (TUI). All widget components in `crates/brain-tui` reference these semantic tokens rather than raw hex/RGB values.
-
----
-
-## 1. Brand & Accent Tokens
-
-| Token | RGB Value | Purpose |
-|---|---|---|
-| `primary` | `rgb(215, 119, 87)` | Brand accent. Headers, active tabs, focused borders. |
-| `primaryShimmer` | `rgb(235, 159, 127)` | Lighter accent for animated shimmer on spinners. |
-| `permissionAccent` | `rgb(156, 136, 255)` | Permission prompts, safety checks, confirmation dialogs. |
+> **GOVERNANCE STATUS — SUPERSEDED & RETIRED**: This specification previously defined raw hex color tokens for legacy Brain themes (including electric violet and cyberpunk palettes).
+>
+> **SOLE CANONICAL AUTHORITY**: All active frontend theme tokens and color values are governed exclusively by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
 
 ---
 
-## 2. Text & Content Tokens
+## 1. Historical Summary
+This document originally specified:
+- Raw hex color mappings for legacy Brain themes.
+- Accent tokens utilizing electric purple (`#6C5CE7`) and neon cyan (`#00CEC9`).
 
-| Token | RGB Value | Purpose |
-|---|---|---|
-| `text` | `rgb(235, 237, 240)` | High-contrast body text. |
-| `textMuted` | `rgb(120, 130, 140)` | Secondary text, timestamps, labels. |
-| `textSubtle` | `rgb(80, 90, 100)` | Disabled or background text. |
+## 2. Supersession Justification
+The theme token system has been standardized on the **source-grounded Claude Code color system** (`/Users/ritikpathania/Developer/src/utils/theme.ts`):
+- `claude`: `rgb(215,119,87)` / `#D77757`
+- `promptBorder`: `rgb(136,136,136)` / `#888888`
+- `subtle`: `rgb(80,80,80)` / `#505050`
+- `permission`: `rgb(177,185,249)` / `#B1B9F9`
+- `autoAccept`: `rgb(175,135,255)` / `#AF87FF`
 
----
-
-## 3. Feedback & Status Tokens
-
-| Token | RGB Value | Purpose |
-|---|---|---|
-| `success` | `rgb(46, 204, 113)` | Operations completed, passing tests, active status. |
-| `warning` | `rgb(241, 196, 15)` | Warnings, non-fatal errors, reconnecting indicators. |
-| `error` | `rgb(231, 76, 60)` | Errors, failed assertions, connection loss. |
-| `info` | `rgb(52, 152, 219)` | Informational banners and system notices. |
-
----
-
-## 4. Spacing & Typography Tokens
-
-```yaml
-spacing:
-  none: 0ch
-  tight: 1ch
-  normal: 2ch
-  relaxed: 3ch
-  section: 4ch
-```
+For current normative specifications, refer directly to [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).

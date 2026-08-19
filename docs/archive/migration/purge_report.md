@@ -73,8 +73,8 @@ The React/Ink client was fully replaced by the native Rust Ratatui library (`cra
 ---
 
 ## 📜 8. Historical References
-* **Parity Audit Report**: Detailed validation results for visual layouts, scroll limits, and stress testing loops can be found in [docs/migration/parity_audit_report.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/migration/parity_audit_report.md).
-* **Migration Report**: Overall native client sign-off parameters are located in [docs/migration/native_ratatui_migration_report.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/migration/native_ratatui_migration_report.md).
+* **Parity Audit Report**: Detailed validation results for visual layouts, scroll limits, and stress testing loops can be found in [docs/migration/parity_audit_report.md](../../migration/parity_audit_report.md).
+* **Migration Report**: Overall native client sign-off parameters are located in [docs/migration/native_ratatui_migration_report.md](../../migration/native_ratatui_migration_report.md).
 
 ---
 

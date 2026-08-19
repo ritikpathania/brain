@@ -1,5 +1,8 @@
 # UX Principles
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document defines the 7 core design principles that guide the Brain Terminal User Interface (TUI) client experience. These principles ensure that Brain remains fast, intuitive, accessible, and robust.
 
 ---

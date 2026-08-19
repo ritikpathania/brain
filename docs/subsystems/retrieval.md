@@ -27,7 +27,7 @@ rfcs:
 
 # Retrieval Engine Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical product search requirements live in [`docs/product/search-architecture.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/product/search-architecture.md) and algorithm details live in [`ADR-025`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical product search requirements live in [`docs/product/search-architecture.md`](../product/search-architecture.md) and algorithm details live in [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md).
 
 ---
 
@@ -79,24 +79,24 @@ The Retrieval Engine executes multi-channel candidate retrieval (BM25 lexical se
 - **Score Monotonicity**: Candidate scores fall within range $[0.0, 1.0]$.
 
 ## 7. Owning Crates
-- [`crates/brain-services`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-services/README.md): Candidate generators, RRF fusion engine, temporal scorers.
+- [`crates/brain-services`](../../crates/brain-services/README.md): Candidate generators, RRF fusion engine, temporal scorers.
 
 ## 8. Implementation Notes
 - Uses Reciprocal Rank Fusion constant $k = 60$.
 - Uses SIMD-accelerated dot-product calculations for BLOB vector embedding distance computation.
 
 ## 9. Canonical References
-- [`docs/product/search-architecture.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/product/search-architecture.md): Search UX and functional requirements.
-- [`ADR-025`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md): Canonical hybrid retrieval architecture specification.
-- [`docs/reference/benchmarking.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/benchmarking.md): Retrieval performance harness.
+- [`docs/product/search-architecture.md`](../product/search-architecture.md): Search UX and functional requirements.
+- [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md): Canonical hybrid retrieval architecture specification.
+- [`docs/reference/benchmarking.md`](../reference/benchmarking.md): Retrieval performance harness.
 
 ## 10. Related ADRs
-- [`ADR-015: Strategy Interfaces`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)
-- [`ADR-025: Hybrid Retrieval Architecture`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md)
+- [`ADR-015: Strategy Interfaces`](../architecture/adr/ADR-015-strategy-interfaces.md)
+- [`ADR-025: Hybrid Retrieval Architecture`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md)
 
 ## 11. Related RFCs
-- [`RFC-005: Hybrid Search`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-005.md)
-- [`RFC-011: Temporal Ranking`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-011-temporal-ranking.md)
+- [`RFC-005: Hybrid Search`](../architecture/rfc/RFC-005.md)
+- [`RFC-011: Temporal Ranking`](../architecture/rfc/RFC-011-temporal-ranking.md)
 
 ## 12. Operations
 - Query latency target: $< 50\text{ ms}$ for combined RRF retrieval.

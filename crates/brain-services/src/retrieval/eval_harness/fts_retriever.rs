@@ -2,7 +2,7 @@ use crate::retrieval::eval_harness::{RetrievalResult, Retriever};
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
 use brain_storage::connection::SqliteConnectionManager;
-use r2d2::Pool;
+use brain_storage::r2d2::Pool;
 
 /// A SQLite FTS5 lexical retriever querying node_search virtual table.
 pub struct FtsRetriever {

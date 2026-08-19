@@ -1,0 +1,10 @@
+{"event": "stream_request_start", "data": {"mode": "requesting"}}
+{"event": "content_block_start", "data": {"index": 0, "type": "thinking"}}
+{"event": "content_block_delta", "data": {"index": 0, "thinking_delta": "Analyzing "}}
+{"event": "content_block_delta", "data": {"index": 0, "thinking_delta": "dependency graph..."}}
+{"event": "content_block_stop", "data": {"index": 0}}
+{"event": "content_block_start", "data": {"index": 1, "type": "text"}}
+{"event": "content_block_delta", "data": {"index": 1, "text_delta": "Analysis complete."}}
+{"event": "content_block_stop", "data": {"index": 1}}
+{"event": "message_stop", "data": {"stop_reason": "end_turn"}}
+{"event": "AssistantMessage", "data": {"content": [{"type": "thinking", "thinking": "Analyzing dependency graph..."}, {"type": "text", "text": "Analysis complete."}]}}

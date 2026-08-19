@@ -109,7 +109,7 @@ fn test_pruning_experiments_controlled_corpus() {
                 conn.execute(
                     "INSERT INTO feedback_events (id, schema_version, query, node_id, selected, timestamp, ranking_position, context) \
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    rusqlite::params![
+                    brain_storage::rusqlite::params![
                         format!("event_{}_{}", n.node_id, i),
                         1,
                         "controlled query",

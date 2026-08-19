@@ -1,15 +1,28 @@
-# `brain-fitness-tests`
-
-`brain-fitness-tests` defines automated architectural fitness functions validating system invariants.
+# brain-fitness-tests
 
 ## Purpose
-Validates aggregate domain rules, event purity, and non-blocking main loop invariants under CI.
+Automated architectural fitness checks and compile-time boundary enforcement.
 
-## Public Surface
-- Fitness test execution suites.
+## Responsibilities
+* Validate crate dependency DAG acyclicity and layer hierarchy constraints.
+* Assert adapter storage isolation (brain-daemon and brain have zero direct storage dependencies).
+* Assert PyO3 encapsulation inside brain-python.
 
-## Out of Scope
-- Runtime production logic.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `cargo_metadata`, `syn`, `walkdir`.
+* **Forbidden Dependencies:** `brain-tui`, `pyo3`, `rusqlite`.
 
-## Documentation Links
-- **[Fitness Tests Specification](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/FITNESS_TESTS.md)**
+## Public API & Facades
+* CI fitness test suite.
+
+## Invariants Protected
+* Automated enforcement of the 12 Frozen Release Invariants (Invariant 5).
+
+## Canonical References
+* Specification: `../../docs/architecture/FITNESS_TESTS.md`
+
+## Testing & Verification
+* `cargo test -p brain-fitness-tests`
+
+## Maintainer
+See `CODEOWNERS`.

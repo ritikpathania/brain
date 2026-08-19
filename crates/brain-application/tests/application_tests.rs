@@ -97,7 +97,6 @@ fn create_test_envelope() -> IngestionEnvelope {
 }
 
 fn setup_app() -> (Arc<BrainApplication>, tempfile::TempDir) {
-    pyo3::prepare_freethreaded_python();
     let dir = tempfile::tempdir().expect("Failed to create tempdir");
     let db_path = dir.path().join("brain_test_app.db");
     let db_str = db_path.to_str().expect("Valid path string");

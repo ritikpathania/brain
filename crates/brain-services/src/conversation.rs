@@ -866,10 +866,6 @@ impl CheckpointStore for SqliteCheckpointStore {
         label: &str,
         history: &Session,
     ) -> Result<(), BrainError> {
-        let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
         let history_json = serde_json::to_string(history).map_err(|e| BrainError::Validation {
             message: format!("Failed to serialize history: {}", e),
         })?;
@@ -878,21 +874,13 @@ impl CheckpointStore for SqliteCheckpointStore {
             .unwrap_or_default()
             .as_secs();
 
-        conn.execute(
-            "INSERT OR REPLACE INTO checkpoints (id, session_id, label, history, created_at) VALUES (?, ?, ?, ?, ?)",
-            rusqlite::params![
-                checkpoint_id.to_string(),
-                session_id.to_string(),
-                label,
-                history_json,
-                now,
-            ],
-        ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to insert checkpoint: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        Ok(())
+        self.storage.save_checkpoint_record(
+            &checkpoint_id.to_string(),
+            &session_id.to_string(),
+            label,
+            &history_json,
+            now,
+        )
     }
 
     fn restore(
@@ -900,17 +888,9 @@ impl CheckpointStore for SqliteCheckpointStore {
         _session_id: &SessionId,
         checkpoint_id: &ConversationId,
     ) -> Result<Session, BrainError> {
-        let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        let history_json: String = conn
-            .query_row(
-                "SELECT history FROM checkpoints WHERE id = ?",
-                rusqlite::params![checkpoint_id.to_string()],
-                |row| row.get(0),
-            )
+        let history_json = self
+            .storage
+            .restore_checkpoint_record(&checkpoint_id.to_string())
             .map_err(|e| BrainError::Session {
                 session_id: *_session_id,
                 message: format!("Checkpoint not found: {}", e),
@@ -978,50 +958,10 @@ impl ConversationManagerImpl {
         &self,
         session_id: &SessionId,
     ) -> Result<Option<ConversationSummary>, BrainError> {
-        let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        let mut stmt = conn.prepare(
-            "SELECT version, created_at, start_idx, end_idx, text FROM summaries WHERE session_id = ? ORDER BY version DESC LIMIT 1"
-        ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        let mut rows = stmt
-            .query(rusqlite::params![session_id.to_string()])
-            .map_err(|e| BrainError::Storage {
-                message: format!("Failed to query summaries: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-
-        if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
-            message: format!("Failed to advance row: {}", e),
-            source: Some(Box::new(e)),
-        })? {
-            let version: u64 = row.get(0).map_err(|e| BrainError::Storage {
-                message: format!("Failed to get version: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let created_at_secs: u64 = row.get(1).map_err(|e| BrainError::Storage {
-                message: format!("Failed to get created_at: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let start_idx: usize = row.get(2).map_err(|e| BrainError::Storage {
-                message: format!("Failed to get start_idx: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let end_idx: usize = row.get(3).map_err(|e| BrainError::Storage {
-                message: format!("Failed to get end_idx: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-            let text: String = row.get(4).map_err(|e| BrainError::Storage {
-                message: format!("Failed to get text: {}", e),
-                source: Some(Box::new(e)),
-            })?;
-
+        if let Some((version, created_at_secs, start_idx, end_idx, text)) = self
+            .storage
+            .get_latest_session_summary(&session_id.to_string())?
+        {
             Ok(Some(ConversationSummary {
                 version,
                 created_at: std::time::SystemTime::UNIX_EPOCH
@@ -1040,31 +980,20 @@ impl ConversationManagerImpl {
         session_id: &SessionId,
         summary: &ConversationSummary,
     ) -> Result<(), BrainError> {
-        let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
         let now = summary
             .created_at
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
 
-        conn.execute(
-            "INSERT OR REPLACE INTO summaries (session_id, version, created_at, start_idx, end_idx, text) VALUES (?, ?, ?, ?, ?, ?)",
-            rusqlite::params![
-                session_id.to_string(),
-                summary.version,
-                now,
-                summary.start_message_idx,
-                summary.end_message_idx,
-                summary.text,
-            ],
-        ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to insert summary: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-        Ok(())
+        self.storage.save_session_summary(
+            &session_id.to_string(),
+            summary.version,
+            now,
+            summary.start_message_idx,
+            summary.end_message_idx,
+            &summary.text,
+        )
     }
 }
 
@@ -1387,22 +1316,7 @@ impl ConversationManager for ConversationManagerImpl {
     }
 
     fn prune_memories(&self, _session_id: &SessionId) -> Result<usize, BrainError> {
-        // Prunes edge relationships whose weight decays below a standard threshold (e.g. 0.1)
-        let conn = self.storage.pool().get().map_err(|e| BrainError::Storage {
-            message: format!("Failed to get connection: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        // Note: Keep pinned memories safe (assumed here to be edges with weight >= 1.0 or special tags)
-        let rows = conn.execute(
-            "DELETE FROM edges WHERE weight < 0.1 AND source NOT IN (SELECT id FROM nodes WHERE properties LIKE '%\"pinned\":true%')",
-            [],
-        ).map_err(|e| BrainError::Storage {
-            message: format!("Failed to prune edge weights: {}", e),
-            source: Some(Box::new(e)),
-        })?;
-
-        Ok(rows)
+        self.storage.prune_decayed_edges(0.1)
     }
 
     fn archive_conversation(&self, session_id: &SessionId) -> Result<(), BrainError> {

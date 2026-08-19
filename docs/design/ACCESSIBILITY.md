@@ -1,5 +1,8 @@
 # Accessibility
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document defines the accessibility specifications for the Brain TUI client, establishing rules for screen-reader compatibility, high-contrast displays, and reduced-motion environments.
 
 ---

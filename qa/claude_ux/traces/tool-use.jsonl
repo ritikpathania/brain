@@ -1,0 +1,8 @@
+{"event": "stream_request_start", "data": {"mode": "requesting"}}
+{"event": "content_block_start", "data": {"index": 0, "type": "tool_use", "id": "call_bash_001", "name": "Bash"}}
+{"event": "content_block_delta", "data": {"index": 0, "input_json_delta": "{\"command\": \"ls -la\"}"}}
+{"event": "content_block_stop", "data": {"index": 0}}
+{"event": "message_stop", "data": {"stop_reason": "tool_use"}}
+{"event": "AssistantMessage", "data": {"content": [{"type": "tool_use", "id": "call_bash_001", "name": "Bash", "input": {"command": "ls -la"}}]}}
+{"event": "ToolExecution", "data": {"executor": "Claude StreamingToolExecutor", "tool": "Bash", "status": "completed"}}
+{"event": "UserMessage", "data": {"content": [{"type": "tool_result", "tool_use_id": "call_bash_001", "content": "total 0\n-rw-r--r-- 1 user staff 0 file.txt\n"}]}}

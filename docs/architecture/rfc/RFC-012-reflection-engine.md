@@ -157,7 +157,7 @@ To manage deployment complexity, scheduling triggers are rolled out incrementall
 
 ### Rust Crate Signature Changes
 
-#### [`crates/brain-domain/src/reflection.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-domain/src/reflection.rs)
+#### [`crates/brain-domain/src/reflection/mod.rs`](../../../crates/brain-domain/src/reflection/mod.rs)
 
 ```rust
 /// Execution constraints and identifiers for a reflection run.

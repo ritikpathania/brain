@@ -1,19 +1,27 @@
 # brain-observability
 
 ## Purpose
-Tracing, metrics, profiling spans, and telemetry exporters.
+Structured logging, tracing subscribers, and diagnostic telemetry capture.
 
 ## Responsibilities
-* Setup global tracing subscribers, span metrics, and log filtering.
-* Profile request/response latency and memory footprints.
-* Coordinate system diagnostics and telemetry reporting.
+* Initialize `tracing_subscriber` with JSON or human-readable formatters.
+* Capture runtime diagnostic snapshots and health counters.
 
-## Dependencies
-* **Allowed:** `tracing` and shared utility primitives.
-* **Forbidden:** `brain-storage`, `brain-tui`, `brain-session`, `brain-services` (observability must remain a cross-cutting utility).
+## Boundaries & Constraints
+* **Allowed Dependencies:** `tracing`, `tracing-subscriber`, `serde`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Global tracing and logging initialization controllers.
+## Public API & Facades
+* `TelemetrySubscriber`, `DiagnosticSnapshot`.
 
-## Owner
-SRE & Infrastructure Team
+## Invariants Protected
+* Observability first (ADR-019).
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-observability`
+
+## Maintainer
+See `CODEOWNERS`.

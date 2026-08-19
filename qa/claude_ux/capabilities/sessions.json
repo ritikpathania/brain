@@ -1,0 +1,66 @@
+[
+  {
+    "id": "sessions.history_resume",
+    "name": "Session Resume & Conversation Chooser",
+    "category": "sessions",
+    "user_action": "Launch with /resume or claude --resume",
+    "frontend": [
+      "ResumeChooser",
+      "Select",
+      "ThemedBox"
+    ],
+    "state_transition": "Lists saved sessions from disk -> loads selected transcript",
+    "orchestration": [
+      "dialogLaunchers.ts::launchResumeChooser()"
+    ],
+    "runtime_services": [
+      "services/SessionMemory/sessionMemory.ts"
+    ],
+    "backend": [
+      "Session JSONL files (~/.claude/sessions/)"
+    ],
+    "events": [],
+    "state_mutation": "setMessages(loadedSessionMessages)",
+    "rendered_ui": "Interactive session selector showing title, time, and preview",
+    "persistence": [
+      "~/.claude/sessions/*.jsonl"
+    ],
+    "classification": "ADAPT",
+    "rationale": "Claude session picker adapted to load Brain graph-backed sessions.",
+    "seam_impact": "Seam: Session history provider mapped to Brain session storage."
+  },
+  {
+    "id": "sessions.compaction",
+    "name": "Context Compaction & Memory Pruning",
+    "category": "sessions",
+    "user_action": "Conversation token count exceeds model context window",
+    "frontend": [
+      "REPL",
+      "Messages",
+      "CompactBoundaryMessage"
+    ],
+    "state_transition": "autoCompactIfNeeded() summarizes older messages and inserts boundary",
+    "orchestration": [
+      "services/compact/autoCompact.ts",
+      "services/compact/microCompact.ts"
+    ],
+    "runtime_services": [
+      "query/deps.ts::autocompact",
+      "query/deps.ts::microcompact"
+    ],
+    "backend": [
+      "Model summarization query"
+    ],
+    "events": [
+      "compaction"
+    ],
+    "state_mutation": "setMessages([CompactBoundaryMessage, ...recentMessages])",
+    "rendered_ui": "Horizontal compact boundary divider with summarized context badge",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "ADAPT",
+    "rationale": "Claude manages compaction boundaries; summarization model call uses Brain.",
+    "seam_impact": "Seam: QueryDeps.autocompact / microcompact mapped to Brain summarizer."
+  }
+]

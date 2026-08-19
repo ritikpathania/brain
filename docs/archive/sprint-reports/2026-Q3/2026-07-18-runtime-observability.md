@@ -320,5 +320,5 @@ Sprint 6 applies directly: a single concrete implementation does not justify a
 trait. The second case is the signal.
 
 The comment at the `search_repository` field in
-[brain_runtime.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-services/src/brain_runtime.rs)
+[brain_runtime.rs](../../../../crates/brain-services/src/brain_runtime.rs)
 records this decision at the definition site.

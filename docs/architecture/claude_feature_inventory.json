@@ -1,0 +1,3766 @@
+{
+  "schema_version": "1.1.0",
+  "total_features": 145,
+  "features": [
+    {
+      "id": "conv_init",
+      "name": "Session Creation & Initialization",
+      "category": "Core Conversation",
+      "entry_point": "CLI startup / automatic session spawn",
+      "frontend_components": [
+        "screens/REPL.tsx",
+        "components/App.tsx",
+        "components/LogoV2"
+      ],
+      "lifecycle": "App mounts -> generates session UUID -> loads config/theme -> initializes REPL state -> displays LogoV2 banner",
+      "backend_implementation": "bootstrap/state.ts:initSession(), utils/sessionStorage.ts:initSession()",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "~/.claude/sessions/<uuid> directory + state cache",
+      "filesystem_req": "Write access to config and session directories",
+      "brain_equivalent": "crates/brain-session::SessionManagerImpl + UDS session initialization",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Maintain current TS shell session bootstrap and synchronize session ID over UDS to Rust SessionManager.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "conv_resume",
+      "name": "Resume Past Session (/resume)",
+      "category": "Core Conversation",
+      "entry_point": "Slash command `/resume` / CLI flag `--resume`",
+      "frontend_components": [
+        "screens/ResumeConversation.tsx",
+        "components/LogSelector.tsx",
+        "components/SessionPreview.tsx"
+      ],
+      "lifecycle": "User triggers /resume -> reads project session logs -> presents interactive LogSelector -> user selects turn -> recovers messages and cost state -> mounts REPL",
+      "backend_implementation": "commands/resume/index.ts, utils/sessionStorage.ts:loadAllProjectsMessageLogsProgressive()",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Reads project session jsonl logs",
+      "filesystem_req": "Read access to session storage files",
+      "brain_equivalent": "crates/brain-storage SQLite event log and session repository",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Resume UI reads legacy JSONL session logs; Brain SQLite session event log is not yet unified into LogSelector source list.",
+      "migration_strategy": "Adapt `utils/sessionStorage.ts` to query Brain SQLite sessions via UDS adapter in addition to filesystem JSONL files.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "conv_streaming",
+      "name": "Token Streaming & Typewriter Drain",
+      "category": "Core Conversation",
+      "entry_point": "Model response generation turn",
+      "frontend_components": [
+        "components/MessageResponse.tsx",
+        "components/VirtualMessageList.tsx",
+        "ink/components/Text.tsx"
+      ],
+      "lifecycle": "Query executes -> receives stream events -> buffers in TypewriterQueue -> renders incremental text deltas -> autoscrolls VirtualMessageList",
+      "backend_implementation": "query.ts:query(), query/deps.ts:callModel()",
+      "dependencies": [
+        "local",
+        "model"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append assistant turns to session transcript",
+      "filesystem_req": "Write to session transcript file",
+      "brain_equivalent": "crates/brain-services UDS monotonic StreamEvent chunks via brainCallModel.ts",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Preserve generic `QueryDeps.callModel` seam streaming monotonic events from Brain UDS daemon.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "conv_thinking",
+      "name": "Reasoning & Thinking Blocks (ThinkingConfig)",
+      "category": "Core Conversation",
+      "entry_point": "Model reasoning generation (adaptive/budgeted tokens)",
+      "frontend_components": [
+        "components/ThinkingToggle.tsx",
+        "components/messages/ThinkingBlock.tsx",
+        "components/Spinner.tsx"
+      ],
+      "lifecycle": "Receives `thinking` stream events -> renders collapsible ThinkingBlock with elapsed timer -> captures signature -> collapses on text_delta start",
+      "backend_implementation": "utils/thinking.ts, query.ts",
+      "dependencies": [
+        "local",
+        "model"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Store thinking blocks in message history DTO",
+      "filesystem_req": "None",
+      "brain_equivalent": "packages/brain-shell/src/adapter/brainCallModel.ts reasoning blocks",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Preserve native reasoning chunk streaming without fabricating synthetic signatures.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "conv_diffs",
+      "name": "Structured Diff Rendering",
+      "category": "Core Conversation",
+      "entry_point": "FileEditTool execution / `/diff` command / Theme preview",
+      "frontend_components": [
+        "components/StructuredDiff.tsx",
+        "components/StructuredDiffList.tsx",
+        "components/diff/"
+      ],
+      "lifecycle": "Computes file patch delta -> tokenizes line changes -> highlights intra-line word diffs -> renders unified or side-by-side box with red/green backgrounds",
+      "backend_implementation": "native-ts/color-diff/index.ts, components/StructuredDiff.tsx",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "Read working tree file contents",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/components/StructuredDiff.tsx",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen StructuredDiff component hierarchy.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "conv_cancel",
+      "name": "Response Interruption & Cancellation (Ctrl+C / Escape)",
+      "category": "Core Conversation",
+      "entry_point": "Keystroke `Ctrl+C` or `Escape` while generating response",
+      "frontend_components": [
+        "components/InterruptedByUser.tsx",
+        "hooks/useCancelRequest.ts"
+      ],
+      "lifecycle": "User presses cancel key -> CancelRequestHandler triggers AbortController.abort() -> query loop halts -> appends InterruptedByUser notice -> resets composer",
+      "backend_implementation": "hooks/useCancelRequest.ts, utils/messages.ts:createInterruptedMessage()",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Save interruption notice to transcript",
+      "filesystem_req": "Write to session storage",
+      "brain_equivalent": "packages/brain-shell/src/adapter/brainCallModel.ts AbortSignal handling",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Preserve AbortController wire propagation to Brain UDS cancellation endpoint.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_multiline",
+      "name": "Multiline Input (`\\` + `Enter`)",
+      "category": "Composer & Input",
+      "entry_point": "Trailing backslash + Enter / Option+Enter",
+      "frontend_components": [
+        "components/PromptInput/PromptInput.tsx",
+        "components/BaseTextInput.tsx"
+      ],
+      "lifecycle": "User types `\\` and presses Enter -> PromptInput enters multiline continuation mode -> expands vertical height -> preserves indentation",
+      "backend_implementation": "components/PromptInput/PromptInput.tsx",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "None",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/components/PromptInput/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen PromptInput multiline state machine.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_file_completion",
+      "name": "@ File Path Autocompletion",
+      "category": "Composer & Input",
+      "entry_point": "Typing `@` in prompt composer",
+      "frontend_components": [
+        "components/PromptInput/ContextSuggestions.tsx",
+        "components/PromptInput/PromptInputFooterSuggestions.tsx"
+      ],
+      "lifecycle": "Typing `@` triggers fuzzy file search -> queries project directory tree -> renders suggestions popover -> Tab/Enter accepts path",
+      "backend_implementation": "utils/suggestions/fileSuggestions.ts, native-ts/file-index/",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "Read repository files & directories",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/utils/suggestions/fileSuggestions.ts",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen file suggestion system.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_slash_completion",
+      "name": "/ Slash Command Autocompletion",
+      "category": "Composer & Input",
+      "entry_point": "Typing `/` in prompt composer",
+      "frontend_components": [
+        "components/PromptInput/ContextSuggestions.tsx",
+        "commands/"
+      ],
+      "lifecycle": "Typing `/` lists registered commands matching prefix -> displays description and aliases -> Tab/Enter selects command",
+      "backend_implementation": "commands/index.ts, utils/suggestions/commandSuggestions.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "None",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/commands/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Preserve command registry autocomplete while adapting command handlers.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_help_menu",
+      "name": "Keyboard Shortcut Help Menu (?)",
+      "category": "Composer & Input",
+      "entry_point": "Pressing `?` on empty input",
+      "frontend_components": [
+        "components/PromptInput/PromptInputHelpMenu.tsx",
+        "components/PromptInput/PromptInputFooter.tsx"
+      ],
+      "lifecycle": "Pressing `?` on empty input sets `helpOpen=true` without buffer text pollution -> renders 3-column shortcut catalog -> Escape dismisses",
+      "backend_implementation": "components/PromptInput/PromptInput.tsx:onChange()",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "None",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/components/PromptInput/PromptInputHelpMenu.tsx",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen PromptInputHelpMenu component.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_shell_mode",
+      "name": "Shell / Bash Execution Mode (!)",
+      "category": "Composer & Input",
+      "entry_point": "Typing `!` in prompt composer",
+      "frontend_components": [
+        "components/PromptInput/PromptInput.tsx",
+        "components/BashModeProgress.tsx"
+      ],
+      "lifecycle": "Typing `!` toggles `bashBorder` (`#DC2626`) -> user enters bash command -> Enter executes directly via BashTool with live streaming output",
+      "backend_implementation": "tools/BashTool/index.ts, components/PromptInput/inputModes.ts",
+      "dependencies": [
+        "local",
+        "platform"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append command stdout/stderr to session transcript",
+      "filesystem_req": "Execution access on local system",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/tools/BashTool/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen BashTool local execution pipeline.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_vim_mode",
+      "name": "Modal Vim Editing Mode (/vim)",
+      "category": "Composer & Input",
+      "entry_point": "Slash command `/vim`",
+      "frontend_components": [
+        "components/VimTextInput.tsx",
+        "components/PromptInput/PromptInput.tsx"
+      ],
+      "lifecycle": "Toggling vim mode switches input renderer to VimTextInput -> supports Normal/Insert/Visual modes, hjkl navigation, d/y/p verbs",
+      "backend_implementation": "components/VimTextInput.tsx, commands/vim/",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Save `vimMode: true` in settings.json",
+      "filesystem_req": "Write to settings.json",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/components/VimTextInput.tsx",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen VimTextInput component.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "comp_voice",
+      "name": "Push-to-Talk Voice Streaming (/voice)",
+      "category": "Composer & Input",
+      "entry_point": "Slash command `/voice` / Hold-to-talk keybinding",
+      "frontend_components": [
+        "components/PromptInput/VoiceIndicator.tsx",
+        "components/LogoV2/VoiceModeNotice.tsx",
+        "hooks/useVoice.ts",
+        "hooks/useVoiceIntegration.tsx"
+      ],
+      "lifecycle": "User holds voice key -> records audio via native macOS module or SoX -> streams PCM chunks via WebSocket to voice_stream STT -> updates composer text buffer",
+      "backend_implementation": "services/voiceStreamSTT.ts, services/voiceKeyterms.ts, commands/voice/voice.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication",
+        "platform"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": true,
+      "requires_network": true,
+      "persistence_req": "Save `voiceMode: true` in settings.json",
+      "filesystem_req": "Microphone audio recording permissions",
+      "brain_equivalent": "Local Whisper / STT engine adapter or external toggle",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires Anthropic voice_stream WebSocket endpoint (`/api/ws/speech_to_text/voice_stream`) and Deepgram STT engine.",
+      "migration_strategy": "Quarantine external voice_stream service; adapt hook to support local offline Whisper transcription if enabled.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "mode_permission_cycle",
+      "name": "Permission Mode Cycling (Shift+Tab)",
+      "category": "Modes & Policies",
+      "entry_point": "Keystroke `Shift+Tab`",
+      "frontend_components": [
+        "components/PromptInput/PromptInputModeIndicator.tsx",
+        "components/AutoModeOptInDialog.tsx"
+      ],
+      "lifecycle": "Shift+Tab cycles Normal -> Auto-accept -> Bypass -> Plan mode -> updates border color token (`promptBorder`, `autoAccept`, `planMode`)",
+      "backend_implementation": "utils/permissions/permissionSetup.ts, hooks/toolPermission/",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Persists mode in session state",
+      "filesystem_req": "None",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/hooks/toolPermission/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen permission cycle state machine.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "mode_theme_picker",
+      "name": "Theme Selection & Live Diff Preview (/theme)",
+      "category": "Modes & Policies",
+      "entry_point": "Slash command `/theme`",
+      "frontend_components": [
+        "components/ThemePicker.tsx",
+        "components/StructuredDiff.tsx",
+        "utils/theme.ts"
+      ],
+      "lifecycle": "User triggers /theme -> mounts 17-step state machine with StructuredDiff preview -> Arrow keys navigate options -> Enter persists to disk",
+      "backend_implementation": "commands/theme/index.ts, utils/theme.ts, utils/config.ts:saveGlobalConfig()",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Writes `theme` key to `settings.json` / `.claude.json`",
+      "filesystem_req": "Write access to config directory",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/components/ThemePicker.tsx",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified in Parity Gate)",
+      "migration_strategy": "Reuse frozen ThemePicker component.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "mode_model_picker",
+      "name": "Model Selection Dialog (/model, Alt+P)",
+      "category": "Modes & Policies",
+      "entry_point": "Slash command `/model` / Keystroke `Alt+P`",
+      "frontend_components": [
+        "components/ModelPicker.tsx",
+        "components/CustomSelect/"
+      ],
+      "lifecycle": "User triggers Alt+P -> renders ModelPicker list -> user selects Opus / Sonnet / Haiku / Custom -> updates active model state",
+      "backend_implementation": "commands/model/index.ts, utils/model.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Optionally persists default model in settings.json",
+      "filesystem_req": "Write to settings.json",
+      "brain_equivalent": "packages/brain-shell/src/adapter/brainCallModel.ts model routing",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "ModelPicker only lists Anthropic models; does not yet expose configured Brain reasoning backends (e.g. local Ollama, vLLM, Gemini).",
+      "migration_strategy": "Adapt ModelPicker list items in TS shell adapter to query active models from Brain UDS daemon.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "mode_plan",
+      "name": "Architect / Plan Mode (/plan)",
+      "category": "Modes & Policies",
+      "entry_point": "Slash command `/plan` / Tool `EnterPlanMode`",
+      "frontend_components": [
+        "components/permissions/EnterPlanModePermissionRequest/",
+        "components/permissions/ExitPlanModePermissionRequest/"
+      ],
+      "lifecycle": "Plan mode entered -> sets border to `planMode` (`#2563EB`) -> intercepts write tools to read-only -> model synthesizes plan -> ExitPlanMode presents approval diff",
+      "backend_implementation": "tools/EnterPlanModeTool/, tools/ExitPlanModeTool/, utils/plans.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Writes plan markdown to `.claude/plans/<slug>.md`",
+      "filesystem_req": "Write access to project plan directory",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/tools/EnterPlanModeTool/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen Plan mode toolchain and markdown plan persistence.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "svc_session_memory",
+      "name": "Session Memory Periodic Extraction",
+      "category": "Memory & Services",
+      "entry_point": "Automatic background post-sampling hook",
+      "frontend_components": [
+        "services/SessionMemory/sessionMemory.ts"
+      ],
+      "lifecycle": "Post-sampling hook triggers -> checks token thresholds -> spawns forked subagent via `runForkedAgent` -> updates conversation notes markdown file",
+      "backend_implementation": "services/SessionMemory/sessionMemory.ts, services/SessionMemory/prompts.ts",
+      "dependencies": [
+        "local",
+        "filesystem",
+        "model"
+      ],
+      "classification": "ANTHROPIC_MODEL_DEPENDENT",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Writes conversation notes to session memory path",
+      "filesystem_req": "Write access to session memory directory",
+      "brain_equivalent": "crates/brain-storage (SQLite STM/LTM) + crates/brain-domain",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude writes markdown notes files; Brain manages structured entities and relations in SQLite database.",
+      "migration_strategy": "Bridge session memory extractions into Rust `brain-storage` entity repository.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "svc_auto_dream",
+      "name": "Auto Dream Background Memory Consolidation",
+      "category": "Memory & Services",
+      "entry_point": "Background idle memory consolidation timer",
+      "frontend_components": [
+        "services/autoDream/autoDream.ts"
+      ],
+      "lifecycle": "Background timer detects idle state -> acquires lockfile `consolidationLock.ts` -> runs forked agent -> consolidates long-term user preferences",
+      "backend_implementation": "services/autoDream/autoDream.ts, services/autoDream/consolidationPrompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem",
+        "model"
+      ],
+      "classification": "ANTHROPIC_MODEL_DEPENDENT",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Writes consolidated memories to disk",
+      "filesystem_req": "Write access to consolidation lockfile and memory store",
+      "brain_equivalent": "crates/brain-domain::Edge::strengthen / KnowledgeGraph::consolidate",
+      "brain_status": "BRAIN_BACKEND_AVAILABLE",
+      "gap": "Claude uses file locks and LLM prompt consolidation; Brain uses transactional SQLite WAL and domain aggregate methods.",
+      "migration_strategy": "Delegate background consolidation to Rust domain engine.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "svc_compaction",
+      "name": "Context Compaction & Token Summarization",
+      "category": "Memory & Services",
+      "entry_point": "Token threshold exceeded / Slash command `/compact`",
+      "frontend_components": [
+        "services/compact/",
+        "commands/compact/"
+      ],
+      "lifecycle": "Message tokens cross limit -> microcompactMessages runs -> LLM generates condensation summary -> collapses prior turns -> clears pre-compact file cache",
+      "backend_implementation": "services/compact/compact.ts, services/compact/prompt.ts, services/compact/postCompactCleanup.ts",
+      "dependencies": [
+        "local",
+        "model"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Overwrites active session transcript with compacted turn",
+      "filesystem_req": "Write to session storage",
+      "brain_equivalent": "crates/brain-session::SessionContext::compact",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude summarizes in-memory turn list; Brain persists compacted snapshot in SQLite WAL log.",
+      "migration_strategy": "Delegate session compaction directly to Rust `SessionContext::compact`.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "svc_lsp",
+      "name": "Language Server Protocol (LSP) Manager",
+      "category": "Memory & Services",
+      "entry_point": "LSPTool invocation / Code diagnostics hook",
+      "frontend_components": [
+        "services/lsp/LSPServerManager.ts",
+        "components/LspRecommendation/"
+      ],
+      "lifecycle": "Discovers workspace language server (rust-analyzer, tsserver, pyright) -> spawns stdio process -> queries hover, definitions, diagnostics -> injects context",
+      "backend_implementation": "services/lsp/LSPServerManager.ts, services/lsp/LSPClient.ts, tools/LSPTool/",
+      "dependencies": [
+        "local",
+        "platform"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "None",
+      "filesystem_req": "Execute installed language server binaries",
+      "brain_equivalent": "packages/brain-shell/vendor/claude/services/lsp/",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (TS LSP client spawns local binaries directly)",
+      "migration_strategy": "Reuse frozen LSP service architecture.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_ship_audit",
+      "name": "Tool: ship-audit",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ship-audit`",
+      "frontend_components": [
+        "tools/AgentTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ship-audit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/AgentTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ship-audit`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_askuserquestion",
+      "name": "Tool: AskUserQuestion",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `AskUserQuestion`",
+      "frontend_components": [
+        "tools/AskUserQuestionTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `AskUserQuestion` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/AskUserQuestionTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `AskUserQuestion`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_bash",
+      "name": "Tool: Bash",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Bash`",
+      "frontend_components": [
+        "tools/BashTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Bash` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/BashTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem",
+        "platform"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Bash`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_brief",
+      "name": "Tool: Brief",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Brief`",
+      "frontend_components": [
+        "tools/BriefTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Brief` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/BriefTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Brief`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_config",
+      "name": "Tool: Config",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Config`",
+      "frontend_components": [
+        "tools/ConfigTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Config` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ConfigTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Config`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_enterplanmode",
+      "name": "Tool: EnterPlanMode",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `EnterPlanMode`",
+      "frontend_components": [
+        "tools/EnterPlanModeTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `EnterPlanMode` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/EnterPlanModeTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `EnterPlanMode`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_enterworktree",
+      "name": "Tool: EnterWorktree",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `EnterWorktree`",
+      "frontend_components": [
+        "tools/EnterWorktreeTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `EnterWorktree` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/EnterWorktreeTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `EnterWorktree`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_exitplanmode",
+      "name": "Tool: ExitPlanMode",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ExitPlanMode`",
+      "frontend_components": [
+        "tools/ExitPlanModeTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ExitPlanMode` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ExitPlanModeTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ExitPlanMode`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_exitworktree",
+      "name": "Tool: ExitWorktree",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ExitWorktree`",
+      "frontend_components": [
+        "tools/ExitWorktreeTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ExitWorktree` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ExitWorktreeTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ExitWorktree`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_fileedit",
+      "name": "Tool: FileEdit",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `FileEdit`",
+      "frontend_components": [
+        "tools/FileEditTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `FileEdit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/FileEditTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `FileEdit`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_fileread",
+      "name": "Tool: FileRead",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `FileRead`",
+      "frontend_components": [
+        "tools/FileReadTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `FileRead` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/FileReadTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `FileRead`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_filewrite",
+      "name": "Tool: FileWrite",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `FileWrite`",
+      "frontend_components": [
+        "tools/FileWriteTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `FileWrite` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/FileWriteTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `FileWrite`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_glob",
+      "name": "Tool: Glob",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Glob`",
+      "frontend_components": [
+        "tools/GlobTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Glob` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/GlobTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Glob`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_grep",
+      "name": "Tool: Grep",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Grep`",
+      "frontend_components": [
+        "tools/GrepTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Grep` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/GrepTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Grep`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_lsp",
+      "name": "Tool: LSP",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `LSP`",
+      "frontend_components": [
+        "tools/LSPTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `LSP` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/LSPTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `LSP`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_listmcpresources",
+      "name": "Tool: ListMcpResources",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ListMcpResources`",
+      "frontend_components": [
+        "tools/ListMcpResourcesTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ListMcpResources` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ListMcpResourcesTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "external_service"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ListMcpResources`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "TS MCP client operates frontend tools; Rust `brain-mcp-adapter` manages background servers.",
+      "migration_strategy": "Synchronize server definitions over UDS.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_mcp",
+      "name": "Tool: MCP",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `MCP`",
+      "frontend_components": [
+        "tools/MCPTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `MCP` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/MCPTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `MCP`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_mcpauth",
+      "name": "Tool: McpAuth",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `McpAuth`",
+      "frontend_components": [
+        "tools/McpAuthTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `McpAuth` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/McpAuthTool/McpAuthTool.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": true,
+      "requires_network": true,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `McpAuth`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Depends on external authentication / remote trigger service.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_notebookedit",
+      "name": "Tool: NotebookEdit",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `NotebookEdit`",
+      "frontend_components": [
+        "tools/NotebookEditTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `NotebookEdit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/NotebookEditTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `NotebookEdit`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_powershell",
+      "name": "Tool: PowerShell",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `PowerShell`",
+      "frontend_components": [
+        "tools/PowerShellTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `PowerShell` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/PowerShellTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "filesystem",
+        "platform"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `PowerShell`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_repl",
+      "name": "Tool: REPL",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `REPL`",
+      "frontend_components": [
+        "tools/REPLTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `REPL` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/REPLTool",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `REPL`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_readmcpresource",
+      "name": "Tool: ReadMcpResource",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ReadMcpResource`",
+      "frontend_components": [
+        "tools/ReadMcpResourceTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ReadMcpResource` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ReadMcpResourceTool/prompt.ts",
+      "dependencies": [
+        "local",
+        "external_service"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ReadMcpResource`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "TS MCP client operates frontend tools; Rust `brain-mcp-adapter` manages background servers.",
+      "migration_strategy": "Synchronize server definitions over UDS.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_remotetrigger",
+      "name": "Tool: RemoteTrigger",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `RemoteTrigger`",
+      "frontend_components": [
+        "tools/RemoteTriggerTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `RemoteTrigger` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/RemoteTriggerTool/prompt.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": true,
+      "requires_network": true,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `RemoteTrigger`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Depends on external authentication / remote trigger service.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_schedulecron",
+      "name": "Tool: ScheduleCron",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `ScheduleCron`",
+      "frontend_components": [
+        "tools/ScheduleCronTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `ScheduleCron` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ScheduleCronTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `ScheduleCron`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_sendmessage",
+      "name": "Tool: SendMessage",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `SendMessage`",
+      "frontend_components": [
+        "tools/SendMessageTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `SendMessage` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/SendMessageTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `SendMessage`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_skill",
+      "name": "Tool: Skill",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Skill`",
+      "frontend_components": [
+        "tools/SkillTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Skill` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/SkillTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Skill`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_sleep",
+      "name": "Tool: Sleep",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Sleep`",
+      "frontend_components": [
+        "tools/SleepTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Sleep` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/SleepTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Sleep`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_syntheticoutput",
+      "name": "Tool: SyntheticOutput",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `SyntheticOutput`",
+      "frontend_components": [
+        "tools/SyntheticOutputTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `SyntheticOutput` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/SyntheticOutputTool/SyntheticOutputTool.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `SyntheticOutput`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_taskcreate",
+      "name": "Tool: TaskCreate",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskCreate`",
+      "frontend_components": [
+        "tools/TaskCreateTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskCreate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskCreateTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskCreate`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_taskget",
+      "name": "Tool: TaskGet",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskGet`",
+      "frontend_components": [
+        "tools/TaskGetTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskGet` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskGetTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskGet`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_tasklist",
+      "name": "Tool: TaskList",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskList`",
+      "frontend_components": [
+        "tools/TaskListTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskList` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskListTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskList`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_taskoutput",
+      "name": "Tool: TaskOutput",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskOutput`",
+      "frontend_components": [
+        "tools/TaskOutputTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskOutput` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskOutputTool",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskOutput`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_taskstop",
+      "name": "Tool: TaskStop",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskStop`",
+      "frontend_components": [
+        "tools/TaskStopTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskStop` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskStopTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskStop`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_taskupdate",
+      "name": "Tool: TaskUpdate",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TaskUpdate`",
+      "frontend_components": [
+        "tools/TaskUpdateTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TaskUpdate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TaskUpdateTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TaskUpdate`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_teamcreate",
+      "name": "Tool: TeamCreate",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TeamCreate`",
+      "frontend_components": [
+        "tools/TeamCreateTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TeamCreate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TeamCreateTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TeamCreate`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_teamdelete",
+      "name": "Tool: TeamDelete",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TeamDelete`",
+      "frontend_components": [
+        "tools/TeamDeleteTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TeamDelete` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TeamDeleteTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TeamDelete`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_todowrite",
+      "name": "Tool: TodoWrite",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TodoWrite`",
+      "frontend_components": [
+        "tools/TodoWriteTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TodoWrite` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TodoWriteTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TodoWrite`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_search",
+      "name": "Tool: Search",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Search`",
+      "frontend_components": [
+        "tools/ToolSearchTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Search` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/ToolSearchTool/prompt.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Search`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_tungstentool",
+      "name": "Tool: TungstenTool",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `TungstenTool`",
+      "frontend_components": [
+        "tools/TungstenTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `TungstenTool` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/TungstenTool/TungstenTool.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `TungstenTool`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_webfetch",
+      "name": "Tool: WebFetch",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `WebFetch`",
+      "frontend_components": [
+        "tools/WebFetchTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `WebFetch` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/WebFetchTool/prompt.ts",
+      "dependencies": [
+        "network"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `WebFetch`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "Requires outbound network connectivity.",
+      "migration_strategy": "Reuse frozen TS implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_websearch",
+      "name": "Tool: WebSearch",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `WebSearch`",
+      "frontend_components": [
+        "tools/WebSearchTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `WebSearch` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/WebSearchTool/prompt.ts",
+      "dependencies": [
+        "network"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `WebSearch`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "Requires outbound network connectivity.",
+      "migration_strategy": "Reuse frozen TS implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "tool_workflow",
+      "name": "Tool: Workflow",
+      "category": "Tool UX & Execution",
+      "entry_point": "Model invocation of tool `Workflow`",
+      "frontend_components": [
+        "tools/WorkflowTool/",
+        "components/ToolUseLoader.tsx"
+      ],
+      "lifecycle": "Model generates `Workflow` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+      "backend_implementation": "tools/WorkflowTool",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Append tool calls and results to session transcript",
+      "filesystem_req": "Varies by tool",
+      "brain_equivalent": "Brain tool `Workflow`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None",
+      "migration_strategy": "Reuse frozen tool implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_add_dir",
+      "name": "/add-dir",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/add-dir`",
+      "frontend_components": [
+        "commands/add-dir/index.ts"
+      ],
+      "lifecycle": "User invokes `/add-dir` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/add-dir/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/add-dir`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_advisor",
+      "name": "/advisor",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/advisor`",
+      "frontend_components": [
+        "commands/advisor.ts"
+      ],
+      "lifecycle": "User invokes `/advisor` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/advisor.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/advisor`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_agents",
+      "name": "/agents",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/agents`",
+      "frontend_components": [
+        "commands/agents/index.ts"
+      ],
+      "lifecycle": "User invokes `/agents` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/agents/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/agents`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_branch",
+      "name": "/branch",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/branch`",
+      "frontend_components": [
+        "commands/branch/index.ts"
+      ],
+      "lifecycle": "User invokes `/branch` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/branch/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/branch`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_remote_control",
+      "name": "/remote-control",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/remote-control`",
+      "frontend_components": [
+        "commands/bridge/index.ts"
+      ],
+      "lifecycle": "User invokes `/remote-control` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/bridge/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/remote-control`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_bridge_kick",
+      "name": "/bridge-kick",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/bridge-kick`",
+      "frontend_components": [
+        "commands/bridge-kick.ts"
+      ],
+      "lifecycle": "User invokes `/bridge-kick` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/bridge-kick.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/bridge-kick`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_brief",
+      "name": "/brief",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/brief`",
+      "frontend_components": [
+        "commands/brief.ts"
+      ],
+      "lifecycle": "User invokes `/brief` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/brief.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/brief`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_btw",
+      "name": "/btw",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/btw`",
+      "frontend_components": [
+        "commands/btw/index.ts"
+      ],
+      "lifecycle": "User invokes `/btw` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/btw/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/btw`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_chrome",
+      "name": "/chrome",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/chrome`",
+      "frontend_components": [
+        "commands/chrome/index.ts"
+      ],
+      "lifecycle": "User invokes `/chrome` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/chrome/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/chrome`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_clear",
+      "name": "/clear",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/clear`",
+      "frontend_components": [
+        "commands/clear/index.ts"
+      ],
+      "lifecycle": "User invokes `/clear` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/clear/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/clear`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_color",
+      "name": "/color",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/color`",
+      "frontend_components": [
+        "commands/color/index.ts"
+      ],
+      "lifecycle": "User invokes `/color` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/color/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/color`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_commit_push_pr",
+      "name": "/commit-push-pr",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/commit-push-pr`",
+      "frontend_components": [
+        "commands/commit-push-pr.ts"
+      ],
+      "lifecycle": "User invokes `/commit-push-pr` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/commit-push-pr.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/commit-push-pr`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_commit",
+      "name": "/commit",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/commit`",
+      "frontend_components": [
+        "commands/commit.ts"
+      ],
+      "lifecycle": "User invokes `/commit` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/commit.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/commit`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_compact",
+      "name": "/compact",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/compact`",
+      "frontend_components": [
+        "commands/compact/index.ts"
+      ],
+      "lifecycle": "User invokes `/compact` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/compact/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/compact`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude summarizes in-memory turns; Brain needs to delegate to `SessionContext::compact`.",
+      "migration_strategy": "Delegate session compaction to Rust backend.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_config",
+      "name": "/config",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/config`",
+      "frontend_components": [
+        "commands/config/index.ts"
+      ],
+      "lifecycle": "User invokes `/config` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/config/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/config`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_context",
+      "name": "/context",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/context`",
+      "frontend_components": [
+        "commands/context/index.ts"
+      ],
+      "lifecycle": "User invokes `/context` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/context/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/context`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_copy",
+      "name": "/copy",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/copy`",
+      "frontend_components": [
+        "commands/copy/index.ts"
+      ],
+      "lifecycle": "User invokes `/copy` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/copy/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/copy`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_cost",
+      "name": "/cost",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/cost`",
+      "frontend_components": [
+        "commands/cost/index.ts"
+      ],
+      "lifecycle": "User invokes `/cost` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/cost/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/cost`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_createMovedToPluginCommand",
+      "name": "/createMovedToPluginCommand",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/createMovedToPluginCommand`",
+      "frontend_components": [
+        "commands/createMovedToPluginCommand.ts"
+      ],
+      "lifecycle": "User invokes `/createMovedToPluginCommand` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/createMovedToPluginCommand.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/createMovedToPluginCommand`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_desktop",
+      "name": "/desktop",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/desktop`",
+      "frontend_components": [
+        "commands/desktop/index.ts"
+      ],
+      "lifecycle": "User invokes `/desktop` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/desktop/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/desktop`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_diff",
+      "name": "/diff",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/diff`",
+      "frontend_components": [
+        "commands/diff/index.ts"
+      ],
+      "lifecycle": "User invokes `/diff` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/diff/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/diff`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_doctor",
+      "name": "/doctor",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/doctor`",
+      "frontend_components": [
+        "commands/doctor/index.ts"
+      ],
+      "lifecycle": "User invokes `/doctor` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/doctor/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/doctor`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude runs Anthropic telemetry checks; Brain needs to verify Rust UDS engine & SQLite health.",
+      "migration_strategy": "Adapt Doctor diagnostic suite to run local engine probes.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_effort",
+      "name": "/effort",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/effort`",
+      "frontend_components": [
+        "commands/effort/index.ts"
+      ],
+      "lifecycle": "User invokes `/effort` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/effort/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/effort`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_exit",
+      "name": "/exit",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/exit`",
+      "frontend_components": [
+        "commands/exit/index.ts"
+      ],
+      "lifecycle": "User invokes `/exit` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/exit/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/exit`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_export",
+      "name": "/export",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/export`",
+      "frontend_components": [
+        "commands/export/index.ts"
+      ],
+      "lifecycle": "User invokes `/export` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/export/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/export`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_extra_usage",
+      "name": "/extra-usage",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/extra-usage`",
+      "frontend_components": [
+        "commands/extra-usage/index.ts"
+      ],
+      "lifecycle": "User invokes `/extra-usage` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/extra-usage/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/extra-usage`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_fast",
+      "name": "/fast",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/fast`",
+      "frontend_components": [
+        "commands/fast/index.ts"
+      ],
+      "lifecycle": "User invokes `/fast` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/fast/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/fast`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_feedback",
+      "name": "/feedback",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/feedback`",
+      "frontend_components": [
+        "commands/feedback/index.ts"
+      ],
+      "lifecycle": "User invokes `/feedback` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/feedback/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/feedback`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_files",
+      "name": "/files",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/files`",
+      "frontend_components": [
+        "commands/files/index.ts"
+      ],
+      "lifecycle": "User invokes `/files` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/files/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/files`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_heapdump",
+      "name": "/heapdump",
+      "category": "Command: Internal / Telemetry",
+      "entry_point": "Slash command `/heapdump`",
+      "frontend_components": [
+        "commands/heapdump/index.ts"
+      ],
+      "lifecycle": "User invokes `/heapdump` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/heapdump/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "CLAUDE_SPECIFIC",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/heapdump`",
+      "brain_status": "NEEDS_DECISION",
+      "gap": "Anthropic internal telemetry or novelty feature.",
+      "migration_strategy": "Queue for explicit user KEEP / MODIFY / REMOVE decision.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_help",
+      "name": "/help",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/help`",
+      "frontend_components": [
+        "commands/help/index.ts"
+      ],
+      "lifecycle": "User invokes `/help` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/help/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/help`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_hooks",
+      "name": "/hooks",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/hooks`",
+      "frontend_components": [
+        "commands/hooks/index.ts"
+      ],
+      "lifecycle": "User invokes `/hooks` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/hooks/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/hooks`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_ide",
+      "name": "/ide",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/ide`",
+      "frontend_components": [
+        "commands/ide/index.ts"
+      ],
+      "lifecycle": "User invokes `/ide` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/ide/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/ide`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_init_verifiers",
+      "name": "/init-verifiers",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/init-verifiers`",
+      "frontend_components": [
+        "commands/init-verifiers.ts"
+      ],
+      "lifecycle": "User invokes `/init-verifiers` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/init-verifiers.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/init-verifiers`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_init",
+      "name": "/init",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/init`",
+      "frontend_components": [
+        "commands/init.ts"
+      ],
+      "lifecycle": "User invokes `/init` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/init.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/init`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_project_areas",
+      "name": "/project_areas",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/project_areas`",
+      "frontend_components": [
+        "commands/insights.ts"
+      ],
+      "lifecycle": "User invokes `/project_areas` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/insights.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/project_areas`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_install_github_app",
+      "name": "/install-github-app",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/install-github-app`",
+      "frontend_components": [
+        "commands/install-github-app/index.ts"
+      ],
+      "lifecycle": "User invokes `/install-github-app` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/install-github-app/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/install-github-app`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_install_slack_app",
+      "name": "/install-slack-app",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/install-slack-app`",
+      "frontend_components": [
+        "commands/install-slack-app/index.ts"
+      ],
+      "lifecycle": "User invokes `/install-slack-app` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/install-slack-app/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/install-slack-app`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_install",
+      "name": "/install",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/install`",
+      "frontend_components": [
+        "commands/install.tsx"
+      ],
+      "lifecycle": "User invokes `/install` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/install.tsx",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/install`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_keybindings",
+      "name": "/keybindings",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/keybindings`",
+      "frontend_components": [
+        "commands/keybindings/index.ts"
+      ],
+      "lifecycle": "User invokes `/keybindings` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/keybindings/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/keybindings`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_login",
+      "name": "/login",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/login`",
+      "frontend_components": [
+        "commands/login/index.ts"
+      ],
+      "lifecycle": "User invokes `/login` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/login/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": true,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/login`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_logout",
+      "name": "/logout",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/logout`",
+      "frontend_components": [
+        "commands/logout/index.ts"
+      ],
+      "lifecycle": "User invokes `/logout` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/logout/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/logout`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_mcp",
+      "name": "/mcp",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/mcp`",
+      "frontend_components": [
+        "commands/mcp/index.ts"
+      ],
+      "lifecycle": "User invokes `/mcp` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/mcp/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/mcp`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_memory",
+      "name": "/memory",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/memory`",
+      "frontend_components": [
+        "commands/memory/index.ts"
+      ],
+      "lifecycle": "User invokes `/memory` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/memory/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/memory`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude writes to CLAUDE.md/MEMORY.md; Brain needs to expose Rust LTM/STM facts.",
+      "migration_strategy": "Adapt command to query Rust `brain-storage` and `brain-services` over UDS.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_mobile",
+      "name": "/mobile",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/mobile`",
+      "frontend_components": [
+        "commands/mobile/index.ts"
+      ],
+      "lifecycle": "User invokes `/mobile` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/mobile/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/mobile`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_model",
+      "name": "/model",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/model`",
+      "frontend_components": [
+        "commands/model/index.ts"
+      ],
+      "lifecycle": "User invokes `/model` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/model/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/model`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_output_style",
+      "name": "/output-style",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/output-style`",
+      "frontend_components": [
+        "commands/output-style/index.ts"
+      ],
+      "lifecycle": "User invokes `/output-style` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/output-style/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/output-style`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_passes",
+      "name": "/passes",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/passes`",
+      "frontend_components": [
+        "commands/passes/index.ts"
+      ],
+      "lifecycle": "User invokes `/passes` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/passes/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/passes`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_permissions",
+      "name": "/permissions",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/permissions`",
+      "frontend_components": [
+        "commands/permissions/index.ts"
+      ],
+      "lifecycle": "User invokes `/permissions` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/permissions/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/permissions`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_plan",
+      "name": "/plan",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/plan`",
+      "frontend_components": [
+        "commands/plan/index.ts"
+      ],
+      "lifecycle": "User invokes `/plan` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/plan/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/plan`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_plugin",
+      "name": "/plugin",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/plugin`",
+      "frontend_components": [
+        "commands/plugin/index.tsx"
+      ],
+      "lifecycle": "User invokes `/plugin` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/plugin/index.tsx",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/plugin`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_pr_comments",
+      "name": "/pr-comments",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/pr-comments`",
+      "frontend_components": [
+        "commands/pr_comments/index.ts"
+      ],
+      "lifecycle": "User invokes `/pr-comments` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/pr_comments/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/pr-comments`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_privacy_settings",
+      "name": "/privacy-settings",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/privacy-settings`",
+      "frontend_components": [
+        "commands/privacy-settings/index.ts"
+      ],
+      "lifecycle": "User invokes `/privacy-settings` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/privacy-settings/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/privacy-settings`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_rate_limit_options",
+      "name": "/rate-limit-options",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/rate-limit-options`",
+      "frontend_components": [
+        "commands/rate-limit-options/index.ts"
+      ],
+      "lifecycle": "User invokes `/rate-limit-options` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/rate-limit-options/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/rate-limit-options`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_release_notes",
+      "name": "/release-notes",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/release-notes`",
+      "frontend_components": [
+        "commands/release-notes/index.ts"
+      ],
+      "lifecycle": "User invokes `/release-notes` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/release-notes/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/release-notes`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_reload_plugins",
+      "name": "/reload-plugins",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/reload-plugins`",
+      "frontend_components": [
+        "commands/reload-plugins/index.ts"
+      ],
+      "lifecycle": "User invokes `/reload-plugins` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/reload-plugins/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/reload-plugins`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_remote_env",
+      "name": "/remote-env",
+      "category": "Command: External Cloud",
+      "entry_point": "Slash command `/remote-env`",
+      "frontend_components": [
+        "commands/remote-env/index.ts"
+      ],
+      "lifecycle": "User invokes `/remote-env` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/remote-env/index.ts",
+      "dependencies": [
+        "network",
+        "external_service",
+        "authentication"
+      ],
+      "classification": "EXTERNAL_SERVICE_DEPENDENT",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": true,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/remote-env`",
+      "brain_status": "EXTERNAL_DEPENDENCY",
+      "gap": "Requires remote Anthropic cloud / SaaS infrastructure not present in local offline runtime.",
+      "migration_strategy": "Quarantine within external capabilities boundary.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_web_setup",
+      "name": "/web-setup",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/web-setup`",
+      "frontend_components": [
+        "commands/remote-setup/index.ts"
+      ],
+      "lifecycle": "User invokes `/web-setup` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/remote-setup/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/web-setup`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_rename",
+      "name": "/rename",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/rename`",
+      "frontend_components": [
+        "commands/rename/index.ts"
+      ],
+      "lifecycle": "User invokes `/rename` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/rename/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/rename`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_resume",
+      "name": "/resume",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/resume`",
+      "frontend_components": [
+        "commands/resume/index.ts"
+      ],
+      "lifecycle": "User invokes `/resume` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/resume/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/resume`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Backend semantics differ between Claude standalone and Brain runtime.",
+      "migration_strategy": "Preserve Claude UX and route backend operations to Rust Brain adapter.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_review",
+      "name": "/review",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/review`",
+      "frontend_components": [
+        "commands/review.ts"
+      ],
+      "lifecycle": "User invokes `/review` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/review.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/review`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_rewind",
+      "name": "/rewind",
+      "category": "Command: Brain Adapted",
+      "entry_point": "Slash command `/rewind`",
+      "frontend_components": [
+        "commands/rewind/index.ts"
+      ],
+      "lifecycle": "User invokes `/rewind` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/rewind/index.ts",
+      "dependencies": [
+        "local",
+        "filesystem"
+      ],
+      "classification": "BRAIN_BACKEND_AVAILABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/rewind`",
+      "brain_status": "PARTIALLY_IMPLEMENTED",
+      "gap": "Claude truncates message array; Brain needs to rollback SQLite event store.",
+      "migration_strategy": "Delegate turn rollback to Rust storage checkpoint store.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_sandbox",
+      "name": "/sandbox",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/sandbox`",
+      "frontend_components": [
+        "commands/sandbox-toggle/index.ts"
+      ],
+      "lifecycle": "User invokes `/sandbox` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/sandbox-toggle/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/sandbox`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_security_review",
+      "name": "/security-review",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/security-review`",
+      "frontend_components": [
+        "commands/security-review.ts"
+      ],
+      "lifecycle": "User invokes `/security-review` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/security-review.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/security-review`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_session",
+      "name": "/session",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/session`",
+      "frontend_components": [
+        "commands/session/index.ts"
+      ],
+      "lifecycle": "User invokes `/session` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/session/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/session`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_skills",
+      "name": "/skills",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/skills`",
+      "frontend_components": [
+        "commands/skills/index.ts"
+      ],
+      "lifecycle": "User invokes `/skills` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/skills/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/skills`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_stats",
+      "name": "/stats",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/stats`",
+      "frontend_components": [
+        "commands/stats/index.ts"
+      ],
+      "lifecycle": "User invokes `/stats` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/stats/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/stats`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_status",
+      "name": "/status",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/status`",
+      "frontend_components": [
+        "commands/status/index.ts"
+      ],
+      "lifecycle": "User invokes `/status` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/status/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": true,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/status`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_statusline",
+      "name": "/statusline",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/statusline`",
+      "frontend_components": [
+        "commands/statusline.tsx"
+      ],
+      "lifecycle": "User invokes `/statusline` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/statusline.tsx",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/statusline`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_stickers",
+      "name": "/stickers",
+      "category": "Command: Internal / Telemetry",
+      "entry_point": "Slash command `/stickers`",
+      "frontend_components": [
+        "commands/stickers/index.ts"
+      ],
+      "lifecycle": "User invokes `/stickers` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/stickers/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "CLAUDE_SPECIFIC",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/stickers`",
+      "brain_status": "NEEDS_DECISION",
+      "gap": "Anthropic internal telemetry or novelty feature.",
+      "migration_strategy": "Queue for explicit user KEEP / MODIFY / REMOVE decision.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_tag",
+      "name": "/tag",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/tag`",
+      "frontend_components": [
+        "commands/tag/index.ts"
+      ],
+      "lifecycle": "User invokes `/tag` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/tag/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/tag`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_tasks",
+      "name": "/tasks",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/tasks`",
+      "frontend_components": [
+        "commands/tasks/index.ts"
+      ],
+      "lifecycle": "User invokes `/tasks` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/tasks/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/tasks`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_terminal_setup",
+      "name": "/terminal-setup",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/terminal-setup`",
+      "frontend_components": [
+        "commands/terminalSetup/index.ts"
+      ],
+      "lifecycle": "User invokes `/terminal-setup` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/terminalSetup/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/terminal-setup`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_theme",
+      "name": "/theme",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/theme`",
+      "frontend_components": [
+        "commands/theme/index.ts"
+      ],
+      "lifecycle": "User invokes `/theme` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/theme/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/theme`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_think_back",
+      "name": "/think-back",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/think-back`",
+      "frontend_components": [
+        "commands/thinkback/index.ts"
+      ],
+      "lifecycle": "User invokes `/think-back` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/thinkback/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/think-back`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_thinkback_play",
+      "name": "/thinkback-play",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/thinkback-play`",
+      "frontend_components": [
+        "commands/thinkback-play/index.ts"
+      ],
+      "lifecycle": "User invokes `/thinkback-play` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/thinkback-play/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/thinkback-play`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_ultraplan",
+      "name": "/ultraplan",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/ultraplan`",
+      "frontend_components": [
+        "commands/ultraplan.tsx"
+      ],
+      "lifecycle": "User invokes `/ultraplan` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/ultraplan.tsx",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/ultraplan`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_upgrade",
+      "name": "/upgrade",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/upgrade`",
+      "frontend_components": [
+        "commands/upgrade/index.ts"
+      ],
+      "lifecycle": "User invokes `/upgrade` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/upgrade/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/upgrade`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_usage",
+      "name": "/usage",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/usage`",
+      "frontend_components": [
+        "commands/usage/index.ts"
+      ],
+      "lifecycle": "User invokes `/usage` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/usage/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/usage`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_version",
+      "name": "/version",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/version`",
+      "frontend_components": [
+        "commands/version.ts"
+      ],
+      "lifecycle": "User invokes `/version` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/version.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/version`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_vim",
+      "name": "/vim",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/vim`",
+      "frontend_components": [
+        "commands/vim/index.ts"
+      ],
+      "lifecycle": "User invokes `/vim` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/vim/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/vim`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    },
+    {
+      "id": "cmd_voice",
+      "name": "/voice",
+      "category": "Command: Local",
+      "entry_point": "Slash command `/voice`",
+      "frontend_components": [
+        "commands/voice/index.ts"
+      ],
+      "lifecycle": "User invokes `/voice` -> resolves command definition -> executes handler",
+      "backend_implementation": "commands/voice/index.ts",
+      "dependencies": [
+        "local"
+      ],
+      "classification": "LOCAL_IMPLEMENTABLE",
+      "requires_model": false,
+      "requires_auth": false,
+      "requires_network": false,
+      "persistence_req": "Varies by command",
+      "filesystem_req": "Varies by command",
+      "brain_equivalent": "Brain command `/voice`",
+      "brain_status": "IMPLEMENTED_IDENTICAL",
+      "gap": "None (Certified or operational in TS shell)",
+      "migration_strategy": "Reuse frozen command implementation.",
+      "decision": "DECISION_REQUIRED"
+    }
+  ]
+}

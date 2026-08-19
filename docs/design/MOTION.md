@@ -1,5 +1,8 @@
 # Motion Specification
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document defines the behavior, timing, and visual specifications for motion and animations in the Brain TUI. Animations in the terminal must remain highly efficient, prevent visual flicker, and never block keyboard input.
 
 ---

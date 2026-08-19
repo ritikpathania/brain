@@ -18,7 +18,7 @@ pub struct SequentialScheduler {
     metadata_repo: Arc<SqliteProjectionMetadataRepository>,
     event_log: Arc<dyn EventLog>,
     config: ProjectionConfig,
-    pool: r2d2::Pool<brain_storage::connection::SqliteConnectionManager>,
+    pool: brain_storage::r2d2::Pool<brain_storage::connection::SqliteConnectionManager>,
 }
 
 impl SequentialScheduler {
@@ -28,7 +28,7 @@ impl SequentialScheduler {
         metadata_repo: Arc<SqliteProjectionMetadataRepository>,
         event_log: Arc<dyn EventLog>,
         config: ProjectionConfig,
-        pool: r2d2::Pool<brain_storage::connection::SqliteConnectionManager>,
+        pool: brain_storage::r2d2::Pool<brain_storage::connection::SqliteConnectionManager>,
     ) -> Self {
         Self {
             registry,
@@ -42,7 +42,7 @@ impl SequentialScheduler {
     /// Internal catch-up method that runs on a given database connection.
     fn catch_up_reducer(
         &self,
-        conn: &mut rusqlite::Connection,
+        conn: &mut brain_storage::Connection,
         reducer: &dyn StateReducer,
         record: &mut ProjectionMetadataRecord,
     ) -> Result<(), BrainError> {

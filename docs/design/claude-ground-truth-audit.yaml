@@ -1,0 +1,153 @@
+version: "1.0.0"
+
+audit:
+  corpus_size: 446
+  active_documents_scanned: 299
+  historical_documents_scanned: 143
+  claude_source_root: "/Users/ritikpathania/Developer/src"
+  reference_commit: "38cbb06b"
+
+findings:
+  legacy_conflicts: 4
+  partial_conflicts: 8
+  claude_missing_surfaces: 0
+  compatible_documents: 25
+  historical_only: 143
+  recovered_claude_evidence: 8
+
+per_document:
+  - path: "docs/design/LANDING_PAGE.md"
+    classification: "LEGACY_CONFLICT"
+    conflicting_sections:
+      - "Section 2 (Canonical ASCII / Pixel Art Layout)"
+      - "Section 3 (Composition & Spacing Rules)"
+      - "Section 5 (Invariant Checklist for Code Reviews)"
+    legacy_claims:
+      - "4-line static Memory Core pixel art (▗▄▄▄▄▖ / █ ◉◉ █ / █▂▂▂▂█ / ▝▀▀▀▀▘)"
+      - "Think once. Remember forever. promotional tagline"
+      - "Connected: Yes | Ready: Yes status indicator cards"
+      - "3 fixed command pills (/session new, /search, /help)"
+    claude_alignment: "CONFLICT"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/FullscreenLayout.tsx, LogoV2.tsx"
+    proposed_action: "RELOCATE_TO_ARCHIVE_OR_FULL_BODY_SUPERSEDE"
+    confidence: "1.0"
+
+  - path: "docs/design/VISUAL_LANGUAGE_V2.md"
+    classification: "LEGACY_CONFLICT"
+    conflicting_sections:
+      - "Section 1 (Executive Summary & Design Vision)"
+      - "Section 2 (Color Palette & Brand Identity)"
+      - "Section 3 (Component Styling & ASCII Chrome)"
+    legacy_claims:
+      - "Cyberpunk / synthwave aesthetic"
+      - "Electric purple (#6C5CE7) and neon cyan (#00CEC9) palette"
+      - "ASCII double borders and gaming chrome"
+    claude_alignment: "CONFLICT"
+    source_of_truth: "/Users/ritikpathania/Developer/src/utils/theme.ts, components/design-system/ThemedBox.tsx"
+    proposed_action: "RELOCATE_TO_ARCHIVE_OR_FULL_BODY_SUPERSEDE"
+    confidence: "1.0"
+
+  - path: "docs/design/THEME_TOKENS.md"
+    classification: "LEGACY_CONFLICT"
+    conflicting_sections:
+      - "Section 1 (Theme Tokens Matrix)"
+      - "Section 2 (Raw Hex Token Definitions)"
+    legacy_claims:
+      - "Legacy raw hex values for cyberpunk and violet themes"
+    claude_alignment: "CONFLICT"
+    source_of_truth: "/Users/ritikpathania/Developer/src/utils/theme.ts"
+    proposed_action: "RELOCATE_TO_ARCHIVE_OR_FULL_BODY_SUPERSEDE"
+    confidence: "1.0"
+
+  - path: "docs/design/THEMING.md"
+    classification: "LEGACY_CONFLICT"
+    conflicting_sections:
+      - "Section 1 (Semantic Design Tokens)"
+      - "Section 2 (Built-in Theme Presets)"
+    legacy_claims:
+      - "brain_dark, cyberpunk, and nord preset definitions"
+      - "Violet accent highlight tokens"
+    claude_alignment: "CONFLICT"
+    source_of_truth: "/Users/ritikpathania/Developer/src/utils/theme.ts, utils/systemTheme.ts"
+    proposed_action: "RELOCATE_TO_ARCHIVE_OR_FULL_BODY_SUPERSEDE"
+    confidence: "1.0"
+
+  - path: "docs/design/TUI_DESIGN_SYSTEM.md"
+    classification: "CLAUDE_RECONCILABLE"
+    conflicting_sections:
+      - "Section 2 (Layout Hierarchy)"
+    legacy_claims:
+      - "Historical references to 3-region grid and status chips"
+    claude_alignment: "PARTIAL"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/FullscreenLayout.tsx"
+    proposed_action: "RECONCILE_SUBORDINATE_TO_CLAUDE_VISUAL_CONTRACT"
+    confidence: "1.0"
+
+  - path: "docs/design/COMPONENT_LIBRARY.md"
+    classification: "CLAUDE_RECONCILABLE"
+    conflicting_sections:
+      - "Section 1 to 8 (Component Widgets)"
+    legacy_claims:
+      - "Boxed panel widgets and static telemetry containers"
+    claude_alignment: "PARTIAL"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/ (18 Primitives)"
+    proposed_action: "RECONCILE_SUBORDINATE_TO_CLAUDE_COMPONENT_MODEL"
+    confidence: "1.0"
+
+  - path: "docs/design/INFORMATION_ARCHITECTURE.md"
+    classification: "CLAUDE_RECONCILABLE"
+    conflicting_sections:
+      - "Section 2 (Structural Breakdown)"
+    legacy_claims:
+      - "Persistent multi-column sidebar assumptions in always-visible tier"
+    claude_alignment: "PARTIAL"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/FullscreenLayout.tsx"
+    proposed_action: "RECONCILE_SUBORDINATE_TO_CLAUDE_VISUAL_CONTRACT"
+    confidence: "1.0"
+
+  - path: "docs/design/INTERACTION_MODEL.md"
+    classification: "CLAUDE_RECONCILABLE"
+    conflicting_sections:
+      - "Section 1 (Lifecycle States Matrix)"
+    legacy_claims:
+      - "Slash-command-first mode switching"
+    claude_alignment: "PARTIAL"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/PromptInput/PromptInput.tsx"
+    proposed_action: "RECONCILE_SUBORDINATE_TO_CLAUDE_VISUAL_CONTRACT"
+    confidence: "1.0"
+
+  - path: "docs/design/CLAUDE_VISUAL_CONTRACT.md"
+    classification: "CLAUDE_CANONICAL"
+    conflicting_sections: []
+    legacy_claims: []
+    claude_alignment: "MATCH"
+    source_of_truth: "/Users/ritikpathania/Developer/src/ (Complete Reverse-Engineered Presentation Model)"
+    proposed_action: "RETAIN_AS_SOLE_CANONICAL_VISUAL_AUTHORITY"
+    confidence: "1.0"
+
+  - path: "docs/design/CLAUDE_COMPONENT_MODEL.md"
+    classification: "CLAUDE_CANONICAL"
+    conflicting_sections: []
+    legacy_claims: []
+    claude_alignment: "MATCH"
+    source_of_truth: "/Users/ritikpathania/Developer/src/components/ (All 18 Component Primitives)"
+    proposed_action: "RETAIN_AS_CANONICAL_COMPONENT_MODEL"
+    confidence: "1.0"
+
+  - path: "docs/design/BRAIN_CLAUDE_SURFACE_MAPPING.md"
+    classification: "CLAUDE_CANONICAL"
+    conflicting_sections: []
+    legacy_claims: []
+    claude_alignment: "MATCH"
+    source_of_truth: "Brain Backend Capabilities -> Claude Visual Surfaces"
+    proposed_action: "RETAIN_AS_CANONICAL_CAPABILITY_SURFACE_MAPPING"
+    confidence: "1.0"
+
+  - path: "docs/design/BRAIN_PRODUCT_CAPABILITIES_ROADMAP.md"
+    classification: "ARCHITECTURAL"
+    conflicting_sections: []
+    legacy_claims: []
+    claude_alignment: "MATCH"
+    source_of_truth: "Brain Core Relational Memory Capabilities"
+    proposed_action: "RETAIN_AS_CANONICAL_PRODUCT_ROADMAP"
+    confidence: "1.0"

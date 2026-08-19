@@ -1,0 +1,24 @@
+                                                                                
+ ▐▛███▜▌   Claude Code v2.1.235                                                 
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing                                       
+  ▘▘ ▝▝    /Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell    
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+  /theme                        Change the theme                                
+  /update-config                Use this skill to configure the Claude Code     
+                                harness via settings.json. Automated behavior…  
+  /verify                       Verify that a code change actually does what    
+                                it's supposed to by exercising it end-to-end …  
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+❯ /theme                                                                        
+────────────────────────────────────────────────────────────────────────────────
+  -- INSERT -- ⏸ manual on (shift+tab to cycle)                                 

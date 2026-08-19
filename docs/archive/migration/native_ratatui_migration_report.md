@@ -81,14 +81,14 @@ A thorough workspace audit verifies the complete elimination of Node.js-based el
 
 ## 📂 8. Artifact Manifest
 All migration deliverables produced across this branch:
-* **Implementation Plan**: [docs/superpowers/plans/2026-06-28-ratatui-tui-parity-plan.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/superpowers/plans/2026-06-28-ratatui-tui-parity-plan.md)
-* **Parity Audit Report**: [docs/migration/parity_audit_report.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/migration/parity_audit_report.md)
-* **Walkthrough Record**: [WALKTHROUGH.md](file:///Users/ritikpathania/Developer/PyCharm/brain/WALKTHROUGH.md)
+* **Implementation Plan**: [docs/superpowers/plans/2026-06-28-ratatui-tui-parity-plan.md](../../superpowers/plans/2026-06-28-ratatui-tui-parity-plan.md)
+* **Parity Audit Report**: [docs/migration/parity_audit_report.md](../../migration/parity_audit_report.md)
+* **Walkthrough Record**: [WALKTHROUGH.md](../../../WALKTHROUGH.md)
 
 ---
 
 ## 🗂️ 9. Evidence Index
-* **Automated Integration Tests**: Verifiable in [crates/brain-tui/tests/parity_tests.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/tests/parity_tests.rs).
+* **Automated Integration Tests**: Verifiable in [crates/brain-tui/tests/parity_tests.rs](../../../crates/brain-tui/tests/parity_tests.rs).
 * **Workspace Clippy Output**: Verified warning-free via `cargo clippy --workspace --all-targets -- -D warnings`.
 * **Workspace Test Suite Passes**: Verified via `cargo test --workspace` (all 53 tests pass cleanly).
 

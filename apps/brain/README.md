@@ -1,16 +1,28 @@
-# brain
+# brain (CLI Application)
 
 ## Purpose
-Main CLI/TUI Application executable entry point.
+Primary user-facing command-line interface binary and interactive frontend launcher.
 
 ## Responsibilities
-* Manage the application boot sequence and startup state machine transitions (Boot -> Load Config -> Init Logging -> Init Storage -> Migrations -> Load Plugins -> Ready -> Running).
-* Coordinate the shutdown sequence safely.
-* Act as the root executable that wires up resources and spawns worker threads.
+* Parse CLI command arguments and subcommands (daemon start/stop/status/run, ingest, query, ui).
+* Launch interactive React + Ink + Yoga terminal user interface console (`packages/brain-shell`).
+* Manage local background daemon lifecycle against canonical DaemonHost topology.
 
-## Dependencies
-* **Allowed:** Any crate in the workspace.
-* **Forbidden:** None (executable boundary).
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-core`, `brain-domain`, `brain-services`, `brain-config`.
+* **Forbidden Dependencies:** `brain-storage`, `rusqlite`, `pyo3`.
 
-## Owner
-Systems Engineer
+## Public API & Facades
+* CLI binary entry point `main()`.
+
+## Invariants Protected
+* Production composition root convergence (Invariant 4), zero direct SQLite/PyO3 dependencies.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo check -p brain`
+
+## Maintainer
+See `CODEOWNERS`.

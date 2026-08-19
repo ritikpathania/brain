@@ -1,0 +1,96 @@
+[
+  {
+    "id": "startup.landing_screen",
+    "name": "Landing Screen & Header Banner",
+    "category": "startup",
+    "user_action": "Launch shell without arguments ($ bun start)",
+    "frontend": [
+      "App",
+      "REPL",
+      "LogoHeader",
+      "LogoV2",
+      "StatusNotices"
+    ],
+    "state_transition": "Mounts Root -> renders logo banner, model indicator, cwd, and shortcut hints",
+    "orchestration": [
+      "main.tsx::main()",
+      "replLauncher.ts::launchRepl()"
+    ],
+    "runtime_services": [
+      "config.ts::getGlobalConfig()",
+      "modelStrings.ts"
+    ],
+    "backend": [
+      "Local disk config (~/.claude/config.json)"
+    ],
+    "events": [],
+    "state_mutation": "initializes AppState & stats store",
+    "rendered_ui": "ASCII/Unicode Logo, model name badge, effort badge, path banner",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Core presentation shell; pure Ink/React rendering with zero backend coupling.",
+    "seam_impact": "None. Runs entirely within Claude frontend."
+  },
+  {
+    "id": "startup.onboarding_modal",
+    "name": "First-Run Onboarding Dialog",
+    "category": "startup",
+    "user_action": "First launch when config.hasCompletedOnboarding is false",
+    "frontend": [
+      "Onboarding",
+      "Select",
+      "ThemedBox"
+    ],
+    "state_transition": "showSetupScreens() -> renders Onboarding wizard",
+    "orchestration": [
+      "interactiveHelpers.ts::showSetupScreens()"
+    ],
+    "runtime_services": [
+      "config.ts::completeOnboarding()"
+    ],
+    "backend": [
+      "Local config store"
+    ],
+    "events": [],
+    "state_mutation": "config.hasCompletedOnboarding = true",
+    "rendered_ui": "Theme selection picker, welcome text, confirmation button",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "User preferences & theme setup; local UI state.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "startup.trust_dialog",
+    "name": "Workspace Trust Boundary Modal",
+    "category": "startup",
+    "user_action": "Launch in untrusted working directory",
+    "frontend": [
+      "TrustDialog",
+      "Dialog",
+      "Button"
+    ],
+    "state_transition": "Checks checkHasTrustDialogAccepted() -> renders security confirmation",
+    "orchestration": [
+      "interactiveHelpers.ts::showSetupScreens()"
+    ],
+    "runtime_services": [
+      "config.ts::saveGlobalConfig()"
+    ],
+    "backend": [
+      "Local trusted directories list"
+    ],
+    "events": [],
+    "state_mutation": "setSessionTrustAccepted(true)",
+    "rendered_ui": "Directory trust warning modal with Accept / Reject keys",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Essential security boundary for filesystem tool access.",
+    "seam_impact": "None."
+  }
+]

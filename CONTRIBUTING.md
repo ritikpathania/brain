@@ -12,7 +12,7 @@ To maintain code quality, consistency, and performance across both the Rust engi
 - **Formatting**: Always format code using `cargo fmt` prior to committing.
 - **Diagnostics & Warnings**: All code must compile with zero warnings under `cargo clippy --all-targets -- -D warnings`.
 - **CLI TUI Components**: 
-  - When editing terminal components in `crates/brain-tui/`, use the design token primitives detailed in **[THEME_TOKENS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/THEME_TOKENS.md)** and **[TUI_DESIGN_SYSTEM.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/TUI_DESIGN_SYSTEM.md)**.
+  - When editing terminal components in `crates/brain-tui/`, use the design token primitives and layout contracts detailed in **[CLAUDE_VISUAL_CONTRACT.md](docs/design/CLAUDE_VISUAL_CONTRACT.md)** and **[CLAUDE_COMPONENT_MODEL.md](docs/design/CLAUDE_COMPONENT_MODEL.md)**.
   - Never hardcode hexadecimal, RGB, or ANSI escape colors; always reference theme-based tokens.
 
 ### Python Codebase (Semantic Daemon)
@@ -45,7 +45,7 @@ We follow a structured Git and review workflow to ensure code health and prevent
    - Write clean, imperative commit messages (e.g., `feat: implement vector search strategy`, `docs: reorder reference manuals`).
    - Keep commits granular. Separate general documentation moves from structural code or design spec revisions.
 4. **Documentation Invariants**:
-   - Every feature PR must register new documentation files in the **[Documentation Index](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/README.md)** and comply with **[GOVERNANCE.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/governance/GOVERNANCE.md)**.
+   - Every feature PR must register new documentation files in the **[Documentation Index](docs/README.md)** and comply with **[GOVERNANCE.md](docs/governance/GOVERNANCE.md)**.
 
 ---
 
@@ -107,11 +107,11 @@ For significant architectural changes, we use a two-stage design alignment proce
 
 ### 1. Request for Comments (RFC)
 For proposing new major features, APIs, protocol changes, or core designs:
-- Create a new markdown file under **[rfc/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/)** following the template structure in **[RFC_TEMPLATE.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC_TEMPLATE.md)**.
+- Create a new markdown file under **[rfc/](docs/architecture/rfc)** following the template structure in **[RFC_TEMPLATE.md](docs/architecture/rfc/RFC_TEMPLATE.md)**.
 - Share the RFC with the team/maintainers for collaborative feedback.
 
 ### 2. Architectural Decision Records (ADR)
 Once a design is finalized, or when recording foundational architectural decisions (e.g., opting for Ratatui over Ink, adopting SQLite BLOB storage for vectors):
-- Author an ADR under **[adr/](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/)**.
+- Author an ADR under **[adr/](docs/architecture/adr)**.
 - Name the file sequentially using the pattern `ADR-XXX.md` (e.g., `ADR-009.md`).
 - Document the context, choices, alternatives considered, and consequences.

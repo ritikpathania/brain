@@ -18,7 +18,7 @@ We model all weights and experiments as versioned, immutable snapshot snapshots:
 * **Mutable Cache**: Maintaining an in-memory mutable cache of weights. Rejected because of multi-threading race conditions and lock-contention overhead.
 
 ## Related ADRs
-* [ADR-014 (Deterministic Execution)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-014-deterministic-execution.md)
+* [ADR-014 (Deterministic Execution)](ADR-014-deterministic-execution.md)
 
 ## Expected Stability
 Long-term.

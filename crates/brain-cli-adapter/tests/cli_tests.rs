@@ -5,8 +5,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
 
 fn get_temp_socket_path() -> PathBuf {
-    let rand_val = rand::random::<u32>();
-    std::env::temp_dir().join(format!("brain-test-cli-{}.sock", rand_val))
+    let rand_val = rand::random::<u16>();
+    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
+    std::fs::create_dir_all(&target_dir).ok();
+    target_dir.join(format!("s{}.sock", rand_val))
 }
 
 #[tokio::test]
@@ -61,9 +63,12 @@ async fn test_cli_ping_success() {
             .expect("failed to execute binary")
     });
 
-    // Accept the ping connection
     let accept_res = tokio::time::timeout(Duration::from_secs(10), listener.accept()).await;
-    assert!(accept_res.is_ok(), "Mock server did not receive connection");
+    assert!(
+        accept_res.is_ok(),
+        "Mock server did not receive connection on socket {:?}",
+        socket_path
+    );
     let (stream, _) = accept_res.unwrap().unwrap();
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
@@ -112,19 +117,24 @@ async fn test_cli_send_message() {
             .expect("failed to execute binary")
     });
 
-    // Handle the UDS connection in the mock server
-    let (stream, _) = listener.accept().await.expect("failed to accept");
+    // Accept the connection — bounded so the test never hangs on CI.
+    let accept_res = tokio::time::timeout(Duration::from_secs(10), listener.accept()).await;
+    assert!(
+        accept_res.is_ok(),
+        "Mock server did not receive connection within 10s"
+    );
+    let (stream, _) = accept_res.unwrap().unwrap();
+
     let (read, mut write) = stream.into_split();
     let mut reader = BufReader::new(read);
     let mut line = String::new();
 
-    // 1. Read the handshake request
-    reader
-        .read_line(&mut line)
-        .await
-        .expect("failed to read handshake");
+    // 1. Read the handshake request — bounded read.
+    let hs_read = tokio::time::timeout(Duration::from_secs(10), reader.read_line(&mut line)).await;
+    assert!(hs_read.is_ok(), "Timed out waiting for handshake request");
+    hs_read.unwrap().expect("failed to read handshake");
 
-    // Reply with Handshake response
+    // Reply with Handshake response.
     let reply_hs = serde_json::json!({
         "status": "success",
         "body": "handshake ok"
@@ -134,19 +144,26 @@ async fn test_cli_send_message() {
     write.write_all(reply_hs_str.as_bytes()).await.unwrap();
     write.flush().await.unwrap();
 
-    // 2. Read requests until we get the ingest_event request
+    // 2. Read requests until we see the ingest_event action.
+    //    Intermediate messages (v1/subscribe, heartbeat) are handled inline.
+    //    Every read_line is bounded so a stalled flush timer causes a clean failure.
     let payload_str = loop {
         line.clear();
-        reader
-            .read_line(&mut line)
-            .await
-            .expect("failed to read request");
+        let read_res =
+            tokio::time::timeout(Duration::from_secs(10), reader.read_line(&mut line)).await;
+        assert!(
+            read_res.is_ok(),
+            "Timed out waiting for next request from CLI"
+        );
+        read_res.unwrap().expect("failed to read request");
+
         let request_json: serde_json::Value =
             serde_json::from_str(&line).expect("invalid JSON request");
         let action = request_json
             .get("action")
             .and_then(|a| a.as_str())
             .unwrap_or("");
+
         if action == "v1/subscribe" {
             let req_id = request_json
                 .get("id")
@@ -162,14 +179,15 @@ async fn test_cli_send_message() {
             reply_sub_str.push('\n');
             write.write_all(reply_sub_str.as_bytes()).await.unwrap();
             write.flush().await.unwrap();
-        } else {
+        } else if action == "ingest_event" {
             let p_str = request_json
-                .get("body")
-                .or_else(|| request_json.get("payload"))
+                .get("payload")
+                .or_else(|| request_json.get("body"))
                 .and_then(|p| p.as_str())
-                .unwrap();
+                .expect("ingest_event has no payload/body field");
             break p_str.to_string();
         }
+        // Silently ignore heartbeat and any other control messages.
     };
 
     let envelope: serde_json::Value = serde_json::from_str(&payload_str).unwrap();
@@ -179,7 +197,7 @@ async fn test_cli_send_message() {
         .and_then(|id| id.as_str())
         .unwrap();
 
-    // Reply with IngestAck
+    // Reply with IngestAck.
     let ack_body = serde_json::json!({
         "sequence": 100,
         "event_id": event_id
@@ -192,8 +210,11 @@ async fn test_cli_send_message() {
     write.write_all(reply_str.as_bytes()).await.unwrap();
     write.flush().await.unwrap();
 
-    // Verify command output
-    let output = client_handle.await.expect("join failed");
+    // Verify command output — bounded by the client_handle join.
+    let output = tokio::time::timeout(Duration::from_secs(15), client_handle)
+        .await
+        .expect("CLI process did not exit within 15s")
+        .expect("join failed");
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("Event ingested successfully."));

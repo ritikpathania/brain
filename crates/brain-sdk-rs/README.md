@@ -1,16 +1,27 @@
-# `brain-sdk-rs`
-
-`brain-sdk-rs` provides the native Rust Client SDK for communicating with the Brain background daemon.
+# brain-sdk-rs
 
 ## Purpose
-Provides ergonomic, strongly typed async Rust client handles for querying, ingesting data, and managing sessions over UDS or HTTP sockets.
+Official Rust client SDK for communicating with brain-daemon over Unix Domain Sockets.
 
-## Public Surface
-- `BrainClient`: Primary async client connection handle.
-- `ClientConfig`: Socket path and timeout configuration options.
+## Responsibilities
+* Provide async client interface (`BrainClient`) for daemon IPC.
+* Handle socket connection management, reconnects, and streaming response frames.
 
-## Out of Scope
-- Direct domain state mutations or storage database management.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `tokio`, `serde`, `serde_json`, `thiserror`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-services`, `brain-tui`, `pyo3`.
 
-## Documentation Links
-- **[IPC Protocol Spec](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/protocol.md)**
+## Public API & Facades
+* `BrainClient`, `ClientConfig`, `StreamReceiver`.
+
+## Invariants Protected
+* Stateless SDK client decoupling.
+
+## Canonical References
+* Specification: `../../docs/reference/protocol.md`
+
+## Testing & Verification
+* `cargo test -p brain-sdk-rs`
+
+## Maintainer
+See `CODEOWNERS`.

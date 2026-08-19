@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "claude-ui-upstream-source",
+  "version": "1.0.0-pinned",
+  "upstream": {
+    "repository": "anthropics/claude-code",
+    "description": "Pinned React/Ink/Yoga terminal presentation components",
+    "pinnedTimestamp": "2026-08-15T18:00:00Z",
+    "importBoundary": "@claude-ui/*",
+    "vendoredPath": "packages/brain-shell/vendor/claude",
+    "allowedSubsystems": [
+      "components/FullscreenLayout.js",
+      "components/Spinner.js",
+      "components/Markdown.js",
+      "components/design-system/*",
+      "hooks/useTextInput.js",
+      "hooks/useTerminalSize.js",
+      "ink.js",
+      "ink/*",
+      "utils/Cursor.js",
+      "utils/theme.js",
+      "state/AppState.js"
+    ],
+    "forbiddenSubsystems": [
+      "@anthropic-ai/sdk",
+      "api.anthropic.com",
+      "auth/*",
+      "oauth/*",
+      "billing/*",
+      "telemetry/*",
+      "GuestPasses/*",
+      "LogoV2/*"
+    ]
+  },
+  "integrity": {
+    "verified": true,
+    "boundaryTest": "packages/brain-shell/src/test/importBoundary.test.ts"
+  }
+}

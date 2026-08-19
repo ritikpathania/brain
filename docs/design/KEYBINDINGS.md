@@ -1,5 +1,8 @@
 # Keybindings
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document defines the canonical keyboard shortcuts, key combination behaviors, scoping rules, and conflict resolution policies for the Brain TUI client.
 
 ---

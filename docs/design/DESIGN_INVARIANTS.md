@@ -1,5 +1,8 @@
 # Design Invariants
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document establishes the strict frontend invariants for the Brain TUI client. These rules govern layout, rendering, input handling, and terminal states, serving as checklist criteria during PR reviews.
 
 ---

@@ -1,6 +1,6 @@
 use brain_services::distributed::*;
 use brain_services::runtime::*;
-use rusqlite::Connection;
+use brain_storage::Connection;
 
 #[test]
 fn test_ingress_gate_rejects_unhealthy_or_stale_heartbeat() {

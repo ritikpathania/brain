@@ -1,0 +1,24 @@
+ ▐▛███▜▌   Claude Code v2.1.235                                                 
+▝▜█████▛▘  Sonnet 4.6 · API Usage Billing                                       
+  ▘▘ ▝▝    /Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell    
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+❯ hello world                                                                   
+────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on                                  Not logged in · Run /login  
+                                                              ● high · /effort  
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                

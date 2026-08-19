@@ -5,14 +5,12 @@ edition = "2021"
 
 [lib]
 name = "daemon_bridge"
-crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "brain-daemon"
 path = "src/main.rs"
 
 [dependencies]
-pyo3 = { version = "0.21.0", features = ["auto-initialize"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 serde = { version = "1.0", features = ["derive"] }
@@ -29,7 +27,6 @@ brain-core = { path = "../crates/brain-core" }
 brain-config = { path = "../crates/brain-config" }
 brain-services = { path = "../crates/brain-services" }
 brain-application = { path = "../crates/brain-application" }
-brain-storage = { path = "../crates/brain-storage" }
 reqwest = { workspace = true }
 
 [dev-dependencies]

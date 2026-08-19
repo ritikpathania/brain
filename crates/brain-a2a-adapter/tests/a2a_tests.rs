@@ -14,7 +14,6 @@ fn get_temp_db_path() -> String {
 }
 
 fn setup_app() -> Arc<BrainApplication> {
-    pyo3::prepare_freethreaded_python();
     let db_path = get_temp_db_path();
     let runtime = BrainRuntime::new(&db_path).unwrap();
     Arc::new(BrainApplication::new(Arc::new(runtime)))

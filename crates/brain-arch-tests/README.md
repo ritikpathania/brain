@@ -1,15 +1,27 @@
-# `brain-arch-tests`
-
-`brain-arch-tests` houses automated architectural boundary tests for the `brain` workspace.
+# brain-arch-tests
 
 ## Purpose
-Enforces structural invariants (e.g. `brain-domain` dependency isolation, layer boundaries) at compile time.
+AST-based architectural rule validation and static analysis test suite.
 
-## Public Surface
-- `dependency_boundaries`: Integration test suite validating workspace dependency graph.
+## Responsibilities
+* Enforce AST-level import constraints across all crates in the workspace.
+* Assert no upward infrastructure imports from core and domain layers.
 
-## Out of Scope
-- Production feature runtime code.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `syn`, `quote`, `walkdir`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`.
 
-## Documentation Links
-- **[Architecture Invariants](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/ARCHITECTURE_INVARIANTS.md)**
+## Public API & Facades
+* Architecture test assertions.
+
+## Invariants Protected
+* Static structural boundary enforcement.
+
+## Canonical References
+* Specification: `../../docs/architecture/CONSTITUTION.md`
+
+## Testing & Verification
+* `cargo test -p brain-arch-tests`
+
+## Maintainer
+See `CODEOWNERS`.

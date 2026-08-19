@@ -1,5 +1,8 @@
 # Terminal Capabilities & Fallbacks
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document outlines how the Brain TUI client detects, degrades, and handles varying terminal features, from high-end modern emulators to basic legacy remote SSH sessions.
 
 ---

@@ -1,0 +1,102 @@
+version: "1.0.0"
+audit_metadata:
+  corpus_size: 446
+  phase: "Phase 11.2 — Claude Source-to-Contract Differential Audit"
+  claude_source_root: "/Users/ritikpathania/Developer/src"
+  reference_commit: "38cbb06b"
+  timestamp: "2026-08-14"
+  execution_mode: "STRICT READ-ONLY"
+
+claude_source_inventory:
+  total_components: 389
+  core_primitives:
+    - name: "FullscreenLayout"
+      source_file: "components/FullscreenLayout.tsx"
+      lines: 637
+      role: "Application Root Shell & Two-Region Partitioning"
+    - name: "LogoV2"
+      source_file: "components/LogoV2/LogoV2.tsx"
+      lines: 395
+      role: "Scrollable Typographic Greeting Header"
+    - name: "VirtualMessageList"
+      source_file: "components/VirtualMessageList.tsx"
+      lines: 488
+      role: "Virtualized Follow-Tail Message Scroll Stream"
+    - name: "PromptInput"
+      source_file: "components/PromptInput/PromptInput.tsx"
+      lines: 1142
+      role: "Auto-Expanding Multiline Prompt Box"
+    - name: "StatusLine"
+      source_file: "components/StatusLine.tsx"
+      lines: 324
+      role: "Single-Row Borderless Hint Footer"
+    - name: "AssistantThinkingMessage"
+      source_file: "components/messages/AssistantThinkingMessage.tsx"
+      lines: 86
+      role: "Inline Collapsible Thinking Spinner Block"
+    - name: "AssistantToolUseMessage"
+      source_file: "components/messages/AssistantToolUseMessage.tsx"
+      lines: 368
+      role: "1-Line Collapsible Tool Execution Card"
+    - name: "FuzzyPicker"
+      source_file: "components/design-system/FuzzyPicker.tsx"
+      lines: 312
+      role: "Floating Slash Autocomplete Popup"
+    - name: "GlobalSearchDialog"
+      source_file: "components/GlobalSearchDialog.tsx"
+      lines: 410
+      role: "Centered Command Palette Modal Overlay"
+
+claude_to_brain_coverage:
+  total_claude_behaviors: 22
+  represented: 16
+  intentionally_omitted: 6
+  brain_specific: 3
+  conflicting: 0
+  unresolved: 0
+  coverage_percentage: 100.0
+
+brain_active_requirements_classification:
+  total_active_requirements: 28
+  claude_grounded: 18
+  brain_specific: 5
+  engineering_constraint: 5
+  historical: 4
+  legacy: 0
+  unresolved: 0
+  classification_percentage: 100.0
+
+exact_geometry_metrics:
+  min_input_viewport_lines: 3
+  prompt_footer_lines: 5
+  modal_transcript_peek: 2
+  logo_horizontal_breakpoint: 70
+  left_panel_max_width: 50
+  right_panel_min_width: 30
+  border_padding: 4
+  content_padding: 2
+  divider_width: 1
+
+exact_theme_tokens:
+  claude: "rgb(215,119,87) / #D77757"
+  claudeShimmer: "rgb(235,159,127) / #EB9F7F"
+  promptBorder: "rgb(136,136,136) / #888888"
+  promptBorderShimmer: "rgb(166,166,166) / #A6A6A6"
+  subtle: "rgb(80,80,80) / #505050"
+  permission: "rgb(177,185,249) / #B1B9F9"
+  autoAccept: "rgb(175,135,255) / #AF87FF"
+  planMode: "rgb(72,150,140) / #48968C"
+  userMessageBackground: "rgb(30,30,30) / #1E1E1E"
+  text: "rgb(255,255,255) / #FFFFFF"
+  inactive: "rgb(153,153,153) / #999999"
+  success: "rgb(78,186,101) / #4EBA65"
+  error: "rgb(255,107,128) / #FF6B80"
+  warning: "rgb(255,193,7) / #FFC107"
+
+final_verdict:
+  claude_brain_coverage_satisfied: true
+  brain_claude_classification_satisfied: true
+  legacy_normative_requirements: 0
+  unresolved_requirements: 0
+  source_evidence_gaps: 0
+  implementation_ready: true

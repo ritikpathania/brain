@@ -28,7 +28,7 @@ rfcs:
 
 # IPC & Wire Protocol Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical wire protocol details live in [`docs/reference/protocol.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/protocol.md) and contract generation workflows live in [`docs/reference/generation_workflow.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/generation_workflow.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical wire protocol details live in [`docs/reference/protocol.md`](../reference/protocol.md) and contract generation workflows live in [`docs/reference/generation_workflow.md`](../reference/generation_workflow.md).
 
 ---
 
@@ -73,25 +73,25 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 - **Protocol Independence**: Domain logic remains completely decoupled from IPC wire codecs.
 
 ## 7. Owning Crates
-- [`crates/brain-integrations`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-integrations/README.md): DTO definitions, Specta contract specs.
-- [`daemon`](file:///Users/ritikpathania/Developer/PyCharm/brain/daemon/README.md): UDS server, HTTP Prometheus server.
+- [`crates/brain-integrations`](../../crates/brain-integrations/README.md): DTO definitions, Specta contract specs.
+- [`daemon`](../../daemon/README.md): UDS server, HTTP Prometheus server.
 
 ## 8. Implementation Notes
 - Wire DTO types derive `specta::Type` and `serde::Serialize`.
 
 ## 9. Canonical References
-- [`docs/reference/protocol.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/protocol.md): Canonical wire protocol and endpoint specification.
-- [`docs/reference/generation_workflow.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/generation_workflow.md): Specta contract generation workflow.
-- [`docs/architecture/contract-lifecycle.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/contract-lifecycle.md): DTO lifecycle and deprecation policy.
+- [`docs/reference/protocol.md`](../reference/protocol.md): Canonical wire protocol and endpoint specification.
+- [`docs/reference/generation_workflow.md`](../reference/generation_workflow.md): Specta contract generation workflow.
+- [`docs/architecture/contract-lifecycle.md`](../architecture/contract-lifecycle.md): DTO lifecycle and deprecation policy.
 
 ## 10. Related ADRs
-- [`ADR-020: Protocol Independence & Adapter Architecture`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-020-protocol-independence.md)
-- [`ADR-021: Stable Application Interface`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-021-stable-application-interface.md)
-- [`ADR-022: Contract Ownership & DTO Generation Strategy`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-022-contract-ownership-strategy.md)
+- [`ADR-020: Protocol Independence & Adapter Architecture`](../architecture/adr/ADR-020-protocol-independence.md)
+- [`ADR-021: Stable Application Interface`](../architecture/adr/ADR-021-stable-application-interface.md)
+- [`ADR-022: Contract Ownership & DTO Generation Strategy`](../architecture/adr/ADR-022-contract-ownership-strategy.md)
 
 ## 11. Related RFCs
-- [`RFC-003: IPC UDS Frame Codecs & Streaming Events Protocol`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-003.md)
-- [`RFC-007: Versioned Request Frames`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-007.md)
+- [`RFC-003: IPC UDS Frame Codecs & Streaming Events Protocol`](../architecture/rfc/RFC-003.md)
+- [`RFC-007: Versioned Request Frames`](../architecture/rfc/RFC-007.md)
 
 ## 12. Operations
 - Prometheus metric scraping path: `http://localhost:9090/metrics`.

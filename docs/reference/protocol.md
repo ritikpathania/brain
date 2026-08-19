@@ -90,7 +90,7 @@ Used for out-of-band updates:
   "version": "1.0",
   "type": "Notification",
   "notification_type": "sync_complete",
-  "message": "DuckDB sync completed"
+  "message": "Projection sync completed"
 }
 ```
 

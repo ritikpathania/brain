@@ -20,8 +20,8 @@ We write test assertions against core behavioral and mathematical invariants ins
 * **Integration-Only Verification**: Relying entirely on manual/e2e checks. Rejected due to inability to pinpoint core mathematical bugs.
 
 ## Related ADRs
-* [ADR-012 (Value Objects)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-012-value-objects.md)
-* [ADR-014 (Deterministic Execution)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-014-deterministic-execution.md)
+* [ADR-012 (Value Objects)](ADR-012-value-objects.md)
+* [ADR-014 (Deterministic Execution)](ADR-014-deterministic-execution.md)
 
 ## Expected Stability
 Long-term.

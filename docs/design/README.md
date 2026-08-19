@@ -1,22 +1,43 @@
-# TUI Design System & Aesthetics Index
+# Brain Frontend Design Authority & Technical Specifications Index
 
-This directory contains specifications, theme tokens, interaction models, accessibility guidelines, and component libraries for the Brain Terminal User Interface (TUI).
+This directory contains the canonical visual contracts, component models, capability surface mappings, and subordinate engineering specifications for the Brain Terminal User Interface (`crates/brain-tui`).
 
-## Design System Specifications Index
+---
 
-* **[TUI_DESIGN_SYSTEM.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/TUI_DESIGN_SYSTEM.md)**: Main TUI layout architecture, viewport hierarchy, and responsive rendering rules.
-* **[THEME_TOKENS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/THEME_TOKENS.md)**: Brand accents, status feedback colors, and text contrast tokens.
-* **[STABLE_UI_INVARIANTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABLE_UI_INVARIANTS.md)**: Architectural invariants governing TUI component states.
-* **[ACCESSIBILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/ACCESSIBILITY.md)**: Screen-reader support, high-contrast modes, CJK font fallback policies.
-* **[COMPONENT_LIBRARY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/COMPONENT_LIBRARY.md)**: Reusable Ratatui widget definitions.
-* **[DESIGN_INVARIANTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/DESIGN_INVARIANTS.md)**: Form & layout constraints.
-* **[EXTENSION_PHILOSOPHY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/EXTENSION_PHILOSOPHY.md)**: Extension & custom theme guidelines.
-* **[INFORMATION_ARCHITECTURE.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/INFORMATION_ARCHITECTURE.md)**: Screen navigation & data presentation hierarchy.
-* **[INTERACTION_MODEL.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/INTERACTION_MODEL.md)**: Keyboard, mouse, and modal interaction states.
-* **[KEYBINDINGS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/KEYBINDINGS.md)**: Keyboard shortcuts and Vim navigation bindings.
-* **[MOTION.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/MOTION.md)**: Micro-animations and spinner tick rates.
-* **[PERFORMANCE_BUDGET.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/PERFORMANCE_BUDGET.md)**: Draw frame time budgets (<66ms) and memory limits.
-* **[RESPONSIVE_LAYOUTS.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/RESPONSIVE_LAYOUTS.md)**: Terminal resize behavior and compact display (<80col) rules.
-* **[TERMINAL_CAPABILITIES.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/TERMINAL_CAPABILITIES.md)**: ANSI, 256-color, and TrueColor detection.
-* **[THEMING.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/THEMING.md)**: Built-in theme palette definitions.
-* **[UX_PRINCIPLES.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/design/UX_PRINCIPLES.md)**: Core terminal UX design axioms.
+## 1. Primary Canonical Design Authorities
+
+* **[`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md)**: **Sole Canonical Visual & Interaction Authority**. Defines the normative visual grammar, typographic hierarchy, warm terracotta/neutral palette, borderless conversation floor, and two-region vertical stack.
+* **[`CLAUDE_COMPONENT_MODEL.md`](./CLAUDE_COMPONENT_MODEL.md)**: **Canonical Component Architecture**. Defines the 18 reusable component primitives.
+* **[`BRAIN_CLAUDE_SURFACE_MAPPING.md`](./BRAIN_CLAUDE_SURFACE_MAPPING.md)**: **Canonical Capability Projection Contract**. Governs how Brain's relational memory engine and search capabilities project onto Claude visual surfaces without inventing unbacked cloud features.
+* **[`BRAIN_PRODUCT_CAPABILITIES_ROADMAP.md`](./BRAIN_PRODUCT_CAPABILITIES_ROADMAP.md)**: **Canonical Product Roadmap**. Exhaustive inventory of Brain's backend and product capabilities.
+
+---
+
+## 2. Subordinate Technical & Engineering Specifications
+
+All specifications below are subordinate to and strictly governed by [`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md):
+
+* **[`TUI_DESIGN_SYSTEM.md`](./TUI_DESIGN_SYSTEM.md)**: Ratatui layout container implementation guide.
+* **[`COMPONENT_LIBRARY.md`](./COMPONENT_LIBRARY.md)**: Widget implementation catalog for the 18 component primitives.
+* **[`INFORMATION_ARCHITECTURE.md`](./INFORMATION_ARCHITECTURE.md)**: Screen hierarchy and progressive disclosure rules.
+* **[`INTERACTION_MODEL.md`](./INTERACTION_MODEL.md)**: Interaction states, focus traversal, and prompt-first state machine.
+* **[`KEYBINDINGS.md`](./KEYBINDINGS.md)**: Keyboard shortcuts and Emacs/Vim line editing bindings.
+* **[`RESPONSIVE_LAYOUTS.md`](./RESPONSIVE_LAYOUTS.md)**: Terminal resize behavior, geometry math, and compact degradation.
+* **[`MOTION.md`](./MOTION.md)**: 60fps refresh loop budgets, typewriter queue timing, and 80ms spinner cycling.
+* **[`ACCESSIBILITY.md`](./ACCESSIBILITY.md)**: WCAG AA contrast tokens, screen-reader landmarks, and ANSI 16-color fallbacks.
+* **[`PERFORMANCE_BUDGET.md`](./PERFORMANCE_BUDGET.md)**: Draw frame latency budgets (<66ms) and memory limits.
+* **[`DESIGN_INVARIANTS.md`](./DESIGN_INVARIANTS.md)**: Whitespace before chrome, zero decorative fluff, responsive flow.
+* **[`TERMINAL_CAPABILITIES.md`](./TERMINAL_CAPABILITIES.md)**: ANSI, 256-color, and TrueColor detection.
+* **[`EXTENSION_PHILOSOPHY.md`](./EXTENSION_PHILOSOPHY.md)**: Plugin UI boundary guidelines.
+* **[`UX_PRINCIPLES.md`](./UX_PRINCIPLES.md)**: Speed, cognitive clarity, and low-friction axioms.
+
+---
+
+## 3. Superseded Historical Specifications
+
+The following legacy specifications are **SUPERSEDED** and retained strictly for historical reference:
+
+* **[`LANDING_PAGE.md`](./LANDING_PAGE.md)**: *Superseded by [`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md)*.
+* **[`VISUAL_LANGUAGE_V2.md`](./VISUAL_LANGUAGE_V2.md)**: *Superseded by [`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md)*.
+* **[`THEME_TOKENS.md`](./THEME_TOKENS.md)**: *Superseded by [`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md)*.
+* **[`THEMING.md`](./THEMING.md)**: *Superseded by [`CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md)*.

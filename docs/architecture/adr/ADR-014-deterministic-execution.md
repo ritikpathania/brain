@@ -17,8 +17,8 @@ We enforce absolute determinism throughout serving and routing pipelines:
 * **Random Splitting**: Falling back to random number generators. Rejected because it destroys consistency across query evaluations.
 
 ## Related ADRs
-* [ADR-011 (Immutable Snapshots)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-011-immutable-snapshots.md)
-* [ADR-013 (Behavioral Invariants)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-013-behavioral-invariants.md)
+* [ADR-011 (Immutable Snapshots)](ADR-011-immutable-snapshots.md)
+* [ADR-013 (Behavioral Invariants)](ADR-013-behavioral-invariants.md)
 
 ## Expected Stability
 Long-term.

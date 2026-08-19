@@ -301,7 +301,7 @@ fn test_sqlite_store_schema_migration_older_version() {
 
     {
         // 1. Pre-create legacy version 1 schema manually
-        let conn = rusqlite::Connection::open(&temp_file.path).unwrap();
+        let conn = brain_storage::rusqlite::Connection::open(&temp_file.path).unwrap();
         conn.execute_batch(&format!(
             "CREATE TABLE {} (
                 key_hash TEXT NOT NULL,
@@ -329,7 +329,7 @@ fn test_sqlite_store_schema_verification_failure_on_corruption() {
 
     {
         // Pre-create table missing the value_blob column but setting user_version = 2
-        let conn = rusqlite::Connection::open(&temp_file.path).unwrap();
+        let conn = brain_storage::rusqlite::Connection::open(&temp_file.path).unwrap();
         conn.execute_batch(&format!(
             "CREATE TABLE {} (
                 snapshot_id INTEGER NOT NULL,
@@ -363,7 +363,7 @@ fn test_sqlite_store_schema_verification_failure_on_type_mismatch() {
 
     {
         // Pre-create table where snapshot_id is TEXT instead of INTEGER
-        let conn = rusqlite::Connection::open(&temp_file.path).unwrap();
+        let conn = brain_storage::rusqlite::Connection::open(&temp_file.path).unwrap();
         conn.execute_batch(&format!(
             "CREATE TABLE {} (
                 snapshot_id TEXT NOT NULL,
@@ -423,16 +423,16 @@ fn test_sqlite_store_hash_collision_handling() {
         SQLiteStore::<CompiledQueryCacheKey, CompilationResult>::new(config, table).unwrap();
 
     // Manually insert two entries with identical hash but different key blobs into the table
-    let conn = rusqlite::Connection::open(&temp_file.path).unwrap();
+    let conn = brain_storage::rusqlite::Connection::open(&temp_file.path).unwrap();
     conn.execute(&format!(
         "INSERT INTO {} (snapshot_id, key_hash, key_blob, value_blob) VALUES (?, ?, ?, ?)",
         table
-    ), rusqlite::params![10, "colliding_hash", "{\"snapshot_id\":10,\"request\":{\"semantic_query\":\"query A\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null}}", "{\"canonical_query\":{\"semantic_query\":\"result A\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null,\"disable_expansion\":false},\"metadata\":{\"passes_executed\":[],\"diagnostics\":[],\"compiler_version\":\"0.1.0\"}}"]).unwrap();
+    ), brain_storage::rusqlite::params![10, "colliding_hash", "{\"snapshot_id\":10,\"request\":{\"semantic_query\":\"query A\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null}}", "{\"canonical_query\":{\"semantic_query\":\"result A\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null,\"disable_expansion\":false},\"metadata\":{\"passes_executed\":[],\"diagnostics\":[],\"compiler_version\":\"0.1.0\"}}"]).unwrap();
 
     conn.execute(&format!(
         "INSERT INTO {} (snapshot_id, key_hash, key_blob, value_blob) VALUES (?, ?, ?, ?)",
         table
-    ), rusqlite::params![10, "colliding_hash", "{\"snapshot_id\":10,\"request\":{\"semantic_query\":\"query B\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null}}", "{\"canonical_query\":{\"semantic_query\":\"result B\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null,\"disable_expansion\":false},\"metadata\":{\"passes_executed\":[],\"diagnostics\":[],\"compiler_version\":\"0.1.0\"}}"]).unwrap();
+    ), brain_storage::rusqlite::params![10, "colliding_hash", "{\"snapshot_id\":10,\"request\":{\"semantic_query\":\"query B\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null}}", "{\"canonical_query\":{\"semantic_query\":\"result B\",\"min_confidence\":0.5,\"entity_types\":null,\"relations\":null,\"max_visited\":null,\"max_depth\":null,\"disable_expansion\":false},\"metadata\":{\"passes_executed\":[],\"diagnostics\":[],\"compiler_version\":\"0.1.0\"}}"]).unwrap();
 
     // Reconstruct the key structs corresponding to the exact serialized JSON strings above
     let _key_a = CompiledQueryCacheKey {

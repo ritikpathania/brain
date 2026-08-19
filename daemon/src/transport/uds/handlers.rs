@@ -201,6 +201,12 @@ pub async fn handle_connection(
                             continue;
                         }
 
+                        let score = summary
+                            .metadata
+                            .get("score")
+                            .and_then(|s| s.parse::<i64>().ok())
+                            .unwrap_or(100);
+
                         matches.push(crate::server::protocol::QueryResultNode {
                             id: summary.id.clone(),
                             label: clean_title,
@@ -208,7 +214,7 @@ pub async fn handle_connection(
                             content: summary.body.clone(),
                             attributes: serde_json::to_value(&summary.metadata)
                                 .unwrap_or(serde_json::json!({})),
-                            score: 8000,
+                            score,
                             source: "STM".to_string(),
                             connections: Vec::new(),
                         });
@@ -234,28 +240,6 @@ pub async fn handle_connection(
                 .map(|n| n.id.clone())
                 .collect();
 
-            let is_diagnostic_query = payload.to_lowercase().contains("test")
-                || payload.to_lowercase().contains("canary")
-                || payload.to_lowercase().contains("stress")
-                || payload.to_lowercase().contains("telemetry");
-
-            let filtered_matches: Vec<_> = matches
-                .into_iter()
-                .filter(|node| {
-                    if is_diagnostic_query {
-                        return true;
-                    }
-                    let lbl = node.label.to_lowercase();
-                    let cnt = node.content.to_lowercase();
-                    !lbl.contains("stress test observation")
-                        && !lbl.contains("canaryphraseconfidencerank")
-                        && !lbl.contains("hello brain from end-to-end test")
-                        && !lbl.contains("telemetry validation query")
-                        && !cnt.contains("canaryphraseconfidencerank")
-                })
-                .collect();
-            matches = filtered_matches;
-
             if resp_msg.is_empty() {
                 if !matches.is_empty() {
                     seq += 1;
@@ -269,7 +253,7 @@ pub async fn handle_connection(
                             stream_id: stream_id.clone(),
                             sequence: seq,
                             content: format!(
-                                "Found {} {} from your memory graph:\n\n🟢 High Confidence\n",
+                                "Found {} {} from your memory graph:\n\n🟢 High confidence\n",
                                 matches.len(),
                                 plural
                             ),
@@ -510,6 +494,7 @@ pub async fn handle_connection(
                         serde_json::to_string(&ir_summary).unwrap_or_default()
                     }
                     ApplicationResponse::ListSessions(body) => body,
+                    ApplicationResponse::GetSession(body) => body,
                 };
 
                 let response = if is_versioned {

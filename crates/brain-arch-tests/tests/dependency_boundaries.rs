@@ -53,7 +53,8 @@ const RULES: &[ArchitectureRule] = &[
     },
     ArchitectureRule {
         subject: "brain-services",
-        description: "Invariant 2 & 3: brain-services must not depend on adapter or host/executable crates. \
+        description:
+            "Invariant 2 & 3: brain-services must not depend on adapter or host/executable crates. \
                       Adapters and hosts are consumers of services, not providers.",
         forbidden_deps: &["brain-*-adapter", "brain-daemon", "brain"],
         must_have_no_workspace_deps: false,
@@ -69,21 +70,25 @@ const RULES: &[ArchitectureRule] = &[
         subject: "brain-storage",
         description: "brain-storage is a low-level persistence driver; \
                       it must never depend on service policy logic or host executables.",
-        forbidden_deps: &["brain-services", "brain-application", "brain-daemon", "brain"],
-        must_have_no_workspace_deps: false,
-    },
-    ArchitectureRule {
-        subject: "brain-tui",
-        description: "brain-tui is an external presentation client; \
-                      it must never depend directly on low-level storage engines or daemon binaries.",
-        forbidden_deps: &["brain-storage", "brain-daemon"],
+        forbidden_deps: &[
+            "brain-services",
+            "brain-application",
+            "brain-daemon",
+            "brain",
+        ],
         must_have_no_workspace_deps: false,
     },
     ArchitectureRule {
         subject: "brain-core",
-        description: "Invariant 3: brain-core is foundational; it must never depend on higher-level \
+        description:
+            "Invariant 3: brain-core is foundational; it must never depend on higher-level \
                       services, application, or executable crates.",
-        forbidden_deps: &["brain-services", "brain-application", "brain-daemon", "brain"],
+        forbidden_deps: &[
+            "brain-services",
+            "brain-application",
+            "brain-daemon",
+            "brain",
+        ],
         must_have_no_workspace_deps: false,
     },
 ];

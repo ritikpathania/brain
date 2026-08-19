@@ -4,7 +4,7 @@
 Proposed
 
 ## Context
-In [ADR-021 (Stable Application Interface)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-021-stable-application-interface.md), we established the transport-neutral contract boundary governing interactions with the Brain Runtime. Now, we must make a foundational engineering strategy decision: **what owns the contract?**
+In [ADR-021 (Stable Application Interface)](ADR-021-stable-application-interface.md), we established the transport-neutral contract boundary governing interactions with the Brain Runtime. Now, we must make a foundational engineering strategy decision: **what owns the contract?**
 
 This decision determines how Data Transfer Objects (DTOs) and client SDK types are defined, generated, and verified across languages (primarily Rust, TypeScript, and Python) without manual typing drift or runtime API desynchronization.
 

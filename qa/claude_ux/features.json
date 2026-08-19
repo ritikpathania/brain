@@ -1,0 +1,680 @@
+[
+  {
+    "id": "startup.landing_screen",
+    "name": "Landing Screen & Header Banner",
+    "category": "startup",
+    "user_action": "Launch shell without arguments ($ bun start)",
+    "frontend": [
+      "App",
+      "REPL",
+      "LogoHeader",
+      "LogoV2",
+      "StatusNotices"
+    ],
+    "state_transition": "Mounts Root -> renders logo banner, model indicator, cwd, and shortcut hints",
+    "orchestration": [
+      "main.tsx::main()",
+      "replLauncher.ts::launchRepl()"
+    ],
+    "runtime_services": [
+      "config.ts::getGlobalConfig()",
+      "modelStrings.ts"
+    ],
+    "backend": [
+      "Local disk config (~/.claude/config.json)"
+    ],
+    "events": [],
+    "state_mutation": "initializes AppState & stats store",
+    "rendered_ui": "ASCII/Unicode Logo, model name badge, effort badge, path banner",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Core presentation shell; pure Ink/React rendering with zero backend coupling.",
+    "seam_impact": "None. Runs entirely within Claude frontend."
+  },
+  {
+    "id": "startup.onboarding_modal",
+    "name": "First-Run Onboarding Dialog",
+    "category": "startup",
+    "user_action": "First launch when config.hasCompletedOnboarding is false",
+    "frontend": [
+      "Onboarding",
+      "Select",
+      "ThemedBox"
+    ],
+    "state_transition": "showSetupScreens() -> renders Onboarding wizard",
+    "orchestration": [
+      "interactiveHelpers.ts::showSetupScreens()"
+    ],
+    "runtime_services": [
+      "config.ts::completeOnboarding()"
+    ],
+    "backend": [
+      "Local config store"
+    ],
+    "events": [],
+    "state_mutation": "config.hasCompletedOnboarding = true",
+    "rendered_ui": "Theme selection picker, welcome text, confirmation button",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "User preferences & theme setup; local UI state.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "startup.trust_dialog",
+    "name": "Workspace Trust Boundary Modal",
+    "category": "startup",
+    "user_action": "Launch in untrusted working directory",
+    "frontend": [
+      "TrustDialog",
+      "Dialog",
+      "Button"
+    ],
+    "state_transition": "Checks checkHasTrustDialogAccepted() -> renders security confirmation",
+    "orchestration": [
+      "interactiveHelpers.ts::showSetupScreens()"
+    ],
+    "runtime_services": [
+      "config.ts::saveGlobalConfig()"
+    ],
+    "backend": [
+      "Local trusted directories list"
+    ],
+    "events": [],
+    "state_mutation": "setSessionTrustAccepted(true)",
+    "rendered_ui": "Directory trust warning modal with Accept / Reject keys",
+    "persistence": [
+      "~/.claude/config.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Essential security boundary for filesystem tool access.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.single_line_input",
+    "name": "Prompt Input Single-line Composer",
+    "category": "composer",
+    "user_action": "Type alphanumeric characters in PromptInput",
+    "frontend": [
+      "PromptInput",
+      "PromptComposer",
+      "useCursorNav"
+    ],
+    "state_transition": "onChange event -> updates text buffer and cursor index",
+    "orchestration": [
+      "PromptInput.tsx::onInput()"
+    ],
+    "runtime_services": [
+      "keybindings/loadUserBindings.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "local state text, cursorX",
+    "rendered_ui": "Themed input box with active cursor rendering",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure client presentation component managing Ink keystroke stream.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.multiline_editing",
+    "name": "Multiline Composer & Linebreak Handling",
+    "category": "composer",
+    "user_action": "Press Shift+Enter or Ctrl+J to insert newline",
+    "frontend": [
+      "PromptInput",
+      "PromptComposer",
+      "MultilineText"
+    ],
+    "state_transition": "Splits buffer on newline, recomputes viewport line wrapping and cursor position",
+    "orchestration": [
+      "PromptInput.tsx::handleSpecialKey()"
+    ],
+    "runtime_services": [
+      "wrap-text.ts",
+      "measure-element.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "lines array, lineIndex, cursorOffset",
+    "rendered_ui": "Expanding multi-row text box with line continuation markers",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Essential terminal composer UX.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.cursor_and_word_nav",
+    "name": "Cursor Navigation & Word Jumps",
+    "category": "composer",
+    "user_action": "Press Left/Right/Home/End, Alt+Left/Right, Ctrl+A/E",
+    "frontend": [
+      "PromptInput",
+      "useCursorNav"
+    ],
+    "state_transition": "Calculates Unicode grapheme boundaries and word regex offsets",
+    "orchestration": [
+      "PromptInput.tsx::handleCursorMovement()"
+    ],
+    "runtime_services": [
+      "stringUtils.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "cursorPosition updated",
+    "rendered_ui": "Cursor indicator shifted to target column/row",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure terminal interaction math.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.history_navigation",
+    "name": "Prompt History Up/Down Recall",
+    "category": "composer",
+    "user_action": "Press Up / Down arrow in empty or top line of composer",
+    "frontend": [
+      "PromptInput",
+      "REPL"
+    ],
+    "state_transition": "Fetches prompt from history ring buffer",
+    "orchestration": [
+      "history.ts::getHistory()",
+      "REPL.tsx::onHistoryMove()"
+    ],
+    "runtime_services": [
+      "history.ts"
+    ],
+    "backend": [
+      "Local prompt history file (~/.claude/history.json)"
+    ],
+    "events": [],
+    "state_mutation": "setInputValue(historicalPrompt)",
+    "rendered_ui": "Populates composer with historical prompt string",
+    "persistence": [
+      "~/.claude/history.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Local developer convenience feature.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "commands.slash_picker",
+    "name": "Slash Command Autocomplete Palette",
+    "category": "commands",
+    "user_action": "Type / at beginning of prompt line",
+    "frontend": [
+      "PromptInput",
+      "SlashCommandMenu",
+      "FuzzyPicker"
+    ],
+    "state_transition": "Opens floating popup modal filtering commands list",
+    "orchestration": [
+      "commands.ts::getCommands()"
+    ],
+    "runtime_services": [
+      "commands.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "isSlashPaletteOpen = true, filterText = /",
+    "rendered_ui": "Bordered popup box listing /compact, /cost, /help, /model, /review, etc.",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure client command selector.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "commands.local_execution",
+    "name": "Client-Side Slash Command Handler",
+    "category": "commands",
+    "user_action": "Execute client command (e.g. /clear, /theme, /effort)",
+    "frontend": [
+      "REPL",
+      "AppStateProvider"
+    ],
+    "state_transition": "REPL.onSubmit intercept matches command.type === local",
+    "orchestration": [
+      "REPL.tsx::handleLocalCommand()"
+    ],
+    "runtime_services": [
+      "commands/theme.ts",
+      "commands/effort.ts"
+    ],
+    "backend": [
+      "Local settings/state store"
+    ],
+    "events": [],
+    "state_mutation": "Mutates active theme or effort state in AppState",
+    "rendered_ui": "System message banner or updated UI theme tokens",
+    "persistence": [
+      "~/.claude/settings.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Local UI preferences and terminal layout toggles.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "commands.auth_login",
+    "name": "Authentication Command (/login, /logout)",
+    "category": "commands",
+    "user_action": "User runs /login or /logout",
+    "frontend": [
+      "REPL",
+      "AuthDialog",
+      "OAuthCallbackServer"
+    ],
+    "state_transition": "Launches OAuth web flow / token prompt",
+    "orchestration": [
+      "commands/auth.ts",
+      "services/oauth/client.ts"
+    ],
+    "runtime_services": [
+      "services/oauth/client.ts"
+    ],
+    "backend": [
+      "Anthropic OAuth / API Key Keychain"
+    ],
+    "events": [],
+    "state_mutation": "Updates session auth token in secure storage",
+    "rendered_ui": "Login prompt dialog with browser URL and token input",
+    "persistence": [
+      "OS Keychain / ~/.claude/credentials.json"
+    ],
+    "classification": "REPLACE",
+    "rationale": "Anthropic OAuth replaced with Brain authentication & daemon pairing.",
+    "seam_impact": "Seam 4: Replaced by Brain auth token / credentials management."
+  },
+  {
+    "id": "streaming.prompt_submission",
+    "name": "Prompt Submission & Turn Dispatch",
+    "category": "streaming",
+    "user_action": "Press Enter with non-empty input in PromptInput",
+    "frontend": [
+      "PromptInput",
+      "REPL",
+      "handlePromptSubmit"
+    ],
+    "state_transition": "Appends UserMessage to state -> locks queryGuard -> triggers onQuery",
+    "orchestration": [
+      "handlePromptSubmit.ts::executeUserInput()",
+      "REPL.tsx::onQuery()"
+    ],
+    "runtime_services": [
+      "messages.ts::createUserMessage()"
+    ],
+    "backend": [
+      "Query Loop / CallModel"
+    ],
+    "events": [
+      "stream_request_start"
+    ],
+    "state_mutation": "setMessages(prev => [...prev, userMsg]), setStreamMode(requesting)",
+    "rendered_ui": "User message box added to Messages list; spinner starts requesting",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "KEEP",
+    "rationale": "Standard UI submission flow; drives message list state.",
+    "seam_impact": "Seam: onQuery delegates to QueryDeps.callModel."
+  },
+  {
+    "id": "streaming.token_delta_stream",
+    "name": "Incremental Text Streaming & Typewriter Queue",
+    "category": "streaming",
+    "user_action": "Model streams response chunks",
+    "frontend": [
+      "REPL",
+      "StreamingMarkdown",
+      "Spinner",
+      "Messages"
+    ],
+    "state_transition": "StreamEvent(content_block_delta) -> handleMessageFromStream",
+    "orchestration": [
+      "query.ts::queryLoop()",
+      "query/deps.ts::callModel"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::handleMessageFromStream()"
+    ],
+    "backend": [
+      "Brain Engine Text Stream"
+    ],
+    "events": [
+      "content_block_start",
+      "content_block_delta",
+      "content_block_stop"
+    ],
+    "state_mutation": "streamingText += chunk, setStreamMode(responding)",
+    "rendered_ui": "Live markdown token stream rendered with typing animation",
+    "persistence": [],
+    "classification": "REPLACE",
+    "rationale": "Backend text generation replaced by Brain; frontend rendering completely preserved.",
+    "seam_impact": "Seam: QueryDeps.callModel yields StreamEvent::content_block_delta."
+  },
+  {
+    "id": "streaming.turn_completion",
+    "name": "Turn Completion & Final Message Materialization",
+    "category": "streaming",
+    "user_action": "Model generation ends (message_stop)",
+    "frontend": [
+      "REPL",
+      "Messages",
+      "VirtualMessageList"
+    ],
+    "state_transition": "Yields AssistantMessage -> setMessages -> clears streamingText",
+    "orchestration": [
+      "query.ts::queryLoop()",
+      "query/deps.ts::callModel"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::handleMessageFromStream()"
+    ],
+    "backend": [
+      "Brain Turn Finished Payload"
+    ],
+    "events": [
+      "message_delta",
+      "message_stop",
+      "AssistantMessage"
+    ],
+    "state_mutation": "setMessages(prev => [...prev, assistantMsg]), setStreamingText(null)",
+    "rendered_ui": "Solidified AssistantMessage block in VirtualMessageList; prompt restored",
+    "persistence": [
+      "Session transcript / database"
+    ],
+    "classification": "REPLACE",
+    "rationale": "Assistant message generated by Brain model turn.",
+    "seam_impact": "Seam: QueryDeps.callModel yields final AssistantMessage."
+  },
+  {
+    "id": "streaming.cancellation_ctrl_c",
+    "name": "Turn Interruption & Stream Cancellation",
+    "category": "streaming",
+    "user_action": "Press Ctrl+C or submit new prompt while turn is streaming",
+    "frontend": [
+      "REPL",
+      "PromptInput"
+    ],
+    "state_transition": "abortController.abort() -> signals AbortSignal.aborted = true",
+    "orchestration": [
+      "REPL.tsx::handleAbort()",
+      "query.ts::query()"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::yieldMissingToolResultBlocks()"
+    ],
+    "backend": [
+      "Brain Backend Stream Drop / Cancellation Token"
+    ],
+    "events": [
+      "stream_cancelled"
+    ],
+    "state_mutation": "setStreamMode(idle), clears transient tool states",
+    "rendered_ui": "Inline [Interrupted by user] note; prompt input re-enabled",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "ADAPT",
+    "rationale": "AbortSignal listener mapped to Brain stream cancellation.",
+    "seam_impact": "Seam: QueryDeps.callModel signal listener drops Brain subscription."
+  },
+  {
+    "id": "reasoning.thinking_stream",
+    "name": "Thinking / Extended Reasoning Stream",
+    "category": "reasoning",
+    "user_action": "Model streams reasoning tokens prior to text",
+    "frontend": [
+      "REPL",
+      "AssistantThinkingMessage",
+      "Spinner"
+    ],
+    "state_transition": "StreamEvent(content_block_start: thinking) -> setStreamMode(thinking)",
+    "orchestration": [
+      "query.ts::queryLoop()",
+      "query/deps.ts::callModel"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::handleMessageFromStream()"
+    ],
+    "backend": [
+      "Brain Engine Reasoning Stream"
+    ],
+    "events": [
+      "content_block_start",
+      "thinking_delta",
+      "content_block_stop"
+    ],
+    "state_mutation": "streamingThinking.text += delta, setStreamMode(thinking)",
+    "rendered_ui": "Collapsible Thinking... block with duration stopwatch",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "REPLACE",
+    "rationale": "Backend reasoning generated by Brain reasoning models; frontend UI preserved.",
+    "seam_impact": "Seam: QueryDeps.callModel yields thinking_delta stream events."
+  },
+  {
+    "id": "tools.tool_call_stream",
+    "name": "Streaming Tool Invocation Header",
+    "category": "tools",
+    "user_action": "Model emits tool_use content block",
+    "frontend": [
+      "REPL",
+      "ToolUseLoader",
+      "Messages"
+    ],
+    "state_transition": "content_block_start(type: tool_use) -> setStreamMode(tool-input)",
+    "orchestration": [
+      "query.ts::queryLoop()",
+      "StreamingToolExecutor.ts"
+    ],
+    "runtime_services": [
+      "utils/messages.ts::handleMessageFromStream()"
+    ],
+    "backend": [
+      "Brain Engine Tool Call Generator"
+    ],
+    "events": [
+      "content_block_start",
+      "input_json_delta",
+      "content_block_stop"
+    ],
+    "state_mutation": "streamingToolUses.push({ name, inputJson })",
+    "rendered_ui": "Tool use card mounted (e.g. Bash(command: ...)) with spinner",
+    "persistence": [],
+    "classification": "ADAPT",
+    "rationale": "Brain generates tool_use blocks; Claude streams & renders the invocation.",
+    "seam_impact": "Seam: QueryDeps.callModel yields tool_use blocks."
+  },
+  {
+    "id": "tools.permission_prompt",
+    "name": "Interactive Tool Permission Confirmation",
+    "category": "tools",
+    "user_action": "Tool requires confirmation (e.g. mutating bash command)",
+    "frontend": [
+      "PermissionRequest",
+      "Dialog",
+      "Button"
+    ],
+    "state_transition": "StreamingToolExecutor prompts user for permission approval",
+    "orchestration": [
+      "utils/permissions/permissionSetup.ts",
+      "Tool.call()"
+    ],
+    "runtime_services": [
+      "utils/permissions/permissions.ts"
+    ],
+    "backend": [
+      "Local security policy"
+    ],
+    "events": [],
+    "state_mutation": "Permission decision: allowOnce | allowAlways | deny",
+    "rendered_ui": "Bordered permission modal: Allow command: git commit? [Y/n/always]",
+    "persistence": [
+      "~/.claude/settings.json (for always-allow rules)"
+    ],
+    "classification": "KEEP",
+    "rationale": "Claude owns permission checks and UI dialogs; ensures zero security regression.",
+    "seam_impact": "None. Executed natively by Claude queryLoop."
+  },
+  {
+    "id": "tools.native_execution",
+    "name": "Native Tool Execution (Bash, Edit, Read, Glob, Grep)",
+    "category": "tools",
+    "user_action": "Approved tool runs on host system",
+    "frontend": [
+      "REPL",
+      "Messages",
+      "ToolResultMessage"
+    ],
+    "state_transition": "Executes Tool.call(input) -> produces ToolResultBlock",
+    "orchestration": [
+      "StreamingToolExecutor.ts",
+      "tools/BashTool.ts",
+      "tools/EditTool.ts"
+    ],
+    "runtime_services": [
+      "tools/BashTool/BashTool.ts",
+      "tools/FileEditTool/FileEditTool.ts"
+    ],
+    "backend": [
+      "Host OS process / filesystem / MCP"
+    ],
+    "events": [
+      "progress"
+    ],
+    "state_mutation": "Constructs UserMessage with ToolResultBlock",
+    "rendered_ui": "Tool output box rendered (syntax-highlighted code / diff / command stdout)",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "KEEP",
+    "rationale": "Claude executes tools locally; preserves complete tool ecosystem.",
+    "seam_impact": "Seam: Subsequent callModel receives paired tool_use + tool_result."
+  },
+  {
+    "id": "sessions.history_resume",
+    "name": "Session Resume & Conversation Chooser",
+    "category": "sessions",
+    "user_action": "Launch with /resume or claude --resume",
+    "frontend": [
+      "ResumeChooser",
+      "Select",
+      "ThemedBox"
+    ],
+    "state_transition": "Lists saved sessions from disk -> loads selected transcript",
+    "orchestration": [
+      "dialogLaunchers.ts::launchResumeChooser()"
+    ],
+    "runtime_services": [
+      "services/SessionMemory/sessionMemory.ts"
+    ],
+    "backend": [
+      "Session JSONL files (~/.claude/sessions/)"
+    ],
+    "events": [],
+    "state_mutation": "setMessages(loadedSessionMessages)",
+    "rendered_ui": "Interactive session selector showing title, time, and preview",
+    "persistence": [
+      "~/.claude/sessions/*.jsonl"
+    ],
+    "classification": "ADAPT",
+    "rationale": "Claude session picker adapted to load Brain graph-backed sessions.",
+    "seam_impact": "Seam: Session history provider mapped to Brain session storage."
+  },
+  {
+    "id": "sessions.compaction",
+    "name": "Context Compaction & Memory Pruning",
+    "category": "sessions",
+    "user_action": "Conversation token count exceeds model context window",
+    "frontend": [
+      "REPL",
+      "Messages",
+      "CompactBoundaryMessage"
+    ],
+    "state_transition": "autoCompactIfNeeded() summarizes older messages and inserts boundary",
+    "orchestration": [
+      "services/compact/autoCompact.ts",
+      "services/compact/microCompact.ts"
+    ],
+    "runtime_services": [
+      "query/deps.ts::autocompact",
+      "query/deps.ts::microcompact"
+    ],
+    "backend": [
+      "Model summarization query"
+    ],
+    "events": [
+      "compaction"
+    ],
+    "state_mutation": "setMessages([CompactBoundaryMessage, ...recentMessages])",
+    "rendered_ui": "Horizontal compact boundary divider with summarized context badge",
+    "persistence": [
+      "Session transcript"
+    ],
+    "classification": "ADAPT",
+    "rationale": "Claude manages compaction boundaries; summarization model call uses Brain.",
+    "seam_impact": "Seam: QueryDeps.autocompact / microcompact mapped to Brain summarizer."
+  },
+  {
+    "id": "config.theme_switching",
+    "name": "Theme Selection & Terminal Adaptation",
+    "category": "config",
+    "user_action": "User runs /theme or switches terminal dark/light mode",
+    "frontend": [
+      "ThemeProvider",
+      "ThemeSettingsMenu",
+      "ThemedBox"
+    ],
+    "state_transition": "Mutates active ThemeContext -> triggers repaint with semantic colors",
+    "orchestration": [
+      "components/design-system/ThemeProvider.tsx"
+    ],
+    "runtime_services": [
+      "utils/config.ts"
+    ],
+    "backend": [
+      "Local settings file"
+    ],
+    "events": [],
+    "state_mutation": "config.theme = selectedTheme",
+    "rendered_ui": "Full UI re-colored (dark, light, daltonized, high-contrast)",
+    "persistence": [
+      "~/.claude/settings.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Core TUI design system and terminal color token manager.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "config.terminal_resize",
+    "name": "Responsive SIGWINCH Terminal Resizing",
+    "category": "config",
+    "user_action": "User resizes terminal window",
+    "frontend": [
+      "useTerminalSize",
+      "VirtualMessageList",
+      "PromptComposer"
+    ],
+    "state_transition": "SIGWINCH event -> recalculates columns/rows -> re-flows Yoga flexbox",
+    "orchestration": [
+      "ink/screen.ts",
+      "hooks/useTerminalSize.ts"
+    ],
+    "runtime_services": [
+      "ink.js"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "terminalSize state updated",
+    "rendered_ui": "Smooth non-flickering reflow of message cards and input boxes",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure Ink terminal layout engine.",
+    "seam_impact": "None."
+  }
+]

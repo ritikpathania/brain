@@ -44,7 +44,7 @@ impl StateReducer for TestReducer {
 
     fn reduce(
         &self,
-        _conn: &rusqlite::Connection,
+        _conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         let seq = envelope.sequence.unwrap();
@@ -60,7 +60,7 @@ impl StateReducer for TestReducer {
         Ok(())
     }
 
-    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, _conn: &brain_storage::Connection) -> Result<(), BrainError> {
         *self.reset_called.lock() = true;
         self.processed.lock().clear();
         Ok(())
@@ -713,14 +713,14 @@ impl StateReducer for TestReducerV2 {
     }
     fn reduce(
         &self,
-        _conn: &rusqlite::Connection,
+        _conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         let seq = envelope.sequence.unwrap();
         self.processed.lock().push(seq);
         Ok(())
     }
-    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, _conn: &brain_storage::Connection) -> Result<(), BrainError> {
         *self.reset_called.lock() = true;
         self.processed.lock().clear();
         Ok(())
@@ -822,7 +822,7 @@ impl StateReducer for SqlTestReducer {
     }
     fn reduce(
         &self,
-        conn: &rusqlite::Connection,
+        conn: &brain_storage::Connection,
         envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         let seq = envelope.sequence.unwrap();
@@ -844,7 +844,7 @@ impl StateReducer for SqlTestReducer {
 
         Ok(())
     }
-    fn reset(&self, conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, conn: &brain_storage::Connection) -> Result<(), BrainError> {
         conn.execute("DROP TABLE IF EXISTS test_writes", [])
             .map(|_| ())
             .map_err(|e| BrainError::Storage {
@@ -921,12 +921,12 @@ impl StateReducer for ResetFailingReducer {
     }
     fn reduce(
         &self,
-        _conn: &rusqlite::Connection,
+        _conn: &brain_storage::Connection,
         _envelope: &EventEnvelope,
     ) -> Result<(), BrainError> {
         Ok(())
     }
-    fn reset(&self, _conn: &rusqlite::Connection) -> Result<(), BrainError> {
+    fn reset(&self, _conn: &brain_storage::Connection) -> Result<(), BrainError> {
         if *self.fail_reset.lock() {
             return Err(BrainError::Storage {
                 message: "Simulated reset failure during rebuild".to_string(),

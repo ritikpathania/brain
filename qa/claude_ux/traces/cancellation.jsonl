@@ -1,0 +1,6 @@
+{"event": "stream_request_start", "data": {"mode": "requesting"}}
+{"event": "content_block_start", "data": {"index": 0, "type": "text"}}
+{"event": "content_block_delta", "data": {"index": 0, "text_delta": "Starting extensive operation..."}}
+{"event": "UserInterrupt", "data": {"signal": "SIGINT", "trigger": "Ctrl+C"}}
+{"event": "StreamAbort", "data": {"aborted": true, "reason": "user_cancellation"}}
+{"event": "UIStateReset", "data": {"streamMode": "idle", "streamingText": null, "promptRestored": true}}

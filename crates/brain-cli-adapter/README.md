@@ -1,15 +1,27 @@
-# `brain-cli-adapter`
-
-`brain-cli-adapter` maps command line subcommands and flag parameters into structured application requests.
+# brain-cli-adapter
 
 ## Purpose
-Parses command-line arguments for `query`, `ingest`, `daemon`, `mcp`, `acp`, and `tui` operations.
+CLI argument formatting, tabular output serializers, and terminal presentation helpers.
 
-## Public Surface
-- `CliAdapter`: Argument parsing and handler dispatch logic.
+## Responsibilities
+* Format query hits, graph inspections, and status outputs for standard stdout/stderr.
+* Parse user input flags and options.
 
-## Out of Scope
-- TUI Ratatui rendering views or database storage engine logic.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`.
+* **Forbidden Dependencies:** `brain-storage`, `pyo3`.
 
-## Documentation Links
-- **[CLI UX Comparison](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/cli-ux-comparison.md)**
+## Public API & Facades
+* CLI presentation formatters.
+
+## Invariants Protected
+* Presentation decoupled from business logic.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-cli-adapter`
+
+## Maintainer
+See `CODEOWNERS`.

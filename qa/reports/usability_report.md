@@ -86,7 +86,7 @@
 
 | Suite | Status | 5-Layer Chain Findings | Screenshot |
 |---|---|---|---|
-| **Command Discovery & Slash Command Verification** | 🔴 FAILED | First-frame UI observation timeout (10.0s): deterministic marker not detected | [View](file:///Users/ritikpathania/Developer/PyCharm/brain/qa/screenshots/scenario_command_discovery_&_slash_command_verification_184329_743.png) |
+| **Command Discovery & Slash Command Verification** | 🔴 FAILED | First-frame UI observation timeout (10.0s): deterministic marker not detected | [View](../screenshots/scenario_command_discovery_&_slash_command_verification_184329_743.png) |
 
 ## Commercial UX Benchmarks & Evaluator Assessment
 

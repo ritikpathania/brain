@@ -1,0 +1,14 @@
+--- Oracle [Stage 2: 2_TYPE_THEME_SUGGESTIONS]+++ Target [Stage 2: 2_TYPE_THEME_SUGGESTIONS]@@ -2,7 +2,6 @@  ▐▛███▜▌   Claude Code v2.1.235                                                                     
+ ▝▜█████▛▘  Sonnet 4.6 · API Usage Billing                                                           
+   ▘▘ ▝▝    /Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell                        
+-                                                                                                    
+                                                                                                     
+                                                                                                     
+                                                                                                     
+@@ -24,6 +23,7 @@                                 settings.json. Automated behaviors ("from now on when X", "each t…  
+   /verify                       Verify that a code change actually does what it's supposed to by    
+                                 exercising it end-to-end and observing behavior — drive the affec…  
++                                                                                                    
+ ────────────────────────────────────────────────────────────────────────────────────────────────────
+ ❯ /theme                                                                                            
+ ────────────────────────────────────────────────────────────────────────────────────────────────────

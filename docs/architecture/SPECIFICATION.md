@@ -16,7 +16,7 @@ applies_to: v0.8+
 
 ## 1. Overview
 
-This document specifies the stable contracts, traits, and intermediate representations that realize the principles set forth in [CONSTITUTION.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/CONSTITUTION.md).
+This document specifies the stable contracts, traits, and intermediate representations that realize the principles set forth in [CONSTITUTION.md](CONSTITUTION.md).
 
 ---
 

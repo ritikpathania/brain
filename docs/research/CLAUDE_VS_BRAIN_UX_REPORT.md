@@ -75,7 +75,7 @@ While the visual foundation of Brain TUI is exceptionally strong, two key event-
 
 All research outputs have been generated and documented across the following set of artifacts:
 
-- [`CLAUDE_UX_BASELINE.md`](file:///Users/ritikpathania/.gemini/antigravity/brain/54e6a8e0-61d1-4873-a558-ce34a6f18907/CLAUDE_UX_BASELINE.md): Full baseline document analyzing Claude Code's Ink/React architecture, geometry, prompt input, slash commands, global search, status bar, and state machine.
-- [`CLAUDE_FEATURE_MATRIX.md`](file:///Users/ritikpathania/.gemini/antigravity/brain/54e6a8e0-61d1-4873-a558-ce34a6f18907/CLAUDE_FEATURE_MATRIX.md): Detailed comparative matrix mapping features between Claude Code and Brain TUI.
-- [`CLAUDE_BRAIN_VISUAL_DIFF.md`](file:///Users/ritikpathania/.gemini/antigravity/brain/54e6a8e0-61d1-4873-a558-ce34a6f18907/CLAUDE_BRAIN_VISUAL_DIFF.md): Structural layout diff, color mappings, and visual comparisons.
-- [`CLAUDE_VS_BRAIN_UX_REPORT.md`](file:///Users/ritikpathania/.gemini/antigravity/brain/54e6a8e0-61d1-4873-a558-ce34a6f18907/CLAUDE_VS_BRAIN_UX_REPORT.md): Final synthesis report containing actionable recommendations and gap analysis.
+- [`CLAUDE_UX_BASELINE.md`](artifact://CLAUDE_UX_BASELINE.md): Full baseline document analyzing Claude Code's Ink/React architecture, geometry, prompt input, slash commands, global search, status bar, and state machine.
+- [`CLAUDE_FEATURE_MATRIX.md`](artifact://CLAUDE_FEATURE_MATRIX.md): Detailed comparative matrix mapping features between Claude Code and Brain TUI.
+- [`CLAUDE_BRAIN_VISUAL_DIFF.md`](artifact://CLAUDE_BRAIN_VISUAL_DIFF.md): Structural layout diff, color mappings, and visual comparisons.
+- [`CLAUDE_VS_BRAIN_UX_REPORT.md`](artifact://CLAUDE_VS_BRAIN_UX_REPORT.md): Final synthesis report containing actionable recommendations and gap analysis.

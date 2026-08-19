@@ -17,7 +17,7 @@
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
 | **Linear Baseline** | 0.9552 | 0.9546 | 0.9484 | 0.9520 | 0.9306 | 0.9167 |
 | **Logistic Regression** | 0.9062 | 0.9004 | 0.8924 | 0.8803 | 0.8542 | 0.9167 |
-| **LambdaMART** | 1.0000 | 0.7803 | 1.0000 | 0.7718 | 1.0000 | 0.7526 |
+| **LambdaMART** | 0.9866 | 0.8339 | 0.9846 | 0.8333 | 0.9792 | 0.8360 |
 
 ## LambdaMART Training & Selection Diagnostics
 
@@ -27,15 +27,15 @@
 | **Total Boosting Rounds** | 50 |
 | **Early Stopped** | 🟢 Yes (selected peak validation round) |
 | **Validation Query Ratio** | 0.20 |
-| **Average Scoring Latency** | 41.63 ns |
+| **Average Scoring Latency** | 38.63 ns |
 
 ## Gain-Based Feature Importance
 
 | Rank | Feature | Normalized Gain Importance |
 | :--- | :--- | ---: |
-| 1 | `SemanticSimilarity` | 0.6473 |
-| 2 | `Importance` | 0.3213 |
-| 3 | `AccessFrequency` | 0.0314 |
+| 1 | `SemanticSimilarity` | 0.6771 |
+| 2 | `Importance` | 0.3229 |
+| 3 | `AccessFrequency` | 0.0000 |
 | 4 | `FreshnessDecay` | 0.0000 |
 | 5 | `GraphDegree` | 0.0000 |
 | 6 | `LexicalSimilarity` | 0.0000 |

@@ -35,7 +35,7 @@
 - Produces: `Plugin` trait composing `PluginMetadata`, `PluginLifecycle`, `PluginCapabilities`, and `PluginEventHandler`.
 
 - [ ] **Step 1: Update `PluginState` to include `Disabled` variant**
-  Modify [entities.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-domain/src/entities.rs#L47-L64):
+  Modify [entities.rs](../../../../crates/brain-domain/src/entities.rs#L47-L64):
   ```rust
   pub enum PluginState {
       Discovered,
@@ -51,19 +51,19 @@
   ```
 
 - [ ] **Step 2: Add `semver` dependency to workspace and `brain-core`**
-  Modify root [Cargo.toml](file:///Users/ritikpathania/Developer/PyCharm/brain/Cargo.toml):
+  Modify root [Cargo.toml](../../../../Cargo.toml):
   ```toml
   [workspace.dependencies]
   semver = "1.0"
   ```
-  Modify [Cargo.toml](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-core/Cargo.toml):
+  Modify [Cargo.toml](../../../../crates/brain-core/Cargo.toml):
   ```toml
   [dependencies]
   semver = { version = "1.0", features = ["serde"] }
   ```
 
 - [ ] **Step 3: Refine extensibility types and traits in `brain-core`**
-  Overwrite [extensibility.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-core/src/extensibility.rs) keeping existing tool primitives intact:
+  Overwrite [extensibility.rs](../../../../crates/brain-core/src/extensibility.rs) keeping existing tool primitives intact:
   ```rust
   use crate::errors::BrainError;
   use brain_domain::{PluginId, PluginState, SessionId, Node, ChatAgent, PlannerAgent, EmbeddingAgent, ExtractionAgent};
@@ -248,7 +248,7 @@
 - Produces: `PluginScanner` struct
 
 - [ ] **Step 1: Add dependencies to `crates/brain-plugins/Cargo.toml`**
-  Modify [Cargo.toml](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-plugins/Cargo.toml):
+  Modify [Cargo.toml](../../../../crates/brain-plugins/Cargo.toml):
   ```toml
   [dependencies]
   brain-core = { path = "../brain-core" }
@@ -453,7 +453,7 @@
 - Consumes: `PluginLoader` trait from `brain-plugins`
 
 - [ ] **Step 1: Add dependencies to `crates/brain-python/Cargo.toml`**
-  Modify [Cargo.toml](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-python/Cargo.toml):
+  Modify [Cargo.toml](../../../../crates/brain-python/Cargo.toml):
   ```toml
   [dependencies]
   brain-plugins = { path = "../brain-plugins" }
@@ -504,7 +504,7 @@
   Expected: PASS
 
 - [ ] **Step 4: Update `walkthrough.md`**
-  Extend [walkthrough.md](file:///Users/ritikpathania/.gemini/antigravity/brain/3465b93b-39c8-4db1-8d32-fa55ff7779c8/walkthrough.md) with details for PR-011.
+  Extend [walkthrough.md](artifact://walkthrough.md) with details for PR-011.
 
 - [ ] **Step 5: Commit final changes**
   Run: `git status`

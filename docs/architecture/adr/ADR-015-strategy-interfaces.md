@@ -18,8 +18,8 @@ We decouple system operations behind strategy traits:
 * **Macros**: Using Rust macros for compile-time generation. Rejected because it complicates debugging and decreases IDE navigation usability.
 
 ## Related ADRs
-* [ADR-010 (Domain Boundaries)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)
-* [ADR-017 (Model Compilation)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-017-model-compilation.md)
+* [ADR-010 (Domain Boundaries)](ADR-010-domain-boundaries.md)
+* [ADR-017 (Model Compilation)](ADR-017-model-compilation.md)
 
 ## Expected Stability
 Long-term.

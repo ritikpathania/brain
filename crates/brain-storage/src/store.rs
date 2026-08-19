@@ -121,6 +121,137 @@ impl Storage for SqliteStorage {
 }
 
 impl SqliteStorage {
+    /// Saves a conversation checkpoint record.
+    pub fn save_checkpoint_record(
+        &self,
+        checkpoint_id: &str,
+        session_id: &str,
+        label: &str,
+        history_json: &str,
+        created_at: u64,
+    ) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.execute(
+            "INSERT OR REPLACE INTO checkpoints (id, session_id, label, history, created_at) VALUES (?, ?, ?, ?, ?)",
+            rusqlite::params![checkpoint_id, session_id, label, history_json, created_at],
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert checkpoint: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    /// Restores a conversation checkpoint record JSON.
+    pub fn restore_checkpoint_record(&self, checkpoint_id: &str) -> Result<String, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.query_row(
+            "SELECT history FROM checkpoints WHERE id = ?",
+            rusqlite::params![checkpoint_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Checkpoint not found: {}", e),
+            source: Some(Box::new(e)),
+        })
+    }
+
+    /// Fetches the latest conversation summary for a session.
+    pub fn get_latest_session_summary(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<(u64, u64, usize, usize, String)>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut stmt = conn.prepare(
+            "SELECT version, created_at, start_idx, end_idx, text FROM summaries WHERE session_id = ? ORDER BY version DESC LIMIT 1"
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare statement: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let mut rows =
+            stmt.query(rusqlite::params![session_id])
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to query summaries: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+        if let Some(row) = rows.next().map_err(|e| BrainError::Storage {
+            message: format!("Failed to advance row: {}", e),
+            source: Some(Box::new(e)),
+        })? {
+            let version: u64 = row.get(0).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get version: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let created_at: u64 = row.get(1).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get created_at: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let start_idx: usize = row.get(2).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get start_idx: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let end_idx: usize = row.get(3).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get end_idx: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            let text: String = row.get(4).map_err(|e| BrainError::Storage {
+                message: format!("Failed to get text: {}", e),
+                source: Some(Box::new(e)),
+            })?;
+            Ok(Some((version, created_at, start_idx, end_idx, text)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Saves a conversation summary for a session.
+    pub fn save_session_summary(
+        &self,
+        session_id: &str,
+        version: u64,
+        created_at: u64,
+        start_idx: usize,
+        end_idx: usize,
+        text: &str,
+    ) -> Result<(), BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        conn.execute(
+            "INSERT OR REPLACE INTO summaries (session_id, version, created_at, start_idx, end_idx, text) VALUES (?, ?, ?, ?, ?, ?)",
+            rusqlite::params![session_id, version, created_at, start_idx, end_idx, text],
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to insert summary: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(())
+    }
+
+    /// Prunes edges whose weight decays below a given threshold.
+    pub fn prune_decayed_edges(&self, min_weight: f64) -> Result<usize, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let rows = conn.execute(
+            "DELETE FROM edges WHERE weight < ? AND source NOT IN (SELECT id FROM nodes WHERE properties LIKE '%\"pinned\":true%')",
+            rusqlite::params![min_weight],
+        ).map_err(|e| BrainError::Storage {
+            message: format!("Failed to prune edge weights: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        Ok(rows)
+    }
+
     /// Inserts an edge into the archived_edges partition.
     pub fn archive_edge(
         &self,

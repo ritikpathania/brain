@@ -1,0 +1,29 @@
+{
+  "entrypoint": "vendor/claude/main.tsx::main()",
+  "interactive_flow": [
+    "main.tsx::run()",
+    "interactiveHelpers.tsx::showSetupScreens()",
+    "replLauncher.ts::launchRepl()",
+    "screens/REPL.tsx::REPL()",
+    "components/PromptInput/PromptInput.tsx::onSubmit()",
+    "utils/handlePromptSubmit.ts::handlePromptSubmit()",
+    "screens/REPL.tsx::onQueryImpl()",
+    "query.ts::query()",
+    "query.ts::queryLoop()",
+    "query/deps.ts::QueryDeps.callModel() [SEAM]",
+    "services/api/claude.ts::queryModelWithStreaming() [TO BE REPLACED BY BRAIN]"
+  ],
+  "tool_execution_flow": [
+    "query.ts::queryLoop()",
+    "StreamingToolExecutor.ts::execute()",
+    "utils/permissions/permissionSetup.ts::checkPermissions()",
+    "Tool.ts::Tool.call()",
+    "query.ts::queryLoop() [receives ToolResultBlock in UserMessage]"
+  ],
+  "compaction_flow": [
+    "query.ts::queryLoop()",
+    "services/compact/autoCompact.ts::autoCompactIfNeeded()",
+    "query/deps.ts::QueryDeps.autocompact [SEAM]",
+    "screens/REPL.tsx::onQueryEvent() [CompactBoundaryMessage]"
+  ]
+}

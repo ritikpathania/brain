@@ -1,16 +1,28 @@
-# `daemon`
-
-`daemon` manages background execution processes, IPC Unix Domain Sockets, and HTTP telemetry endpoints.
+# brain-daemon (Background Daemon Service)
 
 ## Purpose
-Runs as a long-running background service hosting the memory engine, handling IPC requests, and maintaining read model projections.
+Long-running Unix Domain Socket (UDS) background daemon hosting the relational memory engine.
 
-## Public Surface
-- `DaemonServer`: Unix Domain Socket & HTTP telemetry server.
+## Responsibilities
+* Manage background daemon process lifecycle, PID files, and signal handling (SIGTERM, SIGINT).
+* Expose non-blocking Unix Domain Socket server (`daemon.sock`) for IPC.
+* Drive the single composition root `DaemonHost::run_server` via ApplicationRuntime.
 
-## Out of Scope
-- Interactive TUI terminal widget rendering.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-core`, `brain-domain`, `brain-application`, `brain-services`, `brain-integrations`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Documentation Links
-- **[Protocol Specification](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/protocol.md)**
-- **[Maintenance Guide](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/maintenance.md)**
+## Public API & Facades
+* Daemon binary entry point `main()` and `DaemonHost` runner.
+
+## Invariants Protected
+* Canonical composition root (Invariant 3), zero direct SQLite persistence (Invariant 1).
+
+## Canonical References
+* Specification: `../docs/reference/protocol.md`
+
+## Testing & Verification
+* `./daemon/.venv/bin/pytest daemon/tests`
+
+## Maintainer
+See `CODEOWNERS`.

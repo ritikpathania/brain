@@ -402,7 +402,7 @@ fn fnv1a_hash(data: &str) -> u64 {
     hash
 }
 
-fn seed_db_fast(conn: &rusqlite::Connection, table_name: &str, count: usize) {
+fn seed_db_fast(conn: &brain_storage::rusqlite::Connection, table_name: &str, count: usize) {
     conn.execute_batch(&format!(
         "CREATE TABLE IF NOT EXISTS schema_versions (
             table_name TEXT PRIMARY KEY,
@@ -435,8 +435,10 @@ fn seed_db_fast(conn: &rusqlite::Connection, table_name: &str, count: usize) {
         let key_str = format!("seeded_key_{}", i);
         let val_str = "seeded_val";
         let hash = format!("{:016x}", fnv1a_hash(&key_str));
-        stmt.execute(rusqlite::params![100, hash, key_str, val_str])
-            .unwrap();
+        stmt.execute(brain_storage::rusqlite::params![
+            100, hash, key_str, val_str
+        ])
+        .unwrap();
     }
 
     conn.execute("COMMIT", []).unwrap();
@@ -452,7 +454,7 @@ fn run_scaling_benchmark(db_path: &Path, sizes: &[usize]) -> Vec<ScalingPoint> {
         }
 
         {
-            let conn = rusqlite::Connection::open(db_path).unwrap();
+            let conn = brain_storage::rusqlite::Connection::open(db_path).unwrap();
             seed_db_fast(&conn, "scaling_table", size);
         }
 
@@ -655,7 +657,7 @@ fn run_endurance_test(db_path: &Path) {
             .unwrap();
 
     {
-        let conn = rusqlite::Connection::open(db_path).unwrap();
+        let conn = brain_storage::rusqlite::Connection::open(db_path).unwrap();
         conn.pragma_update(None, "synchronous", "OFF").unwrap();
     }
 
@@ -951,7 +953,7 @@ fn main() {
         "unknown".to_string()
     };
 
-    let sqlite_version = rusqlite::version().to_string();
+    let sqlite_version = brain_storage::rusqlite::version().to_string();
     let timestamp = chrono::Local::now().to_rfc3339();
 
     let env_metadata = EnvironmentMetadata {

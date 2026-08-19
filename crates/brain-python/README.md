@@ -1,19 +1,28 @@
 # brain-python
 
 ## Purpose
-PyO3 host execution block and in-process Python adapter.
+Strictly encapsulated PyO3 CPython FFI boundary and plugin loader.
 
 ## Responsibilities
-* Manage the embedded CPython runtime lifecycle and Global Interpreter Lock (GIL) safety.
-* Implement GIL-releasing FFI wrappers for Python agent execution.
-* Strictly encapsulate the `pyo3` dependency so that no other crate compiles against it.
+* Encapsulate raw PyO3 bindings and CPython 3.12 GIL runtime management.
+* Expose safe, Rust-native traits for semantic extraction and custom Python plugins.
+* Prevent PyO3 types and symbols from leaking into upstream workspace crates.
 
-## Dependencies
-* **Allowed:** `brain-core`, `pyo3`.
-* **Forbidden:** `brain-storage`, `brain-services`, `brain-tui`.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`, `pyo3`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `brain-services`.
 
-## Public Interfaces
-* Python runtime handles and execution executors.
+## Public API & Facades
+* Safe Python runtime wrappers (`PythonPluginLoader`, `ExtractorApi`).
 
-## Owner
-Python Integration Lead
+## Invariants Protected
+* Strict PyO3 encapsulation barrier (Invariant 6).
+
+## Canonical References
+* Specification: `../../docs/reference/plugin-api.md`
+
+## Testing & Verification
+* `cargo test -p brain-python`
+
+## Maintainer
+See `CODEOWNERS`.

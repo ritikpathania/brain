@@ -46,7 +46,7 @@ outputs:
 
 ## 3. Machine-Readable `BenchmarkResult` JSON Schema Contract
 
-All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](file:///Users/ritikpathania/Developer/PyCharm/brain/schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
+All specialized benchmark suites conform to the formal machine-readable JSON Schema contract located at [`schemas/benchmark-result/1.0.0/benchmark-result.schema.json`](../../schemas/benchmark-result/1.0.0/benchmark-result.schema.json).
 
 ### Environmental Reproducibility Metadata
 All benchmark runs log complete environmental reproducibility metadata inside the `provenance` block:

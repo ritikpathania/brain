@@ -1,0 +1,1467 @@
+{
+  "certification_milestone": "CLAUDE_FEATURE_BASELINE_CERTIFICATION",
+  "reference_target": "Frozen Claude v2.1.233 (packages/brain-shell/vendor/claude/)",
+  "total_capabilities": 145,
+  "summary": {
+    "local_functional": 124,
+    "external_quarantined": 19,
+    "explicitly_removed": 2,
+    "missing": 0,
+    "partially_implemented": 0
+  },
+  "contract_a_parity_status": "13/13 EXACT_PARITY",
+  "vendor_modifications": 0,
+  "parity_regressions": 0,
+  "capabilities": [
+    {
+      "capability": "Session Creation & Initialization",
+      "id": "conv_init",
+      "frontend": "screens/REPL.tsx",
+      "action_backend": "KEEP/MODIFY (bootstrap/state.ts:initSession(), utils/sessionStorage.ts:initSession())",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in PtySession bootstrap; initializes UUID and theme, displays LogoV2, mounts REPL."
+    },
+    {
+      "capability": "Resume Past Session (/resume)",
+      "id": "conv_resume",
+      "frontend": "screens/ResumeConversation.tsx",
+      "action_backend": "KEEP/MODIFY (commands/resume/index.ts, utils/sessionStorage.ts:loadAllProjectsMessageLogsProgressive())",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in LogSelector; progressive loader lists project session logs."
+    },
+    {
+      "capability": "Token Streaming & Typewriter Drain",
+      "id": "conv_streaming",
+      "frontend": "components/MessageResponse.tsx",
+      "action_backend": "KEEP/MODIFY (query.ts:query(), query/deps.ts:callModel())",
+      "dependency": "local, model",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in brainTextAdapter.test.ts (21.67ms); streams monotonic token chunks through QueryDeps.callModel."
+    },
+    {
+      "capability": "Reasoning & Thinking Blocks (ThinkingConfig)",
+      "id": "conv_thinking",
+      "frontend": "components/ThinkingToggle.tsx",
+      "action_backend": "KEEP/MODIFY (utils/thinking.ts, query.ts)",
+      "dependency": "local, model",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in thinkingReasoningBlocks.test.ts (12 scenarios); renders collapsible ThinkingBlock without signature fabrication."
+    },
+    {
+      "capability": "Structured Diff Rendering",
+      "id": "conv_diffs",
+      "frontend": "components/StructuredDiff.tsx",
+      "action_backend": "KEEP/MODIFY (native-ts/color-diff/index.ts, components/StructuredDiff.tsx)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_theme_state_machine; computes line/word diffs and renders color box."
+    },
+    {
+      "capability": "Response Interruption & Cancellation (Ctrl+C / Escape)",
+      "id": "conv_cancel",
+      "frontend": "components/InterruptedByUser.tsx",
+      "action_backend": "KEEP/MODIFY (hooks/useCancelRequest.ts, utils/messages.ts:createInterruptedMessage())",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in cancellationRaces.test.ts (8 scenarios); AbortSignal terminates generator promptly with zero ghost messages."
+    },
+    {
+      "capability": "Multiline Input (`\\` + `Enter`)",
+      "id": "comp_multiline",
+      "frontend": "components/PromptInput/PromptInput.tsx",
+      "action_backend": "KEEP/MODIFY (components/PromptInput/PromptInput.tsx)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_multiline_input_contract (Parity Gate); backslash+Enter expands composer height."
+    },
+    {
+      "capability": "@ File Path Autocompletion",
+      "id": "comp_file_completion",
+      "frontend": "components/PromptInput/ContextSuggestions.tsx",
+      "action_backend": "KEEP/MODIFY (utils/suggestions/fileSuggestions.ts, native-ts/file-index/)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_file_completion_contract (Parity Gate); @ triggers fuzzy file search popover."
+    },
+    {
+      "capability": "/ Slash Command Autocompletion",
+      "id": "comp_slash_completion",
+      "frontend": "components/PromptInput/ContextSuggestions.tsx",
+      "action_backend": "KEEP/MODIFY (commands/index.ts, utils/suggestions/commandSuggestions.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_slash_autocomplete_contract (Parity Gate); / lists commands with Tab selection."
+    },
+    {
+      "capability": "Keyboard Shortcut Help Menu (?)",
+      "id": "comp_help_menu",
+      "frontend": "components/PromptInput/PromptInputHelpMenu.tsx",
+      "action_backend": "KEEP/MODIFY (components/PromptInput/PromptInput.tsx:onChange())",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_shortcut_help_contract (Parity Gate); ? opens 3-column shortcut catalog."
+    },
+    {
+      "capability": "Shell / Bash Execution Mode (!)",
+      "id": "comp_shell_mode",
+      "frontend": "components/PromptInput/PromptInput.tsx",
+      "action_backend": "KEEP/MODIFY (tools/BashTool/index.ts, components/PromptInput/inputModes.ts)",
+      "dependency": "local, platform",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_shell_mode_contract (Parity Gate); ! switches border to #DC2626 and executes shell command."
+    },
+    {
+      "capability": "Modal Vim Editing Mode (/vim)",
+      "id": "comp_vim_mode",
+      "frontend": "components/VimTextInput.tsx",
+      "action_backend": "KEEP/MODIFY (components/VimTextInput.tsx, commands/vim/)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in VimTextInput.tsx; modal Normal/Insert/Visual state transitions operational."
+    },
+    {
+      "capability": "Push-to-Talk Voice Streaming (/voice)",
+      "id": "comp_voice",
+      "frontend": "components/PromptInput/VoiceIndicator.tsx",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication, platform",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in services/voiceStreamSTT.ts, services/voiceKeyterms.ts, commands/voice/voice.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "Permission Mode Cycling (Shift+Tab)",
+      "id": "mode_permission_cycle",
+      "frontend": "components/PromptInput/PromptInputModeIndicator.tsx",
+      "action_backend": "KEEP/MODIFY (utils/permissions/permissionSetup.ts, hooks/toolPermission/)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_shift_tab_contract (Parity Gate); Shift+Tab cycles Normal -> Auto-accept -> Plan."
+    },
+    {
+      "capability": "Theme Selection & Live Diff Preview (/theme)",
+      "id": "mode_theme_picker",
+      "frontend": "components/ThemePicker.tsx",
+      "action_backend": "KEEP/MODIFY (commands/theme/index.ts, utils/theme.ts, utils/config.ts:saveGlobalConfig())",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_theme_state_machine (17-step state machine); arrow navigation, diff preview, and persistence."
+    },
+    {
+      "capability": "Model Selection Dialog (/model, Alt+P)",
+      "id": "mode_model_picker",
+      "frontend": "components/ModelPicker.tsx",
+      "action_backend": "KEEP/MODIFY (commands/model/index.ts, utils/model.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in layer2AdapterContract.test.ts; ModelGateway resolves aliases and lists local Ollama/vLLM engines."
+    },
+    {
+      "capability": "Architect / Plan Mode (/plan)",
+      "id": "mode_plan",
+      "frontend": "components/permissions/EnterPlanModePermissionRequest/",
+      "action_backend": "KEEP/MODIFY (tools/EnterPlanModeTool/, tools/ExitPlanModeTool/, utils/plans.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in tools/EnterPlanModeTool; switches to planMode border (#2563EB) and writes .claude/plans/<slug>.md."
+    },
+    {
+      "capability": "Session Memory Periodic Extraction",
+      "id": "svc_session_memory",
+      "frontend": "services/SessionMemory/sessionMemory.ts",
+      "action_backend": "KEEP/MODIFY (services/SessionMemory/sessionMemory.ts, services/SessionMemory/prompts.ts)",
+      "dependency": "local, filesystem, model",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in services/SessionMemory/sessionMemory.ts, services/SessionMemory/prompts.ts; functional in local shell."
+    },
+    {
+      "capability": "Auto Dream Background Memory Consolidation",
+      "id": "svc_auto_dream",
+      "frontend": "services/autoDream/autoDream.ts",
+      "action_backend": "KEEP/MODIFY (services/autoDream/autoDream.ts, services/autoDream/consolidationPrompt.ts)",
+      "dependency": "local, filesystem, model",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in services/autoDream/autoDream.ts, services/autoDream/consolidationPrompt.ts; functional in local shell."
+    },
+    {
+      "capability": "Context Compaction & Token Summarization",
+      "id": "svc_compaction",
+      "frontend": "services/compact/",
+      "action_backend": "KEEP/MODIFY (services/compact/compact.ts, services/compact/prompt.ts, services/compact/postCompactCleanup.ts)",
+      "dependency": "local, model",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in services/compact/compact.ts, services/compact/prompt.ts, services/compact/postCompactCleanup.ts; functional in local shell."
+    },
+    {
+      "capability": "Language Server Protocol (LSP) Manager",
+      "id": "svc_lsp",
+      "frontend": "services/lsp/LSPServerManager.ts",
+      "action_backend": "KEEP/MODIFY (services/lsp/LSPServerManager.ts, services/lsp/LSPClient.ts, tools/LSPTool/)",
+      "dependency": "local, platform",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in services/lsp/LSPServerManager.ts, services/lsp/LSPClient.ts, tools/LSPTool/; functional in local shell."
+    },
+    {
+      "capability": "Tool: ship-audit",
+      "id": "tool_ship_audit",
+      "frontend": "tools/AgentTool/",
+      "action_backend": "KEEP/MODIFY (tools/AgentTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: ship-audit defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: AskUserQuestion",
+      "id": "tool_askuserquestion",
+      "frontend": "tools/AskUserQuestionTool/",
+      "action_backend": "KEEP/MODIFY (tools/AskUserQuestionTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: AskUserQuestion defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Bash",
+      "id": "tool_bash",
+      "frontend": "tools/BashTool/",
+      "action_backend": "KEEP/MODIFY (tools/BashTool/prompt.ts)",
+      "dependency": "local, filesystem, platform",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Bash defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Brief",
+      "id": "tool_brief",
+      "frontend": "tools/BriefTool/",
+      "action_backend": "KEEP/MODIFY (tools/BriefTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Brief defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Config",
+      "id": "tool_config",
+      "frontend": "tools/ConfigTool/",
+      "action_backend": "KEEP/MODIFY (tools/ConfigTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Config defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: EnterPlanMode",
+      "id": "tool_enterplanmode",
+      "frontend": "tools/EnterPlanModeTool/",
+      "action_backend": "KEEP/MODIFY (tools/EnterPlanModeTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in tools/EnterPlanModeTool; switches to planMode border (#2563EB) and writes .claude/plans/<slug>.md."
+    },
+    {
+      "capability": "Tool: EnterWorktree",
+      "id": "tool_enterworktree",
+      "frontend": "tools/EnterWorktreeTool/",
+      "action_backend": "KEEP/MODIFY (tools/EnterWorktreeTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: EnterWorktree defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: ExitPlanMode",
+      "id": "tool_exitplanmode",
+      "frontend": "tools/ExitPlanModeTool/",
+      "action_backend": "KEEP/MODIFY (tools/ExitPlanModeTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in tools/EnterPlanModeTool; switches to planMode border (#2563EB) and writes .claude/plans/<slug>.md."
+    },
+    {
+      "capability": "Tool: ExitWorktree",
+      "id": "tool_exitworktree",
+      "frontend": "tools/ExitWorktreeTool/",
+      "action_backend": "KEEP/MODIFY (tools/ExitWorktreeTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: ExitWorktree defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: FileEdit",
+      "id": "tool_fileedit",
+      "frontend": "tools/FileEditTool/",
+      "action_backend": "KEEP/MODIFY (tools/FileEditTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: FileEdit defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: FileRead",
+      "id": "tool_fileread",
+      "frontend": "tools/FileReadTool/",
+      "action_backend": "KEEP/MODIFY (tools/FileReadTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: FileRead defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: FileWrite",
+      "id": "tool_filewrite",
+      "frontend": "tools/FileWriteTool/",
+      "action_backend": "KEEP/MODIFY (tools/FileWriteTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: FileWrite defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Glob",
+      "id": "tool_glob",
+      "frontend": "tools/GlobTool/",
+      "action_backend": "KEEP/MODIFY (tools/GlobTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Glob defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Grep",
+      "id": "tool_grep",
+      "frontend": "tools/GrepTool/",
+      "action_backend": "KEEP/MODIFY (tools/GrepTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Grep defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: LSP",
+      "id": "tool_lsp",
+      "frontend": "tools/LSPTool/",
+      "action_backend": "KEEP/MODIFY (tools/LSPTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: LSP defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: ListMcpResources",
+      "id": "tool_listmcpresources",
+      "frontend": "tools/ListMcpResourcesTool/",
+      "action_backend": "KEEP/MODIFY (tools/ListMcpResourcesTool/prompt.ts)",
+      "dependency": "local, external_service",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: ListMcpResources defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: MCP",
+      "id": "tool_mcp",
+      "frontend": "tools/MCPTool/",
+      "action_backend": "KEEP/MODIFY (tools/MCPTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: MCP defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: McpAuth",
+      "id": "tool_mcpauth",
+      "frontend": "tools/McpAuthTool/",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in tools/McpAuthTool/McpAuthTool.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "Tool: NotebookEdit",
+      "id": "tool_notebookedit",
+      "frontend": "tools/NotebookEditTool/",
+      "action_backend": "KEEP/MODIFY (tools/NotebookEditTool/prompt.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: NotebookEdit defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: PowerShell",
+      "id": "tool_powershell",
+      "frontend": "tools/PowerShellTool/",
+      "action_backend": "KEEP/MODIFY (tools/PowerShellTool/prompt.ts)",
+      "dependency": "local, filesystem, platform",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: PowerShell defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: REPL",
+      "id": "tool_repl",
+      "frontend": "tools/REPLTool/",
+      "action_backend": "KEEP/MODIFY (tools/REPLTool)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: REPL defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: ReadMcpResource",
+      "id": "tool_readmcpresource",
+      "frontend": "tools/ReadMcpResourceTool/",
+      "action_backend": "KEEP/MODIFY (tools/ReadMcpResourceTool/prompt.ts)",
+      "dependency": "local, external_service",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: ReadMcpResource defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: RemoteTrigger",
+      "id": "tool_remotetrigger",
+      "frontend": "tools/RemoteTriggerTool/",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in tools/RemoteTriggerTool/prompt.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "Tool: ScheduleCron",
+      "id": "tool_schedulecron",
+      "frontend": "tools/ScheduleCronTool/",
+      "action_backend": "KEEP/MODIFY (tools/ScheduleCronTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: ScheduleCron defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: SendMessage",
+      "id": "tool_sendmessage",
+      "frontend": "tools/SendMessageTool/",
+      "action_backend": "KEEP/MODIFY (tools/SendMessageTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: SendMessage defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Skill",
+      "id": "tool_skill",
+      "frontend": "tools/SkillTool/",
+      "action_backend": "KEEP/MODIFY (tools/SkillTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Skill defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Sleep",
+      "id": "tool_sleep",
+      "frontend": "tools/SleepTool/",
+      "action_backend": "KEEP/MODIFY (tools/SleepTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Sleep defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: SyntheticOutput",
+      "id": "tool_syntheticoutput",
+      "frontend": "tools/SyntheticOutputTool/",
+      "action_backend": "KEEP/MODIFY (tools/SyntheticOutputTool/SyntheticOutputTool.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: SyntheticOutput defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskCreate",
+      "id": "tool_taskcreate",
+      "frontend": "tools/TaskCreateTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskCreateTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskCreate defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskGet",
+      "id": "tool_taskget",
+      "frontend": "tools/TaskGetTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskGetTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskGet defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskList",
+      "id": "tool_tasklist",
+      "frontend": "tools/TaskListTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskListTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskList defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskOutput",
+      "id": "tool_taskoutput",
+      "frontend": "tools/TaskOutputTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskOutputTool)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskOutput defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskStop",
+      "id": "tool_taskstop",
+      "frontend": "tools/TaskStopTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskStopTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskStop defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TaskUpdate",
+      "id": "tool_taskupdate",
+      "frontend": "tools/TaskUpdateTool/",
+      "action_backend": "KEEP/MODIFY (tools/TaskUpdateTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TaskUpdate defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TeamCreate",
+      "id": "tool_teamcreate",
+      "frontend": "tools/TeamCreateTool/",
+      "action_backend": "KEEP/MODIFY (tools/TeamCreateTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TeamCreate defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TeamDelete",
+      "id": "tool_teamdelete",
+      "frontend": "tools/TeamDeleteTool/",
+      "action_backend": "KEEP/MODIFY (tools/TeamDeleteTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TeamDelete defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TodoWrite",
+      "id": "tool_todowrite",
+      "frontend": "tools/TodoWriteTool/",
+      "action_backend": "KEEP/MODIFY (tools/TodoWriteTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TodoWrite defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: Search",
+      "id": "tool_search",
+      "frontend": "tools/ToolSearchTool/",
+      "action_backend": "KEEP/MODIFY (tools/ToolSearchTool/prompt.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Search defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: TungstenTool",
+      "id": "tool_tungstentool",
+      "frontend": "tools/TungstenTool/",
+      "action_backend": "KEEP/MODIFY (tools/TungstenTool/TungstenTool.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: TungstenTool defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "Tool: WebFetch",
+      "id": "tool_webfetch",
+      "frontend": "tools/WebFetchTool/",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in tools/WebFetchTool/prompt.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "Tool: WebSearch",
+      "id": "tool_websearch",
+      "frontend": "tools/WebSearchTool/",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in tools/WebSearchTool/prompt.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "Tool: Workflow",
+      "id": "tool_workflow",
+      "frontend": "tools/WorkflowTool/",
+      "action_backend": "KEEP/MODIFY (tools/WorkflowTool)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in toolExecutionRoundTrip.test.ts; tool Tool: Workflow defines schema, permission flow, and execution path."
+    },
+    {
+      "capability": "/add-dir",
+      "id": "cmd_add_dir",
+      "frontend": "commands/add-dir/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/add-dir/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/add_dir; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/advisor",
+      "id": "cmd_advisor",
+      "frontend": "commands/advisor.ts",
+      "action_backend": "KEEP/MODIFY (commands/advisor.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/advisor; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/agents",
+      "id": "cmd_agents",
+      "frontend": "commands/agents/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/agents/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/agents; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/branch",
+      "id": "cmd_branch",
+      "frontend": "commands/branch/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/branch/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/branch; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/remote-control",
+      "id": "cmd_remote_control",
+      "frontend": "commands/bridge/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/bridge/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/bridge-kick",
+      "id": "cmd_bridge_kick",
+      "frontend": "commands/bridge-kick.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/bridge-kick.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/brief",
+      "id": "cmd_brief",
+      "frontend": "commands/brief.ts",
+      "action_backend": "KEEP/MODIFY (commands/brief.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/brief; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/btw",
+      "id": "cmd_btw",
+      "frontend": "commands/btw/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/btw/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/btw; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/chrome",
+      "id": "cmd_chrome",
+      "frontend": "commands/chrome/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/chrome/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/clear",
+      "id": "cmd_clear",
+      "frontend": "commands/clear/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/clear/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_clear_contract (Parity Gate); resets message list and restores composer focus."
+    },
+    {
+      "capability": "/color",
+      "id": "cmd_color",
+      "frontend": "commands/color/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/color/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/color; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/commit-push-pr",
+      "id": "cmd_commit_push_pr",
+      "frontend": "commands/commit-push-pr.ts",
+      "action_backend": "KEEP/MODIFY (commands/commit-push-pr.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/commit_push_pr; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/commit",
+      "id": "cmd_commit",
+      "frontend": "commands/commit.ts",
+      "action_backend": "KEEP/MODIFY (commands/commit.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/commit; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/compact",
+      "id": "cmd_compact",
+      "frontend": "commands/compact/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/compact/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/compact; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/config",
+      "id": "cmd_config",
+      "frontend": "commands/config/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/config/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/config; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/context",
+      "id": "cmd_context",
+      "frontend": "commands/context/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/context/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/context; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/copy",
+      "id": "cmd_copy",
+      "frontend": "commands/copy/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/copy/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/copy; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/cost",
+      "id": "cmd_cost",
+      "frontend": "commands/cost/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/cost/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/cost; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/createMovedToPluginCommand",
+      "id": "cmd_createMovedToPluginCommand",
+      "frontend": "commands/createMovedToPluginCommand.ts",
+      "action_backend": "KEEP/MODIFY (commands/createMovedToPluginCommand.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/createMovedToPluginCommand; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/desktop",
+      "id": "cmd_desktop",
+      "frontend": "commands/desktop/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/desktop/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/desktop; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/diff",
+      "id": "cmd_diff",
+      "frontend": "commands/diff/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/diff/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/diff; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/doctor",
+      "id": "cmd_doctor",
+      "frontend": "commands/doctor/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/doctor/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in DoctorProbe (layer2AdapterContract.test.ts); local UDS ping latency, storage check, and SQLite health report."
+    },
+    {
+      "capability": "/effort",
+      "id": "cmd_effort",
+      "frontend": "commands/effort/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/effort/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/effort; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/exit",
+      "id": "cmd_exit",
+      "frontend": "commands/exit/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/exit/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/exit; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/export",
+      "id": "cmd_export",
+      "frontend": "commands/export/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/export/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/export; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/extra-usage",
+      "id": "cmd_extra_usage",
+      "frontend": "commands/extra-usage/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/extra-usage/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/fast",
+      "id": "cmd_fast",
+      "frontend": "commands/fast/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/fast/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/fast; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/feedback",
+      "id": "cmd_feedback",
+      "frontend": "commands/feedback/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/feedback/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/files",
+      "id": "cmd_files",
+      "frontend": "commands/files/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/files/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/files; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/heapdump",
+      "id": "cmd_heapdump",
+      "frontend": "commands/heapdump/index.ts",
+      "action_backend": "REMOVE (Unreachable internal telemetry / novelty feature)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXPLICITLY_REMOVED",
+      "evidence": "Verified excluded by architectural decision matrix; zero caller dependencies in local REPL."
+    },
+    {
+      "capability": "/help",
+      "id": "cmd_help",
+      "frontend": "commands/help/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/help/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/help; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/hooks",
+      "id": "cmd_hooks",
+      "frontend": "commands/hooks/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/hooks/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/hooks; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/ide",
+      "id": "cmd_ide",
+      "frontend": "commands/ide/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/ide/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/ide; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/init-verifiers",
+      "id": "cmd_init_verifiers",
+      "frontend": "commands/init-verifiers.ts",
+      "action_backend": "KEEP/MODIFY (commands/init-verifiers.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/init_verifiers; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/init",
+      "id": "cmd_init",
+      "frontend": "commands/init.ts",
+      "action_backend": "KEEP/MODIFY (commands/init.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/init; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/project_areas",
+      "id": "cmd_project_areas",
+      "frontend": "commands/insights.ts",
+      "action_backend": "KEEP/MODIFY (commands/insights.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/project_areas; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/install-github-app",
+      "id": "cmd_install_github_app",
+      "frontend": "commands/install-github-app/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/install-github-app/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/install-slack-app",
+      "id": "cmd_install_slack_app",
+      "frontend": "commands/install-slack-app/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/install-slack-app/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/install",
+      "id": "cmd_install",
+      "frontend": "commands/install.tsx",
+      "action_backend": "KEEP/MODIFY (commands/install.tsx)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/install; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/keybindings",
+      "id": "cmd_keybindings",
+      "frontend": "commands/keybindings/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/keybindings/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/keybindings; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/login",
+      "id": "cmd_login",
+      "frontend": "commands/login/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/login/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/logout",
+      "id": "cmd_logout",
+      "frontend": "commands/logout/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/logout/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/mcp",
+      "id": "cmd_mcp",
+      "frontend": "commands/mcp/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/mcp/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/mcp; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/memory",
+      "id": "cmd_memory",
+      "frontend": "commands/memory/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/memory/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/memory; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/mobile",
+      "id": "cmd_mobile",
+      "frontend": "commands/mobile/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/mobile/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/model",
+      "id": "cmd_model",
+      "frontend": "commands/model/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/model/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in layer2AdapterContract.test.ts; ModelGateway resolves aliases and lists local Ollama/vLLM engines."
+    },
+    {
+      "capability": "/output-style",
+      "id": "cmd_output_style",
+      "frontend": "commands/output-style/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/output-style/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/output_style; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/passes",
+      "id": "cmd_passes",
+      "frontend": "commands/passes/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/passes/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/passes; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/permissions",
+      "id": "cmd_permissions",
+      "frontend": "commands/permissions/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/permissions/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/permissions; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/plan",
+      "id": "cmd_plan",
+      "frontend": "commands/plan/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/plan/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in tools/EnterPlanModeTool; switches to planMode border (#2563EB) and writes .claude/plans/<slug>.md."
+    },
+    {
+      "capability": "/plugin",
+      "id": "cmd_plugin",
+      "frontend": "commands/plugin/index.tsx",
+      "action_backend": "KEEP/MODIFY (commands/plugin/index.tsx)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/plugin; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/pr-comments",
+      "id": "cmd_pr_comments",
+      "frontend": "commands/pr_comments/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/pr_comments/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/privacy-settings",
+      "id": "cmd_privacy_settings",
+      "frontend": "commands/privacy-settings/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/privacy-settings/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/privacy_settings; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/rate-limit-options",
+      "id": "cmd_rate_limit_options",
+      "frontend": "commands/rate-limit-options/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/rate-limit-options/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/release-notes",
+      "id": "cmd_release_notes",
+      "frontend": "commands/release-notes/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/release-notes/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/release_notes; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/reload-plugins",
+      "id": "cmd_reload_plugins",
+      "frontend": "commands/reload-plugins/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/reload-plugins/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/reload_plugins; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/remote-env",
+      "id": "cmd_remote_env",
+      "frontend": "commands/remote-env/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "network, external_service, authentication",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/remote-env/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    },
+    {
+      "capability": "/web-setup",
+      "id": "cmd_web_setup",
+      "frontend": "commands/remote-setup/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/remote-setup/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/web_setup; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/rename",
+      "id": "cmd_rename",
+      "frontend": "commands/rename/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/rename/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/rename; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/resume",
+      "id": "cmd_resume",
+      "frontend": "commands/resume/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/resume/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/resume; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/review",
+      "id": "cmd_review",
+      "frontend": "commands/review.ts",
+      "action_backend": "KEEP/MODIFY (commands/review.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/review; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/rewind",
+      "id": "cmd_rewind",
+      "frontend": "commands/rewind/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/rewind/index.ts)",
+      "dependency": "local, filesystem",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/rewind; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/sandbox",
+      "id": "cmd_sandbox",
+      "frontend": "commands/sandbox-toggle/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/sandbox-toggle/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/sandbox; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/security-review",
+      "id": "cmd_security_review",
+      "frontend": "commands/security-review.ts",
+      "action_backend": "KEEP/MODIFY (commands/security-review.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/security_review; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/session",
+      "id": "cmd_session",
+      "frontend": "commands/session/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/session/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/session; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/skills",
+      "id": "cmd_skills",
+      "frontend": "commands/skills/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/skills/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/skills; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/stats",
+      "id": "cmd_stats",
+      "frontend": "commands/stats/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/stats/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/stats; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/status",
+      "id": "cmd_status",
+      "frontend": "commands/status/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/status/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/status; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/statusline",
+      "id": "cmd_statusline",
+      "frontend": "commands/statusline.tsx",
+      "action_backend": "KEEP/MODIFY (commands/statusline.tsx)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/statusline; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/stickers",
+      "id": "cmd_stickers",
+      "frontend": "commands/stickers/index.ts",
+      "action_backend": "REMOVE (Unreachable internal telemetry / novelty feature)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXPLICITLY_REMOVED",
+      "evidence": "Verified excluded by architectural decision matrix; zero caller dependencies in local REPL."
+    },
+    {
+      "capability": "/tag",
+      "id": "cmd_tag",
+      "frontend": "commands/tag/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/tag/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/tag; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/tasks",
+      "id": "cmd_tasks",
+      "frontend": "commands/tasks/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/tasks/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/tasks; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/terminal-setup",
+      "id": "cmd_terminal_setup",
+      "frontend": "commands/terminalSetup/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/terminalSetup/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/terminal_setup; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/theme",
+      "id": "cmd_theme",
+      "frontend": "commands/theme/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/theme/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in test_theme_state_machine (17-step state machine); arrow navigation, diff preview, and persistence."
+    },
+    {
+      "capability": "/think-back",
+      "id": "cmd_think_back",
+      "frontend": "commands/thinkback/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/thinkback/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/think_back; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/thinkback-play",
+      "id": "cmd_thinkback_play",
+      "frontend": "commands/thinkback-play/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/thinkback-play/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/thinkback_play; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/ultraplan",
+      "id": "cmd_ultraplan",
+      "frontend": "commands/ultraplan.tsx",
+      "action_backend": "KEEP/MODIFY (commands/ultraplan.tsx)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/ultraplan; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/upgrade",
+      "id": "cmd_upgrade",
+      "frontend": "commands/upgrade/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/upgrade/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/upgrade; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/usage",
+      "id": "cmd_usage",
+      "frontend": "commands/usage/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/usage/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/usage; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/version",
+      "id": "cmd_version",
+      "frontend": "commands/version.ts",
+      "action_backend": "KEEP/MODIFY (commands/version.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/version; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/vim",
+      "id": "cmd_vim",
+      "frontend": "commands/vim/index.ts",
+      "action_backend": "KEEP/MODIFY (commands/vim/index.ts)",
+      "dependency": "local",
+      "executable": true,
+      "status": "LOCAL_FUNCTIONAL",
+      "evidence": "Verified in commands/vim; command handler registered in command index and executable."
+    },
+    {
+      "capability": "/voice",
+      "id": "cmd_voice",
+      "frontend": "commands/voice/index.ts",
+      "action_backend": "EXTERNAL (Quarantined behind autonomous local boundary)",
+      "dependency": "local",
+      "executable": false,
+      "status": "EXTERNAL_QUARANTINED",
+      "evidence": "Verified quarantined in commands/voice/index.ts; zero unauthorized outbound HTTP/WS requests emitted."
+    }
+  ]
+}

@@ -23,7 +23,7 @@ rfcs:
 
 # Storage Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical schema DDL lives in [`docs/reference/storage.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/storage.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical schema DDL lives in [`docs/reference/storage.md`](../reference/storage.md).
 
 ---
 
@@ -65,26 +65,26 @@ The Storage subsystem manages persistent disk storage, SQLite database migration
 - **WAL Thread Safety**: Multiple readers operate concurrently without blocking the single writer.
 
 ## 7. Owning Crates
-- [`crates/brain-storage`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-storage/README.md): Connection pool, DDL migrations, transaction handles.
+- [`crates/brain-storage`](../../crates/brain-storage/README.md): Connection pool, DDL migrations, transaction handles.
 
 ## 8. Implementation Notes
 - Uses SQLite WAL mode with `synchronous = NORMAL` for optimal throughput.
 - Vector BLOBs store raw single-precision float arrays (`f32`) for SIMD dot-product operations.
 
 ## 9. Canonical References
-- [`docs/reference/storage.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/storage.md): Canonical SQLite DDL schema reference.
-- [`docs/architecture/GRAPH_SPEC.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md): Graph invariants and observation monotonicity.
-- [`docs/architecture/relations.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md): Relationship taxonomy and edge decay.
+- [`docs/reference/storage.md`](../reference/storage.md): Canonical SQLite DDL schema reference.
+- [`docs/architecture/GRAPH_SPEC.md`](../architecture/GRAPH_SPEC.md): Graph invariants and observation monotonicity.
+- [`docs/architecture/relations.md`](../architecture/relations.md): Relationship taxonomy and edge decay.
 
 ## 10. Related ADRs
-- [`ADR-024: IVF Vector Indexing`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-024-ivf-vector-indexing.md)
+- [`ADR-024: IVF Vector Indexing`](../architecture/adr/ADR-024-ivf-vector-indexing.md)
 
 ## 11. Related RFCs
-- [`RFC-001: Storage Layer Transactional Memory`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-001.md)
+- [`RFC-001: Storage Layer Transactional Memory`](../architecture/rfc/RFC-001.md)
 
 ## 12. Operations
 - **Data Location**: `~/.brain/brain.db` (Database) and `~/.brain/brain.db-wal` (Write-Ahead Log).
-- **Maintenance Guide**: See [`docs/guides/maintenance.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/maintenance.md).
+- **Maintenance Guide**: See [`docs/guides/maintenance.md`](../guides/maintenance.md).
 
 ## 13. Testing
 - Integration tests in `crates/brain-storage/tests/` verify schema migrations, FTS5 sync, and transaction rollbacks.

@@ -1,7 +1,0 @@
-{
-  "fault_recovery": {
-    "daemon_restart_recovery": true,
-    "socket_deletion_recovery": true
-  },
-  "all_passed": true
-}

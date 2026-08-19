@@ -70,7 +70,7 @@ fn create_valid_test_config(db_path: &str, plugins_path: &str) -> BrainSettings 
 
 #[tokio::test]
 async fn test_runtime_builder_defaults() {
-    pyo3::prepare_freethreaded_python();
+    brain_python::initialize_python_runtime();
     let runtime = ApplicationRuntime::builder().build().unwrap();
     assert_eq!(runtime.state(), RuntimeState::Created);
     assert!(!runtime.is_ready());
@@ -78,7 +78,7 @@ async fn test_runtime_builder_defaults() {
 
 #[tokio::test]
 async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
-    pyo3::prepare_freethreaded_python();
+    brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();
     let plugins_path = get_temp_plugins_path();
@@ -158,7 +158,7 @@ async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
 
 #[tokio::test]
 async fn test_runtime_startup_phase_failure_rollback() {
-    pyo3::prepare_freethreaded_python();
+    brain_python::initialize_python_runtime();
     std::env::set_var("BRAIN_DATABASE_TIMEOUT_MS", "500");
 
     // Set invalid directory path to cause StorageMigrationPhase to fail during SqliteStorage::new
@@ -184,7 +184,7 @@ async fn test_runtime_startup_phase_failure_rollback() {
 
 #[tokio::test]
 async fn test_runtime_non_blocking_observers() {
-    pyo3::prepare_freethreaded_python();
+    brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();
     let plugins_path = get_temp_plugins_path();
@@ -219,7 +219,7 @@ async fn test_runtime_non_blocking_observers() {
 
 #[tokio::test]
 async fn test_runtime_query_rejection_when_not_running() {
-    pyo3::prepare_freethreaded_python();
+    brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();
     let plugins_path = get_temp_plugins_path();

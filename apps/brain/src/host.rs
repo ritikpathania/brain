@@ -1,102 +1,104 @@
-use brain_services::runtime::{ApplicationRuntime, RuntimeObserver};
-use brain_tui::client::{ExecutionClient, ExecutionOptions, ExecutionRequest, UdsClient};
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio_util::sync::CancellationToken;
-
-struct LogObserver;
-impl RuntimeObserver for LogObserver {
-    fn on_started(&self, _runtime: &ApplicationRuntime) {
-        println!("ApplicationRuntime observer: started.");
-    }
-    fn on_stopping(&self, _runtime: &ApplicationRuntime) {
-        println!("ApplicationRuntime observer: stopping.");
-    }
-    fn on_stopped(&self, _runtime: &ApplicationRuntime) {
-        println!("ApplicationRuntime observer: stopped.");
-    }
-}
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub struct CLIHost;
 
 impl CLIHost {
-    pub async fn run_daemon() -> Result<(), Box<dyn std::error::Error>> {
-        println!("Starting Brain v2 Engine composition root as background daemon...");
-
-        let defaults_src = brain_config::loader::DefaultsSource;
-        let config = brain_config::loader::resolve(&[Box::new(defaults_src)])?;
-
-        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        let runtime = Arc::new(
-            ApplicationRuntime::builder()
-                .with_config(config)
-                .with_working_dir(working_dir)
-                .register_observer(Arc::new(LogObserver))
-                .build()?,
-        );
-
-        let startup_report = runtime.start()?;
-        println!(
-            "Runtime successfully started in {}ms. Completed phases: {:?}",
-            startup_report.duration().as_millis(),
-            startup_report.completed_phases()
-        );
-
-        println!("Running... Press Ctrl+C to stop.");
-
-        tokio::signal::ctrl_c().await?;
-
-        println!("Ctrl+C received. Initiating graceful shutdown...");
-
-        runtime.shutdown()?;
-        println!("Shutdown sequence completed successfully.");
-
-        Ok(())
-    }
-
+    /// Launches the React + Ink + Yoga production frontend (`packages/brain-frontend`).
     pub async fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
-        let client = Box::new(UdsClient::default());
-        if let Err(e) = brain_tui::run(client).await {
-            eprintln!("TUI Error: {}", e);
-            std::process::exit(1);
+        // 1. Locate frontend entrypoint
+        let frontend_main = Self::resolve_frontend_entrypoint()?;
+        let preload_script = frontend_main.parent().map(|p| p.join("preload.ts"));
+
+        // 2. Resolve JS runtime (prefer bun, fallback to node)
+        let runtime = Self::resolve_runtime()?;
+
+        if std::env::var("BRAIN_DEBUG").is_ok() {
+            eprintln!(
+                "[frontend launcher] Spawning {:?} with {:?}",
+                runtime, frontend_main
+            );
         }
-        Ok(())
+
+        // 3. Spawn child process with inherited stdio
+        let mut cmd = std::process::Command::new(&runtime);
+        if runtime.ends_with("bun") || runtime.to_string_lossy().contains("bun") {
+            if let Some(ref preload) = preload_script {
+                if preload.exists() {
+                    cmd.args(["run", "--feature", "AUTO_THEME", "--preload", preload.to_str().unwrap_or("./src/preload.ts"), frontend_main.to_str().unwrap_or("src/main.tsx")]);
+                } else {
+                    cmd.args(["run", "--feature", "AUTO_THEME", frontend_main.to_str().unwrap_or("src/main.tsx")]);
+                }
+            } else {
+                cmd.args(["run", "--feature", "AUTO_THEME", frontend_main.to_str().unwrap_or("src/main.tsx")]);
+            }
+        } else {
+            cmd.arg(frontend_main);
+        }
+
+        // Pass along environment variables
+        if let Ok(socket_path) = std::env::var("BRAIN_SOCKET_PATH") {
+            cmd.env("BRAIN_SOCKET_PATH", socket_path);
+        }
+
+        let status = cmd
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .status()?;
+
+        std::process::exit(status.code().unwrap_or(0));
     }
 
+    /// Direct non-interactive query over Unix Domain Socket.
     pub async fn run_query(text: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let client = UdsClient::default();
-        let req = ExecutionRequest {
-            session_id: brain_domain::SessionId::new(),
-            prompt: text.to_string(),
-            options: ExecutionOptions::default(),
-            cancellation_token: CancellationToken::new(),
-            workspace_context: None,
+        let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
+            PathBuf::from(path)
+        } else {
+            dirs::home_dir()
+                .map(|h| h.join(".brain").join("daemon.sock"))
+                .unwrap_or_else(|| PathBuf::from("daemon.sock"))
         };
-        let mut rx = client.execute(req).await?;
+
+        let mut stream = tokio::net::UnixStream::connect(socket_path).await?;
+        let payload = serde_json::json!({
+            "action": "query",
+            "payload": text,
+        })
+        .to_string()
+            + "\n";
+
+        stream.write_all(payload.as_bytes()).await?;
+        stream.flush().await?;
+
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
         let mut output = String::new();
-        while let Some(res) = rx.recv().await {
-            match res {
-                Ok(ev) => match ev.kind {
-                    brain_core::events::StreamEventKind::Token(text) => {
-                        output.push_str(&text);
-                    }
-                    brain_core::events::StreamEventKind::Finished { response } => {
-                        if output.is_empty() {
-                            output = response;
+
+        while reader.read_line(&mut line).await? > 0 {
+            let trimmed = line.trim();
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                if let Some(event_type) = value.get("type").and_then(|t| t.as_str()) {
+                    match event_type {
+                        "stream_chunk" => {
+                            if let Some(content) = value.get("content").and_then(|c| c.as_str()) {
+                                output.push_str(content);
+                            }
                         }
-                        break;
+                        "stream_end" => {
+                            break;
+                        }
+                        _ => {}
                     }
-                    brain_core::events::StreamEventKind::Error { message } => {
-                        return Err(Box::new(std::io::Error::other(message)));
-                    }
-                    _ => {}
-                },
-                Err(e) => return Err(Box::new(e)),
+                }
             }
+            line.clear();
         }
+
         Ok(output)
     }
 
+    /// Direct memory ingestion over Unix Domain Socket.
     pub async fn run_ingest(content: &str) -> Result<String, Box<dyn std::error::Error>> {
         let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
             PathBuf::from(path)
@@ -105,14 +107,15 @@ impl CLIHost {
                 .map(|h| h.join(".brain").join("daemon.sock"))
                 .unwrap_or_else(|| PathBuf::from("daemon.sock"))
         };
+
         let mut stream = tokio::net::UnixStream::connect(socket_path).await?;
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         let payload = serde_json::json!({
             "action": "ingest",
             "payload": content,
         })
         .to_string()
             + "\n";
+
         stream.write_all(payload.as_bytes()).await?;
         stream.flush().await?;
 
@@ -143,5 +146,74 @@ impl CLIHost {
         }
 
         Ok(trimmed.to_string())
+    }
+
+    fn resolve_frontend_entrypoint() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        // 1. Current working directory lookup
+        if let Ok(cwd) = std::env::current_dir() {
+            let candidate = cwd.join("packages/brain-shell/src/main.tsx");
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+
+        // 2. Traversal relative to current exe
+        if let Ok(exe_path) = std::env::current_exe() {
+            for ancestor in exe_path.ancestors() {
+                let candidate = ancestor.join("packages/brain-shell/src/main.tsx");
+                if candidate.exists() {
+                    return Ok(candidate);
+                }
+            }
+        }
+
+        // 3. User home bundle fallback
+        if let Some(home) = dirs::home_dir() {
+            let user_bundle = home.join(".brain/shell/src/main.tsx");
+            if user_bundle.exists() {
+                return Ok(user_bundle);
+            }
+        }
+
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not locate 'packages/brain-shell/src/main.tsx'. Ensure packages/brain-shell is present.",
+        )))
+    }
+
+    fn resolve_runtime() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        // 1. Direct command probe
+        for binary in &["bun", "node"] {
+            if let Ok(output) = std::process::Command::new(binary).arg("--version").output() {
+                if output.status.success() {
+                    return Ok(PathBuf::from(binary));
+                }
+            }
+        }
+
+        // 2. Search common user install locations
+        if let Some(home) = dirs::home_dir() {
+            let bun_home = home.join(".bun/bin/bun");
+            if bun_home.exists() {
+                return Ok(bun_home);
+            }
+        }
+
+        for path_str in &[
+            "/opt/homebrew/bin/bun",
+            "/usr/local/bin/bun",
+            "/opt/homebrew/bin/node",
+            "/usr/local/bin/node",
+        ] {
+            let p = PathBuf::from(path_str);
+            if p.exists() {
+                return Ok(p);
+            }
+        }
+
+        Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No JavaScript runtime found on PATH. Please install 'bun' (recommended) or 'node' to run the Brain frontend.",
+        )))
     }
 }

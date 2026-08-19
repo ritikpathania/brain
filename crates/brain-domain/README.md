@@ -1,22 +1,28 @@
 # brain-domain
 
 ## Purpose
-Pure domain entities, strongly-typed IDs, DTOs, and API models.
+Pure Domain-Driven Design (DDD) domain models, value objects, and pure domain events.
 
 ## Responsibilities
-* Model unique domain data structures (Node, Edge, Embedding, Message, Conversation).
-* Define strongly-typed chronological and standard identifiers.
-* Provide DTO wrappers to isolate database entity constraints from API/UI boundaries.
-* Implement serialization/deserialization logic for domain types.
+* Encapsulate domain entities (Node, Edge, Memory, Session, Observation) with internal validation.
+* Protect state invariants and emit pure, side-effect-free DomainEvents on mutation.
+* Implement in-memory domain evaluation specifications.
 
-## Dependencies
-* **Allowed:** Standard library and shared serialization workspace crates (`serde`, `uuid`, `ulid`, `serde_json`).
-* **Forbidden:** Any other internal workspace crate (must have zero internal crate dependencies).
+## Boundaries & Constraints
+* **Allowed Dependencies:** `serde`, `uuid`, `ulid`, `chrono`.
+* **Forbidden Dependencies:** `tokio`, `rusqlite`, `brain-storage`, `brain-services`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Strongly-Typed IDs: `SessionId`, `RunId`, `NodeId`, `EdgeId`, `PluginId`, `ConversationId`, `MessageId`, `DocumentId`
-* Entities: `Node`, `Edge`, `Embedding`, `Message`, `Conversation`, `ToolCall`
-* DTOs: `NodeDTO`, `EdgeDTO`, `EmbeddingDTO`, `MemoryDTO`
+## Public API & Facades
+* Entities (`Node`, `Edge`, `Observation`), Events (`DomainEvent`), Specs (`Specification`).
 
-## Owner
-Principal System Architect
+## Invariants Protected
+* Zero external infrastructure dependencies, pure in-memory business logic.
+
+## Canonical References
+* Specification: `../../docs/architecture/CONSTITUTION.md`
+
+## Testing & Verification
+* `cargo test -p brain-domain`
+
+## Maintainer
+See `CODEOWNERS`.

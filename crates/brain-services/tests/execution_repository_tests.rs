@@ -1,5 +1,5 @@
 use brain_services::runtime::*;
-use rusqlite::Connection;
+use brain_storage::Connection;
 
 #[test]
 fn test_sqlite_execution_repository_contract() {

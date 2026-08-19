@@ -22,8 +22,8 @@ Feedback ──► Calibration ──► Offline Evaluation ──► Publicatio
 * **Ad-Hoc Promotion**: Direct deployment of calibrated weights without metric checks. Rejected due to severe regression risks in production.
 
 ## Related ADRs
-* [ADR-011 (Immutable Snapshots)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-011-immutable-snapshots.md)
-* [ADR-014 (Deterministic Execution)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-014-deterministic-execution.md)
+* [ADR-011 (Immutable Snapshots)](ADR-011-immutable-snapshots.md)
+* [ADR-014 (Deterministic Execution)](ADR-014-deterministic-execution.md)
 
 ## Consequences
 * **Regression Safety**: Models cannot be promoted without satisfying metric thresholds.

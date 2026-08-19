@@ -1,19 +1,27 @@
 # brain-session
 
 ## Purpose
-Session Context state machine and volatile cache.
+Interactive conversation session tracking, history management, and context pinning.
 
 ## Responsibilities
-* Manage short-term memory (STM) sliding windows.
-* Implement volatile token matching inverted indexing for fast session retrieval.
-* Track active conversation state prior to long-term database consolidation.
+* Manage active conversation sessions, message history buffers, and context attachments.
+* Coordinate session lifecycle events (creation, active, archived).
 
-## Dependencies
-* **Allowed:** `brain-domain`, `brain-core`.
-* **Forbidden:** Direct SQLite database engines or Python GIL executors.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Volatile context managers, token indices, and short-term memory cache hooks.
+## Public API & Facades
+* `SessionManager`, `ConversationState`, `SessionContext`.
 
-## Owner
-Core Development Team
+## Invariants Protected
+* Session domain encapsulation.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-session`
+
+## Maintainer
+See `CODEOWNERS`.

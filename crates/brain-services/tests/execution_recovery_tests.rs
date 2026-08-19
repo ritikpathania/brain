@@ -1,5 +1,5 @@
 use brain_services::runtime::*;
-use rusqlite::Connection;
+use brain_storage::Connection;
 
 #[test]
 fn test_recovery_engine_reconstructs_running_execution() {

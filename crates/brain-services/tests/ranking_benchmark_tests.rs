@@ -200,7 +200,7 @@ fn test_feature_provider_loading() {
     conn.execute(
         "INSERT INTO feedback_events (id, schema_version, query, node_id, selected, timestamp, ranking_position, context) \
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        rusqlite::params![
+        brain_storage::rusqlite::params![
             "event_1",
             1,
             "rust query",

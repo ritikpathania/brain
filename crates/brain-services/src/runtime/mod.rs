@@ -373,7 +373,11 @@ impl ApplicationRuntime {
         components.insert("Storage".to_string(), storage_status);
 
         // 2. Python Health
-        let python_status = pyo3::Python::with_gil(|_py| HealthStatus::Healthy);
+        let python_status = if brain_python::check_python_health() {
+            HealthStatus::Healthy
+        } else {
+            HealthStatus::Unhealthy
+        };
         components.insert("Python".to_string(), python_status);
 
         // 3. Plugins Health
@@ -757,7 +761,7 @@ impl StartupPhase for PythonInvariantPhase {
         "Python Invariant"
     }
     fn execute(&self, _runtime: &ApplicationRuntime) -> Result<(), BrainError> {
-        pyo3::prepare_freethreaded_python();
+        brain_python::initialize_python_runtime();
         Ok(())
     }
     fn rollback(&self, _runtime: &ApplicationRuntime) -> Result<(), BrainError> {

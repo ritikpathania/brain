@@ -1,0 +1,330 @@
+{
+  "gate_status": "FAIL",
+  "local_capabilities_count": 13,
+  "external_capabilities_count": 5,
+  "summary": {
+    "EXACT_PARITY": 11,
+    "ACTUAL_PRODUCT_GAP": 2,
+    "OBSERVABILITY_LIMITED": 0,
+    "UNVERIFIED": 0,
+    "EXTERNAL_DEPENDENCY": 5
+  },
+  "capability_matrix": [
+    {
+      "name": "/theme",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "FAIL",
+      "classification": "ACTUAL_PRODUCT_GAP",
+      "evidence": {
+        "claude": [
+          "Step 1: Reached prompt in Dark theme",
+          "Steps 2-4: /theme catalog structural check (Header=True, Auto=True, Dark=True, Light=True, option_count=3, structural_pass=True)",
+          "Step 5: StructuredDiff preview rendered: True",
+          "Steps 6-7: Ctrl+T syntax toggle reactive: True",
+          "Steps 8-9: Escape dismissed selector without disk mutation (theme=dark)",
+          "Steps 10-13: picker_ready=True, persisted theme=light, settings.json.theme=light, .claude.json.theme=None",
+          "Steps 14-17: Process restarted, Light mode visibly marked with checkmark: True"
+        ],
+        "brain_bun": [
+          "Step 1: Reached prompt in Dark theme",
+          "Steps 2-4: /theme catalog structural check (Header=True, Auto=True, Dark=True, Light=True, option_count=3, structural_pass=True)",
+          "Step 5: StructuredDiff preview rendered: True",
+          "Steps 6-7: Ctrl+T syntax toggle reactive: True",
+          "Steps 8-9: Escape dismissed selector without disk mutation (theme=dark)",
+          "Steps 10-13: picker_ready=True, persisted theme=light, settings.json.theme=dark, .claude.json.theme=light",
+          "Steps 14-17: Process restarted, Light mode visibly marked with checkmark: True"
+        ],
+        "brain_cli": [
+          "Step 1: Reached prompt in Dark theme",
+          "Steps 2-4: /theme catalog structural check (Header=True, Auto=True, Dark=False, Light=False, option_count=1, structural_pass=False)",
+          "Step 5: StructuredDiff preview rendered: False",
+          "Steps 6-7: Ctrl+T syntax toggle reactive: False",
+          "Steps 8-9: Escape dismissed selector without disk mutation (theme=dark)",
+          "Steps 10-13: picker_ready=True, persisted theme=light, settings.json.theme=dark, .claude.json.theme=light",
+          "Steps 14-17: Process restarted, Light mode visibly marked with checkmark: True"
+        ]
+      }
+    },
+    {
+      "name": "@ File Completion",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": [
+          "1. Type @: File popup opened with fixture items: True",
+          "2. Filter 'alpha': Results filtered: True",
+          "3. Escape dismissed popup"
+        ],
+        "brain_bun": [
+          "1. Type @: File popup opened with fixture items: True",
+          "2. Filter 'alpha': Results filtered: True",
+          "3. Escape dismissed popup"
+        ],
+        "brain_cli": [
+          "1. Type @: File popup opened with fixture items: True",
+          "2. Filter 'alpha': Results filtered: True",
+          "3. Escape dismissed popup"
+        ]
+      }
+    },
+    {
+      "name": "Shift+Tab Permission Mode",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "FAIL",
+      "brain_cli_status": "FAIL",
+      "classification": "ACTUAL_PRODUCT_GAP",
+      "evidence": {
+        "claude": [
+          "1. 1st Shift+Tab transitioned mode: True",
+          "2. 2nd Shift+Tab transitioned to plan mode: True",
+          "3. 3rd Shift+Tab cycled mode (left plan mode): True"
+        ],
+        "brain_bun": [
+          "1. 1st Shift+Tab transitioned mode: False",
+          "2. 2nd Shift+Tab transitioned to plan mode: False",
+          "3. 3rd Shift+Tab cycled mode (left plan mode): True"
+        ],
+        "brain_cli": [
+          "1. 1st Shift+Tab transitioned mode: False",
+          "2. 2nd Shift+Tab transitioned to plan mode: False",
+          "3. 3rd Shift+Tab cycled mode (left plan mode): True"
+        ]
+      }
+    },
+    {
+      "name": "/status",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'/status\\r' \u2192 token 'status' found=True",
+        "brain_bun": "Input b'/status\\r' \u2192 token 'status' found=True",
+        "brain_cli": "Input b'/status\\r' \u2192 token 'status' found=True"
+      }
+    },
+    {
+      "name": "/add-dir",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'/add-dir\\r' \u2192 token 'directory' found=True",
+        "brain_bun": "Input b'/add-dir\\r' \u2192 token 'directory' found=True",
+        "brain_cli": "Input b'/add-dir\\r' \u2192 token 'directory' found=True"
+      }
+    },
+    {
+      "name": "/help",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'/help\\r' \u2192 token 'commands' found=True",
+        "brain_bun": "Input b'/help\\r' \u2192 token 'commands' found=True",
+        "brain_cli": "Input b'/help\\r' \u2192 token 'commands' found=True"
+      }
+    },
+    {
+      "name": "Alt+P Model Overlay",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'\\x1bp' \u2192 token 'model' found=True",
+        "brain_bun": "Input b'\\x1bp' \u2192 token 'model' found=True",
+        "brain_cli": "Input b'\\x1bp' \u2192 token 'model' found=True"
+      }
+    },
+    {
+      "name": "Slash Autocomplete",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'/\\t' \u2192 token '/' found=True",
+        "brain_bun": "Input b'/\\t' \u2192 token '/' found=True",
+        "brain_cli": "Input b'/\\t' \u2192 token '/' found=True"
+      }
+    },
+    {
+      "name": "& Background Mode Toggle",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "Input b'&\\r' \u2192 token '&' found=True",
+        "brain_bun": "Input b'&\\r' \u2192 token '&' found=True",
+        "brain_cli": "Input b'&\\r' \u2192 token '&' found=True"
+      }
+    },
+    {
+      "name": "/clear",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": [
+          "Precondition: Process reached interactive prompt",
+          "Step 1: Sent /clear\\r and allowed session reset",
+          "Step 2: Subsequent input accepted in composer: True",
+          "Step 3: Subsequent slash command (/help) executed after clear: True"
+        ],
+        "brain_bun": [
+          "Precondition: Process reached interactive prompt",
+          "Step 1: Sent /clear\\r and allowed session reset",
+          "Step 2: Subsequent input accepted in composer: True",
+          "Step 3: Subsequent slash command (/help) executed after clear: True"
+        ],
+        "brain_cli": [
+          "Precondition: Process reached interactive prompt",
+          "Step 1: Sent /clear\\r and allowed session reset",
+          "Step 2: Subsequent input accepted in composer: True",
+          "Step 3: Subsequent slash command (/help) executed after clear: True"
+        ]
+      }
+    },
+    {
+      "name": "? Shortcut Help",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": [
+          "Precondition: Interactive prompt ready",
+          "Step 1: '?' opened PromptInputHelpMenu with valid shortcut groups: True",
+          "Step 2: Escape dismissed HelpMenu (True) and restored prompt (True)"
+        ],
+        "brain_bun": [
+          "Precondition: Interactive prompt ready",
+          "Step 1: '?' opened PromptInputHelpMenu with valid shortcut groups: True",
+          "Step 2: Escape dismissed HelpMenu (True) and restored prompt (True)"
+        ],
+        "brain_cli": [
+          "Precondition: Interactive prompt ready",
+          "Step 1: '?' opened PromptInputHelpMenu with valid shortcut groups: True",
+          "Step 2: Escape dismissed HelpMenu (True) and restored prompt (True)"
+        ]
+      }
+    },
+    {
+      "name": "! Shell Mode Toggle",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": "! + Enter yielded observable state (bash/shell/!): True",
+        "brain_bun": "! + Enter yielded observable state (bash/shell/!): True",
+        "brain_cli": "! + Enter yielded observable state (bash/shell/!): True"
+      }
+    },
+    {
+      "name": "Multiline Input",
+      "category": "LOCAL PRODUCT CAPABILITY",
+      "requires_external_service": false,
+      "reference_status": "PASS",
+      "brain_bun_status": "PASS",
+      "brain_cli_status": "PASS",
+      "classification": "EXACT_PARITY",
+      "evidence": {
+        "claude": [
+          "Step 1: Reached prompt",
+          "Step 2: After backslash+Enter+'X': x_visible=True, submitted=False, composer_expanded=True"
+        ],
+        "brain_bun": [
+          "Step 1: Reached prompt",
+          "Step 2: After backslash+Enter+'X': x_visible=True, submitted=False, composer_expanded=True"
+        ],
+        "brain_cli": [
+          "Step 1: Reached prompt",
+          "Step 2: After backslash+Enter+'X': x_visible=True, submitted=False, composer_expanded=True"
+        ]
+      }
+    },
+    {
+      "name": "/login OAuth",
+      "category": "EXTERNAL RUNTIME CAPABILITY",
+      "requires_external_service": true,
+      "reference_status": "NOT_LOCALLY_TESTABLE",
+      "brain_bun_status": "NOT_LOCALLY_TESTABLE",
+      "brain_cli_status": "NOT_LOCALLY_TESTABLE",
+      "classification": "EXTERNAL_DEPENDENCY",
+      "evidence": "Redirects to external browser (https://console.anthropic.com) for OAuth token exchange"
+    },
+    {
+      "name": "Live Anthropic API Generation",
+      "category": "EXTERNAL RUNTIME CAPABILITY",
+      "requires_external_service": true,
+      "reference_status": "NOT_LOCALLY_TESTABLE",
+      "brain_bun_status": "NOT_LOCALLY_TESTABLE",
+      "brain_cli_status": "NOT_LOCALLY_TESTABLE",
+      "classification": "EXTERNAL_DEPENDENCY",
+      "evidence": "Requires active Anthropic account, billing, and remote API key"
+    },
+    {
+      "name": "/doctor Remote Checks",
+      "category": "EXTERNAL RUNTIME CAPABILITY",
+      "requires_external_service": true,
+      "reference_status": "NOT_LOCALLY_TESTABLE",
+      "brain_bun_status": "NOT_LOCALLY_TESTABLE",
+      "brain_cli_status": "NOT_LOCALLY_TESTABLE",
+      "classification": "EXTERNAL_DEPENDENCY",
+      "evidence": "Runs network connectivity and remote endpoint diagnostic probes"
+    },
+    {
+      "name": "/init Model Analysis",
+      "category": "EXTERNAL RUNTIME CAPABILITY",
+      "requires_external_service": true,
+      "reference_status": "NOT_LOCALLY_TESTABLE",
+      "brain_bun_status": "NOT_LOCALLY_TESTABLE",
+      "brain_cli_status": "NOT_LOCALLY_TESTABLE",
+      "classification": "EXTERNAL_DEPENDENCY",
+      "evidence": "Executes model generation to inspect project structure and synthesize CLAUDE.md"
+    },
+    {
+      "name": "Remote Teleport / SSH",
+      "category": "EXTERNAL RUNTIME CAPABILITY",
+      "requires_external_service": true,
+      "reference_status": "NOT_LOCALLY_TESTABLE",
+      "brain_bun_status": "NOT_LOCALLY_TESTABLE",
+      "brain_cli_status": "NOT_LOCALLY_TESTABLE",
+      "classification": "EXTERNAL_DEPENDENCY",
+      "evidence": "Requires remote server deployment and tunnel infrastructure"
+    }
+  ]
+}

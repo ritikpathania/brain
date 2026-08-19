@@ -51,8 +51,8 @@ flowchart TD
 *   **Create a Shared Crate Depending on Brain**: Rejected. This would violate hexagonal bounds, turning the generic core infrastructure into an application-specific framework layer and increasing compile-time coupling.
 
 ## Related ADRs
-*   [ADR-020 (Protocol Independence)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-020-protocol-independence.md)
-*   [ADR-021 (Stable Application Interface)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-021-stable-application-interface.md)
+*   [ADR-020 (Protocol Independence)](ADR-020-protocol-independence.md)
+*   [ADR-021 (Stable Application Interface)](ADR-021-stable-application-interface.md)
 
 ## Expected Stability
 Long-term.

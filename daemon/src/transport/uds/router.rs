@@ -67,6 +67,18 @@ impl ProtocolRouter {
                     serde_json::from_str(body).unwrap_or_else(|_| body.trim().to_string());
                 Ok(Some(ApplicationRequest::RebuildProjection { name }))
             }
+            "v1/sessions/get" => {
+                #[derive(serde::Deserialize)]
+                struct Req {
+                    session_id: String,
+                }
+                let session_id = if let Ok(req) = serde_json::from_str::<Req>(body) {
+                    req.session_id
+                } else {
+                    body.trim().to_string()
+                };
+                Ok(Some(ApplicationRequest::GetSession { session_id }))
+            }
 
             // Legacy fallbacks (deprecated)
             "status" => {

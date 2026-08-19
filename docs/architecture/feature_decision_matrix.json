@@ -1,0 +1,2382 @@
+{
+  "schema_version": "1.0.0",
+  "total_families": 11,
+  "total_capabilities": 148,
+  "families": [
+    {
+      "family_id": "fam_conv",
+      "family_name": "Family 1: Core Conversational REPL & Streaming UX",
+      "family_description": "Lifecycle of conversational turns, streaming token buffers, typewriter rendering, thinking/reasoning blocks, structured diff previews, interruption, and transcript management.",
+      "capabilities": [
+        {
+          "id": "conv_init",
+          "name": "Session Creation & Initialization",
+          "claude_frontend_behavior": "App mounts -> generates session UUID -> loads config/theme -> initializes REPL state -> displays LogoV2 banner",
+          "claude_backend_behavior": "bootstrap/state.ts:initSession(), utils/sessionStorage.ts:initSession() (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "conv_resume",
+          "name": "Resume Past Session (/resume)",
+          "claude_frontend_behavior": "User triggers /resume -> reads project session logs -> presents interactive LogSelector -> user selects turn -> recovers messages and cost state -> mounts REPL",
+          "claude_backend_behavior": "commands/resume/index.ts, utils/sessionStorage.ts:loadAllProjectsMessageLogsProgressive() (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage SQLite session event repository",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Adapt LogSelector to discover and load stored sessions from Brain's SQLite event log in addition to legacy JSONL files."
+        },
+        {
+          "id": "conv_streaming",
+          "name": "Token Streaming & Typewriter Drain",
+          "claude_frontend_behavior": "Query executes -> receives stream events -> buffers in TypewriterQueue -> renders incremental text deltas -> autoscrolls VirtualMessageList",
+          "claude_backend_behavior": "query.ts:query(), query/deps.ts:callModel() (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services UDS monotonic StreamEvent chunks via packages/brain-shell/src/adapter/brainCallModel.ts",
+          "dependencies": [
+            "local",
+            "model"
+          ],
+          "decision_rationale": "Preserve Claude streaming UI and typewriter queue while powering token generation directly from Brain's UDS daemon."
+        },
+        {
+          "id": "conv_thinking",
+          "name": "Reasoning & Thinking Blocks (ThinkingConfig)",
+          "claude_frontend_behavior": "Receives `thinking` stream events -> renders collapsible ThinkingBlock with elapsed timer -> captures signature -> collapses on text_delta start",
+          "claude_backend_behavior": "utils/thinking.ts, query.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "packages/brain-shell/src/adapter/brainCallModel.ts reasoning block streaming",
+          "dependencies": [
+            "local",
+            "model"
+          ],
+          "decision_rationale": "Preserve collapsible thinking box UI while receiving native reasoning stream chunks from Brain backend."
+        },
+        {
+          "id": "conv_diffs",
+          "name": "Structured Diff Rendering",
+          "claude_frontend_behavior": "Computes file patch delta -> tokenizes line changes -> highlights intra-line word diffs -> renders unified or side-by-side box with red/green backgrounds",
+          "claude_backend_behavior": "native-ts/color-diff/index.ts, components/StructuredDiff.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "conv_cancel",
+          "name": "Response Interruption & Cancellation (Ctrl+C / Escape)",
+          "claude_frontend_behavior": "User presses cancel key -> CancelRequestHandler triggers AbortController.abort() -> query loop halts -> appends InterruptedByUser notice -> resets composer",
+          "claude_backend_behavior": "hooks/useCancelRequest.ts, utils/messages.ts:createInterruptedMessage() (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "AbortSignal propagation over UDS socket to cancel active Brain task",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Propagate AbortController cancellation from Claude UI directly to Rust UDS daemon task cancellation."
+        },
+        {
+          "id": "cmd_copy",
+          "name": "/copy",
+          "claude_frontend_behavior": "User invokes `/copy` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/copy/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_diff",
+          "name": "/diff",
+          "claude_frontend_behavior": "User invokes `/diff` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/diff/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_export",
+          "name": "/export",
+          "claude_frontend_behavior": "User invokes `/export` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/export/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_release_notes",
+          "name": "/release-notes",
+          "claude_frontend_behavior": "User invokes `/release-notes` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/release-notes/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_rename",
+          "name": "/rename",
+          "claude_frontend_behavior": "User invokes `/rename` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/rename/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_resume",
+          "name": "/resume",
+          "claude_frontend_behavior": "User invokes `/resume` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/resume/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage SQLite session event repository",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Adapt LogSelector to discover and load stored sessions from Brain's SQLite event log in addition to legacy JSONL files."
+        },
+        {
+          "id": "cmd_session",
+          "name": "/session",
+          "claude_frontend_behavior": "User invokes `/session` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/session/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_tag",
+          "name": "/tag",
+          "claude_frontend_behavior": "User invokes `/tag` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/tag/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_version",
+          "name": "/version",
+          "claude_frontend_behavior": "User invokes `/version` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/version.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 15
+    },
+    {
+      "family_id": "fam_composer",
+      "family_name": "Family 2: Composer & Input Interaction",
+      "family_description": "Multiline input buffer handling, suggestions popovers (@ file and / command autocomplete), modal Vim input, shell execution mode (!), shortcut help overlay (?), and audio voice streaming.",
+      "capabilities": [
+        {
+          "id": "comp_multiline",
+          "name": "Multiline Input (`\\` + `Enter`)",
+          "claude_frontend_behavior": "User types `\\` and presses Enter -> PromptInput enters multiline continuation mode -> expands vertical height -> preserves indentation",
+          "claude_backend_behavior": "components/PromptInput/PromptInput.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_file_completion",
+          "name": "@ File Path Autocompletion",
+          "claude_frontend_behavior": "Typing `@` triggers fuzzy file search -> queries project directory tree -> renders suggestions popover -> Tab/Enter accepts path",
+          "claude_backend_behavior": "utils/suggestions/fileSuggestions.ts, native-ts/file-index/ (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_slash_completion",
+          "name": "/ Slash Command Autocompletion",
+          "claude_frontend_behavior": "Typing `/` lists registered commands matching prefix -> displays description and aliases -> Tab/Enter selects command",
+          "claude_backend_behavior": "commands/index.ts, utils/suggestions/commandSuggestions.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_help_menu",
+          "name": "Keyboard Shortcut Help Menu (?)",
+          "claude_frontend_behavior": "Pressing `?` on empty input sets `helpOpen=true` without buffer text pollution -> renders 3-column shortcut catalog -> Escape dismisses",
+          "claude_backend_behavior": "components/PromptInput/PromptInput.tsx:onChange() (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_shell_mode",
+          "name": "Shell / Bash Execution Mode (!)",
+          "claude_frontend_behavior": "Typing `!` toggles `bashBorder` (`#DC2626`) -> user enters bash command -> Enter executes directly via BashTool with live streaming output",
+          "claude_backend_behavior": "tools/BashTool/index.ts, components/PromptInput/inputModes.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "platform"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_vim_mode",
+          "name": "Modal Vim Editing Mode (/vim)",
+          "claude_frontend_behavior": "Toggling vim mode switches input renderer to VimTextInput -> supports Normal/Insert/Visual modes, hjkl navigation, d/y/p verbs",
+          "claude_backend_behavior": "components/VimTextInput.tsx, commands/vim/ (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "comp_voice",
+          "name": "Push-to-Talk Voice Streaming (/voice)",
+          "claude_frontend_behavior": "User holds voice key -> records audio via native macOS module or SoX -> streams PCM chunks via WebSocket to voice_stream STT -> updates composer text buffer",
+          "claude_backend_behavior": "services/voiceStreamSTT.ts, services/voiceKeyterms.ts, commands/voice/voice.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Local Whisper / STT engine adapter or external toggle",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication",
+            "platform"
+          ],
+          "decision_rationale": "Claude voice streaming relies on Anthropic WebSocket endpoint; quarantine remote endpoint while preserving hold-to-talk UI for local Whisper integration."
+        },
+        {
+          "id": "cmd_clear",
+          "name": "/clear",
+          "claude_frontend_behavior": "User invokes `/clear` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/clear/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_vim",
+          "name": "/vim",
+          "claude_frontend_behavior": "User invokes `/vim` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/vim/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_voice",
+          "name": "/voice",
+          "claude_frontend_behavior": "User invokes `/voice` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/voice/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Local Whisper / STT engine adapter or external toggle",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Claude voice streaming relies on Anthropic WebSocket endpoint; quarantine remote endpoint while preserving hold-to-talk UI for local Whisper integration."
+        }
+      ],
+      "total_capabilities": 10
+    },
+    {
+      "family_id": "fam_modes",
+      "family_name": "Family 3: Modes, Preferences & Presentation Styling",
+      "family_description": "Interactive permission mode cycling (Shift+Tab), 17-step theme selection with live color diffs, model picker dialog (Alt+P), architect/plan mode, output style configuration, and reasoning token budget limits.",
+      "capabilities": [
+        {
+          "id": "mode_permission_cycle",
+          "name": "Permission Mode Cycling (Shift+Tab)",
+          "claude_frontend_behavior": "Shift+Tab cycles Normal -> Auto-accept -> Bypass -> Plan mode -> updates border color token (`promptBorder`, `autoAccept`, `planMode`)",
+          "claude_backend_behavior": "utils/permissions/permissionSetup.ts, hooks/toolPermission/ (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "mode_theme_picker",
+          "name": "Theme Selection & Live Diff Preview (/theme)",
+          "claude_frontend_behavior": "User triggers /theme -> mounts 17-step state machine with StructuredDiff preview -> Arrow keys navigate options -> Enter persists to disk",
+          "claude_backend_behavior": "commands/theme/index.ts, utils/theme.ts, utils/config.ts:saveGlobalConfig() (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "mode_model_picker",
+          "name": "Model Selection Dialog (/model, Alt+P)",
+          "claude_frontend_behavior": "User triggers Alt+P -> renders ModelPicker list -> user selects Opus / Sonnet / Haiku / Custom -> updates active model state",
+          "claude_backend_behavior": "commands/model/index.ts, utils/model.ts (No Model)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "packages/brain-shell/src/adapter/brainCallModel.ts model routing",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Preserve Claude ModelPicker UI but extend selectable items to include Brain local and gateway model backends."
+        },
+        {
+          "id": "mode_plan",
+          "name": "Architect / Plan Mode (/plan)",
+          "claude_frontend_behavior": "Plan mode entered -> sets border to `planMode` (`#2563EB`) -> intercepts write tools to read-only -> model synthesizes plan -> ExitPlanMode presents approval diff",
+          "claude_backend_behavior": "tools/EnterPlanModeTool/, tools/ExitPlanModeTool/, utils/plans.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_brief",
+          "name": "/brief",
+          "claude_frontend_behavior": "User invokes `/brief` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/brief.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_color",
+          "name": "/color",
+          "claude_frontend_behavior": "User invokes `/color` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/color/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_effort",
+          "name": "/effort",
+          "claude_frontend_behavior": "User invokes `/effort` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/effort/index.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_fast",
+          "name": "/fast",
+          "claude_frontend_behavior": "User invokes `/fast` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/fast/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_help",
+          "name": "/help",
+          "claude_frontend_behavior": "User invokes `/help` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/help/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_model",
+          "name": "/model",
+          "claude_frontend_behavior": "User invokes `/model` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/model/index.ts (Model Required)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "packages/brain-shell/src/adapter/brainCallModel.ts model routing",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Preserve Claude ModelPicker UI but extend selectable items to include Brain local and gateway model backends."
+        },
+        {
+          "id": "cmd_output_style",
+          "name": "/output-style",
+          "claude_frontend_behavior": "User invokes `/output-style` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/output-style/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_passes",
+          "name": "/passes",
+          "claude_frontend_behavior": "User invokes `/passes` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/passes/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_plan",
+          "name": "/plan",
+          "claude_frontend_behavior": "User invokes `/plan` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/plan/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_status",
+          "name": "/status",
+          "claude_frontend_behavior": "User invokes `/status` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/status/index.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_statusline",
+          "name": "/statusline",
+          "claude_frontend_behavior": "User invokes `/statusline` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/statusline.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_theme",
+          "name": "/theme",
+          "claude_frontend_behavior": "User invokes `/theme` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/theme/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 16
+    },
+    {
+      "family_id": "fam_memory",
+      "family_name": "Family 4: Memory, Knowledge & Context Management",
+      "family_description": "Session memory extraction, long-term memory consolidation (AutoDream), prompt context compaction, turn rollback/rewind, context window token visualization, and repository memory initialization.",
+      "capabilities": [
+        {
+          "id": "svc_session_memory",
+          "name": "Session Memory Periodic Extraction",
+          "claude_frontend_behavior": "Post-sampling hook triggers -> checks token thresholds -> spawns forked subagent via `runForkedAgent` -> updates conversation notes markdown file",
+          "claude_backend_behavior": "services/SessionMemory/sessionMemory.ts, services/SessionMemory/prompts.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage (SQLite STM/LTM) + crates/brain-domain entity graph",
+          "dependencies": [
+            "local",
+            "filesystem",
+            "model"
+          ],
+          "decision_rationale": "Replace flat text file notes with Brain's structured relational memory engine in SQLite."
+        },
+        {
+          "id": "svc_auto_dream",
+          "name": "Auto Dream Background Memory Consolidation",
+          "claude_frontend_behavior": "Background timer detects idle state -> acquires lockfile `consolidationLock.ts` -> runs forked agent -> consolidates long-term user preferences",
+          "claude_backend_behavior": "services/autoDream/autoDream.ts, services/autoDream/consolidationPrompt.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-domain::Edge::strengthen / KnowledgeGraph::consolidate",
+          "dependencies": [
+            "local",
+            "filesystem",
+            "model"
+          ],
+          "decision_rationale": "Replace file-lock prompt consolidation with Brain's background domain graph consolidation."
+        },
+        {
+          "id": "svc_compaction",
+          "name": "Context Compaction & Token Summarization",
+          "claude_frontend_behavior": "Message tokens cross limit -> microcompactMessages runs -> LLM generates condensation summary -> collapses prior turns -> clears pre-compact file cache",
+          "claude_backend_behavior": "services/compact/compact.ts, services/compact/prompt.ts, services/compact/postCompactCleanup.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-session::SessionContext::compact",
+          "dependencies": [
+            "local",
+            "model"
+          ],
+          "decision_rationale": "Delegate turn condensation and token budgeting to Brain's authoritative session context compaction."
+        },
+        {
+          "id": "cmd_compact",
+          "name": "/compact",
+          "claude_frontend_behavior": "User invokes `/compact` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/compact/index.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-session::SessionContext::compact",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Delegate turn condensation and token budgeting to Brain's authoritative session context compaction."
+        },
+        {
+          "id": "cmd_context",
+          "name": "/context",
+          "claude_frontend_behavior": "User invokes `/context` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/context/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services::retrieval token breakdown telemetry",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Render Brain's hybrid context breakdown (STM + LTM + Graph expansion) using Claude context visualizer."
+        },
+        {
+          "id": "cmd_init_verifiers",
+          "name": "/init-verifiers",
+          "claude_frontend_behavior": "User invokes `/init-verifiers` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/init-verifiers.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services project scanner and metadata synthesizer",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Synthesize repository profile and populate initial Brain knowledge graph."
+        },
+        {
+          "id": "cmd_init",
+          "name": "/init",
+          "claude_frontend_behavior": "User invokes `/init` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/init.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services project scanner and metadata synthesizer",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Synthesize repository profile and populate initial Brain knowledge graph."
+        },
+        {
+          "id": "cmd_project_areas",
+          "name": "/project_areas",
+          "claude_frontend_behavior": "User invokes `/project_areas` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/insights.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services project scanner and metadata synthesizer",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Synthesize repository profile and populate initial Brain knowledge graph."
+        },
+        {
+          "id": "cmd_memory",
+          "name": "/memory",
+          "claude_frontend_behavior": "User invokes `/memory` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/memory/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage (SQLite STM/LTM) + crates/brain-domain entity graph",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Replace flat text file notes with Brain's structured relational memory engine in SQLite."
+        },
+        {
+          "id": "cmd_rewind",
+          "name": "/rewind",
+          "claude_frontend_behavior": "User invokes `/rewind` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/rewind/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage CheckpointStore rollback",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Replace memory array slicing with transactional SQLite checkpoint rollback."
+        },
+        {
+          "id": "cmd_usage",
+          "name": "/usage",
+          "claude_frontend_behavior": "User invokes `/usage` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/usage/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services::retrieval token breakdown telemetry",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Render Brain's hybrid context breakdown (STM + LTM + Graph expansion) using Claude context visualizer."
+        }
+      ],
+      "total_capabilities": 11
+    },
+    {
+      "family_id": "fam_devtools",
+      "family_name": "Family 5: Local Developer & Filesystem Tools",
+      "family_description": "Local file operations (Read, Write, Edit, Glob, Grep), OS shell command execution (Bash, PowerShell), git workflow commands (commit, push, branch, review, worktrees), Jupyter notebook editing, and Language Server Protocol (LSP) diagnostics.",
+      "capabilities": [
+        {
+          "id": "svc_lsp",
+          "name": "Language Server Protocol (LSP) Manager",
+          "claude_frontend_behavior": "Discovers workspace language server (rust-analyzer, tsserver, pyright) -> spawns stdio process -> queries hover, definitions, diagnostics -> injects context",
+          "claude_backend_behavior": "services/lsp/LSPServerManager.ts, services/lsp/LSPClient.ts, tools/LSPTool/ (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TS LSP manager)",
+          "dependencies": [
+            "local",
+            "platform"
+          ],
+          "decision_rationale": "TS LSP server manager interacts directly with local stdio language server binaries (rust-analyzer, tsserver)."
+        },
+        {
+          "id": "tool_bash",
+          "name": "Tool: Bash",
+          "claude_frontend_behavior": "Model generates `Bash` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/BashTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem",
+            "platform"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_enterworktree",
+          "name": "Tool: EnterWorktree",
+          "claude_frontend_behavior": "Model generates `EnterWorktree` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/EnterWorktreeTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_exitworktree",
+          "name": "Tool: ExitWorktree",
+          "claude_frontend_behavior": "Model generates `ExitWorktree` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ExitWorktreeTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_fileedit",
+          "name": "Tool: FileEdit",
+          "claude_frontend_behavior": "Model generates `FileEdit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/FileEditTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_fileread",
+          "name": "Tool: FileRead",
+          "claude_frontend_behavior": "Model generates `FileRead` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/FileReadTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_filewrite",
+          "name": "Tool: FileWrite",
+          "claude_frontend_behavior": "Model generates `FileWrite` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/FileWriteTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_glob",
+          "name": "Tool: Glob",
+          "claude_frontend_behavior": "Model generates `Glob` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/GlobTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_grep",
+          "name": "Tool: Grep",
+          "claude_frontend_behavior": "Model generates `Grep` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/GrepTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_lsp",
+          "name": "Tool: LSP",
+          "claude_frontend_behavior": "Model generates `LSP` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/LSPTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_notebookedit",
+          "name": "Tool: NotebookEdit",
+          "claude_frontend_behavior": "Model generates `NotebookEdit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/NotebookEditTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_powershell",
+          "name": "Tool: PowerShell",
+          "claude_frontend_behavior": "Model generates `PowerShell` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/PowerShellTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem",
+            "platform"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_repl",
+          "name": "Tool: REPL",
+          "claude_frontend_behavior": "Model generates `REPL` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/REPLTool (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_add_dir",
+          "name": "/add-dir",
+          "claude_frontend_behavior": "User invokes `/add-dir` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/add-dir/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_branch",
+          "name": "/branch",
+          "claude_frontend_behavior": "User invokes `/branch` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/branch/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_commit_push_pr",
+          "name": "/commit-push-pr",
+          "claude_frontend_behavior": "User invokes `/commit-push-pr` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/commit-push-pr.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_commit",
+          "name": "/commit",
+          "claude_frontend_behavior": "User invokes `/commit` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/commit.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_files",
+          "name": "/files",
+          "claude_frontend_behavior": "User invokes `/files` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/files/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_ide",
+          "name": "/ide",
+          "claude_frontend_behavior": "User invokes `/ide` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/ide/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_review",
+          "name": "/review",
+          "claude_frontend_behavior": "User invokes `/review` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/review.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 20
+    },
+    {
+      "family_id": "fam_swarm",
+      "family_name": "Family 6: Multi-Agent Swarm, Tasks & Coordination",
+      "family_description": "Subagent session spawning, peer-to-peer agent messaging, background task execution/management, team memory synchronization, and task list / todo tracking.",
+      "capabilities": [
+        {
+          "id": "tool_ship_audit",
+          "name": "Tool: ship-audit",
+          "claude_frontend_behavior": "Model generates `ship-audit` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/AgentTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_brief",
+          "name": "Tool: Brief",
+          "claude_frontend_behavior": "Model generates `Brief` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/BriefTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_sendmessage",
+          "name": "Tool: SendMessage",
+          "claude_frontend_behavior": "Model generates `SendMessage` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/SendMessageTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_taskcreate",
+          "name": "Tool: TaskCreate",
+          "claude_frontend_behavior": "Model generates `TaskCreate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskCreateTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_taskget",
+          "name": "Tool: TaskGet",
+          "claude_frontend_behavior": "Model generates `TaskGet` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskGetTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_tasklist",
+          "name": "Tool: TaskList",
+          "claude_frontend_behavior": "Model generates `TaskList` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskListTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_taskoutput",
+          "name": "Tool: TaskOutput",
+          "claude_frontend_behavior": "Model generates `TaskOutput` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskOutputTool (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_taskstop",
+          "name": "Tool: TaskStop",
+          "claude_frontend_behavior": "Model generates `TaskStop` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskStopTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_taskupdate",
+          "name": "Tool: TaskUpdate",
+          "claude_frontend_behavior": "Model generates `TaskUpdate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TaskUpdateTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_teamcreate",
+          "name": "Tool: TeamCreate",
+          "claude_frontend_behavior": "Model generates `TeamCreate` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TeamCreateTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-storage team workspace partitions",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Store team workspace facts in partitioned SQLite databases."
+        },
+        {
+          "id": "tool_teamdelete",
+          "name": "Tool: TeamDelete",
+          "claude_frontend_behavior": "Model generates `TeamDelete` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TeamDeleteTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-storage team workspace partitions",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Store team workspace facts in partitioned SQLite databases."
+        },
+        {
+          "id": "tool_todowrite",
+          "name": "Tool: TodoWrite",
+          "claude_frontend_behavior": "Model generates `TodoWrite` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TodoWriteTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_agents",
+          "name": "/agents",
+          "claude_frontend_behavior": "User invokes `/agents` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/agents/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-a2a-adapter (Agent-to-Agent protocol)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Preserve Claude subagent UI and progress bars while bridging swarm sessions with Rust A2A adapter."
+        },
+        {
+          "id": "cmd_tasks",
+          "name": "/tasks",
+          "claude_frontend_behavior": "User invokes `/tasks` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/tasks/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 14
+    },
+    {
+      "family_id": "fam_plugins_mcp",
+      "family_name": "Family 7: Extensibility, Plugins & Model Context Protocol (MCP)",
+      "family_description": "Model Context Protocol (MCP) tool discovery and resource resolution, plugin marketplace management, skill discovery, local web retrieval tools, and background cron scheduling.",
+      "capabilities": [
+        {
+          "id": "tool_listmcpresources",
+          "name": "Tool: ListMcpResources",
+          "claude_frontend_behavior": "Model generates `ListMcpResources` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ListMcpResourcesTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-mcp-adapter (Rust MCP manager synchronization)",
+          "dependencies": [
+            "local",
+            "external_service"
+          ],
+          "decision_rationale": "Preserve Claude MCP configuration UI while synchronizing server definitions to Rust brain-mcp-adapter."
+        },
+        {
+          "id": "tool_mcp",
+          "name": "Tool: MCP",
+          "claude_frontend_behavior": "Model generates `MCP` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/MCPTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-mcp-adapter (Rust MCP manager synchronization)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Preserve Claude MCP configuration UI while synchronizing server definitions to Rust brain-mcp-adapter."
+        },
+        {
+          "id": "tool_readmcpresource",
+          "name": "Tool: ReadMcpResource",
+          "claude_frontend_behavior": "Model generates `ReadMcpResource` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ReadMcpResourceTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-mcp-adapter (Rust MCP manager synchronization)",
+          "dependencies": [
+            "local",
+            "external_service"
+          ],
+          "decision_rationale": "Preserve Claude MCP configuration UI while synchronizing server definitions to Rust brain-mcp-adapter."
+        },
+        {
+          "id": "tool_schedulecron",
+          "name": "Tool: ScheduleCron",
+          "claude_frontend_behavior": "Model generates `ScheduleCron` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ScheduleCronTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_skill",
+          "name": "Tool: Skill",
+          "claude_frontend_behavior": "Model generates `Skill` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/SkillTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_sleep",
+          "name": "Tool: Sleep",
+          "claude_frontend_behavior": "Model generates `Sleep` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/SleepTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_webfetch",
+          "name": "Tool: WebFetch",
+          "claude_frontend_behavior": "Model generates `WebFetch` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/WebFetchTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "network"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_websearch",
+          "name": "Tool: WebSearch",
+          "claude_frontend_behavior": "Model generates `WebSearch` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/WebSearchTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "network"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_workflow",
+          "name": "Tool: Workflow",
+          "claude_frontend_behavior": "Model generates `Workflow` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/WorkflowTool (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_createMovedToPluginCommand",
+          "name": "/createMovedToPluginCommand",
+          "claude_frontend_behavior": "User invokes `/createMovedToPluginCommand` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/createMovedToPluginCommand.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_mcp",
+          "name": "/mcp",
+          "claude_frontend_behavior": "User invokes `/mcp` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/mcp/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "PARTIAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-mcp-adapter (Rust MCP manager synchronization)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Preserve Claude MCP configuration UI while synchronizing server definitions to Rust brain-mcp-adapter."
+        },
+        {
+          "id": "cmd_plugin",
+          "name": "/plugin",
+          "claude_frontend_behavior": "User invokes `/plugin` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/plugin/index.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_reload_plugins",
+          "name": "/reload-plugins",
+          "claude_frontend_behavior": "User invokes `/reload-plugins` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/reload-plugins/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_skills",
+          "name": "/skills",
+          "claude_frontend_behavior": "User invokes `/skills` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/skills/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 14
+    },
+    {
+      "family_id": "fam_system",
+      "family_name": "Family 8: Diagnostic, Configuration & System Lifecycle",
+      "family_description": "Environment diagnostics (Doctor screen), configuration and keybindings management, sandboxing and security reviews, terminal setup, user questions, and advice consultation.",
+      "capabilities": [
+        {
+          "id": "tool_askuserquestion",
+          "name": "Tool: AskUserQuestion",
+          "claude_frontend_behavior": "Model generates `AskUserQuestion` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/AskUserQuestionTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_config",
+          "name": "Tool: Config",
+          "claude_frontend_behavior": "Model generates `Config` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ConfigTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_enterplanmode",
+          "name": "Tool: EnterPlanMode",
+          "claude_frontend_behavior": "Model generates `EnterPlanMode` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/EnterPlanModeTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_exitplanmode",
+          "name": "Tool: ExitPlanMode",
+          "claude_frontend_behavior": "Model generates `ExitPlanMode` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ExitPlanModeTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_syntheticoutput",
+          "name": "Tool: SyntheticOutput",
+          "claude_frontend_behavior": "Model generates `SyntheticOutput` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/SyntheticOutputTool/SyntheticOutputTool.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_search",
+          "name": "Tool: Search",
+          "claude_frontend_behavior": "Model generates `Search` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/ToolSearchTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "tool_tungstentool",
+          "name": "Tool: TungstenTool",
+          "claude_frontend_behavior": "Model generates `TungstenTool` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/TungstenTool/TungstenTool.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_advisor",
+          "name": "/advisor",
+          "claude_frontend_behavior": "User invokes `/advisor` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/advisor.ts (Model Required)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_btw",
+          "name": "/btw",
+          "claude_frontend_behavior": "User invokes `/btw` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/btw/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_config",
+          "name": "/config",
+          "claude_frontend_behavior": "User invokes `/config` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/config/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_cost",
+          "name": "/cost",
+          "claude_frontend_behavior": "User invokes `/cost` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/cost/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_desktop",
+          "name": "/desktop",
+          "claude_frontend_behavior": "User invokes `/desktop` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/desktop/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_doctor",
+          "name": "/doctor",
+          "claude_frontend_behavior": "User invokes `/doctor` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/doctor/index.ts (No Model)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "MODIFY",
+          "desired_backend_action": "MODIFY",
+          "brain_replacement_implementation": "crates/brain-observability + UDS engine ping & SQLite health checks",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Adapt Doctor UI to verify local Rust engine daemon, UDS IPC, and SQLite storage integrity."
+        },
+        {
+          "id": "cmd_exit",
+          "name": "/exit",
+          "claude_frontend_behavior": "User invokes `/exit` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/exit/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_hooks",
+          "name": "/hooks",
+          "claude_frontend_behavior": "User invokes `/hooks` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/hooks/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_install",
+          "name": "/install",
+          "claude_frontend_behavior": "User invokes `/install` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/install.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_keybindings",
+          "name": "/keybindings",
+          "claude_frontend_behavior": "User invokes `/keybindings` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/keybindings/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_permissions",
+          "name": "/permissions",
+          "claude_frontend_behavior": "User invokes `/permissions` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/permissions/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_privacy_settings",
+          "name": "/privacy-settings",
+          "claude_frontend_behavior": "User invokes `/privacy-settings` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/privacy-settings/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_sandbox",
+          "name": "/sandbox",
+          "claude_frontend_behavior": "User invokes `/sandbox` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/sandbox-toggle/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_security_review",
+          "name": "/security-review",
+          "claude_frontend_behavior": "User invokes `/security-review` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/security-review.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_stats",
+          "name": "/stats",
+          "claude_frontend_behavior": "User invokes `/stats` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/stats/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_terminal_setup",
+          "name": "/terminal-setup",
+          "claude_frontend_behavior": "User invokes `/terminal-setup` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/terminalSetup/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_think_back",
+          "name": "/think-back",
+          "claude_frontend_behavior": "User invokes `/think-back` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/thinkback/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_thinkback_play",
+          "name": "/thinkback-play",
+          "claude_frontend_behavior": "User invokes `/thinkback-play` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/thinkback-play/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_ultraplan",
+          "name": "/ultraplan",
+          "claude_frontend_behavior": "User invokes `/ultraplan` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/ultraplan.tsx (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        },
+        {
+          "id": "cmd_upgrade",
+          "name": "/upgrade",
+          "claude_frontend_behavior": "User invokes `/upgrade` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/upgrade/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "OPERATIONAL_LOCAL_TS",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "KEEP",
+          "brain_replacement_implementation": "None (Preserve local TypeScript implementation)",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Local interaction model is completely self-contained in TS shell and adheres to canonical Claude UX."
+        }
+      ],
+      "total_capabilities": 27
+    },
+    {
+      "family_id": "fam_external",
+      "family_name": "Family 9: External Cloud, Auth & Quarantined Integrations",
+      "family_description": "Anthropic OAuth authentication, remote teleport / SSH bridge infrastructure, SaaS app webhooks, GitHub PR comments / autofix, cloud billing limit management, and telemetry sinks.",
+      "capabilities": [
+        {
+          "id": "tool_mcpauth",
+          "name": "Tool: McpAuth",
+          "claude_frontend_behavior": "Model generates `McpAuth` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/McpAuthTool/McpAuthTool.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "tool_remotetrigger",
+          "name": "Tool: RemoteTrigger",
+          "claude_frontend_behavior": "Model generates `RemoteTrigger` tool_use block -> ToolUseLoader renders progress -> permission check validates -> executes tool -> returns tool_result",
+          "claude_backend_behavior": "tools/RemoteTriggerTool/prompt.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_remote_control",
+          "name": "/remote-control",
+          "claude_frontend_behavior": "User invokes `/remote-control` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/bridge/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_bridge_kick",
+          "name": "/bridge-kick",
+          "claude_frontend_behavior": "User invokes `/bridge-kick` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/bridge-kick.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_chrome",
+          "name": "/chrome",
+          "claude_frontend_behavior": "User invokes `/chrome` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/chrome/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_extra_usage",
+          "name": "/extra-usage",
+          "claude_frontend_behavior": "User invokes `/extra-usage` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/extra-usage/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_feedback",
+          "name": "/feedback",
+          "claude_frontend_behavior": "User invokes `/feedback` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/feedback/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_install_github_app",
+          "name": "/install-github-app",
+          "claude_frontend_behavior": "User invokes `/install-github-app` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/install-github-app/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_install_slack_app",
+          "name": "/install-slack-app",
+          "claude_frontend_behavior": "User invokes `/install-slack-app` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/install-slack-app/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_login",
+          "name": "/login",
+          "claude_frontend_behavior": "User invokes `/login` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/login/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_logout",
+          "name": "/logout",
+          "claude_frontend_behavior": "User invokes `/logout` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/logout/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_mobile",
+          "name": "/mobile",
+          "claude_frontend_behavior": "User invokes `/mobile` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/mobile/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_pr_comments",
+          "name": "/pr-comments",
+          "claude_frontend_behavior": "User invokes `/pr-comments` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/pr_comments/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_rate_limit_options",
+          "name": "/rate-limit-options",
+          "claude_frontend_behavior": "User invokes `/rate-limit-options` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/rate-limit-options/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_remote_env",
+          "name": "/remote-env",
+          "claude_frontend_behavior": "User invokes `/remote-env` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/remote-env/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "network",
+            "external_service",
+            "authentication"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        },
+        {
+          "id": "cmd_web_setup",
+          "name": "/web-setup",
+          "claude_frontend_behavior": "User invokes `/web-setup` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/remote-setup/index.ts (No Model)",
+          "brain_frontend_status": "MOUNTED_CANONICAL",
+          "brain_backend_status": "QUARANTINED_EXTERNAL",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "EXTERNAL",
+          "brain_replacement_implementation": "Quarantined external capability module",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Requires Anthropic cloud, remote OAuth console, or remote SaaS infrastructure; quarantined to preserve local autonomy."
+        }
+      ],
+      "total_capabilities": 16
+    },
+    {
+      "family_id": "fam_deprecated",
+      "family_name": "Family 10: Claude-Specific Internal / Deprecated Utilities",
+      "family_description": "Internal employee telemetry probes, novelty sticker generation, and deprecated debug hooks.",
+      "capabilities": [
+        {
+          "id": "cmd_heapdump",
+          "name": "/heapdump",
+          "claude_frontend_behavior": "User invokes `/heapdump` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/heapdump/index.ts (No Model)",
+          "brain_frontend_status": "NOT_MOUNTED",
+          "brain_backend_status": "NOT_APPLICABLE",
+          "desired_frontend_action": "REMOVE",
+          "desired_backend_action": "REMOVE",
+          "brain_replacement_implementation": "None",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Anthropic employee internal telemetry, test harness, or novelty feature not applicable to Brain."
+        },
+        {
+          "id": "cmd_stickers",
+          "name": "/stickers",
+          "claude_frontend_behavior": "User invokes `/stickers` -> resolves command definition -> executes handler",
+          "claude_backend_behavior": "commands/stickers/index.ts (No Model)",
+          "brain_frontend_status": "NOT_MOUNTED",
+          "brain_backend_status": "NOT_APPLICABLE",
+          "desired_frontend_action": "REMOVE",
+          "desired_backend_action": "REMOVE",
+          "brain_replacement_implementation": "None",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Anthropic employee internal telemetry, test harness, or novelty feature not applicable to Brain."
+        }
+      ],
+      "total_capabilities": 2
+    },
+    {
+      "family_id": "fam_brain_ext",
+      "family_name": "Family 11: Brain-Specific Extensions (Exposed through Claude-Native UI)",
+      "family_description": "Brain-specific relational memory and retrieval capabilities projected into canonical Claude design system primitives.",
+      "capabilities": [
+        {
+          "id": "brain_graph",
+          "name": "/graph (1-Hop Knowledge Graph Visualizer)",
+          "claude_frontend_behavior": "User triggers `/graph` -> queries Rust `KnowledgeGraph` via UDS -> renders active node relations, edge strengths, and 1-hop neighborhood in Claude Pane",
+          "claude_backend_behavior": "crates/brain-domain/src/graph/ + crates/brain-services (No Model)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-domain/src/graph/ KnowledgeGraph visualizer projected into Claude Pane",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Expose Brain's 1-hop knowledge graph via Claude-native Pane and CustomSelect primitives."
+        },
+        {
+          "id": "brain_memory_debug",
+          "name": "/memory-debug (STM vs LTM Fact Inspector)",
+          "claude_frontend_behavior": "User triggers `/memory-debug` -> queries short-term working memory cache vs SQLite long-term storage -> renders categorized facts in Claude Box",
+          "claude_backend_behavior": "crates/brain-storage/src/ + crates/brain-domain (No Model)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-storage STM/LTM fact inspector projected into Claude ThemedBox",
+          "dependencies": [
+            "local",
+            "filesystem"
+          ],
+          "decision_rationale": "Expose working memory cache vs SQLite store via Claude-native Box and ListItem primitives."
+        },
+        {
+          "id": "brain_retrieval_debug",
+          "name": "/retrieval-debug (Hybrid RRF Fusion Breakdown)",
+          "claude_frontend_behavior": "User triggers `/retrieval-debug` -> fetches last query retrieval telemetry -> renders BM25 rank, Vector similarity, Graph proximity, and mathematical RRF scores ($k=60.0$)",
+          "claude_backend_behavior": "crates/brain-services/src/retrieval.rs (No Model)",
+          "brain_frontend_status": "ADAPTED",
+          "brain_backend_status": "OPERATIONAL_RUST",
+          "desired_frontend_action": "KEEP",
+          "desired_backend_action": "REPLACE",
+          "brain_replacement_implementation": "crates/brain-services/src/retrieval.rs RRF fusion inspector projected into Claude tables",
+          "dependencies": [
+            "local"
+          ],
+          "decision_rationale": "Expose BM25 + Vector + Graph fusion scores via Claude-native table primitives."
+        }
+      ],
+      "total_capabilities": 3
+    }
+  ]
+}

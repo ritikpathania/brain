@@ -17,9 +17,9 @@ We enforce a strict boundary between the core domain layer (`crates/brain-domain
 * **Layered Architecture**: Allowing domain packages to call services/repositories directly. Rejected because it introduces circular dependencies and complicates isolated testing.
 
 ## Related ADRs
-* [ADR-004 (DDD Core Invariants)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/archive/historical-adrs/ADR-004.md)
-* [ADR-012 (Value Objects)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-012-value-objects.md)
-* [ADR-016 (Pure Transformation Pipelines)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-016-pure-transformation-pipelines.md)
+* [ADR-004 (DDD Core Invariants)](../../archive/historical-adrs/ADR-004.md)
+* [ADR-012 (Value Objects)](ADR-012-value-objects.md)
+* [ADR-016 (Pure Transformation Pipelines)](ADR-016-pure-transformation-pipelines.md)
 
 ## Expected Stability
 Long-term. 

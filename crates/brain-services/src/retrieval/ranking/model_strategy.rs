@@ -6,7 +6,7 @@ use brain_core::errors::BrainError;
 use brain_core::retrieval::{EmbeddingLookup, RankingStrategy, RetrievalRequest};
 use brain_domain::{Node, NodeId};
 use brain_storage::connection::SqliteConnectionManager;
-use r2d2::Pool;
+use brain_storage::r2d2::Pool;
 use std::collections::HashMap;
 use std::sync::Arc;
 

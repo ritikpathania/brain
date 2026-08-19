@@ -3,7 +3,7 @@
 use brain_core::errors::BrainError;
 use brain_domain::NodeId;
 use brain_storage::connection::SqliteConnectionManager;
-use r2d2::Pool;
+use brain_storage::r2d2::Pool;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -224,7 +224,8 @@ impl FeatureProvider for SqliteFeatureProvider {
             source: Some(Box::new(e)),
         })?;
 
-        let params = rusqlite::params_from_iter(node_ids.iter().map(|id| id.0.to_string()));
+        let params =
+            brain_storage::rusqlite::params_from_iter(node_ids.iter().map(|id| id.0.to_string()));
 
         let rows = stmt
             .query_map(params, |row| {

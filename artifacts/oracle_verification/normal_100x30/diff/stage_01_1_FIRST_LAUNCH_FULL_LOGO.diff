@@ -1,0 +1,11 @@
+--- Oracle [Stage 1: 1_FIRST_LAUNCH_FULL_LOGO]
++++ Target [Stage 1: 1_FIRST_LAUNCH_FULL_LOGO]
+@@ -6,7 +6,7 @@
+ ────────────────────────────────────────────────────────────────────────────────────────────────────
+ ❯                                                                                                   
+ ────────────────────────────────────────────────────────────────────────────────────────────────────
+-  ⏸ manual mode on · ? for shortcuts · ← for agents                     Not logged in · Run /login  
++  ? for shortcuts                                                       Not logged in · Run /login  
+                                                                                   ● high · /effort  
+                                                                                                     
+                                                                                                     

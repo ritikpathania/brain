@@ -1,5 +1,5 @@
 use brain_services::ha::*;
-use rusqlite::Connection;
+use brain_storage::Connection;
 use std::sync::Arc;
 use uuid::Uuid;
 

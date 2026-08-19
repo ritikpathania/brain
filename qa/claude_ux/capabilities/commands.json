@@ -1,0 +1,89 @@
+[
+  {
+    "id": "commands.slash_picker",
+    "name": "Slash Command Autocomplete Palette",
+    "category": "commands",
+    "user_action": "Type / at beginning of prompt line",
+    "frontend": [
+      "PromptInput",
+      "SlashCommandMenu",
+      "FuzzyPicker"
+    ],
+    "state_transition": "Opens floating popup modal filtering commands list",
+    "orchestration": [
+      "commands.ts::getCommands()"
+    ],
+    "runtime_services": [
+      "commands.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "isSlashPaletteOpen = true, filterText = /",
+    "rendered_ui": "Bordered popup box listing /compact, /cost, /help, /model, /review, etc.",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure client command selector.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "commands.local_execution",
+    "name": "Client-Side Slash Command Handler",
+    "category": "commands",
+    "user_action": "Execute client command (e.g. /clear, /theme, /effort)",
+    "frontend": [
+      "REPL",
+      "AppStateProvider"
+    ],
+    "state_transition": "REPL.onSubmit intercept matches command.type === local",
+    "orchestration": [
+      "REPL.tsx::handleLocalCommand()"
+    ],
+    "runtime_services": [
+      "commands/theme.ts",
+      "commands/effort.ts"
+    ],
+    "backend": [
+      "Local settings/state store"
+    ],
+    "events": [],
+    "state_mutation": "Mutates active theme or effort state in AppState",
+    "rendered_ui": "System message banner or updated UI theme tokens",
+    "persistence": [
+      "~/.claude/settings.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Local UI preferences and terminal layout toggles.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "commands.auth_login",
+    "name": "Authentication Command (/login, /logout)",
+    "category": "commands",
+    "user_action": "User runs /login or /logout",
+    "frontend": [
+      "REPL",
+      "AuthDialog",
+      "OAuthCallbackServer"
+    ],
+    "state_transition": "Launches OAuth web flow / token prompt",
+    "orchestration": [
+      "commands/auth.ts",
+      "services/oauth/client.ts"
+    ],
+    "runtime_services": [
+      "services/oauth/client.ts"
+    ],
+    "backend": [
+      "Anthropic OAuth / API Key Keychain"
+    ],
+    "events": [],
+    "state_mutation": "Updates session auth token in secure storage",
+    "rendered_ui": "Login prompt dialog with browser URL and token input",
+    "persistence": [
+      "OS Keychain / ~/.claude/credentials.json"
+    ],
+    "classification": "REPLACE",
+    "rationale": "Anthropic OAuth replaced with Brain authentication & daemon pairing.",
+    "seam_impact": "Seam 4: Replaced by Brain auth token / credentials management."
+  }
+]

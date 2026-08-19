@@ -14,4 +14,4 @@ Implements cargo extension tasks: contract generation (`generate-contracts`), ve
 - Production binary code shipped to end users.
 
 ## Documentation Links
-- **[Documentation Governance Policy](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/governance/GOVERNANCE.md)**
+- **[Documentation Governance Policy](../docs/governance/GOVERNANCE.md)**

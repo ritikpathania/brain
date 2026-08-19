@@ -3,34 +3,35 @@ status: active
 owner: tui
 canonical: true
 review_cycle: quarterly
-last_reviewed: 2026-07-30
-applies_to: v0.8+
+last_reviewed: 2026-08-14
+applies_to: v1.1+
 ---
 
 # TUI Architecture & Stable UI Invariants
 
-This document defines the architectural boundaries, structural invariants, and stable contracts governing the BRAIN v2 Terminal User Interface (TUI). These design rules must be preserved during all subsequent development sprints.
+> **CANONICAL VISUAL CONTRACT**: Visual layout, typography, theme palettes, and component presentation are strictly governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](../design/CLAUDE_VISUAL_CONTRACT.md) and [`docs/design/CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md).
+> This specification defines the **underlying Rust state reducer invariants, transport boundaries, and rendering loop purity**.
 
 ---
 
 ## 1. Architectural Boundaries
 
-The TUI architecture enforces a clean separation between state management, networking/transports, and visual presentation.
+The TUI architecture enforces a clean separation between state management, networking/transports, and visual presentation:
 
 ```
-+--------------------+
-|     UdsClient      | <--- Network Transport (Pure I/O Adapter)
-+--------------------+
-          |  (Streams Events)
-          v
-+--------------------+
-|      UiState       | <--- Controller / Reducer State Machine (Unified State)
-+--------------------+
-          |  (Immutable &UiState)
-          v
-+--------------------+
-|    AppRenderer     | <--- Presentation Layer (Stateless Drawer)
-+--------------------+
+┌────────────────────┐
+│     UdsClient      │ <─── Network Transport (Pure I/O Adapter over UDS Stream)
+└─────────┬──────────┘
+          │ (Streams Monotonic StreamEvents)
+          ▼
+┌────────────────────┐
+│      UiState       │ <─── Controller / Reducer State Machine (Unified State)
+└─────────┬──────────┘
+          │ (Immutable &UiState Snapshot)
+          ▼
+┌────────────────────┐
+│    AppRenderer     │ <─── Presentation Layer (Stateless Differential Drawer)
+└────────────────────┘
 ```
 
 ### Stateless Presentation Layer
@@ -53,7 +54,7 @@ The conversation history and scrolling behavior are governed by strict relationa
 - **Session Boundary Sync**: When switching sessions or creating a new conversation, the current `active_messages` are archived into the `session_histories` map keying the active `SessionId`. When loaded, the history is restored fully into `active_messages`.
 
 ### Presentation Timeline (`TimelineBlock`)
-- **Invariant**: `TimelineBlock` is a pure render-time model. It does not carry domain rules or business facts. 
+- **Invariant**: `TimelineBlock` is a pure render-time model conforming to [`CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md). It does not carry domain rules or business facts.
 - It is rebuilt dynamically on every event loop tick inside `state.rs::build_timeline_blocks` based on the wrapping width of the chat viewport.
 
 ### Viewport Scroll Semantics & Auto-Follow Behavior
@@ -66,5 +67,5 @@ The conversation history and scrolling behavior are governed by strict relationa
 
 ## 3. Focus Management Invariants
 
-- Focus is managed via the `FocusRegion` enum: `Editor` or `Sidebar`.
-- **Compact Layout Constraint**: If the terminal width drops below 80 columns, the sidebar widget is hidden (`width = 0`). Focus must be automatically redirected to `FocusRegion::Editor` and the sidebar must be excluded from the `Tab` focus cycle to prevent keystroke trap scenarios.
+- Focus is managed via the `FocusRegion` enum: `Editor` (primary), `CommandPalette`, `SlashAutocomplete`, `SessionDrawer`, or `ModalDialog`.
+- **Prompt-First Primacy**: Focus defaults to `FocusRegion::Editor`. Floating overlays capture focus only while active, and `Esc` immediately restores focus to the prompt composer without loss of draft text.

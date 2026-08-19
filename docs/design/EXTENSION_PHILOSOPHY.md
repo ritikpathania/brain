@@ -1,5 +1,8 @@
 # Extension Philosophy
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document outlines the rules for extending the TUI client codebase. These architectural constraints prevent code drift, keep the renderer decoupled from the state engine, and ensure that complexity does not accumulate in centralized drawing procedures.
 
 ---
@@ -46,7 +49,7 @@ To maintain the TUI's clean presentation layer:
 
 ### 2.2. Adding a Theme
 To support new visual skins (e.g., retro green phosphor, high-contrast light):
-1. **Constructor Instantiation**: Open [theme/mod.rs](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-tui/src/ui/theme/mod.rs) and write a new instantiation function (e.g., `pub fn classic_retro() -> Self`).
+1. **Constructor Instantiation**: Open [theme/mod.rs](../../crates/brain-tui/src/ui/theme/mod.rs) and write a new instantiation function (e.g., `pub fn classic_retro() -> Self`).
 2. **Contract Boundaries**: Do not add new styling parameters to the `Theme` struct unless a brand-new component type is designed. If styling is missing, map it to an existing semantic token (e.g., map a warning background to `Warning`).
 
 ### 2.3. Adding Animations

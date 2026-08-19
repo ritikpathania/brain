@@ -4,7 +4,7 @@
 Proposed
 
 ## Context
-In [ADR-020 (Protocol Independence)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-020-protocol-independence.md), we established the boundary between the protocol-agnostic Brain Runtime and external interfaces. However, to implement external interfaces and client SDKs without introducing tight coupling or code duplication, we must define the semantic contract that crosses these boundaries.
+In [ADR-020 (Protocol Independence)](ADR-020-protocol-independence.md), we established the boundary between the protocol-agnostic Brain Runtime and external interfaces. However, to implement external interfaces and client SDKs without introducing tight coupling or code duplication, we must define the semantic contract that crosses these boundaries.
 
 Without a well-defined boundary contract, different protocol translation layers might interpret queries, mutations, or stream lifetimes differently, causing inconsistent behavior across external transports.
 

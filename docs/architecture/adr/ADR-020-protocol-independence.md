@@ -57,8 +57,8 @@ flowchart TD
 * **Direct Subsystem Access**: Allowing adapters to depend directly on internal service classes. Rejected as this exposes deep internal details and makes updating core services high-risk.
 
 ## Related ADRs
-* [ADR-010 (Domain Boundaries)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-010-domain-boundaries.md)
-* [ADR-015 (Strategy Interfaces)](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-015-strategy-interfaces.md)
+* [ADR-010 (Domain Boundaries)](ADR-010-domain-boundaries.md)
+* [ADR-015 (Strategy Interfaces)](ADR-015-strategy-interfaces.md)
 
 ## Expected Stability
 Long-term.

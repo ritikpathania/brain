@@ -3,7 +3,7 @@
 **Author:** Antigravity AI  
 **Date:** 2026-07-21  
 **Status:** Proposed  
-**Reference RFCs:** [RFC-001](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-001.md) / [RFC-008](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-008.md) / [RFC-010](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-010.md)
+**Reference RFCs:** [RFC-001](RFC-001.md) / [RFC-008](RFC-008.md) / [RFC-010](RFC-010.md)
 
 ---
 
@@ -18,12 +18,12 @@ This RFC proposes the design of a **deterministic, configurable temporal ranking
 ## 2. Affected Subsystems
 
 - `crates/brain-core`:
-  - [`retrieval.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-core/src/retrieval.rs): Add `reference_time` to `RetrievalRequest` to support reproducible, deterministic evaluations.
+  - [`retrieval.rs`](../../../crates/brain-core/src/retrieval.rs): Add `reference_time` to `RetrievalRequest` to support reproducible, deterministic evaluations.
 - `crates/brain-config`:
-  - [`schema.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-config/src/schema.rs): Add settings definitions for temporal ranking (enabled, decay model, half-life, parameters).
+  - [`schema.rs`](../../../crates/brain-config/src/schema.rs): Add settings definitions for temporal ranking (enabled, decay model, half-life, parameters).
 - `crates/brain-services`:
   - `retrieval/ranking/`: Implement `Reranker` trait and `TemporalReranker`.
-  - [`pipeline.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-services/src/retrieval/pipeline.rs): Register the new reranker chain in `MemoryPipeline`.
+  - [`pipeline.rs`](../../../crates/brain-services/src/retrieval/pipeline.rs): Register the new reranker chain in `MemoryPipeline`.
 
 ---
 
@@ -156,7 +156,7 @@ To ensure temporal ranking adheres to **ADR-013 (Behavioral Invariants)** and **
 
 ### Rust Crate Signature Changes
 
-#### [`crates/brain-core/src/retrieval.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-core/src/retrieval.rs)
+#### [`crates/brain-core/src/retrieval.rs`](../../../crates/brain-core/src/retrieval.rs)
 
 ```diff
  pub struct RetrievalRequest {
@@ -174,7 +174,7 @@ To ensure temporal ranking adheres to **ADR-013 (Behavioral Invariants)** and **
  }
 ```
 
-#### [`crates/brain-config/src/schema.rs`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-config/src/schema.rs)
+#### [`crates/brain-config/src/schema.rs`](../../../crates/brain-config/src/schema.rs)
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]

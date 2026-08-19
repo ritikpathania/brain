@@ -279,7 +279,6 @@ fn check_readmes(report: &mut DocsCheckReport) -> Result<(), Box<dyn std::error:
         "crates/brain-tools",
         "crates/brain-plugins",
         "crates/brain-python",
-        "crates/brain-tui",
         "crates/brain-services",
         "crates/brain-observability",
         "crates/brain-integrations",

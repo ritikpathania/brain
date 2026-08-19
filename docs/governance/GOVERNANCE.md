@@ -82,7 +82,7 @@ When relocating or replacing high-traffic root documents (such as `DESIGN.md` or
 2. **Deprecation Notice**: Replace the root file content with a prominent warning banner:
    ```markdown
    > [!WARNING]
-   > This document has been relocated to [docs/subsystems/storage.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/subsystems/storage.md).
+   > This document has been relocated to [docs/subsystems/storage.md](../subsystems/storage.md).
    > This root pointer is deprecated and will be removed in a future release.
    ```
 3. **Grace Period**: Retain the deprecation pointer file for one full release cycle before deletion to allow contributors to update links and bookmarks.

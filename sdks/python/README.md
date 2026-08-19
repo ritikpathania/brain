@@ -21,5 +21,5 @@ with BrainClient() as client:
 ```
 
 ## Documentation Links
-- **[Installation Guide](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/installation.md)**
-- **[Plugin API Specification](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/plugin-api.md)**
+- **[Installation Guide](../../docs/guides/installation.md)**
+- **[Plugin API Specification](../../docs/reference/plugin-api.md)**

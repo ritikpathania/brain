@@ -23,3 +23,13 @@ fn brain_ai(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+/// Initializes the embedded Python runtime for multithreaded operation.
+pub fn initialize_python_runtime() {
+    pyo3::prepare_freethreaded_python();
+}
+
+/// Verifies that the Python GIL and runtime are healthy and operational.
+pub fn check_python_health() -> bool {
+    pyo3::Python::with_gil(|_py| true)
+}

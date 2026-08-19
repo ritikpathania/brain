@@ -1,0 +1,110 @@
+[
+  {
+    "id": "composer.single_line_input",
+    "name": "Prompt Input Single-line Composer",
+    "category": "composer",
+    "user_action": "Type alphanumeric characters in PromptInput",
+    "frontend": [
+      "PromptInput",
+      "PromptComposer",
+      "useCursorNav"
+    ],
+    "state_transition": "onChange event -> updates text buffer and cursor index",
+    "orchestration": [
+      "PromptInput.tsx::onInput()"
+    ],
+    "runtime_services": [
+      "keybindings/loadUserBindings.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "local state text, cursorX",
+    "rendered_ui": "Themed input box with active cursor rendering",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure client presentation component managing Ink keystroke stream.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.multiline_editing",
+    "name": "Multiline Composer & Linebreak Handling",
+    "category": "composer",
+    "user_action": "Press Shift+Enter or Ctrl+J to insert newline",
+    "frontend": [
+      "PromptInput",
+      "PromptComposer",
+      "MultilineText"
+    ],
+    "state_transition": "Splits buffer on newline, recomputes viewport line wrapping and cursor position",
+    "orchestration": [
+      "PromptInput.tsx::handleSpecialKey()"
+    ],
+    "runtime_services": [
+      "wrap-text.ts",
+      "measure-element.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "lines array, lineIndex, cursorOffset",
+    "rendered_ui": "Expanding multi-row text box with line continuation markers",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Essential terminal composer UX.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.cursor_and_word_nav",
+    "name": "Cursor Navigation & Word Jumps",
+    "category": "composer",
+    "user_action": "Press Left/Right/Home/End, Alt+Left/Right, Ctrl+A/E",
+    "frontend": [
+      "PromptInput",
+      "useCursorNav"
+    ],
+    "state_transition": "Calculates Unicode grapheme boundaries and word regex offsets",
+    "orchestration": [
+      "PromptInput.tsx::handleCursorMovement()"
+    ],
+    "runtime_services": [
+      "stringUtils.ts"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "cursorPosition updated",
+    "rendered_ui": "Cursor indicator shifted to target column/row",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure terminal interaction math.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "composer.history_navigation",
+    "name": "Prompt History Up/Down Recall",
+    "category": "composer",
+    "user_action": "Press Up / Down arrow in empty or top line of composer",
+    "frontend": [
+      "PromptInput",
+      "REPL"
+    ],
+    "state_transition": "Fetches prompt from history ring buffer",
+    "orchestration": [
+      "history.ts::getHistory()",
+      "REPL.tsx::onHistoryMove()"
+    ],
+    "runtime_services": [
+      "history.ts"
+    ],
+    "backend": [
+      "Local prompt history file (~/.claude/history.json)"
+    ],
+    "events": [],
+    "state_mutation": "setInputValue(historicalPrompt)",
+    "rendered_ui": "Populates composer with historical prompt string",
+    "persistence": [
+      "~/.claude/history.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Local developer convenience feature.",
+    "seam_impact": "None."
+  }
+]

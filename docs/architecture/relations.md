@@ -80,8 +80,8 @@ Treat the registry data file and relation enum definitions with the same version
 * Bidirectional completeness test suites will automatically fail if the code and declarative registry drift.
 
 ## 10. Related Specifications & Reference Documents
-* [GRAPH_SPEC.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/GRAPH_SPEC.md): Graph model specifications.
-* [STABILITY.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md): System stability invariants.
+* [GRAPH_SPEC.md](GRAPH_SPEC.md): Graph model specifications.
+* [STABILITY.md](STABILITY.md): System stability invariants.
 
 ## 11. Registry Consultation Invariant
 The registry is consulted at architectural boundaries to produce validated semantic objects. Internal algorithms operate on those semantic objects rather than repeatedly consulting the registry.

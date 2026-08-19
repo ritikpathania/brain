@@ -1,15 +1,27 @@
-# `brain-application`
-
-`brain-application` acts as the composition layer orchestrating application services, command handlers, and execution context.
+# brain-application
 
 ## Purpose
-Binds domain services and infrastructure repositories into high-level application workflows.
+Runtime composition facade and ApplicationRuntime lifecycle builder.
 
-## Public Surface
-- `ApplicationContext`: Composition context holding active service handles.
+## Responsibilities
+* Provide `RuntimeBuilder` and `ApplicationRuntime` for subsystem composition.
+* Coordinate graceful startup, background worker spawning, and shutdown sequencing.
 
-## Out of Scope
-- Direct ANSI terminal rendering or low-level SQLite DDL migrations.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`, `brain-services`, `brain-storage`, `brain-events`, `brain-config`.
+* **Forbidden Dependencies:** `brain-tui`, `pyo3`.
 
-## Documentation Links
-- **[Architecture Overview](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/overview.md)**
+## Public API & Facades
+* `ApplicationRuntime`, `RuntimeBuilder`, `RuntimeHandle`.
+
+## Invariants Protected
+* Single runtime composition facade, lifecycle orchestration purity.
+
+## Canonical References
+* Specification: `../../docs/architecture/ARCHITECTURE_INVARIANTS.md`
+
+## Testing & Verification
+* `cargo test -p brain-application`
+
+## Maintainer
+See `CODEOWNERS`.

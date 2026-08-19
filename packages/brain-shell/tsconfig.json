@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": false,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@alcalzone/ansi-tokenize": [
+        "src/shims/ansiTokenize.ts"
+      ],
+      "color-diff-napi": [
+        "src/shims/colorDiff.ts"
+      ],
+      "src/*": [
+        "vendor/claude/*",
+        "vendor/claude/*.ts",
+        "vendor/claude/*.tsx",
+        "vendor/claude/*/index.ts",
+        "vendor/claude/*/index.tsx"
+      ]
+    }
+  }
+}
+
+

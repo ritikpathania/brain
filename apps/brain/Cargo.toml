@@ -9,7 +9,6 @@ brain-domain = { path = "../../crates/brain-domain" }
 brain-core = { path = "../../crates/brain-core" }
 brain-services = { path = "../../crates/brain-services" }
 brain-config = { path = "../../crates/brain-config" }
-brain-tui = { path = "../../crates/brain-tui" }
 clap = { version = "4", features = ["derive"] }
 dirs = "5.0"
 tokio-util = "0.7"

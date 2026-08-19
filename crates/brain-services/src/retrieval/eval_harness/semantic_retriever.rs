@@ -3,8 +3,8 @@ use brain_core::errors::BrainError;
 use brain_core::repositories::RepositorySet;
 use brain_core::retrieval::EmbeddingProvider;
 use brain_storage::connection::SqliteConnectionManager;
+use brain_storage::r2d2::Pool;
 use brain_storage::store::SqliteStorage;
-use r2d2::Pool;
 use std::collections::HashMap;
 use std::sync::Arc;
 

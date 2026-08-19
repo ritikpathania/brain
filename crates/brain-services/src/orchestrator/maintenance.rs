@@ -1,15 +1,16 @@
 use brain_core::errors::BrainError;
 use brain_storage::connection::SqliteConnectionManager;
+use brain_storage::r2d2::Pool;
 use std::sync::Arc;
 
 /// Engine executing periodic and opportunistic SQLite database maintenance operations.
 pub struct MaintenanceEngine {
-    pool: Arc<r2d2::Pool<SqliteConnectionManager>>,
+    pool: Arc<Pool<SqliteConnectionManager>>,
 }
 
 impl MaintenanceEngine {
     /// Creates a new `MaintenanceEngine`.
-    pub fn new(pool: Arc<r2d2::Pool<SqliteConnectionManager>>) -> Self {
+    pub fn new(pool: Arc<Pool<SqliteConnectionManager>>) -> Self {
         Self { pool }
     }
 

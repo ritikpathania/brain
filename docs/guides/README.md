@@ -4,6 +4,6 @@ This directory contains operational, installation, maintenance, and release veri
 
 ## Guides Index
 
-* **[installation.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/installation.md)**: Prerequisites, Cargo compilation, system PATH integration, and quickstart instructions.
-* **[maintenance.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/maintenance.md)**: State directory (`~/.brain/`) structure, daemon upgrading, and data cleanup procedures.
-* **[release-checklist.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/guides/release-checklist.md)**: Quality gates, acceptance criteria, connection testing, and viewport performance checklists for release builds.
+* **[installation.md](installation.md)**: Prerequisites, Cargo compilation, system PATH integration, and quickstart instructions.
+* **[maintenance.md](maintenance.md)**: State directory (`~/.brain/`) structure, daemon upgrading, and data cleanup procedures.
+* **[release-checklist.md](release-checklist.md)**: Quality gates, acceptance criteria, connection testing, and viewport performance checklists for release builds.

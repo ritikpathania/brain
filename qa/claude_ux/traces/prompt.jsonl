@@ -1,0 +1,10 @@
+{"event": "stream_request_start", "data": {"mode": "requesting"}}
+{"event": "message_start", "data": {"id": "msg_001", "role": "assistant", "model": "brain-engine-v1"}}
+{"event": "content_block_start", "data": {"index": 0, "type": "text"}}
+{"event": "content_block_delta", "data": {"index": 0, "text_delta": "Architecture "}}
+{"event": "content_block_delta", "data": {"index": 0, "text_delta": "verified "}}
+{"event": "content_block_delta", "data": {"index": 0, "text_delta": "through "}}
+{"event": "content_block_delta", "data": {"index": 0, "text_delta": "automated QA."}}
+{"event": "content_block_stop", "data": {"index": 0}}
+{"event": "message_stop", "data": {"stop_reason": "end_turn"}}
+{"event": "AssistantMessage", "data": {"content": [{"type": "text", "text": "Architecture verified through automated QA."}]}}

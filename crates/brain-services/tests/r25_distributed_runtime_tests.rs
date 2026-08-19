@@ -1,7 +1,7 @@
 use brain_domain::jobs::JobId;
 use brain_services::distributed::*;
 use brain_services::runtime::*;
-use rusqlite::Connection;
+use brain_storage::Connection;
 use std::collections::{HashMap, HashSet};
 
 #[tokio::test]

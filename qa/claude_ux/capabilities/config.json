@@ -1,0 +1,59 @@
+[
+  {
+    "id": "config.theme_switching",
+    "name": "Theme Selection & Terminal Adaptation",
+    "category": "config",
+    "user_action": "User runs /theme or switches terminal dark/light mode",
+    "frontend": [
+      "ThemeProvider",
+      "ThemeSettingsMenu",
+      "ThemedBox"
+    ],
+    "state_transition": "Mutates active ThemeContext -> triggers repaint with semantic colors",
+    "orchestration": [
+      "components/design-system/ThemeProvider.tsx"
+    ],
+    "runtime_services": [
+      "utils/config.ts"
+    ],
+    "backend": [
+      "Local settings file"
+    ],
+    "events": [],
+    "state_mutation": "config.theme = selectedTheme",
+    "rendered_ui": "Full UI re-colored (dark, light, daltonized, high-contrast)",
+    "persistence": [
+      "~/.claude/settings.json"
+    ],
+    "classification": "KEEP",
+    "rationale": "Core TUI design system and terminal color token manager.",
+    "seam_impact": "None."
+  },
+  {
+    "id": "config.terminal_resize",
+    "name": "Responsive SIGWINCH Terminal Resizing",
+    "category": "config",
+    "user_action": "User resizes terminal window",
+    "frontend": [
+      "useTerminalSize",
+      "VirtualMessageList",
+      "PromptComposer"
+    ],
+    "state_transition": "SIGWINCH event -> recalculates columns/rows -> re-flows Yoga flexbox",
+    "orchestration": [
+      "ink/screen.ts",
+      "hooks/useTerminalSize.ts"
+    ],
+    "runtime_services": [
+      "ink.js"
+    ],
+    "backend": [],
+    "events": [],
+    "state_mutation": "terminalSize state updated",
+    "rendered_ui": "Smooth non-flickering reflow of message cards and input boxes",
+    "persistence": [],
+    "classification": "KEEP",
+    "rationale": "Pure Ink terminal layout engine.",
+    "seam_impact": "None."
+  }
+]

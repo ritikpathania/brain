@@ -34,7 +34,7 @@ The `NodeKind` enum classifies entities in the graph. External plugins/extractor
 
 ### RelationKind
 The `RelationKind` enum classifies structural edges/connections between nodes.
-* **Semantic Authority**: The semantic definitions, directional properties, and validations for relation kinds are governed by the declarative relation registry (see [relations.md](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/relations.md) for full taxonomy specification).
+* **Semantic Authority**: The semantic definitions, directional properties, and validations for relation kinds are governed by the declarative relation registry (see [relations.md](relations.md) for full taxonomy specification).
 - **Variants**:
   - `Uses`
   - `DependsOn`

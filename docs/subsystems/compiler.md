@@ -31,7 +31,7 @@ rfcs:
 ---
 
 ## 1. Purpose
-The Knowledge Compiler is the central state-mutation authority for Brain. It enforces Axiom 2 of the [Constitution](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/CONSTITUTION.md): no subsystem or background process may directly mutate graph topology or fact version states; all mutations must pass through deterministic compilation passes.
+The Knowledge Compiler is the central state-mutation authority for Brain. It enforces Axiom 2 of the [Constitution](../architecture/CONSTITUTION.md): no subsystem or background process may directly mutate graph topology or fact version states; all mutations must pass through deterministic compilation passes.
 
 ## 2. Responsibilities
 - Receives raw facts, observations, and entity updates.
@@ -86,21 +86,21 @@ The Knowledge Compiler is the central state-mutation authority for Brain. It enf
 - **Side-Effect Isolation**: Pass evaluation does not trigger network, disk, or external side-effects.
 
 ## 7. Owning Crates
-- [`crates/brain-domain`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-domain/README.md): Compiler traits, pass types, rewrite operations.
-- [`crates/brain-services`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-services/README.md): Pass implementations (`duplicate_consolidation`, `contradiction`, etc.).
+- [`crates/brain-domain`](../../crates/brain-domain/README.md): Compiler traits, pass types, rewrite operations.
+- [`crates/brain-services`](../../crates/brain-services/README.md): Pass implementations (`duplicate_consolidation`, `contradiction`, etc.).
 
 ## 8. Implementation Notes
 - Passes register with `PassRegistry` and resolve topological execution ordering at runtime.
 
 ## 9. Canonical References
-- [`docs/architecture/CONSTITUTION.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/CONSTITUTION.md): Axiom 2 — Single Mutation Entry via KnowledgeCompiler.
-- [`ADR-001`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-001-knowledge-runtime-evolution-model.md): Pure domain compiler evaluation invariants.
+- [`docs/architecture/CONSTITUTION.md`](../architecture/CONSTITUTION.md): Axiom 2 — Single Mutation Entry via KnowledgeCompiler.
+- [`ADR-001`](../architecture/adr/ADR-001-knowledge-runtime-evolution-model.md): Pure domain compiler evaluation invariants.
 
 ## 10. Related ADRs
-- [`ADR-017: Model Compilation`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-017-model-compilation.md)
+- [`ADR-017: Model Compilation`](../architecture/adr/ADR-017-model-compilation.md)
 
 ## 11. Related RFCs
-- [`RFC-012: Reflection Engine`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-012-reflection-engine.md)
+- [`RFC-012: Reflection Engine`](../architecture/rfc/RFC-012-reflection-engine.md)
 
 ## 12. Operations
 - Background compilation runs automatically during idle reflection passes or post-ingestion triggers.

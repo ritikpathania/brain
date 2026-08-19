@@ -1,0 +1,38 @@
+{
+  "name": "brain-shell",
+  "version": "2.1.232",
+  "description": "Claude Code v2.1.232 direct-hosted presentation shell in Brain",
+  "type": "module",
+  "main": "src/main.tsx",
+  "scripts": {
+    "start": "bun run --feature AUTO_THEME --preload ./src/preload.ts src/main.tsx",
+    "test:pty": "python3 src/test/pty_verification.py",
+    "test:parity": "python3 src/test/strictDifferentialAudit.py",
+    "test:integrity": "python3 src/test/compareSourceTreesSummary.py"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@commander-js/extra-typings": "12.1.0",
+    "chalk": "^5.4.1",
+    "commander": "12.1.0",
+    "figures": "^6.1.0",
+    "fuse.js": "^7.5.0",
+    "ink": "^5.1.0",
+    "lodash-es": "^4.18.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-reconciler": "^0.31.0",
+    "semver": "^7.8.5",
+    "signal-exit": "^4.1.0",
+    "strip-ansi": "^7.1.0",
+    "yoga-layout": "^3.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.10",
+    "bun-types": "^1.2.2",
+    "typescript": "^5.7.3"
+  }
+}

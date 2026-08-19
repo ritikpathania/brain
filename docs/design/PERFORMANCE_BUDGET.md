@@ -1,5 +1,8 @@
 # Performance Budget
 
+> **AUTHORITY NOTICE**: This document is a **supporting engineering specification** for `crates/brain-tui`, strictly subordinate to and governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](./CLAUDE_VISUAL_CONTRACT.md).
+
+
 This document establishes the performance budgets, operational constraints, and latency boundaries for the Brain TUI client, aligning with our backend performance goals.
 
 ---

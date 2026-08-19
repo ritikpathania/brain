@@ -1,19 +1,27 @@
 # brain-tools
 
 ## Purpose
-Core system tools (filesystem, git, shell, memory, LLM).
+Built-in autonomous agent tools and command execution providers.
 
 ## Responsibilities
-* Implement individual executable tools mapping to the abstract `Tool` interface.
-* Expose tool metadata including timeout limits, permissions, and idempotency guarantees.
-* Orchestrate system-level action executions safely.
+* Provide built-in tool implementations (search, file inspection, memory management).
+* Validate tool arguments and enforce execution safety policies.
 
-## Dependencies
-* **Allowed:** `brain-domain`, `brain-core`.
-* **Forbidden:** TUI components or direct database engines.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* System tools implementations (e.g. Git, Shell, Filesystem, Memory, LLM wrappers) and registries.
+## Public API & Facades
+* `BuiltinToolRegistry`, `StandardTools`.
 
-## Owner
-Extensibility Team
+## Invariants Protected
+* Tool parameter safety validation.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-tools`
+
+## Maintainer
+See `CODEOWNERS`.

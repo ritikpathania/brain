@@ -19,5 +19,4 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 chrono = "0.4"
-pyo3 = { workspace = true }
 brain-config = { path = "../brain-config" }

@@ -1,0 +1,32 @@
+{
+  "model_invocation": {
+    "upstream_file": "vendor/claude/services/api/claude.ts",
+    "function": "queryModelWithStreaming",
+    "classification": "REPLACE",
+    "replacement": "BrainBackendClient::stream_turn"
+  },
+  "tool_registry": {
+    "upstream_file": "vendor/claude/tools.ts",
+    "function": "getTools",
+    "classification": "KEEP",
+    "replacement": "Retained in Claude runtime; schemas passed to Brain model"
+  },
+  "session_persistence": {
+    "upstream_file": "vendor/claude/services/SessionMemory/sessionMemory.ts",
+    "function": "saveSession / loadSession",
+    "classification": "ADAPT",
+    "replacement": "Brain session graph / transcript repository"
+  },
+  "telemetry_and_analytics": {
+    "upstream_file": "vendor/claude/services/analytics/sink.ts",
+    "function": "logEvent",
+    "classification": "REMOVE",
+    "replacement": "Disabled in brain-shell (zero telemetry phoning home)"
+  },
+  "updater": {
+    "upstream_file": "vendor/claude/utils/config.ts",
+    "function": "isAutoUpdaterDisabled",
+    "classification": "REMOVE",
+    "replacement": "Permanently disabled in brain-shell via DISABLE_AUTOUPDATER=1"
+  }
+}

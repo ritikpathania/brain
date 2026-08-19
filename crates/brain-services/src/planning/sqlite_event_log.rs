@@ -1,51 +1,45 @@
 //! Persistent SQLite Event Log Storage Implementation (Phase 12 Milestone 12.1).
-//!
-//! ### Architectural Invariants:
-//! 1. Atomic Transactional Commits: Sequence allocation, payload encoding, and database write occur inside a single atomic SQLite transaction.
-//! 2. Codec Independence: `SqliteEventLog` delegates byte payload encoding/decoding to an injected `EventCodec<E>`.
-//! 3. Monotonic & Gap-Free Sequence Numbers: Sequence numbers strictly increment monotonically ($1, 2, 3\dots$), never decrease, and are gap-free post-commit.
-//! 4. Thread-Safe `&self` Interface: SQLite connection synchronization is managed internally via `Mutex<rusqlite::Connection>`.
 
 use crate::planning::durable_event_store::{EventEnvelope, EventLog, SequenceNumber};
 use crate::planning::event_codec::EventCodec;
 use crate::planning::event_publisher::EventPublishError;
-use rusqlite::params;
-use std::sync::Mutex;
+use brain_storage::PlanningSqliteEventLog;
+
+struct StorageCodecAdapter<E, C>(C, std::marker::PhantomData<E>);
+
+impl<E: Send + Sync, C: EventCodec<E>> brain_storage::EventCodec<E> for StorageCodecAdapter<E, C> {
+    fn encode(&self, event: &E) -> Result<Vec<u8>, brain_storage::EventPublishError> {
+        self.0
+            .encode(event)
+            .map_err(|e| brain_storage::EventPublishError::StorageError(e.to_string()))
+    }
+
+    fn decode(&self, bytes: &[u8]) -> Result<E, brain_storage::EventPublishError> {
+        self.0
+            .decode(bytes)
+            .map_err(|e| brain_storage::EventPublishError::StorageError(e.to_string()))
+    }
+}
 
 /// Persistent event log backend backed by SQLite storage.
 pub struct SqliteEventLog<E, C> {
-    conn: Mutex<rusqlite::Connection>,
-    codec: C,
-    _marker: std::marker::PhantomData<E>,
+    inner: PlanningSqliteEventLog<E, StorageCodecAdapter<E, C>>,
 }
 
-impl<E, C: EventCodec<E>> SqliteEventLog<E, C> {
+impl<E: Send + Sync, C: EventCodec<E>> SqliteEventLog<E, C> {
     /// Opens or instantiates an `SqliteEventLog` at the given path (or `:memory:`).
     pub fn new(path: &str, codec: C) -> Result<Self, EventPublishError> {
-        let conn = if path == ":memory:" {
-            rusqlite::Connection::open_in_memory()
-        } else {
-            rusqlite::Connection::open(path)
-        }
-        .map_err(|e| EventPublishError::StorageError(format!("SQLite open error: {}", e)))?;
-
-        // Initialize log table schema
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS control_plane_event_log (
-                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp_ms INTEGER NOT NULL,
-                schema_version INTEGER NOT NULL,
-                payload BLOB NOT NULL
-            )",
-            [],
-        )
-        .map_err(|e| EventPublishError::StorageError(format!("SQLite schema init error: {}", e)))?;
-
-        Ok(Self {
-            conn: Mutex::new(conn),
-            codec,
-            _marker: std::marker::PhantomData,
-        })
+        let adapter = StorageCodecAdapter(codec, std::marker::PhantomData);
+        let inner = PlanningSqliteEventLog::new(path, adapter).map_err(|e| match e {
+            brain_storage::EventPublishError::StorageError(s) => EventPublishError::StorageError(s),
+            brain_storage::EventPublishError::SerializationError(s) => {
+                EventPublishError::StorageError(s)
+            }
+            brain_storage::EventPublishError::DeserializationError(s) => {
+                EventPublishError::StorageError(s)
+            }
+        })?;
+        Ok(Self { inner })
     }
 }
 
@@ -56,30 +50,21 @@ impl<E: Send + Sync, C: EventCodec<E>> EventLog<E> for SqliteEventLog<E, C> {
         timestamp_ms: u64,
         schema_version: u16,
     ) -> Result<SequenceNumber, EventPublishError> {
-        let payload_bytes = self.codec.encode(&event)?;
-        let mut guard = self
-            .conn
-            .lock()
-            .map_err(|e| EventPublishError::StorageError(format!("Lock poisoning error: {}", e)))?;
-
-        // Execute inside single atomic SQLite transaction
-        let tx = guard.transaction().map_err(|e| {
-            EventPublishError::StorageError(format!("SQLite transaction begin error: {}", e))
-        })?;
-
-        tx.execute(
-            "INSERT INTO control_plane_event_log (timestamp_ms, schema_version, payload) VALUES (?1, ?2, ?3)",
-            params![timestamp_ms as i64, schema_version as i32, payload_bytes],
-        )
-        .map_err(|e| EventPublishError::StorageError(format!("SQLite insert error: {}", e)))?;
-
-        let seq_val = tx.last_insert_rowid() as u64;
-
-        tx.commit().map_err(|e| {
-            EventPublishError::StorageError(format!("SQLite transaction commit error: {}", e))
-        })?;
-
-        Ok(SequenceNumber(seq_val))
+        use brain_storage::PlanningEventLog;
+        self.inner
+            .append(event, timestamp_ms, schema_version)
+            .map(|seq| SequenceNumber(seq.0))
+            .map_err(|e| match e {
+                brain_storage::EventPublishError::StorageError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+                brain_storage::EventPublishError::SerializationError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+                brain_storage::EventPublishError::DeserializationError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+            })
     }
 
     fn read_range(
@@ -87,62 +72,35 @@ impl<E: Send + Sync, C: EventCodec<E>> EventLog<E> for SqliteEventLog<E, C> {
         start: SequenceNumber,
         limit: usize,
     ) -> Result<Vec<EventEnvelope<E>>, EventPublishError> {
-        if start.0 == 0 || limit == 0 {
-            return Ok(Vec::new());
-        }
+        use brain_storage::PlanningEventLog;
+        let items = self
+            .inner
+            .read_range(brain_storage::PlanningSequenceNumber(start.0), limit)
+            .map_err(|e| match e {
+                brain_storage::EventPublishError::StorageError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+                brain_storage::EventPublishError::SerializationError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+                brain_storage::EventPublishError::DeserializationError(s) => {
+                    EventPublishError::StorageError(s)
+                }
+            })?;
 
-        let guard = self
-            .conn
-            .lock()
-            .map_err(|e| EventPublishError::StorageError(format!("Lock poisoning error: {}", e)))?;
-
-        let mut stmt = guard
-            .prepare(
-                "SELECT sequence, timestamp_ms, schema_version, payload FROM control_plane_event_log WHERE sequence >= ?1 ORDER BY sequence ASC LIMIT ?2",
-            )
-            .map_err(|e| EventPublishError::StorageError(format!("SQLite prepare query error: {}", e)))?;
-
-        let rows = stmt
-            .query_map(params![start.0 as i64, limit as i64], |row| {
-                let seq: i64 = row.get(0)?;
-                let ts: i64 = row.get(1)?;
-                let ver: i32 = row.get(2)?;
-                let bytes: Vec<u8> = row.get(3)?;
-                Ok((seq as u64, ts as u64, ver as u16, bytes))
+        Ok(items
+            .into_iter()
+            .map(|env| EventEnvelope {
+                sequence: SequenceNumber(env.sequence.0),
+                timestamp_ms: env.timestamp_ms,
+                schema_version: env.schema_version,
+                payload: env.payload,
             })
-            .map_err(|e| {
-                EventPublishError::StorageError(format!("SQLite query map error: {}", e))
-            })?;
-
-        let mut envelopes = Vec::new();
-        for row in rows {
-            let (seq, ts, ver, bytes) = row.map_err(|e| {
-                EventPublishError::StorageError(format!("SQLite row fetch error: {}", e))
-            })?;
-            let payload = self.codec.decode(&bytes)?;
-            envelopes.push(EventEnvelope {
-                sequence: SequenceNumber(seq),
-                timestamp_ms: ts,
-                schema_version: ver,
-                payload,
-            });
-        }
-
-        Ok(envelopes)
+            .collect())
     }
 
     fn last_sequence_number(&self) -> SequenceNumber {
-        let guard = match self.conn.lock() {
-            Ok(g) => g,
-            Err(_) => return SequenceNumber(0),
-        };
-
-        let mut stmt = match guard.prepare("SELECT MAX(sequence) FROM control_plane_event_log") {
-            Ok(s) => s,
-            Err(_) => return SequenceNumber(0),
-        };
-
-        let seq_opt: Option<i64> = stmt.query_row([], |row| row.get(0)).unwrap_or(None);
-        SequenceNumber(seq_opt.unwrap_or(0) as u64)
+        use brain_storage::PlanningEventLog;
+        SequenceNumber(self.inner.last_sequence_number().0)
     }
 }

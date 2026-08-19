@@ -1,21 +1,26 @@
-# Agent Client Protocol (ACP) Adapter
+# brain-acp-adapter
 
-This crate implements the Agent Client Protocol (ACP) adapter for the Brain memory engine.
+## Purpose
+Agent Context Protocol (ACP) adapter for multi-agent contextual coordination.
 
-## Protocol Compatibility Matrix
+## Responsibilities
+* Implement ACP wire protocol handlers and contextual memory sharing.
 
-*   **Supported Protocol Version:** `2024-11-05`
-*   **Implemented Baseline Methods:**
-    *   `initialize`: Performs protocol version capability handshake.
-    *   `session/new`: Generates or initializes a stateful conversation session.
-    *   `session/prompt`: Dispatches client prompts dynamically through the generic capability registry.
-*   **Supported Notifications:**
-    *   `session/cancel`: Safely interrupts active prompt runs by triggering the task cancellation token.
-    *   `session/update`: Dispatches real-time progress update events back to the client editor.
-*   **Intentionally Unsupported Methods:**
-    *   `authenticate` / `logout`: Authentication and user credential verification are deferred.
-*   **Intentionally Deferred Capabilities:**
-    *   `session/load`: Reloading and restoring historic session states from disk is deferred.
-    *   `session/set_mode`: Switch between agent operating modes (e.g. planner/exec) is deferred.
-*   **Deviations:**
-    *   None. The JSON-RPC 2.0 implementation conforms strictly to the standard stdio message envelope.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`, `brain-application`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
+
+## Public API & Facades
+* ACP Server handler.
+
+## Invariants Protected
+* Protocol adapter decoupling.
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-acp-adapter`
+
+## Maintainer
+See `CODEOWNERS`.

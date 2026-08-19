@@ -19,13 +19,10 @@ brain-observability = { path = "../brain-observability" }
 brain-integrations = { path = "../brain-integrations" }
 parking_lot = "0.12"
 fuzzy-matcher = "0.3.7"
-pyo3 = { workspace = true }
-r2d2.workspace = true
 tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 ulid = { workspace = true }
-rusqlite = { workspace = true }
 thiserror = { workspace = true }
 chrono = { version = "0.4", features = ["serde", "clock"] }
 async-trait = "0.1"

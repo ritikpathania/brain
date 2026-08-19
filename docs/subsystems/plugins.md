@@ -25,7 +25,7 @@ rfcs:
 
 # Plugin Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical plugin trait details live in [`docs/reference/plugin-api.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/plugin-api.md) and extension stability policies live in [`docs/architecture/STABILITY.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical plugin trait details live in [`docs/reference/plugin-api.md`](../reference/plugin-api.md) and extension stability policies live in [`docs/architecture/STABILITY.md`](../architecture/STABILITY.md).
 
 ---
 
@@ -66,22 +66,22 @@ The Plugin subsystem allows developers to extend Brain's memory engine with cust
 - **Fault Isolation**: Plugin exceptions are caught at the FFI boundary and converted into standard error events.
 
 ## 7. Owning Crates
-- [`crates/brain-plugins`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-plugins/README.md): Rust plugin traits (`LlmProvider`, `StorageBackend`).
-- [`crates/brain-python`](file:///Users/ritikpathania/Developer/PyCharm/brain/crates/brain-python/README.md): PyO3 FFI runtime bridge.
-- [`sdks/python`](file:///Users/ritikpathania/Developer/PyCharm/brain/sdks/python/README.md): Python client SDK and plugin authoring tools.
+- [`crates/brain-plugins`](../../crates/brain-plugins/README.md): Rust plugin traits (`LlmProvider`, `StorageBackend`).
+- [`crates/brain-python`](../../crates/brain-python/README.md): PyO3 FFI runtime bridge.
+- [`sdks/python`](../../sdks/python/README.md): Python client SDK and plugin authoring tools.
 
 ## 8. Implementation Notes
 - Plugins are built using Maturin and PyO3 version `>= 0.21`.
 
 ## 9. Canonical References
-- [`docs/reference/plugin-api.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/reference/plugin-api.md): Canonical Python plugin API specification.
-- [`docs/architecture/STABILITY.md`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/STABILITY.md): Stability and extensibility commitments.
+- [`docs/reference/plugin-api.md`](../reference/plugin-api.md): Canonical Python plugin API specification.
+- [`docs/architecture/STABILITY.md`](../architecture/STABILITY.md): Stability and extensibility commitments.
 
 ## 10. Related ADRs
-- [`ADR-023: Shared Adapter Infrastructure`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/adr/ADR-023-shared-adapter-infrastructure.md)
+- [`ADR-023: Shared Adapter Infrastructure`](../architecture/adr/ADR-023-shared-adapter-infrastructure.md)
 
 ## 11. Related RFCs
-- [`RFC-002: PyO3 FFI Boundary & Dynamic Python Extraction Plugins`](file:///Users/ritikpathania/Developer/PyCharm/brain/docs/architecture/rfc/RFC-002.md)
+- [`RFC-002: PyO3 FFI Boundary & Dynamic Python Extraction Plugins`](../architecture/rfc/RFC-002.md)
 
 ## 12. Operations
 - Plugin directory: `~/.brain/plugins/`.

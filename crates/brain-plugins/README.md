@@ -1,20 +1,27 @@
 # brain-plugins
 
 ## Purpose
-Plugin manifest parser, Lifecycle state engine, and Dependency resolver.
+Extensible plugin manager, lifecycle registry, and tool dispatching.
 
 ## Responsibilities
-* Parse and validate plugin `manifest.toml` profiles.
-* Resolve dynamic dependency graphs for registered plugins.
-* Manage state transitions (Discovered -> Loaded -> Active -> Suspended) for plugins.
-* Enforce security capability validation during initialization.
+* Manage registration, capability discovery, and lifecycle execution of plugins and tools.
+* Provide sandboxed execution boundaries for external extensions.
 
-## Dependencies
-* **Allowed:** `brain-domain`, `brain-core`.
-* **Forbidden:** User Interface (TUI) components.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `brain-core`, `async-trait`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Manifest validation helpers and plugin state transition coordinators.
+## Public API & Facades
+* `PluginManager`, `ToolRegistry`, `PluginRegistryLookup`.
 
-## Owner
-Extensibility Team
+## Invariants Protected
+* Capability-oriented extensibility.
+
+## Canonical References
+* Specification: `../../docs/reference/plugin-api.md`
+
+## Testing & Verification
+* `cargo test -p brain-plugins`
+
+## Maintainer
+See `CODEOWNERS`.

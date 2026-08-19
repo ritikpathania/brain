@@ -1,20 +1,27 @@
 # brain-config
 
 ## Purpose
-Settings schema, loading hierarchy, and precedence resolver.
+Hierarchical configuration loading, environment overrides, and schema validation.
 
 ## Responsibilities
-* Model application configurations (`DatabaseSettings`, `ModelSettings`, `SessionSettings`, `BrainSettings`).
-* Resolve configurations using a 6-stage precedence pipeline (Defaults -> Global Config -> Project Config -> Environment -> CLI Flags -> Overrides).
-* Trigger config reload evaluations.
+* Load and validate configuration from TOML files and environment variables (`BRAIN_*`).
+* Provide immutable configuration snapshots for runtime execution.
 
-## Dependencies
-* **Allowed:** `brain-domain`.
-* **Forbidden:** Any database/storage dependencies, networking layers, or UI components.
+## Boundaries & Constraints
+* **Allowed Dependencies:** `brain-domain`, `serde`, `toml`.
+* **Forbidden Dependencies:** `brain-storage`, `brain-services`, `brain-tui`, `pyo3`.
 
-## Public Interfaces
-* Schemas: `BrainSettings`, `DatabaseSettings`, `ModelSettings`, `SessionSettings`
-* Resolution: Settings loading and parsing utilities.
+## Public API & Facades
+* `BrainConfig`, `StorageConfig`, `UdsConfig`, `TuiConfig`.
 
-## Owner
-Systems Engineer
+## Invariants Protected
+* Deterministic immutable configuration snapshotting (ADR-011).
+
+## Canonical References
+* Specification: `../../docs/architecture/overview.md`
+
+## Testing & Verification
+* `cargo test -p brain-config`
+
+## Maintainer
+See `CODEOWNERS`.

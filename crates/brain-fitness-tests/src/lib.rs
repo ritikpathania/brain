@@ -106,10 +106,12 @@ mod tests {
         let allowlist_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("allowlist.toml");
         let allowlist = AllowList::load(&allowlist_path);
 
-        let adapter_crates = ["daemon_bridge", "brain"];
+        let adapter_crates = ["brain-daemon", "brain"];
+        let mut checked_packages = std::collections::HashSet::new();
 
         for package in metadata.workspace_packages() {
             if adapter_crates.contains(&package.name.as_str()) {
+                checked_packages.insert(package.name.clone());
                 for dep in &package.dependencies {
                     if dep.name == "brain-storage" {
                         assert!(
@@ -121,6 +123,15 @@ mod tests {
                 }
             }
         }
+
+        assert!(
+            checked_packages.contains("brain-daemon"),
+            "Evaluation Guard Violation: brain-daemon package was not discovered or evaluated"
+        );
+        assert!(
+            checked_packages.contains("brain"),
+            "Evaluation Guard Violation: brain package was not discovered or evaluated"
+        );
     }
 
     #[test]
@@ -151,5 +162,26 @@ mod tests {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("allowlist.toml");
         let allowlist = AllowList::load(&path);
         assert!(!allowlist.is_allowed("non_existent_rule", "some_crate"));
+    }
+
+    #[test]
+    fn test_pyo3_encapsulation() {
+        let metadata = get_workspace_metadata();
+        let allowlist_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("allowlist.toml");
+        let allowlist = AllowList::load(&allowlist_path);
+
+        for package in metadata.workspace_packages() {
+            if package.name != "brain-python" {
+                for dep in &package.dependencies {
+                    if dep.name == "pyo3" {
+                        assert!(
+                            allowlist.is_allowed("pyo3_encapsulation", &package.name),
+                            "Constitutional Violation: Crate '{}' imports pyo3 directly. PyO3 must be encapsulated in brain-python.",
+                            package.name
+                        );
+                    }
+                }
+            }
+        }
     }
 }
