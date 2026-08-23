@@ -1,7 +1,7 @@
 /**
  * Stream presentation contract: live-region view-model shape and the
  * typewriter queue seam that decouples network completion from drain cadence.
- * Dependency-free (no transport, no React, no vendor).
+ * Dependency-free (no transport, no React, no external dependencies).
  */
 
 export type StreamPhase = 'idle' | 'thinking' | 'responding' | 'tool' | 'error';
