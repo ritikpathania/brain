@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Text, useTheme } from '../../compat/index.js';
-import { parseMarkdown } from './markdown.js';
-import type { MdLine, MdStyle } from './markdown.js';
+import { parseMarkdown } from './markdownParse.js';
+import type { MdLine, MdStyle } from './markdownParse.js';
 
 function flagsFor(style: MdStyle): {
   bold?: boolean;

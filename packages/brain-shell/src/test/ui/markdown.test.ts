@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { parseMarkdown, parseInline } from '../../ui/transcript/markdown.js';
+import { parseMarkdown, parseInline } from '../../ui/transcript/markdownParse.js';
 
 describe('parseInline', () => {
   it('styles bold, italic, code spans', () => {

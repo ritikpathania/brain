@@ -173,3 +173,23 @@ export function handleMessageFromStream(event: StreamEvent, messages: Message[])
   }
   return [...messages, createAssistantMessage({ content: event.delta })];
 }
+
+// ── Transcript rows (Inc 1) ────────────────────────────────────────────────
+// Presentation taxonomy derived from adapter view models. Kept dependency-
+// free: ToolCardData mirrors adapter/BrainViewModels.ToolExecutionView
+// structurally (assignment works both ways without an import).
+
+export interface ToolCardData {
+  callId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'denied' | 'cancelled';
+  durationMs?: number;
+}
+
+export type TranscriptRow =
+  | { kind: 'user'; id: string; text: string }
+  | { kind: 'assistant'; id: string; markdown: string }
+  | { kind: 'thinking'; id: string; text: string; durationMs?: number }
+  | { kind: 'tool'; id: string; tool: ToolCardData }
+  | { kind: 'error'; id: string; text: string };
