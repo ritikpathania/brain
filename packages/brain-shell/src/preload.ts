@@ -1,3 +1,8 @@
+const scriptIdx = process.argv.findIndex(arg => arg.endsWith('main.tsx') || arg.endsWith('main.js') || arg.endsWith('main.ts'));
+if (scriptIdx > 1) {
+  process.argv = [process.argv[0], process.argv[scriptIdx], ...process.argv.slice(scriptIdx + 1)];
+}
+
 import { plugin } from 'bun';
 import * as os from 'os';
 import * as path from 'path';
@@ -6,16 +11,27 @@ import * as fs from 'fs';
 import React from 'react';
 
 process.env.DISABLE_AUTOUPDATER = process.env.DISABLE_AUTOUPDATER || '1';
+process.env.DISABLE_INSTALLATION_CHECKS = process.env.DISABLE_INSTALLATION_CHECKS || '1';
 process.env.NODE_ENV = 'production';
 process.env.USE_BUILTIN_RIPGREP = '0';
+process.env.CLAUDE_CODE_NO_FLICKER = process.env.CLAUDE_CODE_NO_FLICKER || '1';
 
 const cargoBin = path.join(os.homedir(), '.cargo', 'bin');
 if (!process.env.PATH?.includes(cargoBin)) {
   process.env.PATH = `${cargoBin}:${process.env.PATH || ''}`;
 }
 
+if (process.env.BRAIN_CALLER_CWD && fs.existsSync(process.env.BRAIN_CALLER_CWD)) {
+  try {
+    process.chdir(process.env.BRAIN_CALLER_CWD);
+  } catch {}
+}
+
+(globalThis as any).__BRAIN_PRELOAD_LOADED = true;
+
 process.on('uncaughtException', (err) => {
   fs.writeFileSync('/tmp/brain_crash.log', 'UNCAUGHT: ' + String(err?.stack || err) + '\n', { flag: 'a' });
+  process.stderr.write('Uncaught error in Brain Shell: ' + String(err?.stack || err) + '\n');
 });
 process.on('unhandledRejection', (err) => {
   fs.writeFileSync('/tmp/brain_crash.log', 'UNHANDLED_REJECTION: ' + String((err as any)?.stack || err) + '\n', { flag: 'a' });
@@ -86,6 +102,10 @@ function resolveTsPath(baseDir: string, subpath: string): string {
 plugin({
   name: 'claude-vendor-shims',
   setup(build) {
+    build.onResolve({ filter: /^@ant\/claude-for-chrome-mcp/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'claudeForChromeMcp.ts') };
+    });
+
     build.onResolve({ filter: /^color-diff-napi$/ }, () => {
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'colorDiff.ts') };
     });
@@ -114,20 +134,97 @@ plugin({
 
 
 
+    build.onResolve({ filter: /\/Clawd(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('Clawd.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Clawd.tsx') };
+    });
+
+    build.onResolve({ filter: /Opus1mMergeNotice(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('Opus1mMergeNotice.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Opus1mMergeNotice.tsx') };
+    });
+
+
+    build.onResolve({ filter: /(?:^|[/\\])deps(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('brainQueryDeps')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'brainQueryDeps.ts') };
+    });
+
+    build.onResolve({ filter: /(?:^|[/\\])query(\.js)?$/ }, (args) => {
+      if (args.importer && (args.importer.includes('brainQuery') || args.importer.includes('QueryEngine') || args.path.includes('query/') || args.importer.includes('/contracts/'))) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'brainQuery.ts') };
+    });
+
+    build.onResolve({ filter: /services\/api\/claude(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('claudeApiShim')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'claudeApiShim.ts') };
+    });
+
+    build.onResolve({ filter: /commands\/agents\/index(\.js)?$/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'agentsCommand.ts') };
+    });
+
+    build.onResolve({ filter: /resume(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('commands/resume')) {
+        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'resumeCommand.tsx') };
+      }
+      return undefined;
+    });
+
+    build.onResolve({ filter: /LogSelector(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/LogSelector.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'LogSelector.tsx') };
+    });
+
+    build.onResolve({ filter: /UserLocalCommandOutputMessage(\.js)?$/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'UserLocalCommandOutputMessage.tsx') };
+    });
+
+    build.onResolve({ filter: /commands\/memory\/index(\.js)?$/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'memoryCommand.ts') };
+    });
+
+    build.onResolve({ filter: /commands\/memory\/memory(\.js)?$/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'memory.tsx') };
+    });
+
+    build.onResolve({ filter: /commands\/permissions\/index(\.js)?$/ }, () => {
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'permissionsCommand.ts') };
+    });
+
+    build.onResolve({ filter: /skills\/bundled\/index(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('bundledSkillsIndex.ts')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'bundledSkillsIndex.ts') };
+    });
+
     build.onResolve({ filter: /\/PermissionMode(\.js)?$/ }, () => {
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PermissionMode.ts') };
     });
 
-    build.onResolve({ filter: /PromptInputFooterLeftSide(\.js)?$/ }, () => {
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterLeftSide.tsx') };
+    build.onResolve({ filter: /(?:utils\/|\.\/|^)ShellCommand(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/ShellCommand.ts')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'ShellCommand.ts') };
     });
 
-    build.onResolve({ filter: /PromptInputFooter(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('PromptInput')) {
-        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooter.tsx') };
-      }
-      return undefined;
-    });
+
+
+
 
     build.onResolve({ filter: /useTextInput(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('shims/useTextInput.ts')) {
@@ -162,8 +259,77 @@ plugin({
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'commandSuggestions.ts') };
     });
 
-    build.onResolve({ filter: /PromptInputFooterSuggestions(\.js)?$/ }, () => {
+
+    build.onResolve({ filter: /PromptInputFooterSuggestions(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/PromptInputFooterSuggestions.tsx')) {
+        return undefined;
+      }
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterSuggestions.tsx') };
+    });
+
+    build.onResolve({ filter: /PromptInputFooterLeftSide(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/PromptInputFooterLeftSide.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterLeftSide.tsx') };
+    });
+
+    build.onResolve({ filter: /PromptInputFooter(\.js)?$/ }, (args) => {
+      if (args.importer && (args.importer.includes('shims/PromptInputFooter.tsx') || args.importer.includes('PromptInputFooterSuggestions') || args.importer.includes('PromptInputFooterLeftSide'))) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooter.tsx') };
+    });
+
+    build.onResolve({ filter: /permissionOptions(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/permissionOptions.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'permissionOptions.tsx') };
+    });
+
+    build.onResolve({ filter: /shellPermissionHelpers(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/shellPermissionHelpers.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'shellPermissionHelpers.tsx') };
+    });
+
+    build.onResolve({ filter: /PermissionRuleList(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/PermissionRuleList.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PermissionRuleList.tsx') };
+    });
+
+    build.onResolve({ filter: /ListItem(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/ListItem.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'ListItem.tsx') };
+    });
+
+
+
+    build.onResolve({ filter: /wrapAnsi(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/wrapAnsi.ts')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'wrapAnsi.ts') };
+    });
+
+    build.onResolve({ filter: /(CustomSelect\/select|\.\/select)(\.js)?$/ }, (args) => {
+      if (args.importer && (args.importer.includes('shims/select.tsx') || (!args.path.includes('CustomSelect') && !args.importer.includes('CustomSelect')))) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'select.tsx') };
+    });
+
+    build.onResolve({ filter: /design-system\/Tabs(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/Tabs.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Tabs.tsx') };
     });
 
     build.onResolve({ filter: /ThemePicker(\.js)?$/ }, (args) => {
@@ -221,8 +387,24 @@ plugin({
       return { path: res };
     });
 
+    build.onResolve({ filter: /screens\/REPL(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('shims/REPL.tsx')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'REPL.tsx') };
+    });
+
     build.onResolve({ filter: /^\.{1,2}\/.*\.jsx?$/ }, (args) => {
-      if (args.importer && args.importer.includes('/vendor/claude/')) {
+      if (args.importer && args.importer.includes('shims/REPL.tsx')) {
+        const shimPath = resolveTsPath(path.join(BRAIN_SHELL_DIR, 'src', 'shims'), args.path);
+        if (fs.existsSync(shimPath)) {
+          return { path: shimPath };
+        }
+        const dir = path.join(VENDOR_CLAUDE_DIR, 'screens');
+        const resolved = resolveTsPath(dir, args.path);
+        return { path: resolved };
+      }
+      if (args.importer && (args.importer.includes('/vendor/claude/') || args.importer.includes('/shims/') || args.importer.includes('src/shims'))) {
         const dir = path.dirname(args.importer);
         const resolved = resolveTsPath(dir, args.path);
         return { path: resolved };
