@@ -12,6 +12,7 @@ export interface KeyInfo {
   shift?: boolean;
   backspace?: boolean;
   delete?: boolean;
+  tab?: boolean;
 }
 
 export type KeyCommand =
