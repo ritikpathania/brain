@@ -108,4 +108,27 @@ describe('SessionController', () => {
     await new Promise((r) => setTimeout(r, 5));
     expect(ctl.getSnapshot().rows.filter((r) => r.kind === 'user')).toHaveLength(1);
   });
+
+  it('settles unfinished tool calls when the turn completes', async () => {
+    const { client } = fakeClient([
+      { type: 'token', token: 'working' },
+      { type: 'tool_use', toolUse: { id: 'call_9', name: 'read_file', input: { path: '/x' } } },
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('go');
+    const tool = ctl.getSnapshot().rows.find((r) => r.kind === 'tool');
+    expect(tool && tool.kind === 'tool' ? tool.tool.status : undefined).toBe('completed');
+  });
+
+  it('settles unfinished tool calls as cancelled when the turn errors', async () => {
+    const { client } = fakeClient([
+      { type: 'tool_use', toolUse: { id: 'call_10', name: 'bash', input: {} } },
+      { type: 'error', error: 'socket error mid-stream' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('go');
+    const tool = ctl.getSnapshot().rows.find((r) => r.kind === 'tool');
+    expect(tool && tool.kind === 'tool' ? tool.tool.status : undefined).toBe('cancelled');
+  });
 });

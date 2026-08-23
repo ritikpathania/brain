@@ -43,6 +43,7 @@ export class SessionController {
   private queue = new TwoStageTypewriterQueue();
   private ticker: ReturnType<typeof setInterval> | null = null;
   private events: BrainTurnEvent[] = [];
+  private sawError = false;
   private turnSeq = 0;
   private snapshot: ShellSnapshot = { rows: [], live: IDLE_LIVE, busy: false };
 
@@ -68,6 +69,7 @@ export class SessionController {
     const turnId = `turn_${++this.turnSeq}`;
     this.rows = [...this.rows, { kind: 'user', id: `user:${turnId}`, text }];
     this.events = [{ type: 'turn_start', turnId, role: 'assistant' }];
+    this.sawError = false;
     this.queue = new TwoStageTypewriterQueue();
     this.live = { phase: 'responding', thinkingText: '', responseText: '' };
     this.aborter = new AbortController();
@@ -85,7 +87,9 @@ export class SessionController {
       for await (const chunk of this.client.streamText(request)) {
         this.handleChunk(chunk);
       }
-      this.finishTurn('completed');
+      // An error chunk doesn't throw — the stream just ends — but the turn
+      // still failed and must settle its tools accordingly.
+      this.finishTurn(this.sawError ? 'error' : 'completed');
     } catch (err) {
       this.finishTurn('error', err instanceof Error ? err.message : String(err));
     }
@@ -113,6 +117,7 @@ export class SessionController {
     } else if (event.type === 'tool_call_requested') {
       this.live = { ...this.live, phase: 'tool', activeToolName: event.toolName };
     } else if (event.type === 'turn_error') {
+      this.sawError = true;
       this.live = { ...this.live, phase: 'error', errorText: event.error };
     }
     this.emit();
@@ -140,6 +145,23 @@ export class SessionController {
     const remainder = this.queue.pending > 0 ? this.queue.drain(this.queue.pending) : '';
     if (remainder.length > 0) {
       this.events.push({ type: 'text_delta', delta: remainder });
+    }
+    // The wire protocol has no tool-result frame yet, so requested calls
+    // would otherwise stay 'pending' forever on the frozen card. Settle them:
+    // completed turns finish their tools, errored turns cancel them.
+    const settled = new Set<string>();
+    for (const e of this.events) {
+      if (e.type === 'tool_result' || e.type === 'tool_cancelled') settled.add(e.callId);
+    }
+    for (const e of [...this.events]) {
+      if (e.type === 'tool_call_requested' && !settled.has(e.callId)) {
+        settled.add(e.callId);
+        this.events.push(
+          status === 'error'
+            ? { type: 'tool_cancelled', callId: e.callId, reason: 'turn ended' }
+            : { type: 'tool_result', callId: e.callId, output: '' },
+        );
+      }
     }
     if (status === 'error' && errorText !== undefined) {
       this.events.push({ type: 'turn_error', error: errorText });
