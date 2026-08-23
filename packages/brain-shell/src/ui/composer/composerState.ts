@@ -38,6 +38,7 @@ export type ComposerAction =
   | { type: 'kill_to_start' }
   | { type: 'delete_word_back' }
   | { type: 'undo' }
+  | { type: 'replace_all'; value: string }
   | { type: 'history_up' }
   | { type: 'history_down' }
   | { type: 'submit_done'; entry: HistoryEntry };
@@ -168,6 +169,11 @@ export function reduceComposer(state: ComposerState, action: ComposerAction): Co
       if (!prev) return state;
       return { ...state, value: prev.value, cursor: prev.cursor, undoStack: state.undoStack.slice(0, -1) };
     }
+    case 'replace_all':
+      return pushUndo(
+        { ...state, value: action.value, cursor: action.value.length },
+        state,
+      );
     case 'history_up': {
       // Browse mode is captured once, at the moment browsing starts: a user
       // who typed '!' and pressed Up browses bash entries even though the

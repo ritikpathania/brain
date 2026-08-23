@@ -11,6 +11,18 @@ const HIST = [
   { mode: 'bash' as const, value: 'ls -la' },
 ];
 
+describe('replace_all action', () => {
+  it('replaces the whole buffer, parks cursor at end, pushes undo', () => {
+    let s = createComposerState();
+    s = reduceComposer(s, { type: 'insert', text: 'old text' });
+    s = reduceComposer(s, { type: 'replace_all', value: '/help ' });
+    expect(s.value).toBe('/help ');
+    expect(s.cursor).toBe(6);
+    s = reduceComposer(s, { type: 'undo' });
+    expect(s.value).toBe('old text');
+  });
+});
+
 describe('composer modes', () => {
   it('derives mode from leading bang like the reference inputModes contract', () => {
     expect(modeOf('')).toBe('prompt');
