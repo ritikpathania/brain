@@ -4,7 +4,7 @@
 
 **Goal:** Give the shell a slash-command surface — a registry with fuzzy matching, an arrow-navigable palette above the composer, a context-scoped keybinding framework, and working `/help`, `/clear`, `/quit`.
 
-**Architecture:** Pure core first (`commands/registry.ts` matcher, `keybindings/resolve.ts` stroke→action resolver, a pure palette decision/window layer), then thin interactive shells over them: `PaletteView` renders inside `PromptInput` when the buffer is exactly `/query`; `AppShell` routes `/name` submits to a local executor instead of the daemon. The keybinding framework becomes load-bearing by replacing `AppShell`'s raw `useInput` block.
+**Architecture:** Pure core first (`commands/matcher.ts` matcher, `keybindings/resolve.ts` stroke→action resolver, a pure palette decision/window layer), then thin interactive shells over them: `PaletteView` renders inside `PromptInput` when the buffer is exactly `/query`; `AppShell` routes `/name` submits to a local executor instead of the daemon. The keybinding framework becomes load-bearing by replacing `AppShell`'s raw `useInput` block.
 
 **Tech Stack:** Bun 1.4 + React 19 + stock Ink 7 via `src/compat/index.js`; no new dependencies (the reference tree uses fuse.js — we ship our own ~40-line scorer instead).
 
@@ -54,11 +54,13 @@ Extracted from the read-only reference tree (paths quoted for provenance only):
 
 ---
 
-### Task 1: Command registry + fuzzy matcher (pure)
+### Task 1: Command matcher + fuzzy scorer (pure)
+
+> **Collision warning (discovered during execution):** `src/commands/registry.ts` ALREADY EXISTS on main (`230ec30`) — a Map-based dynamic registration contract (`registerCommand`/`getCommands`, handler-bearing `Command`) with its own test at `src/test/contracts/commandRegistry.test.ts`. Do NOT modify or overwrite it. This task's module is the separate static shell-command surface in `matcher.ts`; the two concerns stay distinct.
 
 **Files:**
-- Create: `src/commands/registry.ts`
-- Test: `src/test/commands/registry.test.ts`
+- Create: `src/commands/matcher.ts`
+- Test: `src/test/commands/matcher.test.ts`
 
 **Interfaces:**
 - Consumes: nothing (leaf module).
@@ -67,13 +69,13 @@ Extracted from the read-only reference tree (paths quoted for provenance only):
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// src/test/commands/registry.test.ts
+// src/test/commands/matcher.test.ts
 import { describe, it, expect } from 'bun:test';
 import {
   COMMANDS,
   parseCommandQuery,
   fuzzyMatchCommands,
-} from '../../commands/registry.js';
+} from '../../commands/matcher.js';
 
 describe('parseCommandQuery', () => {
   it('accepts a bare slash token and rejects everything else', () => {
@@ -128,15 +130,15 @@ Note for the tie test: `'c'` DOES match `help` via its description word "command
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell && bun test src/test/commands/registry.test.ts`
-Expected: FAIL — module `commands/registry.js` not found.
+Run: `cd /Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell && bun test src/test/commands/matcher.test.ts`
+Expected: FAIL — module `commands/matcher.js` not found.
 
 - [ ] **Step 3: Write the implementation**
 
 ```ts
-// src/commands/registry.ts
+// src/commands/matcher.ts
 /**
- * Slash-command registry and fuzzy matcher. Pure data + functions: no I/O,
+ * Shell-local static command set + fuzzy matcher. Pure data + functions: no I/O,
  * no React. Execution lives with the shell layer; this module only answers
  * "what matches what the user typed".
  */
@@ -222,13 +224,13 @@ export function fuzzyMatchCommands(
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `bun test src/test/commands/registry.test.ts`
+Run: `bun test src/test/commands/matcher.test.ts`
 Expected: PASS (all).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/ritikpathania/Developer/PyCharm/brain && git add packages/brain-shell/src/commands/registry.ts packages/brain-shell/src/test/commands/registry.test.ts && git commit -m "feat(brain-shell): slash-command registry with deterministic fuzzy matcher
+cd /Users/ritikpathania/Developer/PyCharm/brain && git add packages/brain-shell/src/commands/matcher.ts packages/brain-shell/src/test/commands/matcher.test.ts && git commit -m "feat(brain-shell): static shell-command set with deterministic fuzzy matcher
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -997,7 +999,7 @@ import { Box, Text, useInput, useTheme, useTerminalSize } from '../../compat/ind
 ```
 
 ```tsx
-import { parseCommandQuery, fuzzyMatchCommands } from '../../commands/registry.js';
+import { parseCommandQuery, fuzzyMatchCommands } from '../../commands/matcher.js';
 import { paletteKeyDecision } from './paletteLogic.js';
 import { PaletteView } from './PaletteView.js';
 import type { PaletteItemVM } from './PaletteView.js';
@@ -1119,7 +1121,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/ui/shell/AppShell.tsx`
-- Append: `src/test/commands/registry.test.ts` (executor lookup contract)
+- Append: `src/test/commands/matcher.test.ts` (executor lookup contract)
 - Create: `scripts/ptySmokeInc2.py` (repo-root `scripts/`)
 - Create (generated by harness): `packages/brain-shell/src/test/fixtures/pty/inc2/{palette,executed,cleared}.txt`
 - Test: full suite + smoke run
@@ -1128,7 +1130,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 - Consumes: `COMMANDS` (Task 1), `controller.notice/clear/submit` (Task 5), PromptInput palette (Task 7), `useBoundInput` (Task 3, already wired).
 - Produces: local executor `runCommand(rawValue)` resolving in order — exact name/alias → unique name-prefix match → ambiguous warning → unknown warning. `/help` prints a multi-line system notice built from `COMMANDS`; `/clear` calls `controller.clear()`; `/quit` exits. Footer gains `/ commands`.
 
-- [ ] **Step 1: Pin the lookup contract** — append to `src/test/commands/registry.test.ts`:
+- [ ] **Step 1: Pin the lookup contract** — append to `src/test/commands/matcher.test.ts`:
 
 ```ts
 describe('executor lookup contract', () => {
@@ -1149,7 +1151,7 @@ describe('executor lookup contract', () => {
 Add import:
 
 ```tsx
-import { COMMANDS } from '../../commands/registry.js';
+import { COMMANDS } from '../../commands/matcher.js';
 ```
 
 Inside `AppShell`, define the executor and route submits (replacing the current inline `onSubmit={(text) => void controller.submit(text)}`):
@@ -1408,7 +1410,7 @@ Expected: recorded numbers, BUILD_OK, CLEAN.
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/ritikpathania/Developer/PyCharm/brain && git add packages/brain-shell/src/ui/shell/AppShell.tsx packages/brain-shell/src/test/commands/registry.test.ts scripts/ptySmokeInc2.py packages/brain-shell/src/test/fixtures/pty/inc2/palette.txt packages/brain-shell/src/test/fixtures/pty/inc2/executed.txt packages/brain-shell/src/test/fixtures/pty/inc2/cleared.txt && git commit -m "test(shell): inc2 command surface — palette nav, prefix execution, /clear, bash regression
+cd /Users/ritikpathania/Developer/PyCharm/brain && git add packages/brain-shell/src/ui/shell/AppShell.tsx packages/brain-shell/src/test/commands/matcher.test.ts scripts/ptySmokeInc2.py packages/brain-shell/src/test/fixtures/pty/inc2/palette.txt packages/brain-shell/src/test/fixtures/pty/inc2/executed.txt packages/brain-shell/src/test/fixtures/pty/inc2/cleared.txt && git commit -m "test(shell): inc2 command surface — palette nav, prefix execution, /clear, bash regression
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -1418,6 +1420,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 ## Scope decisions (documented deferrals)
 
 - **No fuse.js**: dependency-free tiered scorer replaces it; deterministic tie-breaking by name.
+- **Two command modules**: the salvage's dynamic registration contract (`src/commands/registry.ts`, `230ec30`) stays untouched; Inc 2's static shell-local set lives in `src/commands/matcher.ts`. Unifying them is a later-increment decision.
 - **Chords** (`ctrl+k ctrl+s`) deferred — the resolver is per-stroke; the table shape accepts later chord support without breaking callers.
 - **History interplay**: while the palette shows ≥1 match, ↑↓ drive the menu; history nav resumes when the menu closes (esc, non-slash edit, or execution).
 - **Enter-with-open-menu submits the buffer**, and the executor's unique-prefix rule makes `/he`⏎ run `/help` — matching the reference's "enter runs the highlighted suggestion" feel without coupling execution into the composer.
