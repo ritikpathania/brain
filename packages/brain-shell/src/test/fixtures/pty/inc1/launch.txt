@@ -1,0 +1,5 @@
+◆ BRAIN
+memory-first agent workspace
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools

@@ -1,0 +1,205 @@
+◆ BRAIN
+memory-first agent workspace
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+
+❯ tell me something 
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✢ Composing…
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✢ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✳ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+∗ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✻ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+∗ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✳ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✢ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✳ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+∗ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+✻ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+
+∗ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓ Done
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓
+     {
+       "path": "/tmp/brain-demo.txt"
+     }
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o collapse tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓ Done
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓ Done
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+
+! !echo hi 
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓ Done
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+❯ echo hi
+
+✢ Composing…
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
+◆ BRAIN
+memory-first agent workspace
+❯ tell me something
+✻ Recalling memories… Drafting.
+⏺ read_file(/tmp/brain-demo.txt)
+  ⎿ ✓ Done
+Hello from the Brain daemon stream. Read the demo file fine. Read the demo file fine.
+
+❯ echo hi
+
+✢ read_file…
+Recalling memories… Drafting.
+Hello from the Brain daemon stream.
+
+❯  
+model: brain-default · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o expand tools
