@@ -126,6 +126,18 @@ export function ErrorRowView(props: {
   );
 }
 
+export function SystemRowView(props: {
+  row: Extract<TranscriptRow, { kind: 'system' }>;
+  tokens: BrainTokens;
+}): React.ReactElement {
+  return (
+    <Text>
+      <Text dimColor>ℹ </Text>
+      <Text color={props.tokens.subtle}>{props.row.text}</Text>
+    </Text>
+  );
+}
+
 /**
  * Memoized dispatch: completed rows keep identity across snapshots, so frozen
  * rows skip re-render entirely; only `expanded` toggles recompute them.
@@ -144,6 +156,8 @@ export const MessageRow = React.memo(
         return <ToolRowView row={props.row} expanded={props.expanded} tokens={tokens} />;
       case 'error':
         return <ErrorRowView row={props.row} tokens={tokens} />;
+      case 'system':
+        return <SystemRowView row={props.row} tokens={tokens} />;
     }
   },
   (a, b) => a.row === b.row && a.expanded === b.expanded,

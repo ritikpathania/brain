@@ -6,6 +6,7 @@ import {
   ThinkingRowView,
   ToolRowView,
   ErrorRowView,
+  SystemRowView,
   summarizeToolInput,
 } from '../../ui/transcript/MessageRow.js';
 import type { TranscriptRow } from '../../contracts/messages.js';
@@ -73,6 +74,17 @@ describe('row views', () => {
     const out = textOf(ErrorRowView({ row: { kind: 'error', id: 'e1', text: 'socket lost' }, tokens: TOKENS }));
     expect(out).toContain('⚠');
     expect(out).toContain('socket lost');
+  });
+
+  it('system row carries the ℹ glyph and dim body', () => {
+    const out = textOf(
+      SystemRowView({
+        row: { kind: 'system', id: 'sys:1', text: 'Slash commands\n/help — List available slash commands' },
+        tokens: TOKENS,
+      }),
+    );
+    expect(out).toContain('ℹ');
+    expect(out).toContain('/help — List available slash commands');
   });
 });
 

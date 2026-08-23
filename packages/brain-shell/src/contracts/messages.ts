@@ -192,4 +192,5 @@ export type TranscriptRow =
   | { kind: 'assistant'; id: string; markdown: string }
   | { kind: 'thinking'; id: string; text: string; durationMs?: number }
   | { kind: 'tool'; id: string; tool: ToolCardData }
-  | { kind: 'error'; id: string; text: string };
+  | { kind: 'error'; id: string; text: string }
+  | { kind: 'system'; id: string; text: string };
