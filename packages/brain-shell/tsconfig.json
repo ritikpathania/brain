@@ -7,31 +7,13 @@
     "strict": false,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "paths": {
-      "@alcalzone/ansi-tokenize": [
-        "./src/shims/ansiTokenize.ts"
-      ],
-      "color-diff-napi": [
-        "./src/shims/colorDiff.ts"
-      ],
-      "src/*": [
-        "./vendor/claude/*",
-        "./vendor/claude/*.ts",
-        "./vendor/claude/*.tsx",
-        "./vendor/claude/*/index.ts",
-        "./vendor/claude/*/index.tsx"
-      ]
-    }
+    "esModuleInterop": true
   },
   "include": [
-    "src/**/*",
-    "vendor/claude/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "claude-upstream/**/*",
     "node_modules"
   ]
 }
-
-

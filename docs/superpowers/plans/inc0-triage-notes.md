@@ -94,6 +94,45 @@ Rule for Task 12: after any shim deletion, sweep `preload.ts` for rules
 whose resolved target no longer exists, and run one PTY smoke — bun-test
 green does not prove the shell boots.
 
+## Task 12 — final deletions and gate results
+
+Vendor deletion forced the die-or-port call on every suite still
+reaching the vendored tree:
+
+- The four frontend-contract PTY suites (composer/lifecycle/overlay/
+  runtime), their python runners, `vendorManifest`, `performanceProfiling`
+  and the deferred shim-bound tests died: they exercise the vendor-era
+  runtime surface (e.g. asserting a `Claude Code v…` banner) that the
+  Task 11 entrypoint swap intentionally retired. `multiViewportParity`
+  joined them for the same reason even though its test file greps clean —
+  its runner asserts vendor parity of the shell frame.
+- `phase1_components` … `phase4_certification` + `theme_integration_brain`
+  imported the **vendored ink fork** (`vendor/claude/ink.js`); they were
+  the entire "stock-ink render cluster" (44 of the baseline's 50 fails).
+  They die with the fork; Inc 1 rebuilds the Brain component matrices on
+  `compat/ink.js` once it has a working bun-test renderer.
+- The seven migration-audit python scripts (compareSourceTrees family,
+  strictDifferentialAudit, copyShimsToSrc, …) were one-off archaeology on
+  the vendor tree.
+- All remaining shims (31 files) had zero surviving consumers once those
+  suites went; `src/shims/` no longer exists. tsconfig lost its
+  `paths`/vendor include.
+
+Gates at close: `bun test` → 106 pass / 5 fail / 111 tests across 23
+files, where all five residual fails are the pre-existing behavioral
+singles documented above (visualCellParity ×2, sessionSemantic,
+brainTurnTransformer, memoryIntegration). `bun build src/main.tsx` →
+BUILD_OK with zero vendor references. PTY smoke → skeleton frame renders
+and exits cleanly on SIGINT.
+
+Two environment notes for future increments:
+- ink's optional peer `react-devtools-core` must be installed
+  (devDependency) or `bun build` fails resolving it; runtime never loads
+  it under `NODE_ENV=production`.
+- A PTY harness must set the window size (`TIOCSWINSZ`) before launch;
+  at 0×0 `useTerminalSize()` returns zero columns and any width-based
+  layout collapses to one character per line.
+
 ## Deferred with vendor — die or port at Task 12 / Inc 1
 
 These stay on vendor imports until Task 12 removes vendor. Each is either
