@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, Text, useInput, useTerminalSize } from '../../compat/index.js';
+import { Box, Text, useTerminalSize } from '../../compat/index.js';
 import { BrainMark } from './BrainMark.js';
 import { Spinner, spinnerLabel } from './Spinner.js';
 import { MessageRow } from '../transcript/MessageRow.js';
@@ -8,6 +8,7 @@ import { SessionController } from '../../state/sessionController.js';
 import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
 import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
+import { useBoundInput } from '../../keybindings/useBoundInput.js';
 
 /**
  * Top-level live shell: frozen transcript + streaming block + composer.
@@ -25,13 +26,12 @@ export function AppShell(): React.ReactElement {
   const snapshot = useShellSnapshot(controller);
   const [expandTools, setExpandTools] = React.useState(false);
 
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
-      process.exit(0);
-    }
-    if (key.ctrl && input === 'o') {
-      setExpandTools((v) => !v);
-    }
+  useBoundInput({
+    contexts: ['global'],
+    onAction: (action) => {
+      if (action === 'shell:exit') process.exit(0);
+      if (action === 'shell:toggleTools') setExpandTools((v) => !v);
+    },
   });
 
   const lastThinking =
