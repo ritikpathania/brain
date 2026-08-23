@@ -1,7 +1,13 @@
-const scriptIndex = process.argv.findIndex(arg => arg.endsWith('main.tsx') || arg.endsWith('main.js') || arg.endsWith('main.ts'));
-if (scriptIndex > 1) {
-  process.argv = [process.argv[0], process.argv[scriptIndex], ...process.argv.slice(scriptIndex + 1)];
+// Preload first, statically: it must set NODE_ENV before react selects a
+// build. When bunfig already preloaded it, the module cache dedupes.
+import './preload.js';
+import { render } from './compat/ink.js';
+import * as React from 'react';
+import { AppSkeleton } from './ui/shell/AppSkeleton.js';
+
+export async function main(): Promise<void> {
+  const app = render(React.createElement(AppSkeleton), { patchConsole: false });
+  process.on('SIGINT', () => { app.unmount(); process.exit(0); });
 }
 
-const { main } = await import('../vendor/claude/main.js');
 await main();
