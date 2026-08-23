@@ -1,13 +1,15 @@
-import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs';
 import figures from 'figures';
 import * as React from 'react';
-import { COMMAND_MESSAGE_TAG } from '../../vendor/claude/constants/xml.js';
-import { Box, Text } from '../../vendor/claude/ink.js';
-import { extractTag } from '../../vendor/claude/utils/messages.js';
+import { Box, Text } from '../compat/ink.js';
+import type { TextBlock } from '../contracts/messages.js';
+import { extractTag } from '../contracts/messages.js';
+
+/** Tag wrapping slash commands echoed back inside user message text. */
+const COMMAND_MESSAGE_TAG = 'command-message';
 
 type Props = {
   addMargin: boolean;
-  param: TextBlockParam;
+  param: TextBlock;
 };
 
 export function UserCommandMessage({ addMargin, param: { text } }: Props): React.ReactNode {

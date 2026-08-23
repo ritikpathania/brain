@@ -102,10 +102,6 @@ function resolveTsPath(baseDir: string, subpath: string): string {
 plugin({
   name: 'claude-vendor-shims',
   setup(build) {
-    build.onResolve({ filter: /^@ant\/claude-for-chrome-mcp/ }, () => {
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'claudeForChromeMcp.ts') };
-    });
-
     build.onResolve({ filter: /^color-diff-napi$/ }, () => {
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'colorDiff.ts') };
     });
@@ -127,7 +123,8 @@ plugin({
 
     build.onResolve({ filter: /feedConfigs(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('LogoV2')) {
-        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'feedConfigs.ts') };
+        // Shim deleted; resolve to the vendor original it wrapped.
+        return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'LogoV2', 'feedConfigs.tsx') };
       }
       return undefined;
     });
@@ -138,14 +135,16 @@ plugin({
       if (args.importer && args.importer.includes('Clawd.tsx')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Clawd.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'LogoV2', 'Clawd.tsx') };
     });
 
     build.onResolve({ filter: /Opus1mMergeNotice(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('Opus1mMergeNotice.tsx')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Opus1mMergeNotice.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'LogoV2', 'Opus1mMergeNotice.tsx') };
     });
 
 
@@ -164,10 +163,11 @@ plugin({
     });
 
     build.onResolve({ filter: /services\/api\/claude(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('claudeApiShim')) {
+      // The old shim layer is gone; resolve to the vendor original it wrapped.
+      if (args.importer && args.importer.includes('vendor/claude/services/api/')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'claudeApiShim.ts') };
+      return { path: path.join(BRAIN_SHELL_DIR, 'vendor', 'claude', 'services', 'api', 'claude.ts') };
     });
 
     build.onResolve({ filter: /commands\/agents\/index(\.js)?$/ }, () => {
@@ -242,7 +242,8 @@ plugin({
 
     build.onResolve({ filter: /Notifications(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('PromptInput')) {
-        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Notifications.tsx') };
+        // Shim deleted; resolve to the vendor original it wrapped.
+        return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'PromptInput', 'Notifications.tsx') };
       }
       return undefined;
     });
@@ -261,45 +262,48 @@ plugin({
 
 
     build.onResolve({ filter: /PromptInputFooterSuggestions(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/PromptInputFooterSuggestions.tsx')) {
+      if (args.importer && args.importer.includes('PromptInputFooterSuggestions.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterSuggestions.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'PromptInput', 'PromptInputFooterSuggestions.tsx') };
     });
 
     build.onResolve({ filter: /PromptInputFooterLeftSide(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/PromptInputFooterLeftSide.tsx')) {
+      if (args.importer && args.importer.includes('PromptInputFooterLeftSide.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooterLeftSide.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'PromptInput', 'PromptInputFooterLeftSide.tsx') };
     });
 
     build.onResolve({ filter: /PromptInputFooter(\.js)?$/ }, (args) => {
-      if (args.importer && (args.importer.includes('shims/PromptInputFooter.tsx') || args.importer.includes('PromptInputFooterSuggestions') || args.importer.includes('PromptInputFooterLeftSide'))) {
+      if (args.importer && (args.importer.includes('PromptInput/PromptInputFooter.') || args.importer.includes('PromptInputFooterSuggestions') || args.importer.includes('PromptInputFooterLeftSide'))) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PromptInputFooter.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'PromptInput', 'PromptInputFooter.tsx') };
     });
 
     build.onResolve({ filter: /permissionOptions(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/permissionOptions.tsx')) {
+      // Shim deleted; resolve to the vendor original it wrapped.
+      if (args.importer && args.importer.includes('vendor/claude/components/permissions/')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'permissionOptions.tsx') };
+      return { path: path.join(BRAIN_SHELL_DIR, 'vendor', 'claude', 'components', 'permissions', 'FilePermissionDialog', 'permissionOptions.tsx') };
     });
 
     build.onResolve({ filter: /shellPermissionHelpers(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/shellPermissionHelpers.tsx')) {
-        return undefined;
-      }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'shellPermissionHelpers.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(BRAIN_SHELL_DIR, 'vendor', 'claude', 'components', 'permissions', 'shellPermissionHelpers.tsx') };
     });
 
     build.onResolve({ filter: /PermissionRuleList(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/PermissionRuleList.tsx')) {
+      if (args.importer && args.importer.includes('rules/PermissionRuleList.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'PermissionRuleList.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'permissions', 'rules', 'PermissionRuleList.tsx') };
     });
 
     build.onResolve({ filter: /ListItem(\.js)?$/ }, (args) => {
@@ -319,17 +323,22 @@ plugin({
     });
 
     build.onResolve({ filter: /(CustomSelect\/select|\.\/select)(\.js)?$/ }, (args) => {
-      if (args.importer && (args.importer.includes('shims/select.tsx') || (!args.path.includes('CustomSelect') && !args.importer.includes('CustomSelect')))) {
+      // Shim deleted; resolve to the vendor original it wrapped.
+      if (args.importer && args.importer.includes('vendor/claude/components/CustomSelect/select.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'select.tsx') };
+      if (!args.path.includes('CustomSelect') && !args.importer?.includes('CustomSelect')) {
+        return undefined;
+      }
+      return { path: path.join(BRAIN_SHELL_DIR, 'vendor', 'claude', 'components', 'CustomSelect', 'select.tsx') };
     });
 
     build.onResolve({ filter: /design-system\/Tabs(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/Tabs.tsx')) {
+      if (args.importer && args.importer.includes('design-system/Tabs.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'Tabs.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'design-system', 'Tabs.tsx') };
     });
 
     build.onResolve({ filter: /ThemePicker(\.js)?$/ }, (args) => {
@@ -346,11 +355,12 @@ plugin({
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'ThemeProvider.tsx') };
     });
 
-    build.onResolve({ filter: /LogoV2(\.js)?$/ }, (args) => {
-      if (args.importer && args.importer.includes('shims/LogoV2.tsx')) {
+    build.onResolve({ filter: /\/LogoV2(\.js)?$/ }, (args) => {
+      if (args.importer && args.importer.includes('LogoV2/LogoV2.')) {
         return undefined;
       }
-      return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'LogoV2.tsx') };
+      // Shim deleted; resolve to the vendor original it wrapped.
+      return { path: path.join(VENDOR_CLAUDE_DIR, 'components', 'LogoV2', 'LogoV2.tsx') };
     });
 
     build.onResolve({ filter: /UserCommandMessage(\.js)?$/ }, (args) => {
@@ -381,7 +391,8 @@ plugin({
 
     build.onResolve({ filter: /(?:bundled\/verify|^\.\/verify)(\.js)?$/ }, (args) => {
       if (args.importer && args.importer.includes('bundled')) {
-        return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'bundledVerify.ts') };
+        // Shim deleted; resolve to the vendor original it wrapped.
+        return { path: path.join(VENDOR_CLAUDE_DIR, 'skills', 'bundled', 'verify.ts') };
       }
       return undefined;
     });

@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test';
 import { createBrainCallModel } from '../../adapter/brainCallModel.js';
 import { MockBrainBackendClient, type BrainGenerationRequest, type BrainStreamChunk } from '../../client/BrainBackendClient.js';
-import { createAssistantMessage } from '../../../vendor/claude/utils/messages.js';
+import { createAssistantMessage } from '../../contracts/messages.js';
 
 describe('Phase 8.1: Memory Seam Integration & Runtime Contract Matrix', () => {
 
@@ -145,7 +145,7 @@ describe('Phase 8.1: Memory Seam Integration & Runtime Contract Matrix', () => {
     }
 
     // Convert events to standard Claude Assistant Message
-    const assistantMsg = createAssistantMessage('msg_test_clean', [{ type: 'text', text: 'Clean response' }]);
+    const assistantMsg = createAssistantMessage({ content: [{ type: 'text', text: 'Clean response' }] });
 
     const jsonStr = JSON.stringify(assistantMsg);
     expect(jsonStr).not.toContain('MemoryDTO');
