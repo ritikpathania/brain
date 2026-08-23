@@ -22,7 +22,15 @@ export interface Tool<TInput = Record<string, unknown>> {
   isConcurrencySafe(input: TInput): boolean;
 }
 
-/** Thinking-budget configuration passed through to the Brain runtime. */
+/**
+ * Thinking-budget configuration passed through to the Brain runtime.
+ * Accepts both spellings callers use: the runtime-native `mode` switch and
+ * the explicit `type` + `budgetTokens` pair; normalizeThinkingConfig folds
+ * them into BrainThinkingConfig.
+ */
 export interface ThinkingConfig {
+  mode?: 'auto' | 'off';
+  type?: 'enabled' | 'disabled';
+  budgetTokens?: number;
   maxTokens?: number;
 }

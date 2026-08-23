@@ -6,7 +6,7 @@
  * yields request lifecycle markers, content-block stream events, and a final
  * assistant message (or an error message marked isError).
  */
-import type { AssistantMessage, Message } from './messages.js';
+import type { AssistantMessage, ContentBlock, Message } from './messages.js';
 import type { ThinkingConfig, Tool } from './tools.js';
 import { createBrainCallModel } from '../adapter/brainCallModel.js';
 import { UdsBrainBackendClient } from '../client/UdsBrainBackendClient.js';
@@ -28,7 +28,7 @@ export interface MessageStartEvent {
     id: string;
     type: 'message';
     role: 'assistant';
-    content: never[];
+    content: ContentBlock[];
     model: string;
     stop_reason: null;
     stop_sequence: null;

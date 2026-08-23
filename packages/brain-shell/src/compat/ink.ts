@@ -2,6 +2,7 @@
  * Single import point for terminal primitives. Stock MIT-licensed Ink.
  * Anything stock Ink lacks lands in ./hooks or ./text — never vendor paths.
  */
+import { useInput as _useInput } from 'ink';
 export {
   Box,
   Text,
@@ -19,7 +20,7 @@ export {
   useCursor,
   render,
 } from 'ink';
-export type Key = Parameters<Parameters<typeof useInput>[0]>[0];
+export type Key = Parameters<Parameters<typeof _useInput>[0]>[0];
 
 export { Ansi } from './AnsiText.js';
 export { usePreviewTheme, useTheme, useThemeSetting } from '../state/themeContext.js';

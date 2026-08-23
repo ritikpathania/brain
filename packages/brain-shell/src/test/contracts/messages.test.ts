@@ -15,16 +15,46 @@ describe('contracts/messages', () => {
     expect(typeof m.uuid).toBe('string');
   });
 
-  test('createAssistantMessage produces assistant envelope', () => {
-    const m = createAssistantMessage('hi there');
+  test('createAssistantMessage wraps string content as a text block', () => {
+    const m = createAssistantMessage({ content: 'hi there' });
     expect(m.type).toBe('assistant');
     expect(m.message.content[0]).toEqual({ type: 'text', text: 'hi there' });
   });
 
-  test('createAssistantAPIErrorMessage marks isError', () => {
-    const m = createAssistantAPIErrorMessage('daemon unreachable');
+  test('createAssistantMessage passes block arrays through untouched', () => {
+    const blocks = [
+      { type: 'thinking', thinking: 'hmm' },
+      { type: 'text', text: 'answer' },
+    ] as const;
+    const m = createAssistantMessage({ content: [...blocks] });
+    expect((m.message.content as unknown[])[0]).toEqual(blocks[0]);
+    expect((m.message.content as unknown[])[1]).toEqual(blocks[1]);
+  });
+
+  test("createAssistantMessage maps empty string to '(no content)'", () => {
+    const m = createAssistantMessage({ content: '' });
+    expect(m.message.content).toEqual([{ type: 'text', text: '(no content)' }]);
+  });
+
+  test('createAssistantMessage carries usage and isVirtual', () => {
+    const m = createAssistantMessage({
+      content: 'x',
+      usage: { input_tokens: 3, output_tokens: 4 },
+      isVirtual: true,
+    });
+    expect(m.usage).toEqual({ input_tokens: 3, output_tokens: 4 });
+    expect(m.isVirtual).toBe(true);
+  });
+
+  test('createAssistantAPIErrorMessage marks the turn as failed without rewriting content', () => {
+    const m = createAssistantAPIErrorMessage({
+      content: 'daemon unreachable',
+      apiError: 'internal_server_error',
+    });
     expect(m.isError).toBe(true);
-    expect(JSON.stringify(m.message.content)).toContain('daemon unreachable');
+    expect(m.isApiErrorMessage).toBe(true);
+    expect(m.apiError).toBe('internal_server_error');
+    expect(m.message.content).toEqual([{ type: 'text', text: 'daemon unreachable' }]);
   });
 
   test('extractTag finds tagged content', () => {

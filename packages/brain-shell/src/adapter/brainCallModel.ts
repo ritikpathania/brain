@@ -5,12 +5,12 @@
  * streaming native reasoning blocks without fabricating signatures.
  */
 
-import type { QueryDeps } from '../../vendor/claude/query/deps.js';
-import type { Message } from '../../vendor/claude/types/message.js';
-import type { Tool } from '../../vendor/claude/Tool.js';
-import type { ThinkingConfig } from '../../vendor/claude/utils/thinking.js';
-import { getSessionId } from '../../vendor/claude/bootstrap/state.js';
-import { createAssistantMessage, createAssistantAPIErrorMessage } from '../../vendor/claude/utils/messages.js';
+import type { QueryDeps } from '../contracts/query.js';
+import type { Message } from '../contracts/messages.js';
+import type { Tool } from '../contracts/tools.js';
+import type { ThinkingConfig } from '../contracts/tools.js';
+import { getSessionId } from '../contracts/session.js';
+import { createAssistantMessage, createAssistantAPIErrorMessage } from '../contracts/messages.js';
 import type {
   BrainBackendClient,
   BrainChatMessage,
@@ -125,20 +125,53 @@ function extractSystemPromptText(systemPrompt: any): string {
       .join('\n\n');
     if (text) return text;
   }
-  return 'You are Claude Code, hosted in the Brain relational shell.';
+  return 'You are Brain, the memory-first agent runtime.';
 }
 
-export function createBrainCallModel(client: BrainBackendClient): QueryDeps['callModel'] {
+import type { BrainContextProvider } from './BrainContextProvider.js';
+import type { CompiledContext } from '../client/BrainBackendClient.js';
+import type { ToolFeedbackEmitter } from './ToolFeedbackEmitter.js';
+
+export function createBrainCallModel(
+  client: BrainBackendClient,
+  sessionStore?: { recordAssistantTurn: (response: string, metrics?: any, turnId?: string, sessionId?: string) => Promise<any> },
+  contextProvider?: BrainContextProvider,
+  toolFeedbackEmitter?: ToolFeedbackEmitter
+): QueryDeps['callModel'] {
   return async function* (params) {
     if (params.signal?.aborted) {
       return;
     }
 
     const formattedMessages = normalizeMessagesForBrain(params.messages);
-    const systemPrompt = extractSystemPromptText(params.systemPrompt);
+
+    // If tool results are present in incoming messages, emit tool feedback
+    if (toolFeedbackEmitter) {
+      const sessionId = (params as any).sessionId || 'default_session';
+      for (const msg of params.messages) {
+        if (msg.type === 'user') {
+          const rawContent = (msg as any).message?.content;
+          if (Array.isArray(rawContent)) {
+            for (const item of rawContent) {
+              if (item && item.type === 'tool_result' && item.tool_use_id) {
+                toolFeedbackEmitter.emitToolFeedback({
+                  sessionId,
+                  turnId: (params as any).turnId || `turn_${Date.now()}`,
+                  toolUseId: item.tool_use_id,
+                  toolName: (item as any).tool_name || 'Tool',
+                  output: item.content,
+                  isError: item.is_error || false,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    let systemPrompt = extractSystemPromptText(params.systemPrompt);
     const tools = normalizeToolsForBrain(params.tools);
     const thinkingConfig = normalizeThinkingConfig(params.thinkingConfig as any);
-    let modelName = params.options?.model || 'brain-engine-v1';
+    let modelName = params.options?.model || 'brain-default';
 
     yield { type: 'stream_request_start' as const };
 
@@ -185,6 +218,41 @@ export function createBrainCallModel(client: BrainBackendClient): QueryDeps['cal
         currentSessionId = (params as any).sessionId || getSessionId();
       } catch {
         currentSessionId = undefined;
+      }
+
+      // Context compilation seam
+      let compiledContext: CompiledContext | undefined = (params as any).compiledContext;
+      if (!compiledContext && contextProvider) {
+        // Extract the last user prompt from formattedMessages
+        let lastUserQuery = '';
+        for (let i = formattedMessages.length - 1; i >= 0; i--) {
+          if (formattedMessages[i].role === 'user') {
+            const c = formattedMessages[i].content;
+            lastUserQuery = typeof c === 'string' ? c : JSON.stringify(c);
+            break;
+          }
+        }
+        if (lastUserQuery) {
+          try {
+            compiledContext = await contextProvider.buildForTurn({
+              sessionId: currentSessionId,
+              userQuery: lastUserQuery,
+            });
+          } catch (err: any) {
+            // Malformed data errors from backend must fail the dispatch
+            if (err.message && err.message.includes('malformed')) {
+              yield createAssistantAPIErrorMessage({
+                content: err.message,
+                apiError: 'internal_server_error' as any,
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      if (compiledContext && compiledContext.hasContext) {
+        systemPrompt = `${systemPrompt}\n\n${compiledContext.serializedPromptSection}`;
       }
 
       const stream = client.streamText({
@@ -237,34 +305,39 @@ export function createBrainCallModel(client: BrainBackendClient): QueryDeps['cal
           };
         }
 
-        if (chunk.type === 'thinking' && typeof chunk.thinking === 'string') {
-          if (isTextBlockOpen) {
-            yield* closeOpenBlocks();
-          }
-
+        if ((chunk.type === 'thinking_delta' && chunk.text) || (chunk.type === 'thinking' && typeof chunk.thinking === 'string')) {
+          const text = chunk.text || chunk.thinking;
           if (!isThinkingBlockOpen) {
-            isThinkingBlockOpen = true;
-            activeThinking = '';
-            activeSignature = chunk.signature || '';
+            yield* closeOpenBlocks();
             yield {
               type: 'stream_event' as const,
               event: {
                 type: 'content_block_start' as const,
                 index: blockIndex,
-                content_block: { type: 'thinking' as const, thinking: '', signature: '' },
+                content_block: { type: 'thinking' as const, thinking: '' },
               },
             };
+            isThinkingBlockOpen = true;
           }
 
-          activeThinking += chunk.thinking;
-          outputTokens++;
-
+          activeThinking += text;
           yield {
             type: 'stream_event' as const,
             event: {
               type: 'content_block_delta' as const,
               index: blockIndex,
-              delta: { type: 'thinking_delta' as const, thinking: chunk.thinking },
+              delta: { type: 'thinking_delta' as const, thinking: text },
+            },
+          };
+          outputTokens += 1;
+        } else if (chunk.type === 'signature_delta' && chunk.text) {
+          activeSignature += chunk.text;
+          yield {
+            type: 'stream_event' as const,
+            event: {
+              type: 'content_block_delta' as const,
+              index: blockIndex,
+              delta: { type: 'signature_delta' as const, signature: chunk.text },
             },
           };
         } else if (chunk.type === 'redacted_thinking' && chunk.redactedData) {
@@ -293,14 +366,10 @@ export function createBrainCallModel(client: BrainBackendClient): QueryDeps['cal
           });
           blockIndex++;
           outputTokens += 5;
-        } else if (chunk.type === 'token' && typeof chunk.token === 'string') {
-          if (isThinkingBlockOpen) {
-            yield* closeOpenBlocks();
-          }
-
+        } else if ((chunk.type === 'text_delta' && chunk.text) || (chunk.type === 'token' && typeof chunk.token === 'string')) {
+          const text = chunk.text || chunk.token;
           if (!isTextBlockOpen) {
-            isTextBlockOpen = true;
-            activeText = '';
+            yield* closeOpenBlocks();
             yield {
               type: 'stream_event' as const,
               event: {
@@ -309,23 +378,23 @@ export function createBrainCallModel(client: BrainBackendClient): QueryDeps['cal
                 content_block: { type: 'text' as const, text: '' },
               },
             };
+            isTextBlockOpen = true;
           }
 
-          activeText += chunk.token;
-          outputTokens++;
-
+          activeText += text;
           yield {
             type: 'stream_event' as const,
             event: {
               type: 'content_block_delta' as const,
               index: blockIndex,
-              delta: { type: 'text_delta' as const, text: chunk.token },
+              delta: { type: 'text_delta' as const, text },
             },
           };
+          outputTokens += 1;
         } else if (chunk.type === 'tool_use' && chunk.toolUse) {
           yield* closeOpenBlocks();
 
-          // Open tool_use block
+          // Yield content_block_start for tool_use
           yield {
             type: 'stream_event' as const,
             event: {
@@ -395,6 +464,24 @@ export function createBrainCallModel(client: BrainBackendClient): QueryDeps['cal
           type: 'stream_event' as const,
           event: { type: 'message_stop' as const },
         };
+
+        // Notify BrainSessionStore of completed assistant turn if registered
+        if (sessionStore && typeof sessionStore.recordAssistantTurn === 'function') {
+          const finalText = activeText || (contentBlocks.find((b) => b.type === 'text')?.text) || '';
+          sessionStore.recordAssistantTurn(
+            finalText,
+            { inputTokens, outputTokens },
+            undefined,
+            currentSessionId
+          ).catch((e) => console.warn('Non-blocking sessionStore turn completion warning:', e));
+        }
+
+        // Trigger non-blocking post-turn memory consolidation if sessionStore supports it
+        if (sessionStore && typeof (sessionStore as any).triggerConsolidation === 'function') {
+          (sessionStore as any).triggerConsolidation().catch((_e: any) => {
+            // Automatic consolidation must never disrupt user turn lifecycle
+          });
+        }
 
         yield createAssistantMessage({ content: contentBlocks });
       }

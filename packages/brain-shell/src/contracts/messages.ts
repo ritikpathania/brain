@@ -21,20 +21,47 @@ export type ContentBlock =
   | ToolUseBlock
   | ToolResultBlock;
 
-interface Envelope<B extends ContentBlock[]> { content: string | B }
+type UserContentBlock = TextBlock | ToolResultBlock;
+type AssistantContentBlock =
+  | TextBlock
+  | ThinkingBlock
+  | RedactedThinkingBlock
+  | ToolUseBlock;
+
+interface Envelope<C> { content: string | C[] }
+
+function textBlock(text: string): TextBlock {
+  return { type: 'text', text };
+}
+
+/** Token accounting carried on assistant turns; backend may add fields. */
+export interface AssistantUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  [key: string]: unknown;
+}
 
 export interface UserMessage {
   type: 'user';
   uuid: string;
   timestamp: string;
-  message: Envelope<[TextBlock, ToolResultBlock]>;
+  message: Envelope<UserContentBlock>;
 }
 export interface AssistantMessage {
   type: 'assistant';
   uuid: string;
   timestamp: string;
+  /** True when this turn failed (kept alongside isApiErrorMessage). */
   isError?: boolean;
-  message: Envelope<[TextBlock, ThinkingBlock, RedactedThinkingBlock, ToolUseBlock]>;
+  /** Marker set by createAssistantAPIErrorMessage; stream folding stops here. */
+  isApiErrorMessage?: boolean;
+  apiError?: string;
+  error?: string;
+  errorDetails?: string;
+  usage?: AssistantUsage;
+  /** Synthetic turns (e.g. replayed history) that never hit the backend. */
+  isVirtual?: true;
+  message: Envelope<AssistantContentBlock>;
 }
 export interface SystemMessage {
   type: 'system';
@@ -65,22 +92,56 @@ export function createUserMessage(content: string): UserMessage {
   return { type: 'user', uuid: uid(), timestamp: now(), message: { content } };
 }
 
-export function createAssistantMessage(content: string): AssistantMessage {
+/** Placeholder rendered for assistant turns that produced no text at all. */
+const NO_CONTENT_MESSAGE = '(no content)';
+
+function asBlocks<B extends AssistantContentBlock>(content: string | B[]): B[] {
+  if (typeof content !== 'string') return content;
+  return [textBlock(content === '' ? NO_CONTENT_MESSAGE : content) as B];
+}
+
+export function createAssistantMessage({
+  content,
+  usage,
+  isVirtual,
+}: {
+  content: string | AssistantContentBlock[];
+  usage?: AssistantUsage;
+  isVirtual?: true;
+}): AssistantMessage {
   return {
     type: 'assistant',
     uuid: uid(),
     timestamp: now(),
-    message: { content: [{ type: 'text', text: content }] },
+    ...(usage ? { usage } : {}),
+    ...(isVirtual ? { isVirtual } : {}),
+    // Block arrays pass through untouched so thinking/tool_use ordering
+    // survives; strings become a single text block ('' → placeholder).
+    message: { content: asBlocks(content) },
   };
 }
 
-export function createAssistantAPIErrorMessage(error: string): AssistantMessage {
+export function createAssistantAPIErrorMessage({
+  content,
+  apiError,
+  error,
+  errorDetails,
+}: {
+  content: string;
+  apiError?: string;
+  error?: string;
+  errorDetails?: string;
+}): AssistantMessage {
   return {
     type: 'assistant',
     uuid: uid(),
     timestamp: now(),
     isError: true,
-    message: { content: [{ type: 'text', text: `Error: ${error}` }] },
+    isApiErrorMessage: true,
+    ...(apiError !== undefined ? { apiError } : {}),
+    ...(error !== undefined ? { error } : {}),
+    ...(errorDetails !== undefined ? { errorDetails } : {}),
+    message: { content: asBlocks(content) },
   };
 }
 
@@ -103,12 +164,12 @@ export function getMessagesAfterCompactBoundary(messages: readonly Message[]): M
 export function handleMessageFromStream(event: StreamEvent, messages: Message[]): Message[] {
   if (event.type !== 'stream_chunk') return messages;
   const last = messages.at(-1);
-  if (last?.type === 'assistant' && !last.isError) {
-    const blocks = last.message.content as ContentBlock[];
+  if (last?.type === 'assistant' && !last.isError && !last.isApiErrorMessage) {
+    const blocks = last.message.content as AssistantContentBlock[];
     const tail = blocks.at(-1);
     if (tail?.type === 'text') tail.text += event.delta;
-    else blocks.push({ type: 'text', text: event.delta });
+    else blocks.push(textBlock(event.delta));
     return [...messages.slice(0, -1), { ...last, message: { content: blocks } }];
   }
-  return [...messages, createAssistantMessage(event.delta)];
+  return [...messages, createAssistantMessage({ content: event.delta })];
 }
