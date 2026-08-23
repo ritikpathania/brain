@@ -131,4 +131,32 @@ describe('SessionController', () => {
     const tool = ctl.getSnapshot().rows.find((r) => r.kind === 'tool');
     expect(tool && tool.kind === 'tool' ? tool.tool.status : undefined).toBe('cancelled');
   });
+
+  it('records local notices and wipes the transcript on clear', async () => {
+    const { client } = fakeClient(SCRIPT);
+    const ctl = new SessionController(client);
+    await ctl.submit('hi there');
+    expect(ctl.getSnapshot().rows.length).toBeGreaterThan(0);
+
+    ctl.notice('Slash commands');
+    const withNotice = ctl.getSnapshot();
+    const sys = withNotice.rows.find((r) => r.kind === 'system');
+    expect(sys).toMatchObject({ kind: 'system', text: 'Slash commands' });
+
+    ctl.clear();
+    const after = ctl.getSnapshot();
+    expect(after.rows).toEqual([]);
+    expect(after.busy).toBe(false);
+    expect(after).not.toBe(withNotice); // identity changed → UI updates
+  });
+
+  it('assigns unique ids across multiple notices', () => {
+    const { client } = fakeClient([]);
+    const ctl = new SessionController(client);
+    ctl.notice('one');
+    ctl.notice('two');
+    const sysRows = ctl.getSnapshot().rows.filter((r) => r.kind === 'system');
+    expect(sysRows).toHaveLength(2);
+    expect(sysRows[0]!.id).not.toBe(sysRows[1]!.id);
+  });
 });

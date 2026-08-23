@@ -62,6 +62,20 @@ export class SessionController {
     this.aborter?.abort();
   }
 
+  /** Wipe the frozen transcript (slash command /clear). */
+  clear(): void {
+    this.rows = [];
+    this.emit();
+  }
+
+  private sysSeq = 0;
+
+  /** Locally-generated shell output (/help, warnings). Never hits the wire. */
+  notice(text: string): void {
+    this.rows = [...this.rows, { kind: 'system', id: `sys:${++this.sysSeq}`, text }];
+    this.emit();
+  }
+
   async submit(text: string): Promise<void> {
     if (this.busy) return;
     this.busy = true;
