@@ -52,3 +52,15 @@ describe('fuzzyMatchCommands', () => {
     expect(COMMANDS.find((c) => c.name === 'quit')!.aliases).toEqual(['q']);
   });
 });
+
+describe('executor lookup contract', () => {
+  it('finds commands by name or alias; prefix resolves only when unique', () => {
+    const find = (token: string) =>
+      COMMANDS.find((c) => c.name === token || (c.aliases ?? []).includes(token));
+    expect(find('help')?.name).toBe('help');
+    expect(find('q')?.name).toBe('quit');     // alias-exact
+    expect(find('zzz')).toBeUndefined();      // unknown → notice path
+    const prefixHits = COMMANDS.filter((c) => c.name.startsWith('he'));
+    expect(prefixHits.map((c) => c.name)).toEqual(['help']); // unique prefix
+  });
+});

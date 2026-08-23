@@ -1,0 +1,72 @@
+◆ BRAIN
+memory-first agent workspace
+
+❯  
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+╭─────────────────────────────────────────╮
+│ ❯ /clear — Clear the transcript         │
+│   /help — List available slash commands │
+│   /quit — Exit Brain shell              │
+╰─────────────────────────────────────────╯
+❯ / 
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+╭─────────────────────────────────────────╮
+│   /clear — Clear the transcript         │
+│ ❯ /help — List available slash commands │
+│   /quit — Exit Brain shell              │
+╰─────────────────────────────────────────╯
+❯ / 
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+╭─────────────────────────────────────────╮
+│ ❯ /clear — Clear the transcript         │
+│   /help — List available slash commands │
+│   /quit — Exit Brain shell              │
+╰─────────────────────────────────────────╯
+❯ / 
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+❯ / 
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+❯  
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+
+╭─────────────────────────────────────────╮
+│ ❯ /help — List available slash commands │
+│   /clear — Clear the transcript         │
+│   /quit — Exit Brain shell              │
+╰─────────────────────────────────────────╯
+❯ /he 
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit
+◆ BRAIN
+memory-first agent workspace
+ℹ Slash commands:
+/help — List available slash commands
+/clear — Clear the transcript
+/quit — Exit Brain shell
+
+❯  
+model: brain-default · ! bash · / commands · ↑↓ history · esc stop · ctrl+o expand tools · ctrl+c 
+exit

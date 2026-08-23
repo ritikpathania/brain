@@ -9,6 +9,7 @@ import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
 import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
 import { useBoundInput } from '../../keybindings/useBoundInput.js';
+import { COMMANDS } from '../../commands/matcher.js';
 
 /**
  * Top-level live shell: frozen transcript + streaming block + composer.
@@ -33,6 +34,37 @@ export function AppShell(): React.ReactElement {
       if (action === 'shell:toggleTools') setExpandTools((v) => !v);
     },
   });
+
+  const helpText = (): string =>
+    ['Slash commands:', ...COMMANDS.map((c) => `/${c.name} — ${c.description}`)].join('\n');
+
+  const runCommand = (rawValue: string): void => {
+    const token = rawValue.trim().slice(1).toLowerCase(); // strip '/', tolerate trailing space
+    if (token.length === 0) return;
+    const exact = COMMANDS.find(
+      (c) => c.name === token || (c.aliases ?? []).includes(token),
+    );
+    let chosen = exact;
+    if (chosen === undefined) {
+      const prefixHits = COMMANDS.filter((c) => c.name.startsWith(token));
+      if (prefixHits.length === 1) chosen = prefixHits[0];
+      else if (prefixHits.length > 1) {
+        controller.notice(`Ambiguous command: /${token}`);
+        return;
+      } else {
+        controller.notice(`Unknown command: /${token}`);
+        return;
+      }
+    }
+    if (chosen.name === 'help') controller.notice(helpText());
+    else if (chosen.name === 'clear') controller.clear();
+    else if (chosen.name === 'quit') process.exit(0);
+  };
+
+  const handleSubmit = (text: string): void => {
+    if (text.trimStart().startsWith('/')) runCommand(text);
+    else void controller.submit(text);
+  };
 
   const lastThinking =
     snapshot.live.thinkingText.length > 0
@@ -65,13 +97,13 @@ export function AppShell(): React.ReactElement {
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          onSubmit={(text) => void controller.submit(text)}
+          onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />
       </Box>
       <Text dimColor>
-        model: {model} · ctrl+c exit · ! bash · ↑↓ history · esc stop · ctrl+o{' '}
-        {expandTools ? 'collapse' : 'expand'} tools
+        model: {model} · ! bash · / commands · ↑↓ history · esc stop · ctrl+o{' '}
+        {expandTools ? 'collapse' : 'expand'} tools · ctrl+c exit
       </Text>
     </Box>
   );
