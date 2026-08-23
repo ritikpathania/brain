@@ -371,6 +371,11 @@ plugin({
       if (args.importer && args.importer.includes('shims/logUpdate.ts')) {
         return undefined;
       }
+      // Stock ink bundles its own renderer at build/log-update.js and imports it
+      // relatively; only the vendored ink fork gets our cell-renderer shim.
+      if (args.importer && args.importer.includes('/node_modules/')) {
+        return undefined;
+      }
       return { path: path.join(BRAIN_SHELL_DIR, 'src', 'shims', 'logUpdate.ts') };
     });
 
