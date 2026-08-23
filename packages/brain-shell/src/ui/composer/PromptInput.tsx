@@ -1,7 +1,11 @@
 import * as React from 'react';
-import { Box, Text, useInput, useTheme } from '../../compat/index.js';
+import { Box, Text, useInput, useTheme, useTerminalSize } from '../../compat/index.js';
 import type { Key } from '../../compat/index.js';
 import type { BrainTokens } from '../../state/palettes.js';
+import { parseCommandQuery, fuzzyMatchCommands } from '../../commands/matcher.js';
+import { paletteKeyDecision } from './paletteLogic.js';
+import { PaletteView } from './PaletteView.js';
+import type { PaletteItemVM } from './PaletteView.js';
 import {
   createComposerState,
   reduceComposer,
@@ -26,6 +30,7 @@ function asKeyInfo(key: Key): KeyInfo {
     shift: key.shift,
     backspace: (key as { backspace?: boolean }).backspace,
     delete: key.delete,
+    tab: (key as { tab?: boolean }).tab,
   };
 }
 
@@ -65,11 +70,55 @@ export function PromptInput(props: {
   onAbort?: () => void;
 }): React.ReactElement {
   const { tokens } = useTheme();
+  const { columns } = useTerminalSize();
   const [state, setState] = React.useState<ComposerState>(() => createComposerState(loadHistory()));
+  const [selected, setSelected] = React.useState(0);
+  const [suppressed, setSuppressed] = React.useState(false);
+
+  // Palette is open iff the whole buffer is a bare slash query. Esc sets
+  // `suppressed` (esc means abort once the menu is dismissed); clearing the
+  // buffer re-arms it.
+  const query = parseCommandQuery(state.value);
+  const matches =
+    query !== null && !suppressed && !(props.busy ?? false)
+      ? fuzzyMatchCommands(query)
+      : [];
+  const paletteItems: PaletteItemVM[] = matches.map((m) => ({
+    name: m.command.name,
+    description: m.command.description,
+  }));
+  const paletteOpen = paletteItems.length > 0;
+  React.useEffect(() => {
+    setSelected(0);
+  }, [query]);
+  React.useEffect(() => {
+    if (state.value.length === 0) setSuppressed(false);
+  }, [state.value]);
 
   useInput((input, key) => {
     if (props.disabled) return;
-    const cmd = translateKey(input, asKeyInfo(key));
+    const info = asKeyInfo(key);
+    const cmd = translateKey(input, info);
+    const decision = paletteKeyDecision({
+      open: paletteOpen,
+      cmdType: cmd.type,
+      tab: info.tab ?? false,
+      selected: Math.min(selected, Math.max(0, matches.length - 1)),
+      count: matches.length,
+    });
+    if (decision.kind === 'move') {
+      setSelected(decision.next);
+      return;
+    }
+    if (decision.kind === 'complete') {
+      const chosen = matches[decision.index]!.command;
+      setState((s) => reduceComposer(s, { type: 'replace_all', value: `/${chosen.name} ` }));
+      return;
+    }
+    if (decision.kind === 'close') {
+      setSuppressed(true);
+      return;
+    }
     if (cmd.type === 'exit') {
       process.exit(0);
       return;
@@ -98,5 +147,17 @@ export function PromptInput(props: {
     }
   });
 
-  return <PromptInputView value={state.value} cursor={state.cursor} busy={props.busy ?? false} tokens={tokens} />;
+  return (
+    <Box flexDirection="column">
+      {paletteOpen ? (
+        <PaletteView
+          items={paletteItems}
+          selectedIndex={Math.min(selected, paletteItems.length - 1)}
+          maxColumns={columns}
+          tokens={tokens}
+        />
+      ) : null}
+      <PromptInputView value={state.value} cursor={state.cursor} busy={props.busy ?? false} tokens={tokens} />
+    </Box>
+  );
 }
