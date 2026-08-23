@@ -7,11 +7,11 @@ const MAIN_FILE = path.join(BRAIN_SHELL_DIR, 'src', 'main.tsx');
 const PRELOAD_FILE = path.join(BRAIN_SHELL_DIR, 'src', 'preload.ts');
 
 describe('Phase 3 Architecture & Invariant Protections', () => {
-  it('enforces host entrypoint boots the Brain skeleton shell with zero vendor reach', () => {
+  it('enforces host entrypoint boots the Brain shell with zero vendor reach', () => {
     const mainContent = fs.readFileSync(MAIN_FILE, 'utf8');
 
     expect(mainContent).toContain('await main();');
-    expect(mainContent).toContain('AppSkeleton');
+    expect(mainContent).toContain('AppShell');
     // The entrypoint mounts Brain's own shell; the vendored tree must be
     // unreachable from it entirely.
     expect(mainContent.includes('vendor')).toBe(false);

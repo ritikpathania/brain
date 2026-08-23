@@ -3,10 +3,10 @@
 import './preload.js';
 import { render } from './compat/ink.js';
 import * as React from 'react';
-import { AppSkeleton } from './ui/shell/AppSkeleton.js';
+import { AppShell } from './ui/shell/AppShell.js';
 
 export async function main(): Promise<void> {
-  const app = render(React.createElement(AppSkeleton), { patchConsole: false });
+  const app = render(React.createElement(AppShell), { patchConsole: false });
   process.on('SIGINT', () => { app.unmount(); process.exit(0); });
 }
 
