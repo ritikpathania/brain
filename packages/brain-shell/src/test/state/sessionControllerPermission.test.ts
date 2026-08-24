@@ -83,4 +83,35 @@ describe('SessionController permission requests', () => {
     ctl.resolvePermission('ghost', true);
     expect(ctl.getSnapshot().permission).toBeUndefined();
   });
+
+  test('resolution travels to backends that support the wire call', async () => {
+    const base = scriptFake(PERM_SCRIPT) as Record<string, unknown>;
+    const resolutions: Array<{ callId: string; granted: boolean }> = [];
+    base.resolveToolPermission = (callId: string, granted: boolean) => {
+      resolutions.push({ callId, granted });
+      return Promise.resolve();
+    };
+    const ctl = new SessionController(base as unknown as BrainBackendClient);
+    await ctl.submit('clean this up');
+    ctl.resolvePermission('call_9', true);
+    expect(resolutions).toEqual([{ callId: 'call_9', granted: true }]);
+    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
+  });
+
+  test('backends without wire support degrade to local-only UX', async () => {
+    const ctl = new SessionController(scriptFake(PERM_SCRIPT));
+    await ctl.submit('clean this up');
+    expect(() => ctl.resolvePermission('call_9', true)).not.toThrow();
+    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
+  });
+
+  test('wire rejection never disturbs the local notice', async () => {
+    const base = scriptFake(PERM_SCRIPT) as Record<string, unknown>;
+    base.resolveToolPermission = () => Promise.reject(new Error('socket gone'));
+    const ctl = new SessionController(base as unknown as BrainBackendClient);
+    await ctl.submit('clean this up');
+    ctl.resolvePermission('call_9', true);
+    await new Promise((r) => setTimeout(r, 10)); // flush the rejected promise
+    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
+  });
 });

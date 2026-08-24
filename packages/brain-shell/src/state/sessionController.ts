@@ -85,6 +85,9 @@ export class SessionController {
           : r,
       );
     }
+    // Best-effort wire round-trip: legacy fakes and offline daemons simply
+    // omit or reject the call; the local UX above is already settled either way.
+    void this.client.resolveToolPermission?.(callId, granted)?.catch(() => {});
     this.notice(`${granted ? 'Allowed' : 'Denied'} ${toolName}`);
   }
 
