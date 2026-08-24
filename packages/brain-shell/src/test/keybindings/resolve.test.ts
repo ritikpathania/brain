@@ -43,3 +43,43 @@ describe('resolveAction', () => {
     expect(resolveAction(bindings, [], 'tab')).toBeNull();
   });
 });
+
+describe('overlay + dialog contexts (Inc 3)', () => {
+  it('overlay context binds arrows/enter/esc', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ upArrow: true })))).toBe(
+      'overlay:up',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ downArrow: true })))).toBe(
+      'overlay:down',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ return: true })))).toBe(
+      'overlay:commit',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ escape: true })))).toBe(
+      'overlay:cancel',
+    );
+  });
+
+  it('dialog context binds left/right/y/n/enter/esc', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('', key({ leftArrow: true })))).toBe(
+      'dialog:left',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('', key({ rightArrow: true })))).toBe(
+      'dialog:right',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('y', key({})))).toBe('dialog:allow');
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('n', key({})))).toBe('dialog:deny');
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('', key({ return: true })))).toBe(
+      'dialog:commit',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], strokeToKey('', key({ escape: true })))).toBe(
+      'dialog:cancel',
+    );
+  });
+
+  it('global fallback still resolves under overlay context', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('c', key({ ctrl: true })))).toBe(
+      'shell:exit',
+    );
+  });
+});

@@ -5,7 +5,7 @@
  */
 import type { KeyInfo } from '../ui/composer/translateKey.js';
 
-export type KeybindingContextName = 'global' | 'composer' | 'palette';
+export type KeybindingContextName = 'global' | 'composer' | 'palette' | 'overlay' | 'dialog';
 
 export interface BindingRule {
   action: string;
@@ -20,6 +20,18 @@ export const DEFAULT_BINDINGS: readonly BindingRule[] = [
   { action: 'shell:toggleTools', context: 'global', key: 'ctrl+o' },
   { action: 'composer:submit', context: 'composer', key: 'return' },
   { action: 'composer:abort', context: 'composer', key: 'escape' },
+  // Overlay lists (theme picker, resume picker): arrow-navigate, enter picks, esc closes.
+  { action: 'overlay:up', context: 'overlay', key: 'up' },
+  { action: 'overlay:down', context: 'overlay', key: 'down' },
+  { action: 'overlay:commit', context: 'overlay', key: 'return' },
+  { action: 'overlay:cancel', context: 'overlay', key: 'escape' },
+  // Permission dialog: left/right choose, y allow, n deny, enter confirms, esc denies.
+  { action: 'dialog:left', context: 'dialog', key: 'left' },
+  { action: 'dialog:right', context: 'dialog', key: 'right' },
+  { action: 'dialog:allow', context: 'dialog', key: 'y' },
+  { action: 'dialog:deny', context: 'dialog', key: 'n' },
+  { action: 'dialog:commit', context: 'dialog', key: 'return' },
+  { action: 'dialog:cancel', context: 'dialog', key: 'escape' },
 ];
 
 /**
