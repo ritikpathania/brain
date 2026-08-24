@@ -2758,3 +2758,205 @@ pub async fn handle_connection(
     conn_token.cancel();
     Ok(())
 }
+
+/// One tool call observed in the current provider pass, recorded when its
+/// ToolUse chunk arrives.
+struct PassToolUse {
+    call_id: String,
+    name: String,
+    input: serde_json::Value,
+}
+
+/// One resolved tool call from the current pass — executed output or a user
+/// denial — destined for the next pass's feedback messages.
+struct ToolFeedback {
+    call_id: String,
+    name: String,
+    input: serde_json::Value,
+    output: String,
+    is_error: bool,
+}
+
+/// Fixed content carried by denial feedback entries (spec §4.2).
+const DENIED_FEEDBACK_TEXT: &str = "User denied permission for this tool call.";
+
+/// Maximum provider passes per turn when BRAIN_TOOL_MAX_ROUNDS is unset or
+/// unparseable (spec §2).
+const DEFAULT_MAX_TOOL_ROUNDS: u32 = 8;
+
+/// Parses the per-turn tool-round cap: default 8, floored at 1, garbage ⇒
+/// default. Pure so tests never mutate process environment.
+fn parse_max_rounds(raw: Option<&str>) -> u32 {
+    raw.and_then(|s| s.trim().parse::<u32>().ok())
+        .map(|v| v.max(1))
+        .unwrap_or(DEFAULT_MAX_TOOL_ROUNDS)
+}
+
+/// Builds the provider-visible feedback for a completed pass (spec §4.2): an
+/// assistant message carrying the pass text (when non-empty) and ToolUse
+/// blocks in arrival order, then a user message carrying one ToolResult per
+/// resolved call in the same order.
+fn feedback_messages(
+    pass_text: &str,
+    calls: &[PassToolUse],
+    results: &[ToolFeedback],
+) -> Vec<brain_core::model::ModelChatMessage> {
+    use brain_core::model::{ChatRole, MessageContentBlock};
+
+    let mut assistant_blocks: Vec<MessageContentBlock> = Vec::new();
+    if !pass_text.is_empty() {
+        assistant_blocks.push(MessageContentBlock::Text {
+            text: pass_text.to_string(),
+        });
+    }
+    for c in calls {
+        assistant_blocks.push(MessageContentBlock::ToolUse {
+            id: c.call_id.clone(),
+            name: c.name.clone(),
+            input: c.input.clone(),
+        });
+    }
+    let assistant = brain_core::model::ModelChatMessage {
+        role: ChatRole::Assistant,
+        content: assistant_blocks,
+    };
+
+    let user_content = results
+        .iter()
+        .map(|r| MessageContentBlock::ToolResult {
+            tool_use_id: r.call_id.clone(),
+            content: r.output.clone(),
+            is_error: r.is_error,
+        })
+        .collect::<Vec<_>>();
+    let user = brain_core::model::ModelChatMessage {
+        role: ChatRole::User,
+        content: user_content,
+    };
+
+    vec![assistant, user]
+}
+
+#[cfg(test)]
+mod generation_loop_tests {
+    use super::*;
+
+    fn call(id: &str) -> PassToolUse {
+        PassToolUse {
+            call_id: id.to_string(),
+            name: "bash".to_string(),
+            input: serde_json::json!({"command": "echo hi"}),
+        }
+    }
+
+    fn executed(id: &str) -> ToolFeedback {
+        ToolFeedback {
+            call_id: id.to_string(),
+            name: "bash".to_string(),
+            input: serde_json::json!({"command": "echo hi"}),
+            output: "hi\n".to_string(),
+            is_error: false,
+        }
+    }
+
+    #[test]
+    fn parse_max_rounds_defaults_on_missing_and_garbage() {
+        assert_eq!(parse_max_rounds(None), 8);
+        assert_eq!(parse_max_rounds(Some("abc")), 8);
+        assert_eq!(parse_max_rounds(Some("")), 8);
+    }
+
+    #[test]
+    fn parse_max_rounds_parses_and_floors_at_one() {
+        assert_eq!(parse_max_rounds(Some("3")), 3);
+        assert_eq!(parse_max_rounds(Some("0")), 1);
+        assert_eq!(parse_max_rounds(Some("  5  ")), 5);
+    }
+
+    #[test]
+    fn feedback_messages_order_text_tools_results() {
+        let msgs = feedback_messages("Working.", &[call("c1")], &[executed("c1")]);
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].role, brain_core::model::ChatRole::Assistant);
+        assert_eq!(
+            msgs[0].content[0],
+            brain_core::model::MessageContentBlock::Text { text: "Working.".to_string() }
+        );
+        assert_eq!(
+            msgs[0].content[1],
+            brain_core::model::MessageContentBlock::ToolUse {
+                id: "c1".to_string(),
+                name: "bash".to_string(),
+                input: serde_json::json!({"command": "echo hi"}),
+            }
+        );
+        assert_eq!(msgs[1].role, brain_core::model::ChatRole::User);
+        assert_eq!(
+            msgs[1].content[0],
+            brain_core::model::MessageContentBlock::ToolResult {
+                tool_use_id: "c1".to_string(),
+                content: "hi\n".to_string(),
+                is_error: false,
+            }
+        );
+    }
+
+    #[test]
+    fn feedback_messages_omits_text_block_when_pass_had_no_text() {
+        let msgs = feedback_messages("", &[call("c1")], &[executed("c1")]);
+        assert_eq!(msgs[0].content.len(), 1);
+        assert!(matches!(
+            msgs[0].content[0],
+            brain_core::model::MessageContentBlock::ToolUse { .. }
+        ));
+    }
+
+    #[test]
+    fn feedback_preserves_multi_call_ordering() {
+        let msgs = feedback_messages(
+            "",
+            &[call("c1"), call("c2")],
+            &[executed("c1"), executed("c2")],
+        );
+        let ids: Vec<String> = msgs[0]
+            .content
+            .iter()
+            .filter_map(|b| match b {
+                brain_core::model::MessageContentBlock::ToolUse { id, .. } => Some(id.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(ids, vec!["c1".to_string(), "c2".to_string()]);
+        let answered: Vec<String> = msgs[1]
+            .content
+            .iter()
+            .filter_map(|b| match b {
+                brain_core::model::MessageContentBlock::ToolResult { tool_use_id, .. } => {
+                    Some(tool_use_id.clone())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(answered, vec!["c1".to_string(), "c2".to_string()]);
+    }
+
+    #[test]
+    fn denial_feedback_shape_round_trips_through_helper() {
+        let denial = ToolFeedback {
+            call_id: "c9".to_string(),
+            name: "bash".to_string(),
+            input: serde_json::json!({}),
+            output: DENIED_FEEDBACK_TEXT.to_string(),
+            is_error: true,
+        };
+        let msgs = feedback_messages("", &[call("c9")], &[denial]);
+        assert_eq!(
+            msgs[1].content[0],
+            brain_core::model::MessageContentBlock::ToolResult {
+                tool_use_id: "c9".to_string(),
+                content: DENIED_FEEDBACK_TEXT.to_string(),
+                is_error: true,
+            }
+        );
+    }
+}
