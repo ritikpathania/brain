@@ -1932,6 +1932,16 @@ pub async fn handle_connection(
             let mut is_completed_successfully = false;
             let mut is_cancelled = false;
 
+            // Increment 7: advertise executable tools to tool-capable models.
+            // Built once per turn; every loop pass re-sends the same set
+            // (providers are stateless). supports_tools=false keeps today's
+            // exact empty-vec request shape.
+            let advertised_tools = if resolved_model_desc.supports_tools {
+                crate::tools::advertised_definitions()
+            } else {
+                Vec::new()
+            };
+
             // Increment 6: the agentic feedback loop. Each iteration drains
             // one provider pass; resolved tool calls (executed or denied)
             // feed back as assistant/user messages before the next pass.
@@ -1944,7 +1954,7 @@ pub async fn handle_connection(
                     model: resolved_model_desc.id.clone(),
                     messages: model_messages.clone(),
                     system_prompt: combined_system_prompt.clone(),
-                    tools: Vec::new(),
+                    tools: advertised_tools.clone(),
                     thinking_budget: None,
                 };
                 let mut stream_result = app
