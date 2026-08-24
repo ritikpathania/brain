@@ -276,6 +276,7 @@ impl PyConversation {
                     MessageRole::User => "user",
                     MessageRole::Assistant => "assistant",
                     MessageRole::System => "system",
+                    MessageRole::Tool => "tool",
                 },
             )?;
             py_dict.set_item("content", &msg.content)?;

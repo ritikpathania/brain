@@ -417,6 +417,7 @@ pub async fn handle_connection(
                                         brain_domain::MessageRole::User => "user",
                                         brain_domain::MessageRole::Assistant => "assistant",
                                         brain_domain::MessageRole::System => "system",
+                                        brain_domain::MessageRole::Tool => "tool",
                                     };
                                     crate::server::protocol::SessionMessageDto {
                                         id: m.id.to_string(),

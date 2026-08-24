@@ -21,6 +21,32 @@ pub enum MessageRole {
     Assistant,
     /// Message containing system prompt instructions.
     System,
+    /// Agentic-loop tool outcome persisted as part of the transcript (Inc 8).
+    Tool,
+}
+
+impl std::fmt::Display for MessageRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::User => write!(f, "user"),
+            Self::Assistant => write!(f, "assistant"),
+            Self::System => write!(f, "system"),
+            Self::Tool => write!(f, "tool"),
+        }
+    }
+}
+
+impl std::str::FromStr for MessageRole {
+    type Err = std::convert::Infallible;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let role = match s.to_lowercase().as_str() {
+            "assistant" => Self::Assistant,
+            "system" => Self::System,
+            "tool" => Self::Tool,
+            _ => Self::User,
+        };
+        Ok(role)
+    }
 }
 
 /// The type classification of a knowledge graph node.
