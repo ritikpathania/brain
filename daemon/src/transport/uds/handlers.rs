@@ -2210,6 +2210,10 @@ pub async fn handle_connection(
                                                     "output": out_text,
                                                     "is_error": is_err,
                                                     "exit_code": exit_code,
+                                                    // Inc 10: same clock as the persisted
+                                                    // envelope, so live and replayed cards
+                                                    // agree on duration.
+                                                    "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
                                                     "status": "in_progress"
                                                 });
                                                 let mut rj = serde_json::to_string(&result_packet)?;

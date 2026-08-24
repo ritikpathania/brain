@@ -246,6 +246,14 @@ async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
         .unwrap();
     assert!(round_two_idx > result_idx);
 
+    // Inc 10: the live wire frame carries the same daemon-measured duration
+    // that Inc 8 persists in the tool_event envelope — one clock, both views.
+    let result_frame = &frames[result_idx];
+    assert!(
+        result_frame["duration_ms"].is_u64(),
+        "tool_result frame missing duration_ms: {result_frame}"
+    );
+
     // stream_end carries both passes' text, summed usage, clean finish.
     let end = frames
         .iter()
@@ -297,6 +305,15 @@ async fn denied_call_feeds_back_and_loop_continues() {
 
     assert!(types.contains(&"tool_denied"), "types: {types:?}");
     assert!(!types.contains(&"tool_result"), "denied turns never execute");
+    // Denied frames never carry execution measurements (Inc 8 parity).
+    let denied_frame = frames
+        .iter()
+        .find(|f| f["type"] == "tool_denied")
+        .unwrap();
+    assert!(
+        denied_frame.get("duration_ms").is_none(),
+        "denied frame must not carry duration_ms: {denied_frame}"
+    );
     // THE contract: the model still produced round-2 text after the denial.
     let end = frames.iter().find(|f| f["type"] == "stream_end").unwrap();
     assert!(end["response"]
