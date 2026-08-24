@@ -4,7 +4,12 @@ cards on /resume. The stub daemon serves a stored session whose history
 carries three Inc 8 envelopes (executed-ok, executed-failed exit 2, denied)
 plus one non-envelope tool message. Discipline carried from Inc 1-6: stub UDS
 daemon, winsize ioctl before exec, discrete keystroke writes with >=0.3 s
-pumps, ANSI-stripped matching."""
+pumps, ANSI-stripped matching.
+
+Inc 10 adds a LIVE turn before the resume: two allowed bash calls, the first
+completing (daemon-measured duration_ms -> "Done in 0.1s") and the second
+failing (exit_code 2 -> "Failed · exit 2"), proving the running card carries
+the same facts its replayed twin will show."""
 import fcntl, json, os, pty, re, select, signal, socket, struct, sys, termios, threading, time
 
 ROWS, COLS = 30, 100
@@ -13,6 +18,9 @@ FIXTURE_DIR = "/Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell
 CONFIG_FILE = "/tmp/brain-inc9-smoke-config.json"
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[=>]")
 NOW_MS = int(time.time() * 1000)
+
+PERM_EVENTS = {}    # call_id -> threading.Event
+PERM_GRANTED = {}   # call_id -> bool
 
 
 def clean(buf: bytes) -> str:
@@ -79,6 +87,76 @@ def serve():
                             "archived": False, "pinned": False,
                             "updated_at_ms": NOW_MS - 300_000,
                             "messages": LOADED_MESSAGES}}})
+                    elif act == "v1/generation/stream":
+                        # Inc 10 live turn: one completing call (duration_ms
+                        # measured daemon-side) then one failing call. Frames
+                        # strictly consecutive on EVERY path; a gap aborts
+                        # the shell.
+                        nxt = [0]
+
+                        def frame(obj):
+                            obj["sequence"] = nxt[0]
+                            nxt[0] += 1
+                            reply(obj)
+
+                        frame({"type": "tool_use", "toolUse": {"id": "call-live-ok",
+                               "name": "bash", "input": {"command": "echo live-ok"}}})
+                        time.sleep(0.2)
+                        frame({"type": "tool_permission_requested",
+                               "call_id": "call-live-ok", "tool_name": "bash",
+                               "input": {"command": "echo live-ok"},
+                               "reason": "shell access"})
+                        evt = threading.Event()
+                        PERM_EVENTS["call-live-ok"] = evt
+                        granted = bool(evt.wait(timeout=10)
+                                       and PERM_GRANTED.get("call-live-ok"))
+                        if granted:
+                            frame({"type": "tool_result", "call_id": "call-live-ok",
+                                   "tool_name": "bash", "output": "live-ok\n",
+                                   "is_error": False, "exit_code": 0,
+                                   "duration_ms": 137})
+                            time.sleep(0.2)
+                            frame({"type": "tool_use", "toolUse": {"id": "call-live-bad",
+                                   "name": "bash", "input": {"command": "false"}}})
+                            time.sleep(0.2)
+                            frame({"type": "tool_permission_requested",
+                                   "call_id": "call-live-bad", "tool_name": "bash",
+                                   "input": {"command": "false"},
+                                   "reason": "shell access"})
+                            evt_b = threading.Event()
+                            PERM_EVENTS["call-live-bad"] = evt_b
+                            granted_b = bool(evt_b.wait(timeout=10)
+                                             and PERM_GRANTED.get("call-live-bad"))
+                            if granted_b:
+                                frame({"type": "tool_result", "call_id": "call-live-bad",
+                                       "tool_name": "bash", "output": "boom",
+                                       "is_error": True, "exit_code": 2,
+                                       "duration_ms": 40})
+                                closing = "Live turn done."
+                            else:
+                                frame({"type": "tool_denied",
+                                       "call_id": "call-live-bad",
+                                       "tool_name": "bash"})
+                                closing = "Refused."
+                        else:
+                            frame({"type": "tool_denied",
+                                   "call_id": "call-live-ok",
+                                   "tool_name": "bash"})
+                            closing = "Refused."
+                        frame({"type": "token", "token": closing})
+                        time.sleep(0.3)
+                        frame({"type": "finished", "status": "completed"})
+                    elif act == "v1/tool/resolve":
+                        payload = req.get("payload", {})
+                        cid = payload.get("call_id")
+                        PERM_GRANTED[cid] = bool(payload.get("granted"))
+                        ev = PERM_EVENTS.get(cid)
+                        if ev is not None:
+                            ev.set()
+                            reply({"type": "resolved", "status": "ok"})
+                        else:
+                            reply({"type": "Error", "status": "error",
+                                   "body": "Unknown or already-resolved tool call"})
                     else:
                         reply({"id": rid, "status": "success", "body": {}})
             except Exception:
@@ -138,13 +216,47 @@ def expect(label, needle, timeout=8.0):
     return False
 
 
+def expect_count(label, needle, want, timeout=8.0):
+    """Wait until `needle` appears `want` times in the CUMULATIVE screen
+    buffer (Inc 6 pattern): plain substring matching cannot tell a fresh
+    dialog render from an identical earlier one."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        pump(0.1)
+        if clean(buf).count(needle) >= want:
+            print("PASS " + label)
+            return True
+    print("FAIL %s: %r seen %d times, wanted >=%d"
+          % (label, needle, clean(buf).count(needle), want))
+    return False
+
+
 ok = True
 
-# ── Flow A: boot, open /resume, accept the highlighted session ─────────────
+# ── Flow A: boot ───────────────────────────────────────────────────────────
 ok &= expect("welcome-wordmark", "◆ BRAIN")
 ok &= expect("launch-prompt", "❯")
 snapshot("boot")
 
+# ── Flow A2 (Inc 10): LIVE turn — running cards carry the daemon clock ─────
+os.write(fd, b"break things")
+pump(0.3)
+os.write(fd, b"\r")
+ok &= expect_count("live-dialog-one", "Permission required", 1)
+pump(1.2)                               # settle: dialog must mount before key
+os.write(fd, b"y"); pump(0.5)          # allow call-live-ok
+ok &= expect_count("live-dialog-two", "Permission required", 2)
+pump(1.2)
+os.write(fd, b"y"); pump(0.5)          # allow call-live-bad
+# Card rows freeze in when the turn ends (current shell behaviour), so both
+# daemon-measured labels are asserted against the settled live transcript,
+# before any /resume replay has run.
+ok &= expect("live-completed-duration", "Done in 0.1s")
+ok &= expect("live-failed-exit-code", "Failed · exit 2")
+ok &= expect("live-closing-text", "Live turn done.")
+snapshot("live-transcript")
+
+# ── Flow B: open /resume, accept the highlighted session ───────────────────
 os.write(fd, b"/resume")
 pump(0.4)
 os.write(fd, b"\r")           # submit the slash command -> picker mounts
