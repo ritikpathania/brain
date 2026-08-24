@@ -35,6 +35,7 @@ import type {
   AuthoritativeSessionDetail,
   ConsolidationResult,
   BrainModelDescriptor,
+  ShellExecResult,
 } from './BrainBackendClient.js';
 
 export class UdsBrainBackendClient implements BrainBackendClient {
@@ -381,7 +382,12 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     }
   }
 
-  private async callRpc<T>(action: string, payload: any = {}): Promise<T> {
+  private async callRpc<T>(
+    action: string,
+    payload: any = {},
+    timeoutMs = 10_000,
+    signal?: AbortSignal,
+  ): Promise<T> {
     if (!fs.existsSync(this.socketPath)) {
       throw new Error(`Brain daemon socket not found at ${this.socketPath}`);
     }
@@ -407,10 +413,22 @@ export class UdsBrainBackendClient implements BrainBackendClient {
         finishError(new Error(`Brain daemon connection closed unexpectedly on ${action}`));
       });
 
-      socket.setTimeout(10000);
+      socket.setTimeout(timeoutMs);
       socket.once('timeout', () => {
-        finishError(new Error(`Brain daemon RPC timeout (10s) on ${action}`));
+        finishError(new Error(`Brain daemon RPC timeout (${timeoutMs}ms) on ${action}`));
       });
+
+      if (signal) {
+        if (signal.aborted) {
+          finishError(new Error(`${action} aborted`));
+          return;
+        }
+        signal.addEventListener(
+          'abort',
+          () => finishError(new Error(`${action} aborted`)),
+          { once: true },
+        );
+      }
 
       try {
         socket.connect(this.socketPath);
@@ -837,6 +855,37 @@ export class UdsBrainBackendClient implements BrainBackendClient {
       call_id: callId,
       granted,
     });
+  }
+
+  /**
+   * Inc 11: executes one user-typed `!` command through the daemon's shared
+   * bash tool stack on its own short-lived connection. The generous timeout
+   * lets the executor's own 30 s policy bound win the race, never the socket.
+   */
+  async execShell(
+    sessionId: string,
+    command: string,
+    signal?: AbortSignal,
+  ): Promise<ShellExecResult> {
+    const raw = await this.callRpc<any>(
+      'v1/shell/exec',
+      { session_id: sessionId, command },
+      35_000,
+      signal,
+    );
+    return {
+      callId: typeof raw?.call_id === 'string' ? raw.call_id : '',
+      name: typeof raw?.name === 'string' ? raw.name : 'bash',
+      input:
+        raw?.input && typeof raw.input === 'object'
+          ? (raw.input as Record<string, unknown>)
+          : {},
+      outcome: 'executed',
+      output: typeof raw?.output === 'string' ? raw.output : '',
+      isError: raw?.is_error === true,
+      exitCode: typeof raw?.exit_code === 'number' ? raw.exit_code : -1,
+      durationMs: typeof raw?.duration_ms === 'number' ? raw.duration_ms : undefined,
+    };
   }
 
   async retrieveContext(req: ContextRetrieveRequest): Promise<ContextRetrieveResponse> {

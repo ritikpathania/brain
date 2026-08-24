@@ -443,6 +443,29 @@ export interface BrainBackendClient extends BrainBackend {
    * degrades gracefully to local-only UX when absent.
    */
   resolveToolPermission?(callId: string, granted: boolean): Promise<void>;
+
+  /**
+   * Inc 11: executes one user-typed `!` command through the daemon's shared
+   * bash tool stack (v1/shell/exec). Optional: legacy fakes may omit it.
+   */
+  execShell?(
+    sessionId: string,
+    command: string,
+    signal?: AbortSignal,
+  ): Promise<ShellExecResult>;
+}
+
+/** Result of one user-initiated `!` shell execution (Inc 11). Field
+ * vocabulary mirrors the daemon's persisted tool_event envelope. */
+export interface ShellExecResult {
+  callId: string;
+  name: string;
+  input: Record<string, unknown>;
+  outcome: 'executed';
+  output: string;
+  isError: boolean;
+  exitCode: number;
+  durationMs?: number;
 }
 
 /**
