@@ -70,7 +70,14 @@ export interface BrainGenerationRequest {
 }
 
 export interface BrainStreamChunk {
-  type: 'token' | 'thinking' | 'redacted_thinking' | 'tool_use' | 'error' | 'finished';
+  type:
+    | 'token'
+    | 'thinking'
+    | 'redacted_thinking'
+    | 'tool_use'
+    | 'error'
+    | 'finished'
+    | 'permission_request';
   token?: string;
   thinking?: string;
   signature?: string;
@@ -80,6 +87,11 @@ export interface BrainStreamChunk {
     name: string;
     input: Record<string, unknown>;
   };
+  /** Present when type === 'permission_request'. */
+  callId?: string;
+  toolName?: string;
+  input?: Record<string, unknown>;
+  reason?: string;
   error?: string;
   generationId?: string;
   sessionId?: string;

@@ -250,6 +250,19 @@ export class UdsBrainBackendClient implements BrainBackendClient {
             status: chunkStatus,
             metadata: raw.metadata,
           });
+        } else if (raw.type === 'tool_permission_requested') {
+          // Tolerant reception: the daemon does not emit these yet; when it
+          // does, the shell surfaces an approval dialog without protocol change.
+          pushChunk({
+            type: 'permission_request',
+            callId: raw.callId ?? raw.call_id,
+            toolName: raw.toolName ?? raw.tool_name,
+            input: (raw.input ?? {}) as Record<string, unknown>,
+            reason: raw.reason,
+            generationId: chunkGenId,
+            sessionId: chunkSessionId,
+            sequence: raw.sequence,
+          });
         } else if (raw.type === 'error') {
           pushChunk({
             type: 'error',

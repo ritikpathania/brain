@@ -24,11 +24,19 @@ import { BrainTurnTransformer } from '../adapter/BrainTurnTransformer.js';
 import type { BrainTurnEvent } from '../adapter/BrainTurnEvents.js';
 import { turnToRows } from '../ui/transcript/toRows.js';
 
+export interface PendingPermissionView {
+  callId: string;
+  toolName: string;
+  input: Record<string, unknown>;
+  reason?: string;
+}
+
 export interface ShellSnapshot {
   rows: TranscriptRow[];
   live: LiveStreamView;
   busy: boolean;
   connectionError?: string;
+  permission?: PendingPermissionView;
 }
 
 const IDLE_LIVE: LiveStreamView = { phase: 'idle', thinkingText: '', responseText: '' };
@@ -62,6 +70,22 @@ export class SessionController {
 
   abort(): void {
     this.aborter?.abort();
+  }
+
+  /** Resolve the parked permission dialog: notice + tool-card status. The
+   * daemon cannot receive resolutions yet, so this stays local UX state. */
+  resolvePermission(callId: string, granted: boolean): void {
+    if (this.pendingPermission?.callId !== callId) return;
+    const toolName = this.pendingPermission.toolName;
+    this.pendingPermission = undefined;
+    if (!granted) {
+      this.rows = this.rows.map((r) =>
+        r.kind === 'tool' && r.tool.callId === callId
+          ? { ...r, tool: { ...r.tool, status: 'denied' as const } }
+          : r,
+      );
+    }
+    this.notice(`${granted ? 'Allowed' : 'Denied'} ${toolName}`);
   }
 
   /** Wipe the frozen transcript (slash command /clear). */
@@ -136,9 +160,24 @@ export class SessionController {
     }
   }
 
+  private pendingPermission: PendingPermissionView | undefined;
+
   private handleChunk(chunk: BrainStreamChunk): void {
     if (chunk.type === 'error' && chunk.error && CONNECTION_RE.test(chunk.error)) {
       this.connectionError = chunk.error;
+    }
+    // Permission requests are handled LIVE here, not routed into turn
+    // events — they park a dialog on the snapshot and resolve locally
+    // (the wire has no resolution frame yet).
+    if (chunk.type === 'permission_request' && typeof chunk.callId === 'string') {
+      this.pendingPermission = {
+        callId: chunk.callId,
+        toolName: chunk.toolName ?? 'tool',
+        input: chunk.input ?? {},
+        reason: chunk.reason,
+      };
+      this.emit();
+      return;
     }
     const event = chunkToTurnEvent(chunk);
     if (event === null) return;
@@ -230,6 +269,7 @@ export class SessionController {
       live: this.live,
       busy: this.busy,
       connectionError: this.connectionError,
+      permission: this.pendingPermission,
     };
     for (const fn of this.listeners) fn();
   }
