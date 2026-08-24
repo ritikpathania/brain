@@ -188,6 +188,8 @@ export interface ToolCardData {
   /** Terminal output carried from a delivered tool_result (Inc 5). */
   output?: string;
   isError?: boolean;
+  /** Persisted process exit code (Inc 9), surfaced on failed cards. */
+  exitCode?: number;
 }
 
 export type TranscriptRow =

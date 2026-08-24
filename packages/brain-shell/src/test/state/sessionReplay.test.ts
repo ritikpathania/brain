@@ -39,3 +39,127 @@ describe('sessionToRows', () => {
     expect(rows[0]).toEqual({ kind: 'assistant', id: 'hist:1', markdown: 'answer' });
   });
 });
+
+describe('sessionToRows: persisted tool events (Inc 9)', () => {
+  const envelope = (over: Record<string, unknown>) =>
+    JSON.stringify({ type: 'tool_event', v: 1, ...over });
+
+  test('executed successful event becomes a completed frozen tool card', () => {
+    const rows = sessionToRows(
+      session([
+        {
+          id: 'm1',
+          role: 'tool',
+          content: envelope({
+            call_id: 'c1',
+            name: 'bash',
+            input: { command: 'echo hi' },
+            outcome: 'executed',
+            is_error: false,
+            exit_code: 0,
+            output: 'hi\n',
+            duration_ms: 12,
+          }),
+        },
+      ]),
+    );
+    expect(rows).toEqual([
+      {
+        kind: 'tool',
+        id: 'm1',
+        tool: {
+          callId: 'c1',
+          toolName: 'bash',
+          input: { command: 'echo hi' },
+          status: 'completed',
+          output: 'hi\n',
+          isError: false,
+          durationMs: 12,
+          exitCode: 0,
+        },
+      },
+    ]);
+  });
+
+  test('executed failing event keeps error details for the failed card', () => {
+    const rows = sessionToRows(
+      session([
+        {
+          id: 'm2',
+          role: 'tool',
+          content: envelope({
+            call_id: 'c2',
+            name: 'bash',
+            input: { command: 'false' },
+            outcome: 'executed',
+            is_error: true,
+            exit_code: 2,
+            output: 'boom',
+            duration_ms: 5,
+          }),
+        },
+      ]),
+    );
+    expect(rows).toEqual([
+      {
+        kind: 'tool',
+        id: 'm2',
+        tool: {
+          callId: 'c2',
+          toolName: 'bash',
+          input: { command: 'false' },
+          status: 'failed',
+          output: 'boom',
+          isError: true,
+          durationMs: 5,
+          exitCode: 2,
+        },
+      },
+    ]);
+  });
+
+  test('denied event becomes a denied card without execution fields', () => {
+    const rows = sessionToRows(
+      session([
+        {
+          id: 'm3',
+          role: 'tool',
+          content: envelope({
+            call_id: 'c3',
+            name: 'bash',
+            input: { command: 'rm -rf /' },
+            outcome: 'denied',
+          }),
+        },
+      ]),
+    );
+    expect(rows).toEqual([
+      {
+        kind: 'tool',
+        id: 'm3',
+        tool: {
+          callId: 'c3',
+          toolName: 'bash',
+          input: { command: 'rm -rf /' },
+          status: 'denied',
+        },
+      },
+    ]);
+  });
+
+  test('non-envelope tool content falls back to a system row with raw text', () => {
+    const raw = JSON.stringify({ foo: 1 });
+    const rows = sessionToRows(
+      session([
+        { id: 'm4', role: 'tool', content: 'not json at all' },
+        { id: 'm5', role: 'tool', content: raw },
+        { id: 'm6', role: 'tool', content: JSON.stringify({ type: 'other', v: 1 }) },
+      ]),
+    );
+    expect(rows).toEqual([
+      { kind: 'system', id: 'm4', text: 'not json at all' },
+      { kind: 'system', id: 'm5', text: raw },
+      { kind: 'system', id: 'm6', text: JSON.stringify({ type: 'other', v: 1 }) },
+    ]);
+  });
+});
