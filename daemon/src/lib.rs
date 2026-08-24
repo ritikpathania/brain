@@ -2,6 +2,7 @@ pub mod config;
 pub mod host;
 pub mod server;
 pub mod telemetry;
+pub mod tools;
 pub mod transport;
 
 use std::sync::atomic::AtomicU64;

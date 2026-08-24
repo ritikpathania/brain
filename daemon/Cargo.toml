@@ -27,12 +27,15 @@ brain-core = { path = "../crates/brain-core" }
 brain-config = { path = "../crates/brain-config" }
 brain-services = { path = "../crates/brain-services" }
 brain-application = { path = "../crates/brain-application" }
+brain-tools = { path = "../crates/brain-tools" }
+futures = "0.3"
 reqwest = { workspace = true }
 
 [dev-dependencies]
 proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 jsonschema = "0.17"
+rusqlite.workspace = true
 
 
 
