@@ -130,6 +130,57 @@ export class SessionController {
     }
   }
 
+  /** Inc 11: `!` bash passthrough — a standalone turn that never reaches a
+   * provider. Rendered through the same reducer/projection path as live
+   * agentic cards, so local and replayed rows agree by construction. */
+  async runShellCommand(command: string): Promise<void> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return;
+    }
+    const trimmed = command.trim();
+    if (trimmed.length === 0) return;
+    this.busy = true;
+    this.connectionError = undefined;
+    const turnId = `turn_${++this.turnSeq}`;
+    this.rows = [...this.rows, { kind: 'user', id: `user:${turnId}`, text: `! ${trimmed}` }];
+    this.aborter = new AbortController();
+    this.emit();
+    try {
+      if (this.sessionId === undefined) {
+        this.sessionId = (await this.client.createSession()).sessionId;
+      }
+      const result = await this.client.execShell?.(this.sessionId, trimmed, this.aborter.signal);
+      if (!result) {
+        this.notice('This backend cannot execute shell commands.');
+        return;
+      }
+      const callId = result.callId || `shell_${turnId}`;
+      const vm = BrainTurnTransformer.transform([
+        { type: 'tool_call_requested', callId, toolName: 'bash', input: result.input },
+        {
+          type: 'tool_result',
+          callId,
+          output: result.output,
+          isError: result.isError,
+          exitCode: result.exitCode,
+          durationMs: result.durationMs,
+        },
+      ]);
+      const projected = turnToRows(vm).filter(
+        (r) => !(r.kind === 'assistant' && r.markdown.trim().length === 0),
+      );
+      this.rows = [...this.rows, ...projected];
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.notice(/abort/i.test(msg) ? 'Shell command cancelled.' : `Could not run command: ${msg}`);
+    } finally {
+      this.busy = false;
+      this.aborter = null;
+      this.emit();
+    }
+  }
+
   async submit(text: string): Promise<void> {
     if (this.busy) return;
     this.busy = true;
