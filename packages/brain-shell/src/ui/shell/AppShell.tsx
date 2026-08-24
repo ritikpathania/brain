@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Box, Text, useTerminalSize } from '../../compat/index.js';
-import { BrainMark } from './BrainMark.js';
+import { WelcomeFrame } from './WelcomeFrame.js';
 import { Spinner, spinnerLabel } from './Spinner.js';
 import { MessageRow } from '../transcript/MessageRow.js';
 import { PromptInput } from '../composer/PromptInput.js';
@@ -73,7 +73,7 @@ export function AppShell(): React.ReactElement {
 
   return (
     <Box flexDirection="column" width={columns}>
-      <BrainMark />
+      {snapshot.rows.length === 0 && !snapshot.busy ? <WelcomeFrame /> : null}
       {snapshot.rows.map((row) => (
         <MessageRow key={row.id} row={row} expanded={expandTools} />
       ))}
