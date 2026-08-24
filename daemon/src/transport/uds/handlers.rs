@@ -1990,6 +1990,10 @@ pub async fn handle_connection(
                                             writer.flush().await?;
                                         }
                                         brain_core::model::GenerationChunk::ToolUse { id, name, input } => {
+                                            let call_id = id.clone();
+                                            let tool_name = name.clone();
+
+                                            // Forward the tool call itself first.
                                             let packet = serde_json::json!({
                                                 "type": "tool_use",
                                                 "generation_id": generation_id,
@@ -2006,6 +2010,67 @@ pub async fn handle_connection(
                                             j.push('\n');
                                             writer.write_all(j.as_bytes()).await?;
                                             writer.flush().await?;
+
+                                            // Permission gate: publish the request, then park
+                                            // the stream until v1/tool/resolve delivers a verdict
+                                            // (on ANY connection) or the timeout denies by default.
+                                            seq += 1;
+                                            let perm_packet = serde_json::json!({
+                                                "type": "tool_permission_requested",
+                                                "generation_id": generation_id,
+                                                "session_id": session_id_str,
+                                                "sequence": seq,
+                                                "call_id": call_id,
+                                                "tool_name": tool_name,
+                                                "input": packet["toolUse"]["input"],
+                                                "reason": "tool execution requires approval",
+                                                "status": "in_progress"
+                                            });
+                                            let mut pj = serde_json::to_string(&perm_packet)?;
+                                            pj.push('\n');
+                                            writer.write_all(pj.as_bytes()).await?;
+                                            writer.flush().await?;
+
+                                            let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+                                            get_permission_waiters()
+                                                .write()
+                                                .await
+                                                .insert(call_id.clone(), tx);
+                                            let timeout_secs = std::env::var(
+                                                "BRAIN_TOOL_PERMISSION_TIMEOUT_SECS",
+                                            )
+                                            .ok()
+                                            .and_then(|v| v.parse::<u64>().ok())
+                                            .unwrap_or(300);
+                                            let granted = tokio::time::timeout(
+                                                std::time::Duration::from_secs(timeout_secs),
+                                                rx,
+                                            )
+                                            .await
+                                            .ok()
+                                            .and_then(|r| r.ok())
+                                            .unwrap_or(false);
+                                            get_permission_waiters()
+                                                .write()
+                                                .await
+                                                .remove(&call_id);
+
+                                            if !granted {
+                                                seq += 1;
+                                                let denied_packet = serde_json::json!({
+                                                    "type": "tool_denied",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "call_id": call_id,
+                                                    "tool_name": tool_name,
+                                                    "status": "in_progress"
+                                                });
+                                                let mut dj = serde_json::to_string(&denied_packet)?;
+                                                dj.push('\n');
+                                                writer.write_all(dj.as_bytes()).await?;
+                                                writer.flush().await?;
+                                            }
                                         }
                                         brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {
                                             is_completed_successfully = true;
