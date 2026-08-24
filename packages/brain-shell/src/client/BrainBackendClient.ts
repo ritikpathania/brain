@@ -77,7 +77,8 @@ export interface BrainStreamChunk {
     | 'tool_use'
     | 'error'
     | 'finished'
-    | 'permission_request';
+    | 'permission_request'
+    | 'tool_result';
   token?: string;
   thinking?: string;
   signature?: string;
@@ -92,6 +93,10 @@ export interface BrainStreamChunk {
   toolName?: string;
   input?: Record<string, unknown>;
   reason?: string;
+  /** Present when type === 'tool_result'. */
+  output?: string;
+  isError?: boolean;
+  exitCode?: number;
   error?: string;
   generationId?: string;
   sessionId?: string;

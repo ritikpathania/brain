@@ -263,6 +263,20 @@ export class UdsBrainBackendClient implements BrainBackendClient {
             sessionId: chunkSessionId,
             sequence: raw.sequence,
           });
+        } else if (raw.type === 'tool_result') {
+          // Inc 5: daemon-side execution reports one result frame per
+          // approved call; tolerant snake_case reception, same as above.
+          pushChunk({
+            type: 'tool_result',
+            callId: raw.callId ?? raw.call_id,
+            toolName: raw.toolName ?? raw.tool_name,
+            output: typeof raw.output === 'string' ? raw.output : '',
+            isError: Boolean(raw.is_error),
+            exitCode: typeof raw.exit_code === 'number' ? raw.exit_code : undefined,
+            generationId: chunkGenId,
+            sessionId: chunkSessionId,
+            sequence: raw.sequence,
+          });
         } else if (raw.type === 'error') {
           pushChunk({
             type: 'error',
