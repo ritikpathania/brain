@@ -1,0 +1,434 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯ say hello from stub 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+∗ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+✻ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+∗ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+✳ bash…
+Done.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+✢ bash…
+Done.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+
+✳ bash…
+Done.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+
+❯ now delete it 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✢ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✓ Done
+     hello-from-stub
+Done.
+
+❯ now delete it
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✗ Permission denied
+     hello-from-stub
+Done.
+
+❯ now delete it
+ℹ Denied bash
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+ℹ Allowed bash
+⏺ bash(echo hello-from-stub)
+  ⎿ ✗ Permission denied
+     hello-from-stub
+Done.
+
+❯ now delete it
+ℹ Denied bash
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit

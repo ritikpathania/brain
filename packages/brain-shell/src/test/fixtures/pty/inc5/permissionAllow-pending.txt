@@ -1,0 +1,69 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯ say hello from stub 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ say hello from stub
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo hello-from-stub                               │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
