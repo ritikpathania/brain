@@ -112,10 +112,18 @@ After grant:
 - `BrainBackendClient.ts`: extend `BrainStreamChunk` union with the
   `tool_result` variant.
 - `chunkToTurnEvents.ts`: map to the EXISTING `tool_result` turn event
-  (`{ type:'tool_result', callId, output }`) — card rendering already handles
-  settled results, so no renderer changes.
+  (`{ type:'tool_result', callId, output, isError }`).
+- **Card output display** (correction discovered during planning: today no
+  component renders tool output — the card shows only a status glyph):
+  - `contracts/messages.ts`: `ToolCardData` gains `output?: string;
+    isError?: boolean`.
+  - `toRows.ts`: `toolCard()` copies `output`/`isError` from the view model.
+  - `MessageRow.tsx` `ToolRowView`: when output is non-empty, collapsed view
+    shows the first line truncated to 120 chars in `tokens.subtle`; expanded
+    (ctrl+o) shows the full output after the input JSON.
 - Controller: no changes; end-of-turn settlement keeps covering streams whose
-  tools never produce results.
+  tools never produce results (a delivered `tool_result` event marks the call
+  settled, so settlement stays duplicate-free).
 
 ## 5. Error handling
 
@@ -137,9 +145,10 @@ The turn always proceeds to completion after the frame.
   consecutive sequences); deny flow asserts NO `tool_result`;
   `[brain-tool:nosuchtool]` sentinel → `is_error:true`; `exit 3` →
   `exit_code:3` + `is_error:true`. Existing suites must stay green.
-- **Shell** unit tests: frame→chunk parsing (snake→camel), event mapping, and
-  a controller test proving a delivered `tool_result` renders before
-  settlement (no duplicate settlement).
+- **Shell** unit tests: frame→chunk parsing (snake→camel), event mapping,
+  card projection carrying output, `ToolRowView` rendering (collapsed preview
+  truncated at 120 chars; expanded full output), and a controller test proving
+  a delivered `tool_result` marks the call settled (no duplicate settlement).
 - **PTY smoke** `scripts/ptySmokeInc5.py`: allow flow shows the command's
   real output text in the transcript; deny flow unchanged from Inc 4.
 - Full gates unchanged (bun suite vs baselines, cargo suites, BUILD_OK via
