@@ -2216,7 +2216,7 @@ pub async fn handle_connection(
                                                 rj.push('\n');
                                                 writer.write_all(rj.as_bytes()).await?;
                                                 writer.flush().await?;
-                                                session_aggregate.add_message(
+                                                let _ = session_aggregate.add_message(
                                                     brain_domain::Message::new(
                                                         brain_domain::MessageId::new(),
                                                         brain_domain::MessageRole::Tool,
@@ -2266,7 +2266,7 @@ pub async fn handle_connection(
                                                     "input": packet["toolUse"]["input"].clone(),
                                                     "outcome": "denied",
                                                 });
-                                                session_aggregate.add_message(
+                                                let _ = session_aggregate.add_message(
                                                     brain_domain::Message::new(
                                                         brain_domain::MessageId::new(),
                                                         brain_domain::MessageRole::Tool,
