@@ -1698,21 +1698,43 @@ pub async fn handle_connection(
                 }
             };
 
-            // Invariant 4: Validate session existence in storage
+            // Invariant 4: Validate session existence in storage. Sessions are
+            // created explicitly (the workspace/session RFC lifecycle creates
+            // the aggregate first, then streams turns into it), so a stream
+            // naming a nonexistent id is rejected with session_not_found — it
+            // must never fabricate an aggregate for a caller-supplied id.
+            // Only implicit streams (no sessionId in the request) mint one.
             let storage = app.runtime().sqlite_storage();
             use brain_core::repositories::SessionRepository;
-            let mut session_aggregate = match storage.load_session(&parsed_session_id) {
-                Ok(Some(s)) => s,
-                _ => {
-                    let now_secs = (chrono::Utc::now().timestamp_millis() / 1000) as u64;
-                    let new_sess = brain_domain::Session::new(
-                        parsed_session_id,
-                        brain_domain::SessionTitle("Interactive Session".to_string()),
-                        brain_domain::SessionTimestamp(now_secs),
-                    );
-                    let _ = storage.save_session(&parsed_session_id, &new_sess);
-                    new_sess
+            let mut session_aggregate = if is_explicit_session {
+                match storage.load_session(&parsed_session_id) {
+                    Ok(Some(s)) => s,
+                    _ => {
+                        let err_frame = serde_json::json!({
+                            "type": "error",
+                            "generation_id": generation_id,
+                            "session_id": session_id_str,
+                            "error": format!("Session '{}' not found", session_id_str),
+                            "code": "session_not_found",
+                            "sequence": 0,
+                            "status": "failed"
+                        });
+                        let mut json = serde_json::to_string(&err_frame)?;
+                        json.push('\n');
+                        writer.write_all(json.as_bytes()).await?;
+                        writer.flush().await?;
+                        continue;
+                    }
                 }
+            } else {
+                let now_secs = (chrono::Utc::now().timestamp_millis() / 1000) as u64;
+                let new_sess = brain_domain::Session::new(
+                    parsed_session_id,
+                    brain_domain::SessionTitle("Interactive Session".to_string()),
+                    brain_domain::SessionTimestamp(now_secs),
+                );
+                let _ = storage.save_session(&parsed_session_id, &new_sess);
+                new_sess
             };
 
             // Invariant 8: Concurrency Check (At most one generation per session)
