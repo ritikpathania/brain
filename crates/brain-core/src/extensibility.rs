@@ -310,6 +310,11 @@ pub struct ToolMetadata {
     pub is_idempotent: bool,
     /// Indicates whether calling this tool alters external state.
     pub causes_side_effects: bool,
+    /// Optional JSON Schema describing the tool's input object. Advertised
+    /// to providers verbatim as `ToolDefinition.parameters`; `None`
+    /// advertises a permissive `{"type":"object"}`.
+    #[serde(default)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 /// Trait defining a single executable system tool.

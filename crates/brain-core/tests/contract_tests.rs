@@ -53,6 +53,7 @@ fn test_trait_object_compilation() {
         supports_streaming: false,
         is_idempotent: true,
         causes_side_effects: false,
+        input_schema: None,
     };
 
     let tool: std::sync::Arc<dyn Tool> = std::sync::Arc::new(MockTool { metadata });
@@ -61,6 +62,28 @@ fn test_trait_object_compilation() {
         tool.metadata().required_permissions[0],
         Permission::FilesystemRead
     );
+}
+
+#[test]
+fn metadata_without_input_schema_deserializes_to_none() {
+    // Old persisted metadata (pre-Inc 7 JSON) must keep loading; the field
+    // is serde-defaulted so advertisement degrades to the loose schema.
+    let meta: ToolMetadata = serde_json::from_str(
+        r#"{
+            "name": "legacy",
+            "description": "d",
+            "usage": "u",
+            "version": "0",
+            "author": "a",
+            "required_permissions": [],
+            "execution_policy": { "timeout_ms": 100 },
+            "supports_streaming": false,
+            "is_idempotent": true,
+            "causes_side_effects": false
+        }"#,
+    )
+    .expect("legacy metadata parses");
+    assert!(meta.input_schema.is_none());
 }
 
 #[test]

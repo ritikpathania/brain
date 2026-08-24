@@ -30,6 +30,7 @@ impl MockTool {
                 supports_streaming: false,
                 is_idempotent: true,
                 causes_side_effects: false,
+                input_schema: None,
             },
             delay_ms,
         }

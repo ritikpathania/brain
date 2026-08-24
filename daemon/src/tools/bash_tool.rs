@@ -91,6 +91,7 @@ impl BashTool {
             supports_streaming: false,
             is_idempotent: false,
             causes_side_effects: true,
+            input_schema: None,
         })
     }
 }
