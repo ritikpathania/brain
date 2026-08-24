@@ -2256,6 +2256,32 @@ pub async fn handle_connection(
                                                     output: DENIED_FEEDBACK_TEXT.to_string(),
                                                     is_error: true,
                                                 });
+                                                // Inc 8: refusals are part of the
+                                                // honest transcript too.
+                                                let envelope = serde_json::json!({
+                                                    "type": "tool_event",
+                                                    "v": 1,
+                                                    "call_id": call_id.clone(),
+                                                    "name": tool_name.clone(),
+                                                    "input": packet["toolUse"]["input"].clone(),
+                                                    "outcome": "denied",
+                                                });
+                                                session_aggregate.add_message(
+                                                    brain_domain::Message::new(
+                                                        brain_domain::MessageId::new(),
+                                                        brain_domain::MessageRole::Tool,
+                                                        envelope.to_string(),
+                                                    ),
+                                                );
+                                                if let Err(e) = storage.save_session(
+                                                    &parsed_session_id,
+                                                    &session_aggregate,
+                                                ) {
+                                                    tracing::warn!(
+                                                        error = %e,
+                                                        "tool event persistence failed; continuing"
+                                                    );
+                                                }
                                             }
                                         }
                                         brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {

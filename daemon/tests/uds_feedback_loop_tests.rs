@@ -413,3 +413,33 @@ async fn executed_tool_outcome_is_persisted_as_session_tool_message() {
     assert_eq!(env["output"], "feedback-round-one\n");
     assert!(env["duration_ms"].is_u64());
 }
+
+#[tokio::test]
+async fn denied_tool_outcome_is_persisted_as_session_tool_message() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", DENY_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "refuse and persist").await;
+    run_turn_resolving(&mut reader, &proc.socket_path, false).await;
+
+    let messages = load_session_messages(&proc.socket_path, &session_id).await;
+
+    assert_eq!(messages.first().unwrap()["role"], "user");
+    assert_eq!(messages.last().unwrap()["role"], "assistant");
+
+    let tools: Vec<&serde_json::Value> =
+        messages.iter().filter(|m| m["role"] == "tool").collect();
+    assert_eq!(tools.len(), 1, "messages: {messages:?}");
+    let env: serde_json::Value =
+        serde_json::from_str(tools[0]["content"].as_str().unwrap()).unwrap();
+    assert_eq!(env["type"], "tool_event");
+    assert_eq!(env["v"], 1);
+    assert_eq!(env["name"], "bash");
+    assert_eq!(env["input"]["command"], "echo feedback-round-one");
+    assert_eq!(env["outcome"], "denied");
+    // Nothing ran: no execution fields exist on denied envelopes.
+    assert!(env.get("is_error").is_none());
+    assert!(env.get("exit_code").is_none());
+    assert!(env.get("output").is_none());
+    assert!(env.get("duration_ms").is_none());
+}
