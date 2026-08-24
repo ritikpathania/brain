@@ -54,6 +54,8 @@ pub struct DeterministicMockProvider {
     default_response: Arc<Mutex<Option<ScriptedResponse>>>,
     /// Monotonic source for `[brain-tool:]` sentinel call IDs.
     sentinel_counter: Arc<std::sync::atomic::AtomicUsize>,
+    /// Observe-only log of the most recent request's advertised tool names.
+    last_request_tools: Arc<Mutex<Vec<String>>>,
 }
 
 impl Default for DeterministicMockProvider {
@@ -125,6 +127,7 @@ impl DeterministicMockProvider {
             ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            last_request_tools: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -137,6 +140,7 @@ impl DeterministicMockProvider {
             ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            last_request_tools: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -148,6 +152,11 @@ impl DeterministicMockProvider {
     /// Sets a persistent fallback response when the scripted queue is empty.
     pub fn set_default_response(&self, response: ScriptedResponse) {
         *self.default_response.lock() = Some(response);
+    }
+
+    /// Names advertised by the most recent `stream_generation` request.
+    pub fn last_request_tools(&self) -> Vec<String> {
+        self.last_request_tools.lock().clone()
     }
 }
 
@@ -212,6 +221,11 @@ impl ModelProvider for DeterministicMockProvider {
                 message: "Generation was cancelled before starting".to_string(),
             });
         }
+
+        // Inc 7 observe-only recorder: snapshot advertised tool names before
+        // anything can move out of `request`. Scripting behavior is unchanged.
+        *self.last_request_tools.lock() =
+            request.tools.iter().map(|t| t.name.clone()).collect();
 
         let last_user_prompt = request
             .messages
@@ -443,5 +457,66 @@ mod scripted_env_tests {
     #[test]
     fn absent_spec_yields_empty_queue() {
         assert!(scripted_queue_from_env_spec(None).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod recorded_tools_tests {
+    use super::*;
+    use brain_core::model::{ChatRole, ModelChatMessage, ToolDefinition};
+    use futures::StreamExt;
+
+    #[tokio::test]
+    async fn stream_generation_records_advertised_tool_names() {
+        let provider = DeterministicMockProvider::new();
+        let request = GenerationRequest {
+            model: "brain-default".to_string(),
+            messages: vec![ModelChatMessage::text(ChatRole::User, "hi")],
+            system_prompt: None,
+            tools: vec![
+                ToolDefinition {
+                    name: "bash".to_string(),
+                    description: "shell".to_string(),
+                    parameters: serde_json::json!({"type": "object"}),
+                },
+                ToolDefinition {
+                    name: "search".to_string(),
+                    description: "find".to_string(),
+                    parameters: serde_json::json!({"type": "object"}),
+                },
+            ],
+            thinking_budget: None,
+        };
+        let mut stream = provider
+            .stream_generation(request, CancellationToken::new())
+            .await
+            .unwrap();
+        while let Some(chunk) = stream.next().await {
+            let _ = chunk.unwrap();
+        }
+        assert_eq!(
+            provider.last_request_tools(),
+            vec!["bash".to_string(), "search".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn no_tools_recorded_as_empty() {
+        let provider = DeterministicMockProvider::new();
+        let request = GenerationRequest {
+            model: "brain-default".to_string(),
+            messages: vec![ModelChatMessage::text(ChatRole::User, "hi")],
+            system_prompt: None,
+            tools: Vec::new(),
+            thinking_budget: None,
+        };
+        let _ = provider
+            .stream_generation(request, CancellationToken::new())
+            .await
+            .unwrap()
+            .map(|_| ())
+            .collect::<Vec<_>>()
+            .await;
+        assert!(provider.last_request_tools().is_empty());
     }
 }
