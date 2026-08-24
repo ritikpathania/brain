@@ -1,0 +1,162 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯ list the build folder 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — ls build                                           │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+
+✻ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+
+✻ bash…
+Approved.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+
+∗ bash…
+Approved.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+
+✳ bash…
+Approved.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+
+❯ now delete it 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+❯ now delete it
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+❯ now delete it
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+❯ now delete it
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ list the build folder
+ℹ Allowed bash
+⏺ bash(ls build)
+  ⎿ ✓ Done
+Approved.
+
+❯ now delete it
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — ls build                                           │
+│ shell access                                              [38;2;21
