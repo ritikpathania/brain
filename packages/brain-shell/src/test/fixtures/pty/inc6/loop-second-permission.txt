@@ -1,0 +1,324 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯ run the stub loop 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-one-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-one-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+
+✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-one-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+∗ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✢ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✢ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ run the stub loop
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — echo round-two-stub                                │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
