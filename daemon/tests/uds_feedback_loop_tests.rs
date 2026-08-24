@@ -259,3 +259,94 @@ async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
     assert_eq!(end["metadata"]["outputTokens"], 34);
     assert_eq!(types.last(), Some(&"finished"));
 }
+
+/// Collects frames until the terminal event WITHOUT resolving permissions
+/// (turns that request nothing never park).
+async fn run_turn(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+) -> Vec<serde_json::Value> {
+    let mut frames = Vec::new();
+    loop {
+        let f = tokio::time::timeout(Duration::from_secs(10), read_line_frame(reader))
+            .await
+            .expect("frame timeout");
+        let ftype = f["type"].as_str().unwrap_or("").to_string();
+        frames.push(f);
+        if ftype == "finished" || ftype == "error" {
+            return frames;
+        }
+    }
+}
+
+const DENY_SCRIPT: &str = TWO_ROUND_SCRIPT;
+
+const THREE_ROUND_SCRIPT: &str = r#"[{"tool_calls":[["call_cap_1","bash",{"command":"echo cap-one"}]],"finish_reason":"tool_use"},{"tokens":["ROUND-TWO-MARKER"],"tool_calls":[["call_cap_2","bash",{"command":"echo cap-two"}]],"finish_reason":"tool_use"},{"tokens":["ROUND-THREE-MARKER"],"finish_reason":"end_turn"}]"#;
+
+const SINGLE_PASS_SCRIPT: &str =
+    r#"[{"tokens":["Plain single pass."],"finish_reason":"end_turn"}]"#;
+
+#[tokio::test]
+async fn denied_call_feeds_back_and_loop_continues() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", DENY_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "refuse the scripted call").await;
+
+    let frames = run_turn_resolving(&mut reader, &proc.socket_path, false).await;
+    let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
+
+    assert!(types.contains(&"tool_denied"), "types: {types:?}");
+    assert!(!types.contains(&"tool_result"), "denied turns never execute");
+    // THE contract: the model still produced round-2 text after the denial.
+    let end = frames.iter().find(|f| f["type"] == "stream_end").unwrap();
+    assert!(end["response"]
+        .as_str()
+        .unwrap()
+        .contains("Round two wraps up."));
+    assert_eq!(end["finish_reason"], "end_turn");
+    assert_eq!(end["metadata"]["inputTokens"], 30);
+}
+
+#[tokio::test]
+async fn round_cap_stops_the_loop_gracefully() {
+    let proc = start_test_daemon(&[
+        ("BRAIN_MOCK_SCRIPTED_RESPONSES", THREE_ROUND_SCRIPT),
+        ("BRAIN_TOOL_MAX_ROUNDS", "1"),
+    ])
+    .await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "cap me").await;
+
+    let frames = run_turn_resolving(&mut reader, &proc.socket_path, true).await;
+    let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
+
+    assert_eq!(types.iter().filter(|t| **t == "tool_result").count(), 1);
+    let end = frames.iter().find(|f| f["type"] == "stream_end").unwrap();
+    assert_eq!(end["finish_reason"], "max_tool_rounds");
+    assert!(!end["response"].as_str().unwrap().contains("ROUND-TWO-MARKER"));
+    assert_eq!(end["metadata"]["inputTokens"], 15); // exactly one pass ran
+}
+
+#[tokio::test]
+async fn plain_single_pass_wire_shape_is_unchanged() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", SINGLE_PASS_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "just talk").await;
+
+    let frames = run_turn(&mut reader).await;
+    let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
+
+    assert_eq!(types.first(), Some(&"stream_start"));
+    assert_eq!(types.last(), Some(&"finished"));
+    assert!(!types.contains(&"tool_use"));
+    assert!(!types.contains(&"tool_result"));
+    for (i, f) in frames.iter().enumerate() {
+        assert_eq!(f["sequence"].as_u64().unwrap(), i as u64);
+    }
+    let end = frames.iter().find(|f| f["type"] == "stream_end").unwrap();
+    assert_eq!(end["response"], "Plain single pass.");
+    assert_eq!(end["finish_reason"], "end_turn");
+    assert_eq!(end["metadata"]["inputTokens"], 15);
+}
