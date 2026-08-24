@@ -105,9 +105,20 @@ export function ToolRowView(props: {
             {JSON.stringify(t.input, null, 2)
               .split('\n')
               .join('\n     ')}
+            {typeof t.output === 'string' && t.output.length > 0
+              ? `\n     ── output ──\n     ${t.output.split('\n').join('\n     ')}`
+              : ''}
           </Text>
         ) : (
-          <Text color={tokens.subtle}>{` ${meta.label}`}</Text>
+          <>
+            <Text color={tokens.subtle}>{` ${meta.label}`}</Text>
+            {typeof t.output === 'string' && t.output.length > 0 ? (
+              <Text color={tokens.subtle}>
+                {'\n     '}
+                {t.output.trimStart().split('\n')[0]!.slice(0, 120)}
+              </Text>
+            ) : null}
+          </>
         )}
       </Text>
     </Box>

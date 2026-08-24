@@ -26,6 +26,15 @@ export function chunkToTurnEvent(chunk: BrainStreamChunk): BrainTurnEvent | null
             input: chunk.toolUse.input ?? {},
           }
         : null;
+    case 'tool_result':
+      return typeof chunk.callId === 'string'
+        ? {
+            type: 'tool_result',
+            callId: chunk.callId,
+            output: typeof chunk.output === 'string' ? chunk.output : '',
+            isError: chunk.isError === true ? true : undefined,
+          }
+        : null;
     case 'error':
       return { type: 'turn_error', error: chunk.error ?? 'Unknown daemon error' };
     case 'finished':

@@ -114,4 +114,29 @@ describe('SessionController permission requests', () => {
     await new Promise((r) => setTimeout(r, 10)); // flush the rejected promise
     expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
   });
+
+  test('delivered tool_result settles the card exactly once with its output', async () => {
+    const ctl = new SessionController(
+      scriptFake([
+        {
+          type: 'tool_use',
+          toolUse: { id: 'call_r', name: 'bash', input: { command: 'echo hi' } },
+        },
+        {
+          type: 'tool_result',
+          callId: 'call_r',
+          toolName: 'bash',
+          output: 'hi\n',
+          isError: false,
+        },
+        { type: 'finished', status: 'completed' },
+      ]),
+    );
+    await ctl.submit('go');
+    // Rows are data objects: the output lands on the card once; render-time
+    // decoration is MessageRowView's concern (covered in toolRowOutput tests).
+    const serialized = JSON.stringify(ctl.getSnapshot().rows);
+    expect(serialized).toContain('"output":"hi\\n"');
+    expect(serialized.match(/"output"/g)?.length).toBe(1);
+  });
 });

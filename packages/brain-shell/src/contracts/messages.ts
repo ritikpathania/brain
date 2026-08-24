@@ -185,6 +185,9 @@ export interface ToolCardData {
   input: Record<string, unknown>;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'denied' | 'cancelled';
   durationMs?: number;
+  /** Terminal output carried from a delivered tool_result (Inc 5). */
+  output?: string;
+  isError?: boolean;
 }
 
 export type TranscriptRow =

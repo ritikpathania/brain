@@ -8,6 +8,8 @@ function toolCard(t: ToolExecutionView): ToolCardData {
     input: t.input ?? {},
     status: t.status === 'permission_required' ? 'pending' : t.status,
     durationMs: t.durationMs,
+    output: t.output,
+    isError: t.isError,
   };
 }
 
