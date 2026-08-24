@@ -96,3 +96,47 @@ describe('summarizeToolInput', () => {
     expect(summarizeToolInput({})).toBe('');
   });
 });
+
+describe('failed card exit code (Inc 9)', () => {
+  const toolRow = (tool: Extract<TranscriptRow, { kind: 'tool' }>['tool']): TranscriptRow => ({
+    kind: 'tool',
+    id: 'x1',
+    tool,
+  });
+
+  it('failed card surfaces the persisted exit code', () => {
+    const out = textOf(
+      ToolRowView({
+        row: toolRow({
+          callId: 'x1',
+          toolName: 'bash',
+          input: { command: 'false' },
+          status: 'failed',
+          exitCode: 2,
+        }),
+        expanded: false,
+        tokens: TOKENS,
+      }),
+    );
+    expect(out).toContain('Failed');
+    expect(out).toContain('exit 2');
+  });
+
+  it('completed and denied cards stay free of exit codes', () => {
+    for (const status of ['completed', 'denied'] as const) {
+      const out = textOf(
+        ToolRowView({
+          row: toolRow({
+            callId: 'x1',
+            toolName: 'bash',
+            input: { command: 'true' },
+            status,
+          }),
+          expanded: false,
+          tokens: TOKENS,
+        }),
+      );
+      expect(out).not.toContain('exit');
+    }
+  });
+});

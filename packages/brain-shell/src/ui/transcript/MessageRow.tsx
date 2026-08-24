@@ -55,6 +55,7 @@ export function summarizeToolInput(input: Record<string, unknown>): string {
 function statusMeta(
   status: ToolCardData['status'],
   durationMs: number | undefined,
+  exitCode: number | undefined,
 ): { glyph: string; label: string } {
   switch (status) {
     case 'pending':
@@ -66,7 +67,10 @@ function statusMeta(
         label: durationMs !== undefined ? `Done in ${(durationMs / 1000).toFixed(1)}s` : 'Done',
       };
     case 'failed':
-      return { glyph: '✗', label: 'Failed' };
+      return {
+        glyph: '✗',
+        label: exitCode !== undefined ? `Failed · exit ${exitCode}` : 'Failed',
+      };
     case 'denied':
       return { glyph: '✗', label: 'Permission denied' };
     case 'cancelled':
@@ -81,7 +85,7 @@ export function ToolRowView(props: {
 }): React.ReactElement {
   const { row, expanded, tokens } = props;
   const t = row.tool;
-  const meta = statusMeta(t.status, t.durationMs);
+  const meta = statusMeta(t.status, t.durationMs, t.exitCode);
   const summary = summarizeToolInput(t.input);
   const statusColor =
     t.status === 'completed'
