@@ -812,6 +812,18 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     };
   }
 
+  /**
+   * Resolves a pending tool-permission request on its own short-lived UDS
+   * connection — the stream occupies the stream connection's read loop, so
+   * verdicts intentionally ride a separate connection.
+   */
+  async resolveToolPermission(callId: string, granted: boolean): Promise<void> {
+    await this.callRpc<void>('v1/tool/resolve', {
+      call_id: callId,
+      granted,
+    });
+  }
+
   async retrieveContext(req: ContextRetrieveRequest): Promise<ContextRetrieveResponse> {
     const res = await this.callRpc<ContextRetrieveResponse>('v1/context/retrieve', {
       session_id: req.session_id,

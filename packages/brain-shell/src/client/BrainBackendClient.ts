@@ -429,6 +429,13 @@ export interface BrainBackendClient extends BrainBackend {
   renameSession(sessionId: string, newTitle: string): Promise<void>;
   pinSession(sessionId: string, pinned: boolean): Promise<void>;
   listSessions(): Promise<BrainSessionSummary[]>;
+
+  /**
+   * Best-effort wire resolution of a pending tool-permission request
+   * (v1/tool/resolve). Optional: legacy fakes may omit it; the controller
+   * degrades gracefully to local-only UX when absent.
+   */
+  resolveToolPermission?(callId: string, granted: boolean): Promise<void>;
 }
 
 /**
@@ -444,6 +451,13 @@ export class MockBrainBackendClient implements BrainBackendClient {
       | ((request: BrainGenerationRequest) => AsyncIterable<BrainStreamChunk> | BrainStreamChunk[]),
     private emitError?: string
   ) {}
+
+  /** Recorded v1/tool/resolve invocations, for controller-level assertions. */
+  readonly permissionResolutions: Array<{ callId: string; granted: boolean }> = [];
+
+  async resolveToolPermission(callId: string, granted: boolean): Promise<void> {
+    this.permissionResolutions.push({ callId, granted });
+  }
 
   async *streamText(request: BrainGenerationRequest): AsyncIterable<BrainStreamChunk> {
     if (this.emitError) {
