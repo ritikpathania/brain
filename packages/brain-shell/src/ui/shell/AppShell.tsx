@@ -20,6 +20,8 @@ import {
   type ResumeVM,
 } from '../overlays/resumePickerLogic.js';
 import { ResumePickerView } from '../overlays/ResumePicker.js';
+import { dialogDecision } from '../overlays/permissionDialogLogic.js';
+import { PermissionDialogView } from '../overlays/PermissionDialog.js';
 import { writeThemeSetting } from '../../state/themeStore.js';
 import type { ThemeSetting } from '../../contracts/theme.js';
 
@@ -46,6 +48,11 @@ export function AppShell(): React.ReactElement {
   const [resumeOpen, setResumeOpen] = React.useState(false);
   const [resumeItems, setResumeItems] = React.useState<ResumeVM[]>([]);
   const [resumeSelected, setResumeSelected] = React.useState(0);
+  const permission = snapshot.permission;
+  const [permSelected, setPermSelected] = React.useState(0);
+  React.useEffect(() => {
+    setPermSelected(0);
+  }, [permission?.callId]);
 
   useBoundInput({
     contexts: ['global'],
@@ -94,6 +101,23 @@ export function AppShell(): React.ReactElement {
         if (chosen) void controller.resumeSession(chosen.id);
       } else if (d.type === 'cancel') {
         setResumeOpen(false);
+      }
+    },
+  });
+
+  // Permission dialog: dismissal never grants — esc and n both deny.
+  useBoundInput({
+    contexts: ['dialog'],
+    isActive: permission !== undefined,
+    onAction: (action) => {
+      if (!permission) return;
+      const d = dialogDecision(action, permSelected);
+      if (d.type === 'move') {
+        setPermSelected(d.index);
+      } else if (d.type === 'allow') {
+        controller.resolvePermission(permission.callId, true);
+      } else if (d.type === 'deny') {
+        controller.resolvePermission(permission.callId, false);
       }
     },
   });
@@ -190,11 +214,16 @@ export function AppShell(): React.ReactElement {
           <ResumePickerView items={resumeItems} selectedIndex={resumeSelected} tokens={tokens} />
         </Box>
       ) : null}
+      {permission ? (
+        <Box marginTop={1}>
+          <PermissionDialogView req={permission} selected={permSelected} tokens={tokens} />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          paused={themeOpen || resumeOpen}
+          paused={themeOpen || resumeOpen || permission !== undefined}
           onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />
