@@ -2077,6 +2077,92 @@ pub async fn handle_connection(
                                                 .await
                                                 .remove(&call_id);
 
+                                            if granted {
+                                                // Inc 5: the wire verdict is the
+                                                // executor-side authority; execute and
+                                                // report one tool_result frame. Aliased
+                                                // import: brain_application's
+                                                // ExecutionContext is already in scope.
+                                                use brain_core::extensibility::{
+                                                    ExecutionContext as ToolExecutionContext,
+                                                    ToolRegistry,
+                                                };
+                                                let stack = crate::tools::tool_stack();
+                                                stack
+                                                    .permissions
+                                                    .grant(brain_core::extensibility::Permission::Shell);
+                                                let mut args_map: HashMap<String, serde_json::Value> =
+                                                    HashMap::new();
+                                                if let Some(obj) =
+                                                    packet["toolUse"]["input"].as_object()
+                                                {
+                                                    for (k, v) in obj {
+                                                        args_map.insert(k.clone(), v.clone());
+                                                    }
+                                                }
+                                                let tool_ctx = ToolExecutionContext {
+                                                    session_id: parsed_session_id,
+                                                    working_dir: std::env::current_dir()
+                                                        .unwrap_or_else(|_| {
+                                                            std::path::PathBuf::from(".")
+                                                        }),
+                                                    cancellation: Arc::new(
+                                                        brain_tools::CancellationTokenImpl::default(),
+                                                    ),
+                                                    deadline: None,
+                                                };
+                                                seq += 1;
+                                                let execution =
+                                                    match stack.registry.get_tool(&tool_name) {
+                                                        Some(tool) => stack
+                                                            .executor
+                                                            .execute(
+                                                                tool,
+                                                                &tool_ctx,
+                                                                &stack.permissions,
+                                                                &args_map,
+                                                            )
+                                                            .await,
+                                                        None => Err(
+                                                            brain_core::errors::BrainError::Internal {
+                                                                message: format!(
+                                                                    "Unknown tool '{tool_name}'"
+                                                                ),
+                                                            },
+                                                        ),
+                                                    };
+                                                let (out_text, is_err, exit_code) = match execution {
+                                                    Ok(result) => {
+                                                        let v = result.value().clone();
+                                                        (
+                                                            v["output"]
+                                                                .as_str()
+                                                                .unwrap_or("")
+                                                                .to_string(),
+                                                            v["is_error"].as_bool().unwrap_or(true),
+                                                            v["exit_code"].as_i64().unwrap_or(-1),
+                                                        )
+                                                    }
+                                                    Err(e) => (format!("{e}"), true, -1),
+                                                };
+                                                let result_packet = serde_json::json!({
+                                                    "type": "tool_result",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "call_id": call_id,
+                                                    "tool_name": tool_name,
+                                                    "output": out_text,
+                                                    "is_error": is_err,
+                                                    "exit_code": exit_code,
+                                                    "status": "in_progress"
+                                                });
+                                                let mut rj = serde_json::to_string(&result_packet)?;
+                                                rj.push('\n');
+                                                writer.write_all(rj.as_bytes()).await?;
+                                                writer.flush().await?;
+                                            }
+
                                             if !granted {
                                                 seq += 1;
                                                 let denied_packet = serde_json::json!({
