@@ -22,6 +22,7 @@ export interface CommandMatch {
 export const COMMANDS: readonly BrainCommand[] = [
   { name: 'help', description: 'List available slash commands' },
   { name: 'clear', description: 'Clear the transcript' },
+  { name: 'resume', description: 'Resume a previous session' },
   { name: 'theme', description: 'Change the color theme' },
   { name: 'quit', description: 'Exit Brain shell', aliases: ['q'] },
 ];

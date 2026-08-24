@@ -14,6 +14,12 @@ import { COMMANDS } from '../../commands/matcher.js';
 import { useTheme } from '../../compat/index.js';
 import { overlayListDecision } from '../overlays/overlayLogic.js';
 import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
+import {
+  resumeChoices,
+  resumeListDecision,
+  type ResumeVM,
+} from '../overlays/resumePickerLogic.js';
+import { ResumePickerView } from '../overlays/ResumePicker.js';
 import { writeThemeSetting } from '../../state/themeStore.js';
 import type { ThemeSetting } from '../../contracts/theme.js';
 
@@ -37,6 +43,9 @@ export function AppShell(): React.ReactElement {
   const [themeOpen, setThemeOpen] = React.useState(false);
   const [themeSelected, setThemeSelected] = React.useState(0);
   const [themeOriginal, setThemeOriginal] = React.useState<ThemeSetting>('auto');
+  const [resumeOpen, setResumeOpen] = React.useState(false);
+  const [resumeItems, setResumeItems] = React.useState<ResumeVM[]>([]);
+  const [resumeSelected, setResumeSelected] = React.useState(0);
 
   useBoundInput({
     contexts: ['global'],
@@ -70,6 +79,25 @@ export function AppShell(): React.ReactElement {
     },
   });
 
+  // Resume picker overlay: same list grammar as /theme, but committing
+  // hands the chosen session to the controller for adoption + replay.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: resumeOpen,
+    onAction: (action) => {
+      const d = resumeListDecision(action, resumeSelected, resumeItems.length);
+      if (d.type === 'move') {
+        setResumeSelected(d.index);
+      } else if (d.type === 'commit') {
+        setResumeOpen(false);
+        const chosen = resumeItems[d.index];
+        if (chosen) void controller.resumeSession(chosen.id);
+      } else if (d.type === 'cancel') {
+        setResumeOpen(false);
+      }
+    },
+  });
+
   const helpText = (): string =>
     ['Slash commands:', ...COMMANDS.map((c) => `/${c.name} — ${c.description}`)].join('\n');
 
@@ -97,6 +125,21 @@ export function AppShell(): React.ReactElement {
       setThemeOriginal(themeSetting);
       setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
       setThemeOpen(true);
+    } else if (chosen.name === 'resume') {
+      if (snapshot.busy) {
+        controller.notice('Busy — wait for the current turn to finish.');
+        return;
+      }
+      void controller.listSessions().then((all) => {
+        const items = resumeChoices(all, Date.now());
+        if (items.length === 0) {
+          controller.notice('No previous sessions found.');
+          return;
+        }
+        setResumeItems(items);
+        setResumeSelected(0);
+        setResumeOpen(true);
+      });
     } else if (chosen.name === 'quit') process.exit(0);
   };
 
@@ -142,11 +185,16 @@ export function AppShell(): React.ReactElement {
           />
         </Box>
       ) : null}
+      {resumeOpen ? (
+        <Box marginTop={1}>
+          <ResumePickerView items={resumeItems} selectedIndex={resumeSelected} tokens={tokens} />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          paused={themeOpen}
+          paused={themeOpen || resumeOpen}
           onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />

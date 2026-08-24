@@ -6,8 +6,10 @@
 import type {
   BrainBackendClient,
   BrainGenerationRequest,
+  BrainSessionSummary,
   BrainStreamChunk,
 } from '../client/BrainBackendClient.js';
+import { sessionToRows } from './sessionReplay.js';
 import { normalizeMessagesForBrain } from '../adapter/brainCallModel.js';
 import { createUserMessage } from '../contracts/messages.js';
 import type { TranscriptRow } from '../contracts/messages.js';
@@ -74,6 +76,31 @@ export class SessionController {
   notice(text: string): void {
     this.rows = [...this.rows, { kind: 'system', id: `sys:${++this.sysSeq}`, text }];
     this.emit();
+  }
+
+  /** Prior sessions for the /resume picker. */
+  async listSessions(): Promise<BrainSessionSummary[]> {
+    return this.client.listSessions();
+  }
+
+  /** Adopt a stored session and replay its messages as frozen rows. */
+  async resumeSession(sessionId: string): Promise<void> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return;
+    }
+    try {
+      const { session } = await this.client.loadSession(sessionId);
+      this.sessionId = session.id;
+      const replayed = sessionToRows(session);
+      this.rows = [
+        ...replayed,
+        { kind: 'system', id: `sys:${++this.sysSeq}`, text: `Resumed “${session.title}”` },
+      ];
+      this.emit();
+    } catch (e) {
+      this.notice(`Could not resume session: ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   async submit(text: string): Promise<void> {
