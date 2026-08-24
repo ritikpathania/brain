@@ -97,6 +97,8 @@ export interface BrainStreamChunk {
   output?: string;
   isError?: boolean;
   exitCode?: number;
+  /** Daemon-measured execution duration (Inc 10), present on executed results. */
+  durationMs?: number;
   error?: string;
   generationId?: string;
   sessionId?: string;

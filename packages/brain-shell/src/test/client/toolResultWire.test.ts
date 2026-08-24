@@ -70,6 +70,7 @@ const server = net.createServer((socket) => {
             output: 'hi\n',
             is_error: false,
             exit_code: 0,
+            duration_ms: 137,
             status: 'in_progress',
           });
           emit({ type: 'token', session_id: sid, sequence: 4, token: 'ok', status: 'in_progress' });
@@ -113,13 +114,14 @@ describe('UDS client parses tool_result frames', () => {
     await client.resolveToolPermission('call_tr', true);
     const chunks = await chunksPromise;
     const tr = chunks.find((c) => c.type === 'tool_result') as
-      | { callId?: string; output?: string; isError?: boolean; exitCode?: number; sequence?: number }
+      | { callId?: string; output?: string; isError?: boolean; exitCode?: number; durationMs?: number; sequence?: number }
       | undefined;
     expect(tr).toBeDefined();
     expect(tr!.callId).toBe('call_tr');
     expect(tr!.output).toBe('hi\n');
     expect(tr!.isError).toBe(false);
     expect(tr!.exitCode).toBe(0);
+    expect(tr!.durationMs).toBe(137); // Inc 10: daemon-measured clock reaches chunks
     expect(tr!.sequence).toBe(3);
   });
 

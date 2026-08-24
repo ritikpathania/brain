@@ -33,6 +33,10 @@ export function chunkToTurnEvent(chunk: BrainStreamChunk): BrainTurnEvent | null
             callId: chunk.callId,
             output: typeof chunk.output === 'string' ? chunk.output : '',
             isError: chunk.isError === true ? true : undefined,
+            // Inc 10: daemon-measured execution facts ride along so live
+            // cards match their persisted replay exactly.
+            exitCode: typeof chunk.exitCode === 'number' ? chunk.exitCode : undefined,
+            durationMs: typeof chunk.durationMs === 'number' ? chunk.durationMs : undefined,
           }
         : null;
     case 'error':

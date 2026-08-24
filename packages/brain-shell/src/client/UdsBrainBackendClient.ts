@@ -273,6 +273,7 @@ export class UdsBrainBackendClient implements BrainBackendClient {
             output: typeof raw.output === 'string' ? raw.output : '',
             isError: Boolean(raw.is_error),
             exitCode: typeof raw.exit_code === 'number' ? raw.exit_code : undefined,
+            durationMs: typeof raw.duration_ms === 'number' ? raw.duration_ms : undefined,
             generationId: chunkGenId,
             sessionId: chunkSessionId,
             sequence: raw.sequence,

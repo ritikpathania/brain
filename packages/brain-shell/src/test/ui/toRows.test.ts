@@ -41,4 +41,38 @@ describe('turnToRows', () => {
     const rows = turnToRows(vm({ memories: [{ nodeId: 'n1', label: 'L', score: 1, source: 's' }] }));
     expect(rows).toEqual([]);
   });
+
+  it('forwards durationMs and exitCode onto frozen tool cards (Inc 10)', () => {
+    const rows = turnToRows(
+      vm({
+        tools: [
+          {
+            callId: 'call_x',
+            toolName: 'bash',
+            input: { command: 'false' },
+            status: 'failed',
+            output: 'boom',
+            isError: true,
+            durationMs: 137,
+            exitCode: 2,
+          },
+        ],
+      }),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual({
+      kind: 'tool',
+      id: 'turn_1:tool:0',
+      tool: {
+        callId: 'call_x',
+        toolName: 'bash',
+        input: { command: 'false' },
+        status: 'failed',
+        output: 'boom',
+        isError: true,
+        durationMs: 137,
+        exitCode: 2,
+      },
+    });
+  });
 });
