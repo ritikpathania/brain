@@ -716,6 +716,255 @@ pub async fn handle_connection(
             continue;
         }
 
+        // ── Inc 11: user-initiated shell passthrough (`!`) ──────────────
+        // One command per short-lived connection. Validate → grant →
+        // persist the user line → execute through THE SAME ToolStack as
+        // agentic calls → respond once → persist the executed envelope.
+        // Nothing here reaches a provider, and BashTool remains the only
+        // code path that spawns /bin/bash.
+        if action == "shell/exec" || action == "v1/shell/exec" {
+            let exec_req: serde_json::Value = if payload.trim().is_empty() {
+                serde_json::Value::Null
+            } else {
+                serde_json::from_str(payload).unwrap_or(serde_json::Value::Null)
+            };
+            let command = exec_req["command"].as_str().unwrap_or("").trim().to_string();
+            let sid_str = exec_req["session_id"]
+                .as_str()
+                .or_else(|| exec_req["sessionId"].as_str())
+                .unwrap_or("")
+                .to_string();
+            if sid_str.is_empty() {
+                let response = if is_versioned {
+                    serde_json::json!({
+                        "version": "1.0", "type": "Error", "id": req_id_val,
+                        "status": "error", "body": "missing sessionId"
+                    })
+                } else {
+                    serde_json::json!({ "status": "error", "message": "missing sessionId" })
+                };
+                let mut rj = serde_json::to_string(&response)?;
+                rj.push('\n');
+                let mut w = writer.lock().await;
+                w.write_all(rj.as_bytes()).await?;
+                w.flush().await?;
+                continue;
+            }
+            let parsed_session_id = parse_session_id_flexible(&sid_str);
+
+            let storage = app.runtime().sqlite_storage();
+            use brain_core::repositories::SessionRepository;
+            let mut session_aggregate = match storage.load_session(&parsed_session_id) {
+                Ok(Some(s)) => s,
+                _ => {
+                    let msg = format!("Session '{}' not found", sid_str);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0", "type": "Error", "id": req_id_val,
+                            "status": "error", "body": msg
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "message": msg })
+                    };
+                    let mut rj = serde_json::to_string(&response)?;
+                    rj.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(rj.as_bytes()).await?;
+                    w.flush().await?;
+                    continue;
+                }
+            };
+
+            if command.is_empty() {
+                let response = if is_versioned {
+                    serde_json::json!({
+                        "version": "1.0", "type": "Error", "id": req_id_val,
+                        "status": "error", "body": "command must be a non-empty string"
+                    })
+                } else {
+                    serde_json::json!({ "status": "error", "message": "command must be a non-empty string" })
+                };
+                let mut rj = serde_json::to_string(&response)?;
+                rj.push('\n');
+                let mut w = writer.lock().await;
+                w.write_all(rj.as_bytes()).await?;
+                w.flush().await?;
+                continue;
+            }
+
+            // Backstop mirroring the stream arm's Invariant 8: the two arms
+            // must never interleave save_session writes to one aggregate.
+            {
+                let registry = get_generation_registry();
+                let reg = registry.read().await;
+                if reg.values().any(|active| active.session_id == parsed_session_id) {
+                    let msg = format!(
+                        "Session '{}' is busy with an active generation",
+                        sid_str
+                    );
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0", "type": "Error", "id": req_id_val,
+                            "status": "error", "body": msg
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "message": msg })
+                    };
+                    let mut rj = serde_json::to_string(&response)?;
+                    rj.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(rj.as_bytes()).await?;
+                    w.flush().await?;
+                    continue;
+                }
+            }
+
+            // Keystroke-as-grant (spec §2): the user typed and submitted this
+            // command, which IS the consent act. This grant replaces the
+            // dialog, not the gate — execution still flows through
+            // ToolExecutor::validate_tool_permissions. Verified inert for the
+            // agentic round-trip: this file has NO is_granted precheck, so
+            // agentic calls always prompt regardless of grant-set state.
+            crate::tools::tool_stack()
+                .permissions
+                .grant(brain_core::extensibility::Permission::Shell);
+
+            // Persist the attempted command upon acceptance (stream-arm
+            // Invariant 4 twin): a crash mid-exec still leaves it recorded.
+            let _ = session_aggregate.add_message(brain_domain::Message::new(
+                brain_domain::MessageId::new(),
+                brain_domain::MessageRole::User,
+                format!("! {}", command),
+            ));
+            let _ = storage.save_session(&parsed_session_id, &session_aggregate);
+
+            use brain_core::extensibility::{
+                ExecutionContext as ToolExecutionContext,
+                ToolRegistry,
+            };
+            let stack = crate::tools::tool_stack();
+            let mut args_map: HashMap<String, serde_json::Value> = HashMap::new();
+            args_map.insert("command".to_string(), serde_json::json!(command));
+            let tool_ctx = ToolExecutionContext {
+                session_id: parsed_session_id.clone(),
+                working_dir: std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                cancellation: Arc::new(brain_tools::CancellationTokenImpl::default()),
+                deadline: None,
+            };
+            let tool_exec_started = std::time::Instant::now();
+
+            match stack.registry.get_tool("bash") {
+                Some(tool) => {
+                    match stack
+                        .executor
+                        .execute(tool, &tool_ctx, &stack.permissions, &args_map)
+                        .await
+                    {
+                        Ok(result) => {
+                            let v = result.value();
+                            let out_text = v["output"].as_str().unwrap_or("").to_string();
+                            let is_err = v["is_error"].as_bool().unwrap_or(true);
+                            let exit_code = v["exit_code"].as_i64().unwrap_or(-1);
+                            let duration_ms =
+                                tool_exec_started.elapsed().as_millis() as u64;
+                            let call_id =
+                                format!("shell-{}", uuid::Uuid::new_v4().simple());
+                            let resp_body = serde_json::json!({
+                                "call_id": call_id,
+                                "name": "bash",
+                                "input": { "command": command },
+                                "outcome": "executed",
+                                "output": out_text,
+                                "is_error": is_err,
+                                "exit_code": exit_code,
+                                "duration_ms": duration_ms,
+                            });
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0", "type": "Response",
+                                    "id": req_id_val, "status": "success",
+                                    "body": resp_body
+                                })
+                            } else {
+                                serde_json::json!({ "status": "ok", "body": resp_body })
+                            };
+                            let mut rj = serde_json::to_string(&response)?;
+                            rj.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(rj.as_bytes()).await?;
+                            w.flush().await?;
+                            drop(w);
+
+                            // Persist the standard executed-case envelope
+                            // (byte-identical schema to the agentic site).
+                            let envelope = serde_json::json!({
+                                "type": "tool_event",
+                                "v": 1,
+                                "call_id": call_id,
+                                "name": "bash",
+                                "input": { "command": command },
+                                "outcome": "executed",
+                                "is_error": is_err,
+                                "exit_code": exit_code,
+                                "output": truncate_tool_output(&out_text),
+                                "duration_ms": duration_ms,
+                            });
+                            let _ = session_aggregate.add_message(
+                                brain_domain::Message::new(
+                                    brain_domain::MessageId::new(),
+                                    brain_domain::MessageRole::Tool,
+                                    envelope.to_string(),
+                                ),
+                            );
+                            if let Err(e) = storage.save_session(
+                                &parsed_session_id,
+                                &session_aggregate,
+                            ) {
+                                tracing::warn!(
+                                    error = %e,
+                                    "tool event persistence failed; continuing"
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            let msg = format!("shell exec failed: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0", "type": "Error",
+                                    "id": req_id_val, "status": "error",
+                                    "body": msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "message": msg })
+                            };
+                            let mut rj = serde_json::to_string(&response)?;
+                            rj.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(rj.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                None => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0", "type": "Error", "id": req_id_val,
+                            "status": "error", "body": "bash tool is not registered"
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "message": "bash tool is not registered" })
+                    };
+                    let mut rj = serde_json::to_string(&response)?;
+                    rj.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(rj.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "model/resolve" || action == "v1/model/resolve" {
             let resolve_req: Result<crate::server::protocol::ResolveModelPayload, _> =
                 if payload.trim().is_empty() || payload.trim() == "{}" {

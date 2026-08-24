@@ -460,3 +460,118 @@ async fn denied_tool_outcome_is_persisted_as_session_tool_message() {
     assert!(env.get("output").is_none());
     assert!(env.get("duration_ms").is_none());
 }
+
+/// Inc 11: sends one `v1/shell/exec` request on its own short-lived
+/// connection and returns the single reply frame.
+async fn exec_shell_command(
+    socket_path: &std::path::Path,
+    session_id: &str,
+    command: &str,
+) -> serde_json::Value {
+    let conn = UnixStream::connect(socket_path).await.unwrap();
+    let (reader, mut writer) = conn.into_split();
+    let mut buf = BufReader::new(reader);
+    send_frame(
+        &mut writer,
+        &serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": "req-exec",
+            "action": "v1/shell/exec",
+            "payload": { "session_id": session_id, "command": command }
+        }),
+    )
+    .await;
+    read_line_frame(&mut buf).await
+}
+
+#[tokio::test]
+async fn shell_exec_runs_command_and_persists_standalone_turn() {
+    let proc = start_test_daemon(&[]).await;
+    let (_r, _w, session_id) = open_and_create_session(&proc.socket_path).await;
+
+    let reply = exec_shell_command(&proc.socket_path, &session_id, "echo bang-inc11").await;
+
+    assert_eq!(reply["status"], "success");
+    let body = &reply["body"];
+    assert_eq!(body["name"], "bash");
+    assert_eq!(body["input"]["command"], "echo bang-inc11");
+    assert_eq!(body["outcome"], "executed");
+    assert_eq!(body["output"], "bang-inc11\n");
+    assert_eq!(body["is_error"], false);
+    assert_eq!(body["exit_code"], 0);
+    assert!(body["duration_ms"].is_u64());
+
+    // Standalone turn persisted: user line (verbatim, with `!`) + envelope.
+    let messages = load_session_messages(&proc.socket_path, &session_id).await;
+    assert_eq!(messages.len(), 2, "messages: {messages:?}");
+    assert_eq!(messages[0]["role"], "user");
+    assert_eq!(messages[0]["content"], "! echo bang-inc11");
+    assert_eq!(messages[1]["role"], "tool");
+    let env: serde_json::Value =
+        serde_json::from_str(messages[1]["content"].as_str().unwrap()).unwrap();
+    assert_eq!(env["type"], "tool_event");
+    assert_eq!(env["v"], 1);
+    assert_eq!(env["name"], "bash");
+    assert_eq!(env["input"]["command"], "echo bang-inc11");
+    assert_eq!(env["outcome"], "executed");
+    assert_eq!(env["exit_code"], 0);
+    assert_eq!(env["output"], "bang-inc11\n");
+    assert!(env["duration_ms"].is_u64());
+}
+
+#[tokio::test]
+async fn shell_exec_nonzero_exit_is_success_with_error_fields() {
+    let proc = start_test_daemon(&[]).await;
+    let (_r, _w, session_id) = open_and_create_session(&proc.socket_path).await;
+
+    // Real BashTool runs `/bin/bash -c false` -> exit 1.
+    let reply = exec_shell_command(&proc.socket_path, &session_id, "false").await;
+
+    assert_eq!(reply["status"], "success");
+    assert_eq!(reply["body"]["exit_code"], 1);
+    assert_eq!(reply["body"]["is_error"], true);
+
+    let messages = load_session_messages(&proc.socket_path, &session_id).await;
+    let env: serde_json::Value =
+        serde_json::from_str(messages[1]["content"].as_str().unwrap()).unwrap();
+    assert_eq!(env["outcome"], "executed");
+    assert_eq!(env["exit_code"], 1);
+    assert_eq!(env["is_error"], true);
+}
+
+#[tokio::test]
+async fn shell_exec_rejects_empty_command_without_touching_the_transcript() {
+    let proc = start_test_daemon(&[]).await;
+    let (_r, _w, session_id) = open_and_create_session(&proc.socket_path).await;
+
+    let reply = exec_shell_command(&proc.socket_path, &session_id, "   ").await;
+
+    assert_eq!(reply["status"], "error");
+    let messages = load_session_messages(&proc.socket_path, &session_id).await;
+    assert_eq!(messages.len(), 0, "nothing persisted: {messages:?}");
+}
+
+#[tokio::test]
+async fn shell_exec_rejects_unknown_session() {
+    let proc = start_test_daemon(&[]).await;
+    let reply = exec_shell_command(&proc.socket_path, "no-such-session", "echo hi").await;
+    assert_eq!(reply["status"], "error");
+}
+
+#[tokio::test]
+async fn shell_exec_rejects_while_a_generation_is_active() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", TWO_ROUND_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "occupying").await;
+    // The generation registers in the active-generation map BEFORE its first
+    // wire frame, so one received frame proves the entry exists.
+    let _first =
+        tokio::time::timeout(Duration::from_secs(15), read_line_frame(&mut reader))
+            .await
+            .expect("first stream frame");
+    let reply = exec_shell_command(&proc.socket_path, &session_id, "echo nope").await;
+    assert_eq!(reply["status"], "error");
+    // Let the generation finish cleanly so process drop isn't mid-write.
+    run_turn_resolving(&mut reader, &proc.socket_path, true).await;
+}
