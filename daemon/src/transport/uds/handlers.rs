@@ -2925,6 +2925,23 @@ fn feedback_messages(
     vec![assistant, user]
 }
 
+/// Inc 8: persisted tool-event outputs are bounded so sessions stay small;
+/// wire frames keep full text. Mirrors BashTool's marker idiom.
+const TOOL_EVENT_OUTPUT_LIMIT_BYTES: usize = 4096;
+
+fn truncate_tool_output(output: &str) -> String {
+    if output.len() <= TOOL_EVENT_OUTPUT_LIMIT_BYTES {
+        return output.to_string();
+    }
+    let mut cut = TOOL_EVENT_OUTPUT_LIMIT_BYTES;
+    while cut > 0 && !output.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let mut out = output[..cut].to_string();
+    out.push_str("\n…[truncated]");
+    out
+}
+
 #[cfg(test)]
 mod generation_loop_tests {
     use super::*;
@@ -3046,5 +3063,42 @@ mod generation_loop_tests {
                 is_error: true,
             }
         );
+    }
+}
+
+#[cfg(test)]
+mod tool_event_tests {
+    use super::*;
+
+    #[test]
+    fn under_and_at_limit_pass_through_unchanged() {
+        let small = "short output".to_string();
+        assert_eq!(truncate_tool_output(&small), small);
+        let exact = "a".repeat(TOOL_EVENT_OUTPUT_LIMIT_BYTES);
+        assert_eq!(truncate_tool_output(&exact), exact);
+        assert!(!truncate_tool_output(&exact).contains("[truncated]"));
+    }
+
+    #[test]
+    fn over_limit_ascii_is_cut_with_marker() {
+        let big = "b".repeat(TOOL_EVENT_OUTPUT_LIMIT_BYTES + 100);
+        let cut = truncate_tool_output(&big);
+        assert!(cut.ends_with("\n…[truncated]"));
+        // Body holds at most the limit bytes; the marker is appended after.
+        assert!(cut.len() < TOOL_EVENT_OUTPUT_LIMIT_BYTES + "\n…[truncated]".len() + 8);
+    }
+
+    #[test]
+    fn multibyte_output_cuts_on_char_boundary_without_panicking() {
+        // 'é' is 2 bytes; 3000 copies = 6000 bytes > 4096, odd cut candidates land mid-char.
+        let big = "é".repeat(3000);
+        let cut = truncate_tool_output(&big);
+        assert!(cut.ends_with("\n…[truncated]"));
+        assert!(cut.is_char_boundary(cut.len() - "\n…[truncated]".len()));
+    }
+
+    #[test]
+    fn empty_output_stays_empty() {
+        assert_eq!(truncate_tool_output(""), "");
     }
 }
