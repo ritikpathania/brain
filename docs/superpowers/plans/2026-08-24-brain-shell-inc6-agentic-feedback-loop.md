@@ -518,7 +518,8 @@ async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
         .iter()
         .filter_map(|f| f["type"].as_str())
         .collect();
-    // Strictly consecutive sequences across BOTH passes.
+    // Strictly consecutive sequences across BOTH passes — every frame,
+    // including the terminal stream_end, owns exactly one slot.
     for (i, f) in frames.iter().enumerate() {
         assert_eq!(
             f["sequence"].as_u64().unwrap_or_else(|| panic!("frame {i} missing sequence")),
@@ -684,10 +685,20 @@ append:
 
 ```rust
                                         brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {
+                                            // Silent on the wire: the loop decides
+                                            // whether this pass continues or emits
+                                            // stream_end (spec §4.4). Restore the
+                                            // sequence slot the shared chunk-entry
+                                            // increment consumed — a burned slot here
+                                            // would open a wire gap and abort the
+                                            // shell's stream guard.
+                                            seq -= 1;
                                             round_completed = Some((finish_reason, usage));
                                             break;
                                         }
 ```
+
+Without the `seq -= 1` restoration, every absorbed mid-loop `Completed` burns a sequence number and the resulting gap trips the shell's Protocol-violation guard. The counterpart rule lives in step (K): the TERMINAL stream_end takes a fresh `seq += 1` — historically the Completed consumption WAS stream_end's slot (the legacy `uds_generation_tests` strict-monotonic assertion pins this), so restoration mid-loop plus fresh-slot-at-termination preserves exact legacy numbering.
 
 **(I) Error-in-stream arm** — in `Some(Err(err)) => { … break; }` change `break;` to `break 'rounds;` (keep the error-frame write).
 
@@ -733,6 +744,10 @@ Immediately after that closing brace of `match stream_result`, insert:
 
                 if let Some(reason) = terminate_reason {
                     is_completed_successfully = true;
+                    // Terminal stream_end owns a fresh sequence slot (the
+                    // legacy strict-monotonic contract); mid-loop Completions
+                    // restored theirs above.
+                    seq += 1;
                     let total_duration_ms = gen_start_time.elapsed().as_millis() as u64;
                     let end_packet = serde_json::json!({
                         "type": "stream_end",

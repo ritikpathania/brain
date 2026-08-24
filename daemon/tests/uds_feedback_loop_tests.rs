@@ -1,0 +1,261 @@
+//! Increment 6: the agentic feedback loop — tool results feed back into the
+//! same turn.
+use std::fs;
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::time::Duration;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::UnixStream;
+
+struct DaemonProcess {
+    child: Child,
+    test_dir: PathBuf,
+    socket_path: PathBuf,
+}
+
+impl Drop for DaemonProcess {
+    fn drop(&mut self) {
+        let dir = self.test_dir.clone();
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let _ = fs::remove_dir_all(dir);
+    }
+}
+
+fn get_temp_dir() -> PathBuf {
+    let uuid_str = uuid::Uuid::new_v4().to_string();
+    let path = PathBuf::from(format!("/tmp/bd-feedback-{}", &uuid_str[0..8]));
+    let _ = fs::remove_dir_all(&path);
+    fs::create_dir_all(&path).unwrap();
+    path
+}
+
+fn get_free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+async fn start_test_daemon(extra_env: &[(&str, &str)]) -> DaemonProcess {
+    let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
+    let test_dir = get_temp_dir();
+    let socket_path = test_dir.join("brain.sock");
+    let pid_path = test_dir.join("brain.pid");
+    let db_path = test_dir.join("brain.db");
+    let analytics_db_path = test_dir.join("analytics.db");
+
+    let mut cmd = Command::new(bin_path);
+    cmd.arg("daemon")
+        .arg("run")
+        .env("BRAIN_SOCKET_PATH", &socket_path)
+        .env("BRAIN_PID_PATH", &pid_path)
+        .env("BRAIN_DB_PATH", &db_path)
+        .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
+        .env("BRAIN_CONFIG_DIR", &test_dir)
+        .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
+        .env("BRAIN_MOCK_CHUNK_DELAY_MS", "50")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (key, value) in extra_env {
+        cmd.env(key, value);
+    }
+    let child = cmd.spawn().expect("Failed to start daemon process");
+
+    let mut ready = false;
+    for _ in 0..60 {
+        if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
+            ready = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(ready, "Daemon did not bind socket in time");
+
+    DaemonProcess {
+        child,
+        test_dir,
+        socket_path,
+    }
+}
+
+async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T) where T: serde::Serialize {
+    let mut json = serde_json::to_string(frame).unwrap();
+    json.push('\n');
+    writer.write_all(json.as_bytes()).await.unwrap();
+    writer.flush().await.unwrap();
+}
+
+async fn read_line_frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> serde_json::Value {
+    let mut line = String::new();
+    reader.read_line(&mut line).await.unwrap();
+    serde_json::from_str(line.trim()).unwrap()
+}
+
+/// Opens a connection, creates a session, consumes the create reply, and
+/// returns (reader, writer, session_id).
+async fn open_and_create_session(
+    socket_path: &std::path::Path,
+) -> (
+    BufReader<tokio::net::unix::OwnedReadHalf>,
+    tokio::net::unix::OwnedWriteHalf,
+    String,
+) {
+    let stream = UnixStream::connect(socket_path).await.unwrap();
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    send_frame(
+        &mut writer,
+        &serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": 1,
+            "action": "v1/session/create",
+            "body": serde_json::json!({ "title": "feedback loop" }).to_string()
+        }),
+    )
+    .await;
+    let reply = read_line_frame(&mut buf_reader).await;
+    let body: serde_json::Value = if let Some(s) = reply["body"].as_str() {
+        serde_json::from_str(s).unwrap()
+    } else {
+        reply["body"].clone()
+    };
+    let session_id = body["session_id"].as_str().unwrap().to_string();
+    let reader = buf_reader.into_inner();
+    (BufReader::new(reader), writer, session_id)
+}
+
+async fn start_generation_with_prompt(
+    writer: &mut tokio::net::unix::OwnedWriteHalf,
+    session_id: &str,
+    prompt: &str,
+) {
+    send_frame(
+        writer,
+        &serde_json::json!({
+            "id": "req-gen-feedback",
+            "action": "v1/generation/stream",
+            "payload": {
+                "sessionId": session_id,
+                "generationId": uuid::Uuid::new_v4().to_string(),
+                "messages": [
+                    { "role": "user", "content": prompt }
+                ],
+                "model": "brain-default"
+            }
+        }),
+    )
+    .await;
+}
+
+/// Resolves any permission request over a SECOND connection (the stream
+/// connection stays parked), asserting the resolver ack. Both halves of the
+/// second connection are kept alive until the verdict has been read.
+async fn resolve_on_second_connection(
+    socket_path: &std::path::Path,
+    call_id: &str,
+    granted: bool,
+) {
+    let resolver = UnixStream::connect(socket_path).await.unwrap();
+    let (rreader, mut rwriter) = resolver.into_split();
+    let mut rbuf = BufReader::new(rreader);
+    send_frame(
+        &mut rwriter,
+        &serde_json::json!({
+            "id": "req-resolve",
+            "action": "v1/tool/resolve",
+            "payload": { "call_id": call_id, "granted": granted }
+        }),
+    )
+    .await;
+    let reply = read_line_frame(&mut rbuf).await;
+    assert_eq!(reply["status"], "ok", "resolver must ack");
+}
+
+/// Drives one generation to completion, resolving any permission request as
+/// directed. Returns every frame observed on the stream connection.
+async fn run_turn_resolving(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+    socket_path: &std::path::Path,
+    granted: bool,
+) -> Vec<serde_json::Value> {
+    let mut frames = Vec::new();
+    loop {
+        let frame = tokio::time::timeout(Duration::from_secs(15), read_line_frame(reader))
+            .await
+            .expect("frame within 15s");
+        let ftype = frame["type"].as_str().unwrap_or("").to_string();
+        if ftype == "tool_permission_requested" {
+            let call_id = frame["call_id"].as_str().unwrap().to_string();
+            resolve_on_second_connection(socket_path, &call_id, granted).await;
+        }
+        // The sibling permission suite treats `finished` as the terminal
+        // frame; `stream_end` precedes it inside the stream loop.
+        let terminal = ftype == "finished" || ftype == "error";
+        frames.push(frame);
+        if terminal {
+            break;
+        }
+    }
+    frames
+}
+
+/// Round 1 emits text + one bash call (finish "tool_use"); round 2 sees the
+/// fed-back result and finishes cleanly. Byte lengths: "Round one text." ==
+/// 15, "Round two wraps up." == 19; mock hardcodes input_tokens 15 per pass.
+const TWO_ROUND_SCRIPT: &str = r#"[{"tokens":["Round one text."],"tool_calls":[["call_fb_1","bash",{"command":"echo feedback-round-one"}]],"finish_reason":"tool_use"},{"tokens":["Round two wraps up."],"finish_reason":"end_turn"}]"#;
+
+#[tokio::test]
+async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", TWO_ROUND_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "run the scripted loop").await;
+
+    let frames = run_turn_resolving(&mut reader, &proc.socket_path, true).await;
+
+    let types: Vec<&str> = frames
+        .iter()
+        .filter_map(|f| f["type"].as_str())
+        .collect();
+    // Strictly consecutive sequences across BOTH passes — every frame,
+    // including the terminal stream_end, owns exactly one slot.
+    for (i, f) in frames.iter().enumerate() {
+        assert_eq!(
+            f["sequence"].as_u64().unwrap_or_else(|| panic!("frame {i} missing sequence")),
+            i as u64,
+            "frame {i} ({}) broke consecutiveness",
+            types[i]
+        );
+    }
+
+    // Exactly one executed result; nothing denied.
+    assert_eq!(types.iter().filter(|t| **t == "tool_result").count(), 1);
+    assert!(!types.contains(&"tool_denied"));
+
+    // Round-2 text arrives AFTER the tool_result frame (fed-back continuation).
+    let result_idx = types.iter().position(|t| *t == "tool_result").unwrap();
+    let round_two_idx = frames
+        .iter()
+        .position(|f| {
+            f["type"] == "token"
+                && f["token"].as_str().unwrap_or("").contains("Round two wraps up.")
+        })
+        .unwrap();
+    assert!(round_two_idx > result_idx);
+
+    // stream_end carries both passes' text, summed usage, clean finish.
+    let end = frames
+        .iter()
+        .find(|f| f["type"] == "stream_end")
+        .expect("stream_end present");
+    let response = end["response"].as_str().unwrap();
+    assert!(response.contains("Round one text."), "response: {response}");
+    assert!(response.contains("Round two wraps up."), "response: {response}");
+    assert_eq!(end["finish_reason"], "end_turn");
+    assert_eq!(end["metadata"]["inputTokens"], 30);
+    assert_eq!(end["metadata"]["outputTokens"], 34);
+    assert_eq!(types.last(), Some(&"finished"));
+}

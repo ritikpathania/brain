@@ -1805,7 +1805,7 @@ pub async fn handle_connection(
             let model_name = stream_req
                 .model
                 .unwrap_or_else(|| "brain-default".to_string());
-            let model_messages: Vec<brain_core::model::ModelChatMessage> = stream_req
+            let mut model_messages: Vec<brain_core::model::ModelChatMessage> = stream_req
                 .messages
                 .iter()
                 .filter_map(|m| {
@@ -1887,14 +1887,6 @@ pub async fn handle_connection(
                 }
             };
 
-            let gen_request = brain_core::model::GenerationRequest {
-                model: resolved_model_desc.id.clone(),
-                messages: model_messages,
-                system_prompt: combined_system_prompt,
-                tools: Vec::new(),
-                thinking_budget: None,
-            };
-
             let mut seq: u64 = 0;
 
             // Frame 0: stream_start with memory provenance & telemetry metadata
@@ -1932,17 +1924,40 @@ pub async fn handle_connection(
             writer.write_all(start_json.as_bytes()).await?;
             writer.flush().await?;
 
-            // Obtain stream from ModelGateway
-            let mut stream_result = app
-                .model_gateway()
-                .stream_generation(gen_request, cancellation_token.clone())
-                .await;
-
+            let max_rounds =
+                parse_max_rounds(std::env::var("BRAIN_TOOL_MAX_ROUNDS").ok().as_deref());
+            let mut total_usage =
+                brain_core::model::TokenUsage { input_tokens: 0, output_tokens: 0 };
             let mut accumulated_response = String::new();
             let mut is_completed_successfully = false;
             let mut is_cancelled = false;
 
-            match stream_result {
+            // Increment 6: the agentic feedback loop. Each iteration drains
+            // one provider pass; resolved tool calls (executed or denied)
+            // feed back as assistant/user messages before the next pass.
+            'rounds: for round_index in 0..max_rounds {
+                if cancellation_token.is_cancelled() {
+                    is_cancelled = true;
+                    break 'rounds;
+                }
+                let gen_request = brain_core::model::GenerationRequest {
+                    model: resolved_model_desc.id.clone(),
+                    messages: model_messages.clone(),
+                    system_prompt: combined_system_prompt.clone(),
+                    tools: Vec::new(),
+                    thinking_budget: None,
+                };
+                let mut stream_result = app
+                    .model_gateway()
+                    .stream_generation(gen_request, cancellation_token.clone())
+                    .await;
+
+                let mut pass_calls: Vec<PassToolUse> = Vec::new();
+                let mut feedback: Vec<ToolFeedback> = Vec::new();
+                let mut pass_text = String::new();
+                let mut round_completed: Option<(String, brain_core::model::TokenUsage)> = None;
+
+                match stream_result {
                 Ok(ref mut stream) => loop {
                     tokio::select! {
                         _ = cancellation_token.cancelled() => {
@@ -1997,6 +2012,7 @@ pub async fn handle_connection(
                                         }
                                         brain_core::model::GenerationChunk::TextDelta { text } => {
                                             accumulated_response.push_str(&text);
+                                            pass_text.push_str(&text);
                                             let packet = serde_json::json!({
                                                 "type": "token",
                                                 "generation_id": generation_id,
@@ -2014,6 +2030,11 @@ pub async fn handle_connection(
                                         brain_core::model::GenerationChunk::ToolUse { id, name, input } => {
                                             let call_id = id.clone();
                                             let tool_name = name.clone();
+                                            pass_calls.push(PassToolUse {
+                                                call_id: call_id.clone(),
+                                                name: tool_name.clone(),
+                                                input: input.clone(),
+                                            });
 
                                             // Forward the tool call itself first.
                                             let packet = serde_json::json!({
@@ -2145,6 +2166,13 @@ pub async fn handle_connection(
                                                     }
                                                     Err(e) => (format!("{e}"), true, -1),
                                                 };
+                                                feedback.push(ToolFeedback {
+                                                    call_id: call_id.clone(),
+                                                    name: tool_name.clone(),
+                                                    input: packet["toolUse"]["input"].clone(),
+                                                    output: out_text.clone(),
+                                                    is_error: is_err,
+                                                });
                                                 let result_packet = serde_json::json!({
                                                     "type": "tool_result",
                                                     "generation_id": generation_id,
@@ -2178,39 +2206,25 @@ pub async fn handle_connection(
                                                 dj.push('\n');
                                                 writer.write_all(dj.as_bytes()).await?;
                                                 writer.flush().await?;
+                                                feedback.push(ToolFeedback {
+                                                    call_id: call_id.clone(),
+                                                    name: tool_name.clone(),
+                                                    input: packet["toolUse"]["input"].clone(),
+                                                    output: DENIED_FEEDBACK_TEXT.to_string(),
+                                                    is_error: true,
+                                                });
                                             }
                                         }
                                         brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {
-                                            is_completed_successfully = true;
-                                            let total_duration_ms = gen_start_time.elapsed().as_millis() as u64;
-                                            let end_packet = serde_json::json!({
-                                                "type": "stream_end",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "status": "completed",
-                                                "response": accumulated_response,
-                                                "finish_reason": finish_reason,
-                                                "metadata": {
-                                                    "inputTokens": usage.input_tokens,
-                                                    "outputTokens": usage.output_tokens,
-                                                    "telemetry": {
-                                                        "generation_id": generation_id,
-                                                        "session_id": session_id_str,
-                                                        "retrieval_epoch_id": context_snapshot.epoch_id,
-                                                        "candidates_retrieved": context_snapshot.provenance.count,
-                                                        "memories_assembled": context_snapshot.items.len(),
-                                                        "context_tokens_used": context_snapshot.token_count,
-                                                        "assembly_latency_ms": assembly_latency_ms,
-                                                        "total_duration_ms": total_duration_ms,
-                                                        "finish_reason": finish_reason,
-                                                    }
-                                                }
-                                            });
-                                            let mut end_json = serde_json::to_string(&end_packet)?;
-                                            end_json.push('\n');
-                                            writer.write_all(end_json.as_bytes()).await?;
-                                            writer.flush().await?;
+                                            // Silent on the wire: the loop decides
+                                            // whether this pass continues or emits
+                                            // stream_end (spec §4.4). Restore the
+                                            // sequence slot the shared chunk-entry
+                                            // increment consumed — a burned slot here
+                                            // would open a wire gap and abort the
+                                            // shell's stream guard.
+                                            seq -= 1;
+                                            round_completed = Some((finish_reason, usage));
                                             break;
                                         }
                                     }
@@ -2229,11 +2243,11 @@ pub async fn handle_connection(
                                     err_json.push('\n');
                                     writer.write_all(err_json.as_bytes()).await?;
                                     writer.flush().await?;
-                                    break;
+                                    break 'rounds;
                                 }
                                 None => {
                                     is_completed_successfully = true;
-                                    break;
+                                    break 'rounds;
                                 }
                             }
                         }
@@ -2255,6 +2269,69 @@ pub async fn handle_connection(
                     writer.flush().await?;
                 }
             }
+
+            if is_cancelled || round_completed.is_none() {
+                break 'rounds;
+            }
+
+            let (finish_reason, usage) = round_completed.take().unwrap();
+            total_usage.input_tokens += usage.input_tokens;
+            total_usage.output_tokens += usage.output_tokens;
+
+            // Continuation rule (spec §3): keep going only when this pass
+            // resolved at least one tool call AND rounds remain; otherwise
+            // emit the sole terminating stream_end.
+            let terminate_reason: Option<String> = if feedback.is_empty() {
+                Some(finish_reason)
+            } else if round_index + 1 >= max_rounds {
+                Some("max_tool_rounds".to_string())
+            } else {
+                model_messages.extend(feedback_messages(
+                    &pass_text,
+                    &pass_calls,
+                    &feedback,
+                ));
+                None
+            };
+
+            if let Some(reason) = terminate_reason {
+                is_completed_successfully = true;
+                // Terminal stream_end owns a fresh sequence slot (the legacy
+                // strict-monotonic contract); mid-loop Completions restored
+                // theirs above.
+                seq += 1;
+                let total_duration_ms = gen_start_time.elapsed().as_millis() as u64;
+                let end_packet = serde_json::json!({
+                    "type": "stream_end",
+                    "generation_id": generation_id,
+                    "session_id": session_id_str,
+                    "sequence": seq,
+                    "status": "completed",
+                    "response": accumulated_response,
+                    "finish_reason": reason,
+                    "metadata": {
+                        "inputTokens": total_usage.input_tokens,
+                        "outputTokens": total_usage.output_tokens,
+                        "telemetry": {
+                            "generation_id": generation_id,
+                            "session_id": session_id_str,
+                            "retrieval_epoch_id": context_snapshot.epoch_id,
+                            "candidates_retrieved": context_snapshot.provenance.count,
+                            "memories_assembled": context_snapshot.items.len(),
+                            "context_tokens_used": context_snapshot.token_count,
+                            "assembly_latency_ms": assembly_latency_ms,
+                            "total_duration_ms": total_duration_ms,
+                            "finish_reason": reason,
+                        }
+                    }
+                });
+                let mut end_json = serde_json::to_string(&end_packet)?;
+                end_json.push('\n');
+                writer.write_all(end_json.as_bytes()).await?;
+                writer.flush().await?;
+                break 'rounds;
+            }
+            } // 'rounds
 
             // Invariant 4: Persist assistant message ONLY on successful completion
             if is_completed_successfully && !is_cancelled && !accumulated_response.is_empty() {
