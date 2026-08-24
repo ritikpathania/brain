@@ -2143,6 +2143,7 @@ pub async fn handle_connection(
                                                     ),
                                                     deadline: None,
                                                 };
+                                                let tool_exec_started = std::time::Instant::now();
                                                 seq += 1;
                                                 let execution =
                                                     match stack.registry.get_tool(&tool_name) {
@@ -2184,6 +2185,21 @@ pub async fn handle_connection(
                                                     output: out_text.clone(),
                                                     is_error: is_err,
                                                 });
+                                                // Inc 8: persist this outcome into
+                                                // the session transcript. Best-effort:
+                                                // persistence never blocks generation.
+                                                let envelope = serde_json::json!({
+                                                    "type": "tool_event",
+                                                    "v": 1,
+                                                    "call_id": call_id.clone(),
+                                                    "name": tool_name.clone(),
+                                                    "input": packet["toolUse"]["input"].clone(),
+                                                    "outcome": "executed",
+                                                    "is_error": is_err,
+                                                    "exit_code": exit_code,
+                                                    "output": truncate_tool_output(&out_text),
+                                                    "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
+                                                });
                                                 let result_packet = serde_json::json!({
                                                     "type": "tool_result",
                                                     "generation_id": generation_id,
@@ -2200,6 +2216,22 @@ pub async fn handle_connection(
                                                 rj.push('\n');
                                                 writer.write_all(rj.as_bytes()).await?;
                                                 writer.flush().await?;
+                                                session_aggregate.add_message(
+                                                    brain_domain::Message::new(
+                                                        brain_domain::MessageId::new(),
+                                                        brain_domain::MessageRole::Tool,
+                                                        envelope.to_string(),
+                                                    ),
+                                                );
+                                                if let Err(e) = storage.save_session(
+                                                    &parsed_session_id,
+                                                    &session_aggregate,
+                                                ) {
+                                                    tracing::warn!(
+                                                        error = %e,
+                                                        "tool event persistence failed; continuing"
+                                                    );
+                                                }
                                             }
 
                                             if !granted {
