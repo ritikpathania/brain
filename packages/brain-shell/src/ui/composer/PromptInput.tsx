@@ -66,6 +66,8 @@ export function PromptInputView(props: {
 export function PromptInput(props: {
   disabled?: boolean;
   busy?: boolean;
+  /** While true (an overlay/dialog is up upstream) the editor ignores all input. */
+  paused?: boolean;
   onSubmit: (value: string) => void;
   onAbort?: () => void;
 }): React.ReactElement {
@@ -145,7 +147,7 @@ export function PromptInput(props: {
     if (cmd.type !== 'noop') {
       setState((s) => reduceComposer(s, cmd));
     }
-  });
+  }, { isActive: !(props.paused ?? false) });
 
   return (
     <Box flexDirection="column">

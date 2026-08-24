@@ -47,8 +47,8 @@ describe('fuzzyMatchCommands', () => {
     expect(fuzzyMatchCommands('tran', descOnly)[0]!.command.name).toBe('xyzzy');
   });
 
-  it('ships the three Inc 2 commands', () => {
-    expect(COMMANDS.map((c) => c.name).sort()).toEqual(['clear', 'help', 'quit']);
+  it('ships the Inc 2 command set plus the Inc 3 additions', () => {
+    expect(COMMANDS.map((c) => c.name).sort()).toEqual(['clear', 'help', 'quit', 'theme']);
     expect(COMMANDS.find((c) => c.name === 'quit')!.aliases).toEqual(['q']);
   });
 });

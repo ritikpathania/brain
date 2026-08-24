@@ -10,6 +10,11 @@ import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
 import { useBoundInput } from '../../keybindings/useBoundInput.js';
 import { COMMANDS } from '../../commands/matcher.js';
+import { useTheme } from '../../compat/index.js';
+import { overlayListDecision } from '../overlays/overlayLogic.js';
+import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
+import { writeThemeSetting } from '../../state/themeStore.js';
+import type { ThemeSetting } from '../../contracts/theme.js';
 
 /**
  * Top-level live shell: frozen transcript + streaming block + composer.
@@ -26,12 +31,40 @@ export function AppShell(): React.ReactElement {
   );
   const snapshot = useShellSnapshot(controller);
   const [expandTools, setExpandTools] = React.useState(false);
+  const { setting: themeSetting, tokens, setSetting } = useTheme();
+  const [themeOpen, setThemeOpen] = React.useState(false);
+  const [themeSelected, setThemeSelected] = React.useState(0);
+  const [themeOriginal, setThemeOriginal] = React.useState<ThemeSetting>('auto');
 
   useBoundInput({
     contexts: ['global'],
     onAction: (action) => {
       if (action === 'shell:exit') process.exit(0);
       if (action === 'shell:toggleTools') setExpandTools((v) => !v);
+    },
+  });
+
+  // Theme picker overlay: navigating previews live (setSetting), esc rolls
+  // back to the setting captured at open, enter persists via the store.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: themeOpen,
+    onAction: (action) => {
+      const d = overlayListDecision(action, themeSelected, THEME_CHOICES.length);
+      if (d.type === 'move') {
+        setThemeSelected(d.index);
+        setSetting(THEME_CHOICES[d.index]!.setting); // live preview
+      } else if (d.type === 'commit') {
+        setThemeOpen(false);
+        try {
+          writeThemeSetting(THEME_CHOICES[d.index]!.setting);
+        } catch {
+          controller.notice('Could not save the theme setting.');
+        }
+      } else if (d.type === 'cancel') {
+        setSetting(themeOriginal); // rollback preview
+        setThemeOpen(false);
+      }
     },
   });
 
@@ -58,7 +91,11 @@ export function AppShell(): React.ReactElement {
     }
     if (chosen.name === 'help') controller.notice(helpText());
     else if (chosen.name === 'clear') controller.clear();
-    else if (chosen.name === 'quit') process.exit(0);
+    else if (chosen.name === 'theme') {
+      setThemeOriginal(themeSetting);
+      setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
+      setThemeOpen(true);
+    } else if (chosen.name === 'quit') process.exit(0);
   };
 
   const handleSubmit = (text: string): void => {
@@ -93,10 +130,21 @@ export function AppShell(): React.ReactElement {
       {snapshot.connectionError !== undefined ? (
         <Text color="red">⚠ {snapshot.connectionError}</Text>
       ) : null}
+      {themeOpen ? (
+        <Box marginTop={1}>
+          <ThemePickerView
+            choices={THEME_CHOICES}
+            selectedIndex={themeSelected}
+            current={themeSetting}
+            tokens={tokens}
+          />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
+          paused={themeOpen}
           onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />
