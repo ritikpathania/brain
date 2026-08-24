@@ -1,0 +1,200 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭───────────────────────────────────╮
+│ ❯ /theme — Change the color theme │
+╰───────────────────────────────────╯
+❯ /theme 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭───────────────────────────────────────────────────────╮
+│ Theme                                                 │
+│ ❯ Auto (detect terminal)  ✓ auto                      │
+│   Dark                                                │
+│   Light                                               │
+│   Dark (daltonized)                                   │
+│   Light (daltonized)                                  │
+│ ↑↓ navigate (live preview) · enter apply · esc cancel │
+╰───────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭───────────────────────────────────────────────────────╮
+│ Theme                                                 │
+│   Auto (detect terminal)                              │
+│ ❯ Dark  ✓ dark                                        │
+│   Light                                               │
+│   Dark (daltonized)                                   │
+│   Light (daltonized)                                  │
+│ ↑↓ navigate (live preview) · enter apply · esc cancel │
+╰───────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭───────────────────────────────────────╮
+│ ❯ /resume — Resume a previous session │
+╰───────────────────────────────────────╯
+❯ /resume 
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭─────────────────────────────────────────╮
+│ Resume session                          │
+│ ❯ Refactor graph indexer — 5m ago       │
+│ ↑↓ navigate · enter resume · esc cancel │
+╰─────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+
+❯ list the build folder 
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+❯ list the build folder
+
+✢ Composing…
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+❯ list the build folder
+
+✢ bash…
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+❯ list the build folder
+
+✳ bash…
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+❯ list the build folder
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — ls build                                           │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ index the graph
+Indexed 42 nodes.
+
+ℹ Resumed “Refactor graph indexer”
+❯ list the build folder
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — ls build                                           │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme dark · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit

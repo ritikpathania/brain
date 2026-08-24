@@ -2,6 +2,7 @@ import * as React from 'react';
 import * as path from 'path';
 import { Box, Text, useTerminalSize } from '../../compat/index.js';
 import { WelcomeFrame } from './WelcomeFrame.js';
+import { StatusBarView } from './StatusBar.js';
 import { Spinner, spinnerLabel } from './Spinner.js';
 import { MessageRow } from '../transcript/MessageRow.js';
 import { PromptInput } from '../composer/PromptInput.js';
