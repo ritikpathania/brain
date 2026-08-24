@@ -1,0 +1,71 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭───────────────────────────────────────╮
+│ ❯ /resume — Resume a previous session │
+╰───────────────────────────────────────╯
+❯ /resume 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+╭─────────────────────────────────────────╮
+│ Resume session                          │
+│ ❯ Persisted events demo — 5m ago        │
+│ ↑↓ navigate · enter resume · esc cancel │
+╰─────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ tidy the workspace
+⏺ bash(echo resumed-ok)
+  ⎿ ✓ Done in 0.1s
+     resumed-ok
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 2
+     boom
+⏺ bash(rm -rf /tmp/x)
+  ⎿ ✗ Permission denied
+ℹ legacy free-form note
+Workspace settled.
+
+ℹ Resumed “Persisted events demo”
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
