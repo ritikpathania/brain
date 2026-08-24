@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -14,17 +15,22 @@ use brain_core::model::{
 };
 
 /// Configuration for a scripted mock response.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptedResponse {
     /// Optional thinking tokens.
+    #[serde(default)]
     pub thinking: Option<String>,
     /// Text tokens to emit sequentially.
+    #[serde(default)]
     pub tokens: Vec<String>,
     /// Optional tool calls to emit.
+    #[serde(default)]
     pub tool_calls: Vec<(String, String, serde_json::Value)>,
     /// Optional simulated error to yield.
+    #[serde(default)]
     pub error: Option<String>,
     /// Finish reason (defaults to "end_turn").
+    #[serde(default)]
     pub finish_reason: Option<String>,
 }
 
@@ -114,7 +120,9 @@ impl DeterministicMockProvider {
 
         Self {
             supported_models: models,
-            scripted_queue: Arc::new(Mutex::new(VecDeque::new())),
+            scripted_queue: Arc::new(Mutex::new(scripted_queue_from_env_spec(
+                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES").ok().as_deref(),
+            ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
@@ -124,7 +132,9 @@ impl DeterministicMockProvider {
     pub fn with_models(models: Vec<ModelDescriptor>) -> Self {
         Self {
             supported_models: models,
-            scripted_queue: Arc::new(Mutex::new(VecDeque::new())),
+            scripted_queue: Arc::new(Mutex::new(scripted_queue_from_env_spec(
+                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES").ok().as_deref(),
+            ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
@@ -164,6 +174,22 @@ fn sentinel_tool_call(
     }
     let n = counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
     Some((format!("call_mock_{}", n), name, input))
+}
+
+/// Builds the scripted queue seed from a `BRAIN_MOCK_SCRIPTED_RESPONSES`
+/// spec (JSON array of `ScriptedResponse`). Malformed specs warn once and
+/// degrade to the default queue so provider behavior never regresses.
+fn scripted_queue_from_env_spec(spec: Option<&str>) -> VecDeque<ScriptedResponse> {
+    let Some(raw) = spec else {
+        return VecDeque::new();
+    };
+    match serde_json::from_str::<Vec<ScriptedResponse>>(raw) {
+        Ok(list) => list.into_iter().collect(),
+        Err(e) => {
+            tracing::warn!(%e, "ignoring malformed BRAIN_MOCK_SCRIPTED_RESPONSES");
+            VecDeque::new()
+        }
+    }
 }
 
 #[async_trait]
@@ -376,5 +402,46 @@ mod sentinel_tests {
                 if name == "search" && *input == serde_json::json!({})
         ));
         assert!(found);
+    }
+}
+
+#[cfg(test)]
+mod scripted_env_tests {
+    use super::*;
+
+    #[test]
+    fn valid_spec_seeds_queue_in_order() {
+        let spec = r#"[
+            {"tokens":["Round one text."],"tool_calls":[["call_fb_1","bash",{"command":"echo one"}]],"finish_reason":"tool_use"},
+            {"tokens":["Round two wraps up."],"finish_reason":"end_turn"}
+        ]"#;
+        let queue = scripted_queue_from_env_spec(Some(spec));
+        assert_eq!(queue.len(), 2);
+        let first = queue[0].clone();
+        assert_eq!(first.tool_calls.len(), 1);
+        assert_eq!(first.tool_calls[0].0, "call_fb_1");
+        assert_eq!(first.tool_calls[0].1, "bash");
+        assert_eq!(first.finish_reason.as_deref(), Some("tool_use"));
+        assert_eq!(queue[1].tokens, vec!["Round two wraps up.".to_string()]);
+    }
+
+    #[test]
+    fn missing_fields_fall_back_to_defaults() {
+        let queue = scripted_queue_from_env_spec(Some(r#"[{"tool_calls":[["c","bash",{}]]}]"#));
+        assert_eq!(queue.len(), 1);
+        assert!(queue[0].thinking.is_none());
+        assert!(queue[0].tokens.is_empty());
+        assert!(queue[0].error.is_none());
+        assert_eq!(queue[0].finish_reason.as_deref(), None);
+    }
+
+    #[test]
+    fn malformed_spec_yields_empty_queue() {
+        assert!(scripted_queue_from_env_spec(Some("{not json")).is_empty());
+    }
+
+    #[test]
+    fn absent_spec_yields_empty_queue() {
+        assert!(scripted_queue_from_env_spec(None).is_empty());
     }
 }
