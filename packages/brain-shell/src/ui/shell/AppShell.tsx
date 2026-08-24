@@ -1,4 +1,5 @@
 import * as React from 'react';
+import * as path from 'path';
 import { Box, Text, useTerminalSize } from '../../compat/index.js';
 import { WelcomeFrame } from './WelcomeFrame.js';
 import { Spinner, spinnerLabel } from './Spinner.js';
@@ -32,6 +33,7 @@ export function AppShell(): React.ReactElement {
   const snapshot = useShellSnapshot(controller);
   const [expandTools, setExpandTools] = React.useState(false);
   const { setting: themeSetting, tokens, setSetting } = useTheme();
+  const workspaceLabel = path.basename(process.cwd()).slice(0, 24);
   const [themeOpen, setThemeOpen] = React.useState(false);
   const [themeSelected, setThemeSelected] = React.useState(0);
   const [themeOriginal, setThemeOriginal] = React.useState<ThemeSetting>('auto');
@@ -149,10 +151,13 @@ export function AppShell(): React.ReactElement {
           onAbort={() => controller.abort()}
         />
       </Box>
-      <Text dimColor>
-        model: {model} · ! bash · / commands · ↑↓ history · esc stop · ctrl+o{' '}
-        {expandTools ? 'collapse' : 'expand'} tools · ctrl+c exit
-      </Text>
+      <StatusBarView
+        model={model}
+        workspace={workspaceLabel}
+        theme={themeSetting}
+        expandTools={expandTools}
+        tokens={tokens}
+      />
     </Box>
   );
 }
