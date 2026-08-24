@@ -2,7 +2,6 @@
 //! brain-tools stack behind the Inc 4 permission round-trip.
 use std::collections::HashMap;
 use std::process::Command;
-use std::sync::Arc;
 
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
@@ -108,6 +107,7 @@ impl BashTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
 
     fn ctx() -> ExecutionContext {
         ExecutionContext {
