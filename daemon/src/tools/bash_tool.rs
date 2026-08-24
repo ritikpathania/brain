@@ -91,7 +91,16 @@ impl BashTool {
             supports_streaming: false,
             is_idempotent: false,
             causes_side_effects: true,
-            input_schema: None,
+            input_schema: Some(serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Shell command to execute."
+                    }
+                },
+                "required": ["command"]
+            })),
         })
     }
 }
@@ -162,5 +171,14 @@ mod tests {
         assert_eq!(meta.name, "bash");
         assert!(meta.required_permissions.contains(&Permission::Shell));
         assert_eq!(meta.execution_policy.timeout_ms, 30_000);
+        // Inc 7: the advertised schema mirrors execute()'s actual contract —
+        // one non-empty string `command`, mandatory.
+        let schema = meta.input_schema.as_ref().expect("bash advertises a schema");
+        assert_eq!(schema["type"], "object");
+        assert_eq!(
+            schema["required"],
+            serde_json::json!(["command"])
+        );
+        assert_eq!(schema["properties"]["command"]["type"], "string");
     }
 }
