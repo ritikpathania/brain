@@ -68,7 +68,7 @@ export function PromptInput(props: {
   busy?: boolean;
   /** While true (an overlay/dialog is up upstream) the editor ignores all input. */
   paused?: boolean;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string, mode: 'prompt' | 'bash') => void;
   onAbort?: () => void;
 }): React.ReactElement {
   const { tokens } = useTheme();
@@ -141,7 +141,7 @@ export function PromptInput(props: {
       const entry = { mode: wasBash ? ('bash' as const) : ('prompt' as const), value: bare };
       setState((s) => reduceComposer(s, { type: 'submit_done', entry }));
       appendHistory(entry);
-      props.onSubmit(bare);
+      props.onSubmit(bare, wasBash ? 'bash' : 'prompt');
       return;
     }
     if (cmd.type !== 'noop') {

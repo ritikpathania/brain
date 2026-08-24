@@ -168,8 +168,9 @@ export function AppShell(): React.ReactElement {
     } else if (chosen.name === 'quit') process.exit(0);
   };
 
-  const handleSubmit = (text: string): void => {
-    if (text.trimStart().startsWith('/')) runCommand(text);
+  const handleSubmit = (text: string, mode: 'prompt' | 'bash' = 'prompt'): void => {
+    if (mode === 'bash') void controller.runShellCommand(text);
+    else if (text.trimStart().startsWith('/')) runCommand(text);
     else void controller.submit(text);
   };
 
