@@ -1,0 +1,223 @@
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+◆ BRAIN memory-first agent workspace
+
+  workspace brain-shell
+  /help commands · ! bash · /resume sessions · /theme appearance
+
+
+! ! echo bang-inc11 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+
+✢
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+
+! ! false 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+
+✢
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+Encountered two children with the same key, `turn_init:tool:0`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+
+! ! sleep 5 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+Encountered two children with the same key, `turn_init:tool:0`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+✢
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+✳
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+∗
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+✻
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+∗
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+
+✳
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+Encountered two children with the same key, `turn_init:tool:0`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+ℹ Shell command cancelled.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+ℹ Shell command cancelled.
+
+╭───────────────────────────────────────╮
+│ ❯ /resume — Resume a previous session │
+╰───────────────────────────────────────╯
+❯ /resume 
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+ℹ Shell command cancelled.
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+Encountered two children with the same key, `turn_init:tool:0`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+❯ ! echo bang-inc11
+⏺ bash(echo bang-inc11)
+  ⎿ ✓ Done in 0.1s
+     bang-inc11
+❯ ! false
+⏺ bash(false)
+  ⎿ ✗ Failed · exit 1
+❯ ! sleep 5
+ℹ Shell command cancelled.
+
+╭─────────────────────────────────────────╮
+│ Resume session                          │
+│ ❯ Persisted events demo — 5m ago        │
+│ ↑↓ navigate · enter resume · esc cancel │
+╰─────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
