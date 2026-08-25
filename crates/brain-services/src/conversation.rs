@@ -355,9 +355,16 @@ impl ContextBuilder {
             .cloned()
             .collect();
 
+        // Inc 19: Thinking messages carry persisted reasoning envelopes and
+        // are transcript-only — never generation input.
         let non_system_messages: Vec<Message> = history
             .iter()
-            .filter(|m| !matches!(m.role, brain_domain::MessageRole::System))
+            .filter(|m| {
+                !matches!(
+                    m.role,
+                    brain_domain::MessageRole::System | brain_domain::MessageRole::Thinking
+                )
+            })
             .cloned()
             .collect();
 
