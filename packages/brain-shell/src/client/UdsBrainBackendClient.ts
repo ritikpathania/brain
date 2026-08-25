@@ -162,8 +162,20 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     rl.on('line', (line) => {
       if (!line || line.trim() === '') return;
 
+      // Inc 14: an unparseable line is skipped with a stderr trace instead of
+      // killing the turn. It consumes no sequence number, so the strict-
+      // sequence invariant below stays intact.
+      let parsed: any;
       try {
-        const parsed = JSON.parse(line);
+        parsed = JSON.parse(line);
+      } catch (err: any) {
+        console.warn(
+          `[brain-shell] skipping malformed frame (${err?.message ?? err}): ${line.slice(0, 120)}`,
+        );
+        return;
+      }
+
+      try {
         const raw = (parsed.event === 'stream_chunk' && parsed.chunk) ? parsed.chunk : parsed;
 
         // Invariant 9: Session Guard
@@ -328,12 +340,14 @@ export class UdsBrainBackendClient implements BrainBackendClient {
           });
         }
       } catch (err: any) {
+        // Parse failures were handled above; reaching here means a dispatch
+        // bug on a well-formed frame — still treated as stream-fatal.
         pushChunk({
           type: 'error',
           generationId,
           sessionId: request.sessionId,
           status: 'failed',
-          error: `Malformed frame from Brain daemon: ${err.message}`,
+          error: `Failed to process frame from Brain daemon: ${err.message}`,
         });
         isStreamDone = true;
       }
