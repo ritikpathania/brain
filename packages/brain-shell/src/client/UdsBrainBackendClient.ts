@@ -2,7 +2,8 @@
  * Live UDS Brain Backend Client (Phase 5.6 / 5.7)
  *
  * Implements BrainBackendClient over a local Unix Domain Socket (UDS).
- * Adheres strictly to the deterministic disconnect / zero-reconnect invariant.
+ * Sockets are single-request; outage recovery lives above this class in the
+ * shell's ConnectionMonitor (Inc 15) — deliberately retired zero-reconnect.
  */
 
 import * as net from 'net';
@@ -39,7 +40,7 @@ import type {
 } from './BrainBackendClient.js';
 
 export class UdsBrainBackendClient implements BrainBackendClient {
-  constructor(private socketPath: string = process.env.BRAIN_SOCKET_PATH || '/tmp/brain.sock') {}
+  constructor(readonly socketPath: string = process.env.BRAIN_SOCKET_PATH || '/tmp/brain.sock') {}
 
   async *streamText(request: BrainGenerationRequest): AsyncIterable<BrainStreamChunk> {
     if (request.signal?.aborted) {
