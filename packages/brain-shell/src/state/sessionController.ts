@@ -54,6 +54,7 @@ export class SessionController {
   private ticker: ReturnType<typeof setInterval> | null = null;
   private events: BrainTurnEvent[] = [];
   private sawError = false;
+  private thinkingStartedAt: number | null = null;
   private turnSeq = 0;
   private snapshot: ShellSnapshot = { rows: [], live: IDLE_LIVE, busy: false };
 
@@ -235,6 +236,17 @@ export class SessionController {
     }
     const event = chunkToTurnEvent(chunk);
     if (event === null) return;
+    // Inc 13: thinking lifecycle. The wire's daemon-measured duration wins;
+    // a local bracket covers daemons that omit it.
+    if (event.type === 'thinking_start') {
+      this.thinkingStartedAt = Date.now();
+      this.live = { ...this.live, phase: 'thinking' };
+    } else if (event.type === 'thinking_end') {
+      if (event.durationMs === undefined && this.thinkingStartedAt !== null) {
+        event.durationMs = Math.max(0, Date.now() - this.thinkingStartedAt);
+      }
+      this.thinkingStartedAt = null;
+    }
     this.events.push(event);
     if (event.type === 'text_delta') {
       this.queue.push(event.delta);

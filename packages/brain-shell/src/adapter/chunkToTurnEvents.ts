@@ -17,6 +17,15 @@ export function chunkToTurnEvent(chunk: BrainStreamChunk): BrainTurnEvent | null
         : null;
     case 'redacted_thinking':
       return { type: 'thinking_delta', delta: '[redacted thinking]' };
+    case 'thinking_start':
+      return { type: 'thinking_start' };
+    case 'thinking_end':
+      // Inc 13: daemon-measured phase duration rides along when the wire
+      // carries it; the controller supplies a fallback otherwise.
+      return {
+        type: 'thinking_end',
+        durationMs: typeof chunk.durationMs === 'number' ? chunk.durationMs : undefined,
+      };
     case 'tool_use':
       return chunk.toolUse
         ? {

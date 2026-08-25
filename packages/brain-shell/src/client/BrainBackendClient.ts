@@ -74,6 +74,8 @@ export interface BrainStreamChunk {
     | 'token'
     | 'thinking'
     | 'redacted_thinking'
+    | 'thinking_start'
+    | 'thinking_end'
     | 'tool_use'
     | 'error'
     | 'finished'

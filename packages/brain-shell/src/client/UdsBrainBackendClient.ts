@@ -289,8 +289,23 @@ export class UdsBrainBackendClient implements BrainBackendClient {
             status: 'failed',
           });
           isStreamDone = true;
-        } else if (raw.type === 'thinking_start' || raw.type === 'thinking_end') {
-          // Informational markers
+        } else if (raw.type === 'thinking_start') {
+          pushChunk({
+            type: 'thinking_start',
+            generationId: chunkGenId,
+            sessionId: chunkSessionId,
+            sequence: raw.sequence,
+            status: chunkStatus,
+          });
+        } else if (raw.type === 'thinking_end') {
+          pushChunk({
+            type: 'thinking_end',
+            durationMs: typeof raw.duration_ms === 'number' ? raw.duration_ms : undefined,
+            generationId: chunkGenId,
+            sessionId: chunkSessionId,
+            sequence: raw.sequence,
+            status: chunkStatus,
+          });
         } else if (raw.type === 'stream_start') {
           pushChunk({
             type: 'token',

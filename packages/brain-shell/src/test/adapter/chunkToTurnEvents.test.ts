@@ -16,6 +16,18 @@ describe('chunkToTurnEvent', () => {
     });
   });
 
+  it('maps thinking lifecycle markers, carrying daemon duration when present', () => {
+    expect(chunkToTurnEvent({ type: 'thinking_start' })).toEqual({ type: 'thinking_start' });
+    expect(chunkToTurnEvent({ type: 'thinking_end', durationMs: 1234 })).toEqual({
+      type: 'thinking_end',
+      durationMs: 1234,
+    });
+    expect(chunkToTurnEvent({ type: 'thinking_end' })).toEqual({
+      type: 'thinking_end',
+      durationMs: undefined,
+    });
+  });
+
   it('maps tool_use preserving id/name/input', () => {
     expect(chunkToTurnEvent({ type: 'tool_use', toolUse: { id: 'call_9', name: 'search', input: { q: 'x' } } }))
       .toEqual({ type: 'tool_call_requested', callId: 'call_9', toolName: 'search', input: { q: 'x' } });
