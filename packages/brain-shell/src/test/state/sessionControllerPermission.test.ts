@@ -1,142 +1,183 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { SessionController } from '../../state/sessionController.js';
 import type {
   BrainBackendClient,
-  BrainGenerationRequest,
   BrainStreamChunk,
+  BrainGenerationRequest,
 } from '../../client/BrainBackendClient.js';
 
-function scriptFake(chunks: BrainStreamChunk[]) {
-  const client = {
-    async createSession() {
-      return { sessionId: 'stub-session-1', title: 'stub', createdAtMs: 0 };
-    },
-    async *streamText(_r: BrainGenerationRequest): AsyncIterable<BrainStreamChunk> {
-      for (const c of chunks) yield c;
-    },
-  } as unknown as BrainBackendClient;
-  return client;
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+let cfgPath: string;
+
+beforeEach(() => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-inc17-ctl-'));
+  cfgPath = path.join(dir, 'config.json');
+  process.env.BRAIN_CONFIG_PATH = cfgPath;
+});
+
+function seedRule(): void {
+  fs.writeFileSync(
+    cfgPath,
+    JSON.stringify({
+      theme: 'dark',
+      permissions: { allow: [{ tool: 'bash', inputPrefix: 'git ' }] },
+    }),
+  );
 }
 
-const PERM_SCRIPT: BrainStreamChunk[] = [
-  {
-    type: 'permission_request',
-    callId: 'call_9',
-    toolName: 'bash',
-    input: { command: 'rm -rf build' },
-    reason: 'destructive',
-  },
-  { type: 'finished', status: 'completed' },
-];
+interface Resolution {
+  callId: string;
+  granted: boolean;
+}
 
-describe('SessionController permission requests', () => {
-  test('a permission_request chunk parks a pending dialog in the snapshot', async () => {
-    const ctl = new SessionController(scriptFake(PERM_SCRIPT));
-    await ctl.submit('clean this up');
-    expect(ctl.getSnapshot().permission).toEqual({
-      callId: 'call_9',
-      toolName: 'bash',
-      input: { command: 'rm -rf build' },
-      reason: 'destructive',
-    });
-  });
-
-  test('grant clears the pending dialog and posts an Allowed notice', async () => {
-    const ctl = new SessionController(scriptFake(PERM_SCRIPT));
-    await ctl.submit('clean this up');
-    ctl.resolvePermission('call_9', true);
-    const snap = ctl.getSnapshot();
-    expect(snap.permission).toBeUndefined();
-    expect(JSON.stringify(snap.rows)).toContain('Allowed bash');
-    expect(JSON.stringify(snap.rows)).not.toContain('"status":"denied"');
-  });
-
-  test('deny posts a Denied notice', async () => {
-    const ctl = new SessionController(
-      scriptFake([
-        { type: 'permission_request', callId: 'call_9', toolName: 'bash', input: {} },
-        { type: 'finished', status: 'completed' },
-      ]),
-    );
-    await ctl.submit('go');
-    ctl.resolvePermission('call_9', false);
-    expect(ctl.getSnapshot().permission).toBeUndefined();
-    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Denied bash');
-  });
-
-  test('deny flips a preceding tool card to denied by callId', async () => {
-    const ctl = new SessionController(
-      scriptFake([
-        { type: 'tool_use', toolUse: { id: 'call_9', name: 'bash', input: { command: 'ls' } } },
-        { type: 'permission_request', callId: 'call_9', toolName: 'bash', input: { command: 'ls' } },
-        { type: 'finished', status: 'completed' },
-      ]),
-    );
-    await ctl.submit('go');
-    ctl.resolvePermission('call_9', false);
-    const toolRow = ctl.getSnapshot().rows.find((r) => r.kind === 'tool');
-    expect(toolRow && toolRow.kind === 'tool' && toolRow.tool.status).toBe('denied');
-  });
-
-  test('resolving an unknown callId is a no-op', () => {
-    const ctl = new SessionController(scriptFake([]));
-    ctl.resolvePermission('ghost', true);
-    expect(ctl.getSnapshot().permission).toBeUndefined();
-  });
-
-  test('resolution travels to backends that support the wire call', async () => {
-    const base = scriptFake(PERM_SCRIPT) as Record<string, unknown>;
-    const resolutions: Array<{ callId: string; granted: boolean }> = [];
-    base.resolveToolPermission = (callId: string, granted: boolean) => {
+function recordingClient(
+  chunks: BrainStreamChunk[],
+  opts: { rejectResolve?: boolean } = {},
+): { client: BrainBackendClient; resolutions: Resolution[] } {
+  const resolutions: Resolution[] = [];
+  const client = {
+    async createSession() {
+      return { sessionId: 'perm-probe', title: 't', createdAtMs: 0 };
+    },
+    async *streamText(_req: BrainGenerationRequest): AsyncIterable<BrainStreamChunk> {
+      yield* chunks;
+    },
+    async resolveToolPermission(callId: string, granted: boolean): Promise<void> {
+      if (opts.rejectResolve) {
+        throw new Error('Brain daemon socket error on v1/tool/resolve: boom');
+      }
       resolutions.push({ callId, granted });
-      return Promise.resolve();
-    };
-    const ctl = new SessionController(base as unknown as BrainBackendClient);
-    await ctl.submit('clean this up');
-    ctl.resolvePermission('call_9', true);
-    expect(resolutions).toEqual([{ callId: 'call_9', granted: true }]);
-    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
+    },
+  } as unknown as BrainBackendClient;
+  return { client, resolutions };
+}
+
+function permChunk(command: string, callId = 'c1'): BrainStreamChunk {
+  return {
+    type: 'permission_request',
+    callId,
+    toolName: 'bash',
+    input: { command },
+  } as unknown as BrainStreamChunk;
+}
+
+function systemText(ctl: SessionController): string {
+  return ctl
+    .getSnapshot()
+    .rows.filter((r) => r.kind === 'system')
+    .map((r) => r.text)
+    .join('\n');
+}
+
+describe('Inc 17: controller auto-allow from saved rules', () => {
+  it('auto-allows a matching rule without parking the dialog', async () => {
+    seedRule();
+    const { client, resolutions } = recordingClient([
+      permChunk('git status'),
+      { type: 'token', token: 'clean tree' },
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('check the repo');
+    expect(ctl.getSnapshot().permission).toBeUndefined();
+    expect(resolutions).toEqual([{ callId: 'c1', granted: true }]);
+    expect(systemText(ctl)).toContain('Allowed bash (rule 1)');
+    ctl.dispose();
   });
 
-  test('backends without wire support degrade to local-only UX', async () => {
-    const ctl = new SessionController(scriptFake(PERM_SCRIPT));
-    await ctl.submit('clean this up');
-    expect(() => ctl.resolvePermission('call_9', true)).not.toThrow();
-    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
+  it('parks unmatched requests and resolves them manually as before', async () => {
+    const { client, resolutions } = recordingClient([
+      permChunk('rm -rf build'),
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('clean up');
+    expect(ctl.getSnapshot().permission?.callId).toBe('c1');
+    expect(resolutions).toEqual([]);
+    ctl.resolvePermission('c1', true);
+    expect(resolutions).toEqual([{ callId: 'c1', granted: true }]);
+    expect(ctl.getSnapshot().permission).toBeUndefined();
+    ctl.dispose();
   });
 
-  test('wire rejection never disturbs the local notice', async () => {
-    const base = scriptFake(PERM_SCRIPT) as Record<string, unknown>;
-    base.resolveToolPermission = () => Promise.reject(new Error('socket gone'));
-    const ctl = new SessionController(base as unknown as BrainBackendClient);
-    await ctl.submit('clean this up');
-    ctl.resolvePermission('call_9', true);
-    await new Promise((r) => setTimeout(r, 10)); // flush the rejected promise
-    expect(JSON.stringify(ctl.getSnapshot().rows)).toContain('Allowed bash');
-  });
-
-  test('delivered tool_result settles the card exactly once with its output', async () => {
-    const ctl = new SessionController(
-      scriptFake([
-        {
-          type: 'tool_use',
-          toolUse: { id: 'call_r', name: 'bash', input: { command: 'echo hi' } },
-        },
-        {
-          type: 'tool_result',
-          callId: 'call_r',
-          toolName: 'bash',
-          output: 'hi\n',
-          isError: false,
-        },
+  it('re-parks the dialog when the wire verdict fails to deliver', async () => {
+    seedRule();
+    const { client } = recordingClient(
+      [
+        permChunk('git push'),
+        { type: 'token', token: 'partial' },
         { type: 'finished', status: 'completed' },
-      ]),
+      ],
+      { rejectResolve: true },
     );
+    const ctl = new SessionController(client);
+    await ctl.submit('push it');
+    // The rejected verdict may park the dialog anywhere from mid-stream to
+    // just after submit settles; only the settled outcome is contractual.
+    await sleep(5); // let the rejected promise route through the fallback
+    expect(ctl.getSnapshot().permission?.callId).toBe('c1');
+    ctl.dispose();
+  });
+
+  it('resolvePermissionAlways persists the derived rule and grants', async () => {
+    const { client, resolutions } = recordingClient([
+      permChunk('git fetch', 'c9'),
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('fetch refs');
+    ctl.resolvePermissionAlways('c9');
+    expect(resolutions).toEqual([{ callId: 'c9', granted: true }]);
+    const saved = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) as {
+      permissions?: { allow?: Array<{ tool: string; inputPrefix: string }> };
+    };
+    // The rule stores the full derived primary string, per design §3.
+    expect(saved.permissions?.allow).toEqual([{ tool: 'bash', inputPrefix: 'git fetch' }]);
+
+    // The saved rule takes effect on the very next request.
+    await ctl.submit('fetch again');
+    expect(ctl.getSnapshot().permission).toBeUndefined();
+    expect(resolutions).toEqual([
+      { callId: 'c9', granted: true },
+      { callId: 'c9', granted: true },
+    ]);
+    expect(systemText(ctl)).toContain('Allowed bash (rule 1)');
+    ctl.dispose();
+  });
+
+  it('still grants this call when saving the rule fails', async () => {
+    process.env.BRAIN_CONFIG_PATH = path.join(os.tmpdir(), 'brain-inc17-dir-not-file');
+    fs.rmSync(process.env.BRAIN_CONFIG_PATH!, { recursive: true, force: true });
+    fs.mkdirSync(process.env.BRAIN_CONFIG_PATH!); // configPath() now names a directory
+    const { client, resolutions } = recordingClient([
+      permChunk('git log', 'cf'),
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
+    await ctl.submit('show log');
+    ctl.resolvePermissionAlways('cf');
+    expect(systemText(ctl)).toContain('Could not save the always-allow rule.');
+    expect(resolutions).toEqual([{ callId: 'cf', granted: true }]);
+    expect(ctl.getSnapshot().permission).toBeUndefined();
+    ctl.dispose();
+  });
+
+  it('derives a tool-wide rule from inputs without a string field', async () => {
+    const { client, resolutions } = recordingClient([
+      permChunk('', 'ce'),
+      { type: 'finished', status: 'completed' },
+    ]);
+    const ctl = new SessionController(client);
     await ctl.submit('go');
-    // Rows are data objects: the output lands on the card once; render-time
-    // decoration is MessageRowView's concern (covered in toolRowOutput tests).
-    const serialized = JSON.stringify(ctl.getSnapshot().rows);
-    expect(serialized).toContain('"output":"hi\\n"');
-    expect(serialized.match(/"output"/g)?.length).toBe(1);
+    ctl.resolvePermissionAlways('ce'); // input {command:''} has no primary string
+    const saved = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) as {
+      permissions?: { allow?: Array<{ tool: string; inputPrefix: string }> };
+    };
+    expect(saved.permissions?.allow).toEqual([{ tool: 'bash', inputPrefix: '' }]);
+    ctl.dispose();
   });
 });

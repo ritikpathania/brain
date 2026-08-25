@@ -25,6 +25,12 @@ import {
   type ConnectionState,
 } from './connectionMonitor.js';
 import { probeDaemonSocket } from '../client/probeDaemonSocket.js';
+import {
+  addAllowRule,
+  matchingRuleIndex,
+  primaryInputString,
+  readAllowRules,
+} from './permissionRules.js';
 import { BrainTurnTransformer } from '../adapter/BrainTurnTransformer.js';
 import type { BrainTurnEvent } from '../adapter/BrainTurnEvents.js';
 import { turnToRows } from '../ui/transcript/toRows.js';
@@ -103,8 +109,10 @@ export class SessionController {
     this.aborter?.abort();
   }
 
-  /** Resolve the parked permission dialog: notice + tool-card status. The
-   * daemon cannot receive resolutions yet, so this stays local UX state. */
+  /** Resolve the parked dialog manually. Local UX settles first; the wire
+   * verdict rides v1/tool/resolve best-effort — legacy fakes and offline
+   * daemons simply omit or reject the call, while live daemons gate
+   * execution on it. */
   resolvePermission(callId: string, granted: boolean): void {
     if (this.pendingPermission?.callId !== callId) return;
     const toolName = this.pendingPermission.toolName;
@@ -116,10 +124,42 @@ export class SessionController {
           : r,
       );
     }
-    // Best-effort wire round-trip: legacy fakes and offline daemons simply
-    // omit or reject the call; the local UX above is already settled either way.
+    // Best-effort wire round-trip; local UX above is already settled.
     void this.client.resolveToolPermission?.(callId, granted)?.catch(() => {});
     this.notice(`${granted ? 'Allowed' : 'Denied'} ${toolName}`);
+  }
+
+  /** Inc 17: grant AND persist an always-allow rule derived from the pending
+   * view. A save failure only skips persistence — this call is still granted. */
+  resolvePermissionAlways(callId: string): void {
+    const view = this.pendingPermission;
+    if (view?.callId !== callId) return;
+    try {
+      addAllowRule({
+        tool: view.toolName,
+        inputPrefix: primaryInputString(view.input),
+      });
+    } catch {
+      this.notice('Could not save the always-allow rule.');
+    }
+    this.resolvePermission(callId, true);
+  }
+
+  /** Saved-rule hit: never park the dialog. If the wire verdict cannot be
+   * delivered, re-park so the user decides manually — a silent drop would
+   * leave the daemon's waiter parked until its deny-by-default timeout. */
+  private autoAllow(view: PendingPermissionView, ruleNumber: number): void {
+    this.notice(`Allowed ${view.toolName} (rule ${ruleNumber})`);
+    const park = (): void => {
+      this.pendingPermission = view;
+      this.emit();
+    };
+    try {
+      const p = this.client.resolveToolPermission?.(view.callId, true);
+      if (p) p.catch(park);
+    } catch {
+      park();
+    }
   }
 
   /** Inc 15: stop the reconnect loop (AppShell cleanup effect). */
@@ -318,17 +358,23 @@ export class SessionController {
         this.handleConnectionLoss();
       }
     }
-    // Permission requests are handled LIVE here, not routed into turn
-    // events — they park a dialog on the snapshot and resolve locally
-    // (the wire has no resolution frame yet).
+    // Permission requests either auto-allow from a saved rule (Inc 17) or
+    // park a dialog on the snapshot; both paths end in a wire verdict via
+    // v1/tool/resolve, which the daemon parks the stream awaiting.
     if (chunk.type === 'permission_request' && typeof chunk.callId === 'string') {
-      this.pendingPermission = {
+      const view: PendingPermissionView = {
         callId: chunk.callId,
         toolName: chunk.toolName ?? 'tool',
         input: chunk.input ?? {},
         reason: chunk.reason,
       };
-      this.emit();
+      const ruleNumber =
+        matchingRuleIndex(view.toolName, view.input, readAllowRules()) + 1;
+      if (ruleNumber > 0) this.autoAllow(view, ruleNumber);
+      else {
+        this.pendingPermission = view;
+        this.emit();
+      }
       return;
     }
     const event = chunkToTurnEvent(chunk);
