@@ -3,6 +3,7 @@ import { Box, Text, useTheme } from '../../compat/index.js';
 import type { BrainTokens } from '../../state/palettes.js';
 import type { TranscriptRow, ToolCardData } from '../../contracts/messages.js';
 import { Markdown } from './Markdown.js';
+import { primaryInputString } from '../../state/permissionRules.js';
 
 export function UserRowView(props: {
   row: Extract<TranscriptRow, { kind: 'user' }>;
@@ -41,15 +42,7 @@ export function ThinkingRowView(props: {
 }
 
 export function summarizeToolInput(input: Record<string, unknown>): string {
-  const preferred = ['command', 'file_path', 'path', 'query', 'pattern', 'url', 'prompt'];
-  for (const key of preferred) {
-    const v = input[key];
-    if (typeof v === 'string' && v.trim().length > 0) return v.trim().slice(0, 60);
-  }
-  for (const v of Object.values(input)) {
-    if (typeof v === 'string' && v.trim().length > 0) return v.trim().slice(0, 60);
-  }
-  return '';
+  return primaryInputString(input).slice(0, 60);
 }
 
 function statusMeta(
