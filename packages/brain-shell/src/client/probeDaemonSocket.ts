@@ -11,7 +11,8 @@ export function probeDaemonSocket(socketPath: string, timeoutMs = 1500): Promise
     let settled = false;
     const socket = net.createConnection(socketPath);
     const timer = setTimeout(() => finish(false), timeoutMs);
-    timer.unref?.();
+    // Bun types setTimeout as number; only node's Timeout carries unref().
+    (timer as unknown as { unref?: () => void }).unref?.();
 
     function finish(ok: boolean): void {
       if (settled) return;

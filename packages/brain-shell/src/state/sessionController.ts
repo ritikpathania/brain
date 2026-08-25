@@ -20,6 +20,11 @@ import {
   TYPEWRITER_CHARS_PER_TICK,
 } from '../adapter/streaming/TwoStageTypewriterQueue.js';
 import { chunkToTurnEvent } from '../adapter/chunkToTurnEvents.js';
+import {
+  ConnectionMonitor,
+  type ConnectionState,
+} from './connectionMonitor.js';
+import { probeDaemonSocket } from '../client/probeDaemonSocket.js';
 import { BrainTurnTransformer } from '../adapter/BrainTurnTransformer.js';
 import type { BrainTurnEvent } from '../adapter/BrainTurnEvents.js';
 import { turnToRows } from '../ui/transcript/toRows.js';
@@ -36,11 +41,23 @@ export interface ShellSnapshot {
   live: LiveStreamView;
   busy: boolean;
   connectionError?: string;
+  connection: ConnectionState;
   permission?: PendingPermissionView;
 }
 
 const IDLE_LIVE: LiveStreamView = { phase: 'idle', thinkingText: '', responseText: '' };
 const CONNECTION_RE = /Could not connect|socket error|disconnected/i;
+const CONNECTION_LOSS_RE =
+  /Could not connect|socket not found|socket error|disconnected|connection closed|RPC timeout/i;
+const ABORT_RE = /abort/i;
+
+/** Inc 15: a classified connection loss arms the monitor; aborts never do. */
+function isConnectionLoss(text: string): boolean {
+  return !ABORT_RE.test(text) && CONNECTION_LOSS_RE.test(text);
+}
+
+export const CONNECTION_LOSS_ROW = 'Connection lost — reconnecting…';
+export const QUEUED_ROW = 'queued — will send on reconnect';
 
 export class SessionController {
   private listeners = new Set<() => void>();
@@ -56,9 +73,22 @@ export class SessionController {
   private sawError = false;
   private thinkingStartedAt: number | null = null;
   private turnSeq = 0;
-  private snapshot: ShellSnapshot = { rows: [], live: IDLE_LIVE, busy: false };
+  private connection: ConnectionState = { status: 'connected' };
+  private queuedInputs: string[] = [];
+  private monitor: ConnectionMonitor | null = null;
+  private lostDuringTurn = false;
+  private snapshot: ShellSnapshot = {
+    rows: [],
+    live: IDLE_LIVE,
+    busy: false,
+    connection: { status: 'connected' },
+  };
 
-  constructor(private client: BrainBackendClient) {}
+  constructor(
+    private client: BrainBackendClient,
+    private probeOverride?: () => Promise<boolean>,
+    private delayOverride?: (ms: number) => Promise<void>,
+  ) {}
 
   subscribe = (fn: () => void): (() => void) => {
     this.listeners.add(fn);
@@ -90,6 +120,51 @@ export class SessionController {
     // omit or reject the call; the local UX above is already settled either way.
     void this.client.resolveToolPermission?.(callId, granted)?.catch(() => {});
     this.notice(`${granted ? 'Allowed' : 'Denied'} ${toolName}`);
+  }
+
+  /** Inc 15: stop the reconnect loop (AppShell cleanup effect). */
+  dispose(): void {
+    this.monitor?.stop();
+  }
+
+  private ensureMonitor(): ConnectionMonitor {
+    if (this.monitor === null) {
+      const socketPath = (this.client as { socketPath?: string }).socketPath;
+      const probe =
+        this.probeOverride ??
+        (typeof socketPath === 'string'
+          ? () => probeDaemonSocket(socketPath)
+          : async () => true); // fakes without a transport restore immediately
+      const delay =
+        this.delayOverride ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+      this.monitor = new ConnectionMonitor({
+        probe,
+        delay,
+        onChange: (s) => {
+          this.connection = s;
+          this.emit();
+        },
+        onRestored: () => {
+          void this.drainQueue();
+        },
+      });
+    }
+    return this.monitor;
+  }
+
+  /** Classified loss anywhere: show the banner, arm the loop once. */
+  private handleConnectionLoss(): void {
+    if (this.connection.status === 'reconnecting') return;
+    if (this.busy) this.lostDuringTurn = true;
+    this.ensureMonitor().start();
+  }
+
+  private async drainQueue(): Promise<void> {
+    while (this.queuedInputs.length > 0 && this.connection.status === 'connected') {
+      await this.submit(this.queuedInputs[0]);
+      // A second outage during this submit leaves the item queued.
+      if (this.connection.status === 'connected') this.queuedInputs.shift();
+    }
   }
 
   /** Wipe the frozen transcript (slash command /clear). */
@@ -189,8 +264,15 @@ export class SessionController {
       this.notice('Busy — wait for the current turn to finish.');
       return;
     }
+    // Inc 15: offline submits join the replay queue instead of failing.
+    if (this.connection.status !== 'connected') {
+      this.queuedInputs.push(text);
+      this.notice(QUEUED_ROW);
+      return;
+    }
     this.busy = true;
     this.connectionError = undefined;
+    this.lostDuringTurn = false;
     const turnId = `turn_${++this.turnSeq}`;
     this.rows = [...this.rows, { kind: 'user', id: `user:${turnId}`, text }];
     this.events = [{ type: 'turn_start', turnId, role: 'assistant' }];
@@ -214,17 +296,27 @@ export class SessionController {
       }
       // An error chunk doesn't throw — the stream just ends — but the turn
       // still failed and must settle its tools accordingly.
-      this.finishTurn(this.sawError ? 'error' : 'completed');
+      this.finishTurn(
+        this.sawError ? 'error' : 'completed',
+        this.lostDuringTurn ? CONNECTION_LOSS_ROW : undefined,
+      );
     } catch (err) {
-      this.finishTurn('error', err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isConnectionLoss(msg)) this.handleConnectionLoss();
+      this.finishTurn('error', isConnectionLoss(msg) ? CONNECTION_LOSS_ROW : msg);
     }
   }
 
   private pendingPermission: PendingPermissionView | undefined;
 
   private handleChunk(chunk: BrainStreamChunk): void {
-    if (chunk.type === 'error' && chunk.error && CONNECTION_RE.test(chunk.error)) {
-      this.connectionError = chunk.error;
+    if (chunk.type === 'error' && chunk.error) {
+      if (CONNECTION_RE.test(chunk.error)) {
+        this.connectionError = chunk.error;
+      }
+      if (isConnectionLoss(chunk.error)) {
+        this.handleConnectionLoss();
+      }
     }
     // Permission requests are handled LIVE here, not routed into turn
     // events — they park a dialog on the snapshot and resolve locally
@@ -340,6 +432,7 @@ export class SessionController {
       live: this.live,
       busy: this.busy,
       connectionError: this.connectionError,
+      connection: this.connection,
       permission: this.pendingPermission,
     };
     for (const fn of this.listeners) fn();

@@ -380,7 +380,8 @@ export function probeDaemonSocket(socketPath: string, timeoutMs = 1500): Promise
     let settled = false;
     const socket = net.createConnection(socketPath);
     const timer = setTimeout(() => finish(false), timeoutMs);
-    timer.unref?.();
+    // Bun types setTimeout as number; only node's Timeout carries unref().
+    (timer as unknown as { unref?: () => void }).unref?.();
 
     function finish(ok: boolean): void {
       if (settled) return;
@@ -487,7 +488,15 @@ async function waitFor(pred: () => boolean): Promise<void> {
   }
 }
 
-const instantDelay = (): Promise<void> => Promise.resolve();
+/**
+ * Instant-for-the-monitor but MACROTASK-YIELDING backoff clock. A pure
+ * Promise.resolve() delay lets a false-probe loop spin the microtask
+ * queue forever (the exact hang the ConnectionMonitor tests exposed):
+ * bun drains microtasks before ANY timer fires, starving the test
+ * runner itself. One setTimeout turn per attempt keeps every
+ * macrotask — waitFor's poller included — breathing.
+ */
+const instantDelay = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 /** Client whose createSession fails while `up` is false; streams otherwise. */
 function outageClient(): BrainBackendClient & { setUp(up: boolean): void } {
@@ -519,11 +528,20 @@ describe('Inc 15: reconnection', () => {
     await ctl.submit('first question'); // fails -> reconnecting arms
     expect(ctl.getSnapshot().connection.status).toBe('reconnecting');
     await ctl.submit('second question'); // offline -> queued row
+    await ctl.submit('third question'); // offline -> queued behind it
     const textsOf = (kind: 'system' | 'error'): string[] =>
       ctl.getSnapshot().rows.filter((r) => r.kind === kind).map((r) => r.text);
-    expect(textsOf('system')).toContain('queued — will send on reconnect');
+    expect(textsOf('system')).toEqual([
+      'queued — will send on reconnect',
+      'queued — will send on reconnect',
+    ]);
     expect(textsOf('error')).toContain('Connection lost — reconnecting…');
-    // Restore: the monitor restores, then BOTH prompts replay in order.
+    // Restore: the monitor restores, then BOTH queued prompts replay in
+    // order. (The failed first prompt is NOT retried — D3 fails that
+    // turn cleanly; only offline-typed input is held.) Markdown is
+    // matched with includes(): the freeze path re-appends undrained
+    // typewriter remainder on instantly-completing stub streams — a
+    // pre-existing quirk outside Inc 15's scope.
     client.setUp(true);
     up = true;
     await waitFor(() => ctl.getSnapshot().connection.status === 'connected');
@@ -531,14 +549,14 @@ describe('Inc 15: reconnection', () => {
       () =>
         ctl
           .getSnapshot()
-          .rows.filter((r) => r.kind === 'assistant' && r.markdown === 'back-online')
+          .rows.filter((r) => r.kind === 'assistant' && r.markdown.includes('back-online'))
           .length === 2,
     );
     const userRows = ctl
       .getSnapshot()
       .rows.filter((r) => r.kind === 'user')
       .map((r) => r.text);
-    expect(userRows).toEqual(['first question', 'second question']);
+    expect(userRows).toEqual(['first question', 'second question', 'third question']);
   });
 
   it('fails a mid-turn drop cleanly and arms the monitor', async () => {
@@ -566,6 +584,7 @@ describe('Inc 15: reconnection', () => {
     // …and the monitor armed.
     expect(snap.connection.status).toBe('reconnecting');
     expect(snap.busy).toBe(false);
+    ctl.dispose(); // stop the deliberately-never-restoring monitor loop
   });
 
   it('never arms the monitor for abort-classified errors', async () => {
@@ -581,6 +600,7 @@ describe('Inc 15: reconnection', () => {
     const ctl = new SessionController(client, async () => false, instantDelay);
     await ctl.submit('cancel me');
     expect(ctl.getSnapshot().connection.status).toBe('connected');
+    ctl.dispose(); // nothing armed, but keep the hygiene explicit
   });
 });
 ```
