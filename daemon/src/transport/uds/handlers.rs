@@ -2181,6 +2181,7 @@ pub async fn handle_connection(
             let mut total_usage =
                 brain_core::model::TokenUsage { input_tokens: 0, output_tokens: 0 };
             let mut accumulated_response = String::new();
+            let mut thinking_text = String::new();
             let mut is_completed_successfully = false;
             let mut is_cancelled = false;
 
@@ -2233,6 +2234,7 @@ pub async fn handle_connection(
                                     match chunk {
                                         brain_core::model::GenerationChunk::ThinkingStart => {
                                             thinking_started_at = Some(Instant::now());
+                                            thinking_text.clear();
                                             let packet = serde_json::json!({
                                                 "type": "thinking_start",
                                                 "generation_id": generation_id,
@@ -2246,6 +2248,7 @@ pub async fn handle_connection(
                                             writer.flush().await?;
                                         }
                                         brain_core::model::GenerationChunk::ThinkingDelta { text } => {
+                                            thinking_text.push_str(&text);
                                             let packet = serde_json::json!({
                                                 "type": "thinking_delta",
                                                 "generation_id": generation_id,
@@ -2263,11 +2266,12 @@ pub async fn handle_connection(
                                         brain_core::model::GenerationChunk::ThinkingEnd => {
                                             // Daemon-measured thinking duration: the
                                             // shell renders "Thought for X.Xs" from it.
+                                            let measured_ms = thinking_started_at
+                                                .map(|t| t.elapsed().as_millis() as u64)
+                                                .unwrap_or(0);
                                             let packet = serde_json::json!({
                                                 "type": "thinking_end",
-                                                "duration_ms": thinking_started_at
-                                                    .map(|t| t.elapsed().as_millis() as u64)
-                                                    .unwrap_or(0),
+                                                "duration_ms": measured_ms,
                                                 "generation_id": generation_id,
                                                 "session_id": session_id_str,
                                                 "sequence": seq,
@@ -2277,6 +2281,35 @@ pub async fn handle_connection(
                                             j.push('\n');
                                             writer.write_all(j.as_bytes()).await?;
                                             writer.flush().await?;
+                                            // Inc 19: persist the completed segment as a
+                                            // transcript message (best-effort, exactly like
+                                            // tool events — persistence never blocks
+                                            // generation).
+                                            if !thinking_text.is_empty() {
+                                                let envelope = serde_json::json!({
+                                                    "type": "thinking_block",
+                                                    "v": 1,
+                                                    "text": thinking_text,
+                                                    "duration_ms": measured_ms
+                                                });
+                                                let _ = session_aggregate.add_message(
+                                                    brain_domain::Message::new(
+                                                        brain_domain::MessageId::new(),
+                                                        brain_domain::MessageRole::Thinking,
+                                                        envelope.to_string(),
+                                                    ),
+                                                );
+                                                if let Err(e) = storage.save_session(
+                                                    &parsed_session_id,
+                                                    &session_aggregate,
+                                                ) {
+                                                    tracing::warn!(
+                                                        error = %e,
+                                                        "thinking block persistence failed; continuing"
+                                                    );
+                                                }
+                                                thinking_text = String::new();
+                                            }
                                         }
                                         brain_core::model::GenerationChunk::TextDelta { text } => {
                                             accumulated_response.push_str(&text);
