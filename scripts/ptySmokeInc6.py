@@ -79,58 +79,66 @@ def serve():
                                 {"id": "m2", "role": "assistant", "content": "Indexed 42 nodes."},
                             ]}}})
                     elif act == "v1/generation/stream":
-                        # Two-round turn: result feeds back, model issues a
+                        # Two-round turn: daemon-measured thinking opens it
+                        # (Inc 13), a result feeds back, the model issues a
                         # SECOND call, then closes with text. Mirrors the Inc 6
                         # daemon loop on the wire.
+                        reply({"type": "thinking_start", "sequence": 0})
+                        time.sleep(0.2)
+                        reply({"type": "thinking_delta", "thinking": "weighing the request",
+                               "sequence": 1})
+                        time.sleep(0.2)
+                        reply({"type": "thinking_end", "duration_ms": 1200, "sequence": 2})
+                        time.sleep(0.2)
                         reply({"type": "tool_use", "toolUse": {"id": "call_a",
                                "name": "bash", "input": {"command": "echo round-one-stub"}},
-                               "sequence": 0})
+                               "sequence": 3})
                         time.sleep(0.2)
                         reply({"type": "tool_permission_requested", "call_id": "call_a",
                                "tool_name": "bash", "input": {"command": "echo round-one-stub"},
-                               "reason": "shell access", "sequence": 1})
+                               "reason": "shell access", "sequence": 4})
                         evt = threading.Event(); PERM_EVENTS["call_a"] = evt
                         granted_a = bool(evt.wait(timeout=10) and PERM_GRANTED.get("call_a"))
                         if granted_a:
                             reply({"type": "tool_result", "call_id": "call_a",
                                    "tool_name": "bash", "output": "round-one-stub\n",
-                                   "is_error": False, "exit_code": 0, "sequence": 2})
+                                   "is_error": False, "exit_code": 0, "sequence": 5})
                             time.sleep(0.2)
                             reply({"type": "tool_use", "toolUse": {"id": "call_b",
                                    "name": "bash", "input": {"command": "echo round-two-stub"}},
-                                   "sequence": 3})
+                                   "sequence": 6})
                             time.sleep(0.2)
                             reply({"type": "tool_permission_requested", "call_id": "call_b",
                                    "tool_name": "bash", "input": {"command": "echo round-two-stub"},
-                                   "reason": "shell access", "sequence": 4})
+                                   "reason": "shell access", "sequence": 7})
                             evt_b = threading.Event(); PERM_EVENTS["call_b"] = evt_b
                             granted_b = bool(evt_b.wait(timeout=10) and PERM_GRANTED.get("call_b"))
                             if granted_b:
                                 reply({"type": "tool_result", "call_id": "call_b",
                                        "tool_name": "bash", "output": "round-two-stub\n",
-                                       "is_error": False, "exit_code": 0, "sequence": 5})
+                                       "is_error": False, "exit_code": 0, "sequence": 8})
                                 time.sleep(0.2)
-                                reply({"type": "token", "token": "Loop closed.", "sequence": 6})
+                                reply({"type": "token", "token": "Loop closed.", "sequence": 9})
                                 time.sleep(0.3)
-                                reply({"type": "finished", "status": "completed", "sequence": 7})
+                                reply({"type": "finished", "status": "completed", "sequence": 10})
                             else:
                                 reply({"type": "tool_denied", "call_id": "call_b",
-                                       "tool_name": "bash", "sequence": 5})
+                                       "tool_name": "bash", "sequence": 8})
                                 time.sleep(0.2)
                                 reply({"type": "token", "token": "Second call refused.",
-                                       "sequence": 6})
+                                       "sequence": 9})
                                 time.sleep(0.3)
-                                reply({"type": "finished", "status": "completed", "sequence": 7})
+                                reply({"type": "finished", "status": "completed", "sequence": 10})
                         else:
                             # Turn B path shares this branch: denial feeds back,
                             # the model keeps talking, turn completes normally.
                             reply({"type": "tool_denied", "call_id": "call_a",
-                                   "tool_name": "bash", "sequence": 2})
+                                   "tool_name": "bash", "sequence": 5})
                             time.sleep(0.2)
                             reply({"type": "token", "token": "Understood, moving on.",
-                                   "sequence": 3})
+                                   "sequence": 6})
                             time.sleep(0.3)
-                            reply({"type": "finished", "status": "completed", "sequence": 4})
+                            reply({"type": "finished", "status": "completed", "sequence": 7})
                     elif act == "v1/tool/resolve":
                         payload = req.get("payload", {})
                         cid = payload.get("call_id")
@@ -242,6 +250,8 @@ snapshot("loop-second-permission")
 os.write(fd, b"y"); pump(0.5)          # allow call_b
 ok &= expect("card-two-output", "round-two-stub")
 ok &= expect("closing-text", "Loop closed.")
+# Inc 13: once the turn freezes, the daemon-timed thinking row must show.
+ok &= expect("thought-label", "✻ Thought for 1.2s")
 deadline = time.time() + 6
 wire_two = frames_log().count('"v1/tool/resolve"') >= 2
 print(("PASS" if wire_two else "FAIL") + " two-resolves-on-wire")
@@ -265,6 +275,8 @@ frames_delta = frames_log()[len(frames_before):]
 no_result = "tool_result" not in frames_delta
 print(("PASS" if no_result else "FAIL") + " denied-turn-executes-nothing")
 ok &= no_result
+# Second turn of the run also opened with thinking: both labels persist.
+ok &= expect_count("thought-both-turns", "✻ Thought for 1.2s", 2)
 snapshot("deny-continuation")
 
 # ── Teardown ───────────────────────────────────────────────────────────────
