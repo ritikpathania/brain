@@ -195,7 +195,7 @@ export interface ToolCardData {
 export type TranscriptRow =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; markdown: string }
-  | { kind: 'thinking'; id: string; text: string; durationMs?: number }
+  | { kind: 'thinking'; id: string; text: string; durationMs?: number; collapsed?: boolean }
   | { kind: 'tool'; id: string; tool: ToolCardData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'system'; id: string; text: string };

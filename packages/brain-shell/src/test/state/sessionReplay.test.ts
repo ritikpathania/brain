@@ -163,3 +163,50 @@ describe('sessionToRows: persisted tool events (Inc 9)', () => {
     ]);
   });
 });
+
+describe('sessionToRows: persisted thinking blocks (Inc 19)', () => {
+  const thinkingEnvelope = (over: Record<string, unknown>) =>
+    JSON.stringify({ type: 'thinking_block', v: 1, ...over });
+
+  test('valid envelope becomes a collapsed thinking row keeping text and duration', () => {
+    const rows = sessionToRows(
+      session([
+        { id: 'u1', role: 'user', content: 'hello' },
+        {
+          id: 't1',
+          role: 'thinking',
+          content: thinkingEnvelope({ text: 'secret reasoning', duration_ms: 800 }),
+        },
+        { id: 'a1', role: 'assistant', content: 'answer' },
+      ]),
+    );
+    expect(rows).toEqual([
+      { kind: 'user', id: 'u1', text: 'hello' },
+      { kind: 'thinking', id: 't1', text: 'secret reasoning', durationMs: 800, collapsed: true },
+      { kind: 'assistant', id: 'a1', markdown: 'answer' },
+    ]);
+  });
+
+  test('envelope without duration yields a collapsed row without durationMs', () => {
+    const rows = sessionToRows(
+      session([
+        { id: 't2', role: 'thinking', content: thinkingEnvelope({ text: 'bare' }) },
+      ]),
+    );
+    expect(rows).toEqual([{ kind: 'thinking', id: 't2', text: 'bare', collapsed: true }]);
+  });
+
+  test('malformed thinking content falls back to a visible system row', () => {
+    const raw = JSON.stringify({ type: 'other', v: 1 });
+    const rows = sessionToRows(
+      session([
+        { id: 'x1', role: 'thinking', content: 'not json' },
+        { id: 'x2', role: 'thinking', content: raw },
+      ]),
+    );
+    expect(rows).toEqual([
+      { kind: 'system', id: 'x1', text: 'not json' },
+      { kind: 'system', id: 'x2', text: raw },
+    ]);
+  });
+});

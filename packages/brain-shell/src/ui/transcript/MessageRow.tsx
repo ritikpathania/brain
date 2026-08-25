@@ -28,15 +28,21 @@ export function ThinkingRowView(props: {
   tokens: BrainTokens;
 }): React.ReactElement {
   const { row, tokens } = props;
+  // Inc 19: replayed rows carry collapsed=true — summary line only. Live
+  // rows render the italic body (skipping it when the segment was empty,
+  // which used to leave a stray lone ✻).
+  const showBody = !row.collapsed && row.text.trim().length > 0;
   return (
     <Box flexDirection="column">
       {row.durationMs !== undefined ? (
         <Text dimColor>✻ Thought for {(row.durationMs / 1000).toFixed(1)}s</Text>
       ) : null}
-      <Text dimColor italic color={tokens.subtle}>
-        {'✻ '}
-        {row.text}
-      </Text>
+      {showBody ? (
+        <Text dimColor italic color={tokens.subtle}>
+          {'✻ '}
+          {row.text}
+        </Text>
+      ) : null}
     </Box>
   );
 }

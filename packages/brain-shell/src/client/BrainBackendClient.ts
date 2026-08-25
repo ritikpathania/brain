@@ -198,7 +198,7 @@ export interface BrainSessionSummary {
 
 export interface BrainMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'thinking';
   content: string;
   timestampMs?: number;
 }
