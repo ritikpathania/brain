@@ -183,7 +183,12 @@ export class SessionController {
   }
 
   async submit(text: string): Promise<void> {
-    if (this.busy) return;
+    // Inc 14: a submit during a live turn gets the same feedback as every
+    // other busy-path entry point instead of vanishing.
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return;
+    }
     this.busy = true;
     this.connectionError = undefined;
     const turnId = `turn_${++this.turnSeq}`;
