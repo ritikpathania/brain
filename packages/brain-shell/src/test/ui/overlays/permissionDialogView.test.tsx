@@ -18,7 +18,7 @@ function textOf(el: React.ReactElement): string {
 }
 
 describe('PermissionDialogView', () => {
-  test('shows tool, summarized input, and both options with selection', () => {
+  test('shows tool, summarized input, and all three options with selection', () => {
     const text = textOf(
       PermissionDialogView({
         req: {
@@ -36,6 +36,18 @@ describe('PermissionDialogView', () => {
     expect(text).toContain('rm -rf build');
     expect(text).toContain('[ Deny ]');
     expect(text).toContain('[ Allow ]');
+    expect(text).toContain('[ Always allow ]');
     expect(text).toContain('esc denies');
+    expect(text).toContain('a always');
+
+    const alwaysSelected = textOf(
+      PermissionDialogView({
+        req: { callId: 'c1', toolName: 'bash', input: { command: 'ls' } },
+        selected: 2,
+        tokens: PALETTES.dark,
+      }),
+    );
+    expect(alwaysSelected).toContain('❯ [ Always allow ]');
+    expect(alwaysSelected).not.toContain('❯ [ Deny ]');
   });
 });

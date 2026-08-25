@@ -120,6 +120,8 @@ export function AppShell(): React.ReactElement {
         setPermSelected(d.index);
       } else if (d.type === 'allow') {
         controller.resolvePermission(permission.callId, true);
+      } else if (d.type === 'always') {
+        controller.resolvePermissionAlways(permission.callId);
       } else if (d.type === 'deny') {
         controller.resolvePermission(permission.callId, false);
       }

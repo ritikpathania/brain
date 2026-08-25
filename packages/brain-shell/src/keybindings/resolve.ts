@@ -25,10 +25,12 @@ export const DEFAULT_BINDINGS: readonly BindingRule[] = [
   { action: 'overlay:down', context: 'overlay', key: 'down' },
   { action: 'overlay:commit', context: 'overlay', key: 'return' },
   { action: 'overlay:cancel', context: 'overlay', key: 'escape' },
-  // Permission dialog: left/right choose, y allow, n deny, enter confirms, esc denies.
+  // Permission dialog: left/right choose, y allow, a always, n deny, enter
+  // confirms, esc denies.
   { action: 'dialog:left', context: 'dialog', key: 'left' },
   { action: 'dialog:right', context: 'dialog', key: 'right' },
   { action: 'dialog:allow', context: 'dialog', key: 'y' },
+  { action: 'dialog:always', context: 'dialog', key: 'a' },
   { action: 'dialog:deny', context: 'dialog', key: 'n' },
   { action: 'dialog:commit', context: 'dialog', key: 'return' },
   { action: 'dialog:cancel', context: 'dialog', key: 'escape' },
