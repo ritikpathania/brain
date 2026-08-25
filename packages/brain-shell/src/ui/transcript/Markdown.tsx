@@ -18,6 +18,8 @@ function flagsFor(style: MdStyle): {
       return { bold: true };
     case 'bulletMarker':
       return { dimColor: true };
+    case 'codeComment':
+      return { italic: true };
     case 'linkText':
       return { underline: true };
     case 'linkUrl':
@@ -38,6 +40,20 @@ function colorFor(
       return tokens.accent;
     case 'codeBlock':
       return tokens.subtle;
+    // Syntax-highlight roles (Inc 18) reuse semantic palette roles, so all
+    // four themes — including both daltonized variants — stay coherent.
+    case 'codeText':
+      return tokens.text;
+    case 'codeKeyword':
+      return tokens.accent;
+    case 'codeString':
+      return tokens.success;
+    case 'codeComment':
+      return tokens.muted;
+    case 'codeNumber':
+      return tokens.warning;
+    case 'codeFn':
+      return tokens.brandShimmer;
     default:
       return undefined;
   }

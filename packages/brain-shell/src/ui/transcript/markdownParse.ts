@@ -1,8 +1,13 @@
 /**
  * Terminal markdown subset renderer (pure): source → styled segments.
  * Deliberately small: headings, fenced code, lists, bold/italic/code/links.
+ * Fenced blocks tagged with a supported language are syntax-highlighted via
+ * syntax.ts; unknown or missing tags keep the whole-line codeBlock style.
  * Anything unrecognized passes through as plain text; parsing never throws.
  */
+
+import { createCodeTokenizer } from './syntax.js';
+import type { CodeTokenKind } from './syntax.js';
 
 export type MdStyle =
   | 'plain'
@@ -13,7 +18,13 @@ export type MdStyle =
   | 'header'
   | 'bulletMarker'
   | 'linkText'
-  | 'linkUrl';
+  | 'linkUrl'
+  | 'codeText'
+  | 'codeKeyword'
+  | 'codeString'
+  | 'codeComment'
+  | 'codeNumber'
+  | 'codeFn';
 
 export interface MdSegment {
   text: string;
@@ -46,16 +57,40 @@ export function parseInline(text: string): MdSegment[] {
   return segs;
 }
 
+const HIGHLIGHT_STYLE: Record<CodeTokenKind, MdStyle> = {
+  plain: 'codeText',
+  keyword: 'codeKeyword',
+  string: 'codeString',
+  comment: 'codeComment',
+  number: 'codeNumber',
+  fn: 'codeFn',
+};
+
 export function parseMarkdown(source: string): MdLine[] {
   const out: MdLine[] = [];
   let inFence = false;
+  let fenceTokens: ReturnType<typeof createCodeTokenizer> | undefined;
   for (const raw of source.split('\n')) {
     if (/^```/.test(raw.trim())) {
-      inFence = !inFence;
+      if (!inFence) {
+        inFence = true;
+        const info = /^`+\s*([^\s`]*)/.exec(raw.trim())?.[1] ?? '';
+        fenceTokens = createCodeTokenizer(info);
+      } else {
+        inFence = false;
+        fenceTokens = undefined;
+      }
       continue;
     }
     if (inFence) {
-      out.push({ segments: [{ text: raw.length > 0 ? raw : ' ', style: 'codeBlock' }] });
+      const text = raw.length > 0 ? raw : ' ';
+      if (fenceTokens) {
+        out.push({
+          segments: fenceTokens.line(text).map((t) => ({ text: t.text, style: HIGHLIGHT_STYLE[t.kind] })),
+        });
+      } else {
+        out.push({ segments: [{ text, style: 'codeBlock' }] });
+      }
       continue;
     }
     const header = /^#{1,6}\s+(.*)$/.exec(raw);

@@ -39,14 +39,33 @@ describe('parseMarkdown blocks', () => {
     expect(lines[1]!.segments).toEqual([{ text: 'Sub', style: 'header' }]);
   });
 
-  it('fenced code blocks mark every inner line codeBlock and hide fences', () => {
-    const lines = parseMarkdown('before\n```ts\nconst x = 1;\nreturn x;\n```\nafter');
+  it('language-less fenced blocks mark every inner line codeBlock and hide fences', () => {
+    const lines = parseMarkdown('before\n```\nconst x = 1;\nreturn x;\n```\nafter');
     expect(lines).toHaveLength(4);
     expect(lines[0]!.segments).toEqual([{ text: 'before', style: 'plain' }]);
     expect(lines[1]!.segments.map((s) => s.style)).toEqual(['codeBlock']);
     expect(lines[1]!.segments[0]!.text).toContain('const x = 1;');
     expect(lines[2]!.segments.map((s) => s.style)).toEqual(['codeBlock']);
     expect(lines[3]!.segments).toEqual([{ text: 'after', style: 'plain' }]);
+  });
+
+  it('fenced blocks with a known language emit per-token highlight styles', () => {
+    const lines = parseMarkdown('```ts\nconst x = 1;\n```');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.segments).toEqual([
+      { text: 'const', style: 'codeKeyword' },
+      { text: ' x = ', style: 'codeText' },
+      { text: '1', style: 'codeNumber' },
+      { text: ';', style: 'codeText' },
+    ]);
+  });
+
+  it('unknown languages fall back to whole-line codeBlock; fence tags never render', () => {
+    const lines = parseMarkdown('```cobol\nMOVE A TO B.\n```');
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.segments).toEqual([{ text: 'MOVE A TO B.', style: 'codeBlock' }]);
+    const tagged = parseMarkdown('```ts\nx;\n```');
+    expect(tagged.flatMap((l) => l.segments.map((s) => s.text)).join('')).toBe('x;');
   });
 
   it('bullets and ordered lists get dim markers and inline-parsed bodies', () => {
