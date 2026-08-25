@@ -203,93 +203,12 @@ ctrl+o expand tools · ctrl+c exit
 brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
 ctrl+o expand tools · ctrl+c exit
 ❯ break things
-ℹ Allowed bash
-
-✢ bash…
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-✳ bash…
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-∗ bash…
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-✻ bash…
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-✻ bash…
-
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-∗ bash…
-
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
-
-✳ bash…
-
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
-
-❯  
-brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
-ctrl+o expand tools · ctrl+c exit
-❯ break things
-ℹ Allowed bash
 
 ✢ bash…
 
 ╭───────────────────────────────────────────────────────────╮
 │ Permission required                                       │
-│ bash — false                                              │
+│ bash — echo live-ok                                       │
 │ shell access                                              │
 │ ❯ [ Allow ]     [ Deny ]                                  │
 │ ←→ choose · enter confirm · y allow · n deny · esc denies │
@@ -303,14 +222,6 @@ ctrl+o expand tools · ctrl+c exit
 
 ✳ bash…
 
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
-
 ❯  
 brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
 ctrl+o expand tools · ctrl+c exit
@@ -318,14 +229,6 @@ ctrl+o expand tools · ctrl+c exit
 ℹ Allowed bash
 
 ∗ bash…
-
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
 
 ❯  
 brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
@@ -335,13 +238,13 @@ ctrl+o expand tools · ctrl+c exit
 
 ✻ bash…
 
-╭───────────────────────────────────────────────────────────╮
-│ Permission required                                       │
-│ bash — false                                              │
-│ shell access                                              │
-│ ❯ [ Allow ]     [ Deny ]                                  │
-│ ←→ choose · enter confirm · y allow · n deny · esc denies │
-╰───────────────────────────────────────────────────────────╯
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+
+∗ bash…
 
 ❯  
 brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
@@ -444,9 +347,114 @@ brain-shell · model brain-default · theme auto · ! bash · / commands · ↑�
 ctrl+o expand tools · ctrl+c exit
 ❯ break things
 ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+
+✢ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+
+✳ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+
+∗ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
 ℹ Allowed bash
 
 ✻ bash…
+
+╭───────────────────────────────────────────────────────────╮
+│ Permission required                                       │
+│ bash — false                                              │
+│ shell access                                              │
+│ ❯ [ Allow ]     [ Deny ]                                  │
+│ ←→ choose · enter confirm · y allow · n deny · esc denies │
+╰───────────────────────────────────────────────────────────╯
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+ℹ Allowed bash
+
+∗ bash…
+
+❯  
+brain-shell · model brain-default · theme auto · ! bash · / commands · ↑↓ history · esc stop · 
+ctrl+o expand tools · ctrl+c exit
+❯ break things
+ℹ Allowed bash
+ℹ Allowed bash
+
+∗ bash…
 Live turn done.
 
 ❯  
@@ -456,7 +464,7 @@ ctrl+o expand tools · ctrl+c exit
 ℹ Allowed bash
 ℹ Allowed bash
 
-∗ bash…
+✳ bash…
 Live turn done.
 
 ❯  
@@ -466,7 +474,7 @@ ctrl+o expand tools · ctrl+c exit
 ℹ Allowed bash
 ℹ Allowed bash
 
-✳ bash…
+✢ bash…
 Live turn done.
 
 ❯  
