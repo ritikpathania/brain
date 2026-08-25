@@ -368,6 +368,31 @@ async fn plain_single_pass_wire_shape_is_unchanged() {
     assert_eq!(end["metadata"]["inputTokens"], 15);
 }
 
+const THINKING_SCRIPT: &str =
+    r#"[{"tokens":["Deep thought."],"thinking":"pondering the loop","finish_reason":"end_turn"}]"#;
+
+#[tokio::test]
+async fn thinking_end_frame_carries_measured_duration_ms() {
+    let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", THINKING_SCRIPT)]).await;
+    let (mut reader, mut writer, session_id) =
+        open_and_create_session(&proc.socket_path).await;
+    start_generation_with_prompt(&mut writer, &session_id, "think then talk").await;
+
+    let frames = run_turn(&mut reader).await;
+    let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
+    let start_idx = types.iter().position(|t| *t == "thinking_start").unwrap();
+    let end_idx = types.iter().position(|t| *t == "thinking_end").unwrap();
+    assert!(start_idx < end_idx);
+
+    // Inc 13: the shell renders "Thought for X.Xs" from this field; without
+    // it the client would have to guess the timing itself.
+    let end_frame = frames.iter().find(|f| f["type"] == "thinking_end").unwrap();
+    let ms = end_frame["duration_ms"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("thinking_end must carry duration_ms, got {end_frame}"));
+    assert!(ms < 60_000);
+}
+
 /// Loads the session back over UDS and returns the raw messages array from
 /// the v1/session/load reply body.
 async fn load_session_messages(

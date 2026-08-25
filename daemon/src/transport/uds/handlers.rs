@@ -2138,6 +2138,7 @@ pub async fn handle_connection(
             };
 
             let mut seq: u64 = 0;
+            let mut thinking_started_at: Option<Instant> = None;
 
             // Frame 0: stream_start with memory provenance & telemetry metadata
             let start_packet = serde_json::json!({
@@ -2230,6 +2231,7 @@ pub async fn handle_connection(
                                     seq += 1;
                                     match chunk {
                                         brain_core::model::GenerationChunk::ThinkingStart => {
+                                            thinking_started_at = Some(Instant::now());
                                             let packet = serde_json::json!({
                                                 "type": "thinking_start",
                                                 "generation_id": generation_id,
@@ -2258,8 +2260,13 @@ pub async fn handle_connection(
                                             writer.flush().await?;
                                         }
                                         brain_core::model::GenerationChunk::ThinkingEnd => {
+                                            // Daemon-measured thinking duration: the
+                                            // shell renders "Thought for X.Xs" from it.
                                             let packet = serde_json::json!({
                                                 "type": "thinking_end",
+                                                "duration_ms": thinking_started_at
+                                                    .map(|t| t.elapsed().as_millis() as u64)
+                                                    .unwrap_or(0),
                                                 "generation_id": generation_id,
                                                 "session_id": session_id_str,
                                                 "sequence": seq,
