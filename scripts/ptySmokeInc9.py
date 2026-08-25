@@ -14,7 +14,14 @@ import fcntl, json, os, pty, re, select, signal, socket, struct, sys, termios, t
 
 ROWS, COLS = 30, 100
 SOCK = "/tmp/brain-inc9-smoke.sock"
-FIXTURE_DIR = "/Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell/src/test/fixtures/pty/inc9"
+# Env overrides let a fixture refresh run against a committed-code worktree
+# (BRAIN_PTY_PKG_DIR) and capture elsewhere (BRAIN_PTY_FIXTURE_DIR).
+PKG_DIR = os.environ.get(
+    "BRAIN_PTY_PKG_DIR",
+    "/Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell")
+FIXTURE_DIR = os.environ.get(
+    "BRAIN_PTY_FIXTURE_DIR",
+    PKG_DIR + "/src/test/fixtures/pty/inc9")
 CONFIG_FILE = "/tmp/brain-inc9-smoke-config.json"
 ANSI = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b[=>]")
 NOW_MS = int(time.time() * 1000)
@@ -178,7 +185,7 @@ if pid == 0:
     os.environ["BRAIN_CONFIG_PATH"] = CONFIG_FILE
     if os.path.exists(CONFIG_FILE):
         os.remove(CONFIG_FILE)
-    os.chdir("/Users/ritikpathania/Developer/PyCharm/brain/packages/brain-shell")
+    os.chdir(PKG_DIR)
     os.execvp("bun", ["bun", "run", "src/main.tsx"])
 
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
