@@ -384,11 +384,10 @@ export class SessionController {
 
   private finishTurn(status: 'completed' | 'error', errorText?: string): void {
     this.stopTicker();
-    // Flush any undrained typewriter text so frozen rows carry the whole answer.
-    const remainder = this.queue.pending > 0 ? this.queue.drain(this.queue.pending) : '';
-    if (remainder.length > 0) {
-      this.events.push({ type: 'text_delta', delta: remainder });
-    }
+    // Frozen rows are built solely from `events`, which already holds every
+    // delta verbatim (handleChunk records them before queueing for pacing).
+    // The typewriter queue feeds only the live view, which freeze discards —
+    // flushing it here would re-push its pending tail (Inc 16 dedup fix).
     // The wire protocol has no tool-result frame yet, so requested calls
     // would otherwise stay 'pending' forever on the frozen card. Settle them:
     // completed turns finish their tools, errored turns cancel them.
