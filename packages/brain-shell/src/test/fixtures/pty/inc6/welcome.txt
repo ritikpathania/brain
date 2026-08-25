@@ -1,4 +1,4 @@
-◆ BRAIN memory-first agent workspace
+  🔍 Resolving [1/1]   🔍 Resolving [1/1]   🔍 Resolving [1/1]   🔍 Resolving [1/1]   🔍 Resolving [1/1]   🔍 Resolving [1/1]   🔍 ink [1/1]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ink [2/27]   🔍 ansi-escapes [18/33]   🔍 ansi-escapes [18/33]   🔍 ansi-escapes [18/33]   🔍 cli-boxes [23/34]   🔍 cli-boxes [23/34]   🔍 react [31/38]   🔍 convert-to-spaces [34/38]   🔍 convert-to-spaces [34/38]   🔍 convert-to-spaces [34/38]   🔍 convert-to-spaces [34/38]   🔍 convert-to-spaces [34/38]   🔍 es-toolkit [37/39]   🔍 es-toolkit [37/39]   🔍 onetime [38/40]   🔍 onetime [38/40]   🔍 mimic-fn [39/40]   🔍 mimic-fn [39/40]   🔍 mimic-fn [39/40]   🔍 mimic-fn [39/40]   🔍 mimic-fn [39/40]   🔍 mimic-fn [39/40]   🔍 react-reconciler [41/41]   🔍 react-reconciler [41/41]   🔍 react-reconciler [41/41]   🔍 scheduler [43/42]   🔍 Resolving [43/42]   🔍 Resolving [43/42] ◆ BRAIN memory-first agent workspace
 
   workspace brain-shell
   /help commands · ! bash · /resume sessions · /theme appearance
