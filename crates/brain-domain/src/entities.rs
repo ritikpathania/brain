@@ -23,6 +23,8 @@ pub enum MessageRole {
     System,
     /// Agentic-loop tool outcome persisted as part of the transcript (Inc 8).
     Tool,
+    /// Reasoning block persisted as part of the transcript (Inc 19).
+    Thinking,
 }
 
 impl std::fmt::Display for MessageRole {
@@ -32,6 +34,7 @@ impl std::fmt::Display for MessageRole {
             Self::Assistant => write!(f, "assistant"),
             Self::System => write!(f, "system"),
             Self::Tool => write!(f, "tool"),
+            Self::Thinking => write!(f, "thinking"),
         }
     }
 }
@@ -43,6 +46,7 @@ impl std::str::FromStr for MessageRole {
             "assistant" => Self::Assistant,
             "system" => Self::System,
             "tool" => Self::Tool,
+            "thinking" => Self::Thinking,
             _ => Self::User,
         };
         Ok(role)
