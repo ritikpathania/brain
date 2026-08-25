@@ -338,6 +338,13 @@ export class UdsBrainBackendClient implements BrainBackendClient {
             status: raw.status || 'completed',
             metadata: raw.metadata,
           });
+        } else {
+          // Inc 14: an unmapped frame type must leave a trace instead of
+          // vanishing — warn and keep reading. Shell and daemon ship
+          // together, so this fires under version skew, not in normal runs.
+          console.warn(
+            `[brain-shell] unknown daemon frame type: ${String(raw.type)} (seq ${String(raw.sequence)})`,
+          );
         }
       } catch (err: any) {
         // Parse failures were handled above; reaching here means a dispatch

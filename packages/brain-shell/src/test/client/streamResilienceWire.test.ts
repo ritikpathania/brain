@@ -7,6 +7,7 @@ import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brain-stream-resilience-'));
 const sockPath = path.join(dir, 't.sock');
+const sockPath2 = path.join(dir, 't2.sock');
 
 // Scripted daemon for Inc 14 boundary-resilience tests: v1/session/create
 // replies success; v1/generation/stream emits stream_start(0), then a RAW
@@ -44,8 +45,41 @@ const server = net.createServer((socket) => {
 });
 server.listen(sockPath);
 
+// Second daemon for the unknown-frame scenario: a well-formed frame whose
+// type the client has no mapping for must warn and continue, not vanish or
+// kill the stream.
+const server2 = net.createServer((socket) => {
+  let buffer = '';
+  socket.on('data', (data) => {
+    buffer += data.toString('utf8');
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 1);
+      if (!line.trim()) continue;
+      const req = JSON.parse(line) as { action?: string };
+      const reply = (obj: unknown) => socket.write(JSON.stringify(obj) + '\n');
+      const emit = (o: Record<string, unknown>) => socket.write(JSON.stringify(o) + '\n');
+      if (req.action === 'v1/session/create') {
+        reply({
+          type: 'Response',
+          status: 'success',
+          body: { session_id: 'stub-sr2', title: 't' },
+        });
+      } else if (req.action === 'v1/generation/stream') {
+        emit({ type: 'stream_start', session_id: 'stub-sr2', sequence: 0 });
+        emit({ type: 'hologram', session_id: 'stub-sr2', sequence: 1, payload: '???' });
+        emit({ type: 'token', session_id: 'stub-sr2', sequence: 2, token: 'visible', status: 'in_progress' });
+        emit({ type: 'finished', session_id: 'stub-sr2', sequence: 3, status: 'completed' });
+      }
+    }
+  });
+});
+server2.listen(sockPath2);
+
 afterAll(() => {
   server.close();
+  server2.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -78,5 +112,24 @@ describe('UDS client survives malformed frames (Inc 14)', () => {
     expect(chunks.some((c) => c.type === 'error')).toBe(false);
     // …and the skip left a trace on stderr rather than vanishing.
     expect(warnings.some((w) => /malformed/i.test(w))).toBe(true);
+  });
+
+  test('an unknown frame type warns and the stream continues past it', async () => {
+    const warnings: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    let chunks: Array<{ type: string; token?: string }>;
+    try {
+      const client = new UdsBrainBackendClient(sockPath2);
+      await client.createSession();
+      chunks = await collect(client.streamText({ sessionId: 'stub-sr2', messages: [] }));
+    } finally {
+      console.warn = origWarn;
+    }
+    expect(chunks.some((c) => c.type === 'token' && c.token === 'visible')).toBe(true);
+    expect(chunks.some((c) => c.type === 'error')).toBe(false);
+    expect(warnings.some((w) => /unknown daemon frame/i.test(w) && /hologram/.test(w))).toBe(true);
   });
 });
