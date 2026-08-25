@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Box, Text, useTerminalSize } from '../../compat/index.js';
 import { WelcomeFrame } from './WelcomeFrame.js';
 import { StatusBarView } from './StatusBar.js';
+import { connectionStatusText } from './connectionStatusLogic.js';
 import { Spinner, spinnerLabel } from './Spinner.js';
 import { MessageRow } from '../transcript/MessageRow.js';
 import { PromptInput } from '../composer/PromptInput.js';
@@ -39,6 +40,8 @@ export function AppShell(): React.ReactElement {
     () => new SessionController(new UdsBrainBackendClient()),
     [],
   );
+  // Inc 15: unmount must cancel the reconnect loop's timers.
+  React.useEffect(() => () => controller.dispose(), [controller]);
   const snapshot = useShellSnapshot(controller);
   const [expandTools, setExpandTools] = React.useState(false);
   const { setting: themeSetting, tokens, setSetting } = useTheme();
@@ -198,7 +201,9 @@ export function AppShell(): React.ReactElement {
           ) : null}
         </Box>
       ) : null}
-      {snapshot.connectionError !== undefined ? (
+      {snapshot.connection.status !== 'connected' ? (
+        <Text color="yellow">⚠ Connection lost — reconnecting…</Text>
+      ) : snapshot.connectionError !== undefined ? (
         <Text color="red">⚠ {snapshot.connectionError}</Text>
       ) : null}
       {themeOpen ? (
@@ -236,6 +241,7 @@ export function AppShell(): React.ReactElement {
         theme={themeSetting}
         expandTools={expandTools}
         tokens={tokens}
+        connectionText={connectionStatusText(snapshot.connection)}
       />
     </Box>
   );

@@ -9,12 +9,15 @@ export function StatusBarView(props: {
   theme: string;
   expandTools: boolean;
   tokens: BrainTokens;
+  connectionText?: string | null;
 }): React.ReactElement {
   void props.tokens; // reserved: segments gain token colors in later increments
   return (
     <Text dimColor>
       {props.workspace} · model {props.model} · theme {props.theme} · ! bash · / commands · ↑↓
-      history · esc stop · ctrl+o {props.expandTools ? 'collapse' : 'expand'} tools · ctrl+c exit
+      history · esc stop · ctrl+o {props.expandTools ? 'collapse' : 'expand'} tools
+      {props.connectionText ? <Text color="yellow"> · {props.connectionText}</Text> : null} ·
+      ctrl+c exit
     </Text>
   );
 }
