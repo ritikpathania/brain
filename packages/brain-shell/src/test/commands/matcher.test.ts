@@ -48,7 +48,14 @@ describe('fuzzyMatchCommands', () => {
   });
 
   it('ships the Inc 2 command set plus the Inc 3 additions', () => {
-    expect(COMMANDS.map((c) => c.name).sort()).toEqual(['clear', 'help', 'quit', 'resume', 'theme']);
+    expect(COMMANDS.map((c) => c.name).sort()).toEqual([
+      'clear',
+      'help',
+      'permissions',
+      'quit',
+      'resume',
+      'theme',
+    ]);
     expect(COMMANDS.find((c) => c.name === 'quit')!.aliases).toEqual(['q']);
   });
 });

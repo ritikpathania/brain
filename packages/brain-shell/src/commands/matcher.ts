@@ -24,6 +24,7 @@ export const COMMANDS: readonly BrainCommand[] = [
   { name: 'clear', description: 'Clear the transcript' },
   { name: 'resume', description: 'Resume a previous session' },
   { name: 'theme', description: 'Change the color theme' },
+  { name: 'permissions', description: 'List or remove always-allow rules' },
   { name: 'quit', description: 'Exit Brain shell', aliases: ['q'] },
 ];
 

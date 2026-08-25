@@ -25,6 +25,7 @@ import { ResumePickerView } from '../overlays/ResumePicker.js';
 import { dialogDecision } from '../overlays/permissionDialogLogic.js';
 import { PermissionDialogView } from '../overlays/PermissionDialog.js';
 import { writeThemeSetting } from '../../state/themeStore.js';
+import { runPermissionsCommand } from '../../state/permissionRules.js';
 import type { ThemeSetting } from '../../contracts/theme.js';
 
 /**
@@ -132,7 +133,9 @@ export function AppShell(): React.ReactElement {
     ['Slash commands:', ...COMMANDS.map((c) => `/${c.name} — ${c.description}`)].join('\n');
 
   const runCommand = (rawValue: string): void => {
-    const token = rawValue.trim().slice(1).toLowerCase(); // strip '/', tolerate trailing space
+    const words = rawValue.trim().slice(1).split(/\s+/); // strip '/', split args
+    const token = (words[0] ?? '').toLowerCase();
+    const args = words.slice(1);
     if (token.length === 0) return;
     const exact = COMMANDS.find(
       (c) => c.name === token || (c.aliases ?? []).includes(token),
@@ -170,6 +173,8 @@ export function AppShell(): React.ReactElement {
         setResumeSelected(0);
         setResumeOpen(true);
       });
+    } else if (chosen.name === 'permissions') {
+      controller.notice(runPermissionsCommand(args));
     } else if (chosen.name === 'quit') process.exit(0);
   };
 
