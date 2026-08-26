@@ -8,6 +8,7 @@ import { Spinner, spinnerLabel } from './Spinner.js';
 import { MessageRow } from '../transcript/MessageRow.js';
 import { PromptInput } from '../composer/PromptInput.js';
 import { SessionController } from '../../state/sessionController.js';
+import { makeUserExit, planQuit } from './exitLogic.js';
 import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
 import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
@@ -85,10 +86,11 @@ export function AppShell(): React.ReactElement {
     setResumeSelected((i) => Math.min(i, Math.max(0, resumeItems.length - 1)));
   }, [resumeItems.length]);
 
+  const requestExit = React.useMemo(() => makeUserExit(controller), [controller]);
   useBoundInput({
     contexts: ['global'],
     onAction: (action) => {
-      if (action === 'shell:exit') process.exit(0);
+      if (action === 'shell:exit') requestExit();
       if (action === 'shell:toggleTools') setExpandTools((v) => !v);
     },
   });
@@ -264,8 +266,22 @@ export function AppShell(): React.ReactElement {
       case 'none':
         break;
       case 'action':
-        if (res.action === 'quit') process.exit(0);
-        else if (res.action === 'clear') controller.clear();
+        if (res.action === 'quit') {
+          const plan = planQuit(controller.getSnapshot().busy);
+          if (plan.kind === 'interrupt') {
+            controller.interruptTurn();
+            controller.notice(plan.notice);
+            const deadline = Date.now() + 2000;
+            const poll = setInterval(() => {
+              if (!controller.getSnapshot().busy || Date.now() > deadline) {
+                clearInterval(poll);
+                process.exit(0);
+              }
+            }, 50);
+          } else {
+            process.exit(0);
+          }
+        } else if (res.action === 'clear') controller.clear();
         else if (res.action === 'theme') {
           setThemeOriginal(themeSetting);
           setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
@@ -384,7 +400,8 @@ export function AppShell(): React.ReactElement {
           busy={snapshot.busy}
           paused={themeOpen || resumeOpen || permission !== undefined || doctorOpen || memoryOpen}
           onSubmit={handleSubmit}
-          onAbort={() => controller.abort()}
+          onAbort={() => controller.interruptTurn()}
+          onRequestExit={requestExit}
         />
       </Box>
       <StatusBarView

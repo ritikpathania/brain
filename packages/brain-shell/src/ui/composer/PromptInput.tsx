@@ -71,6 +71,8 @@ export function PromptInput(props: {
   paused?: boolean;
   onSubmit: (value: string, mode: 'prompt' | 'bash') => void;
   onAbort?: () => void;
+  /** Busy-aware exit (Inc 24). Absent: legacy direct process.exit. */
+  onRequestExit?: () => void;
 }): React.ReactElement {
   const { tokens } = useTheme();
   const { columns } = useTerminalSize();
@@ -123,7 +125,8 @@ export function PromptInput(props: {
       return;
     }
     if (cmd.type === 'exit') {
-      process.exit(0);
+      if (props.onRequestExit) props.onRequestExit();
+      else process.exit(0);
       return;
     }
     if (cmd.type === 'abort') {
