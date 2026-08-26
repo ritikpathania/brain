@@ -543,7 +543,7 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     const s = res.session || res;
     return {
       session: {
-        id: s.id,
+        id: s.id ?? s.sessionId,
         title: s.title,
         archived: s.archived,
         pinned: s.pinned,
