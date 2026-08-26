@@ -62,7 +62,7 @@ export function AppShell(): React.ReactElement {
   const [resumeQuery, setResumeQuery] = React.useState('');
   // Command-surface overlays (Inc 21): /doctor and /memory mount points.
   const [doctorOpen, setDoctorOpen] = React.useState(false);
-  const [doctorLoading, setDoctorLoading] = React.useState(false);
+  const [doctorLoading, setDoctorLoading] = React.useState(true); // avoids a one-frame "failed" flash pre-effect
   const [doctorReport, setDoctorReport] = React.useState<EngineDiagnosticReport | null>(null);
   const [memoryOpen, setMemoryOpen] = React.useState(false);
   const [memoryQuery, setMemoryQuery] = React.useState('');
@@ -140,13 +140,13 @@ export function AppShell(): React.ReactElement {
     },
   });
 
-  // /doctor overlay: read-only report; enter or esc dismisses.
+  // /doctor overlay: read-only report — not a navigable list, so the
+  // list-decision table doesn't apply; enter/esc dismiss directly.
   useBoundInput({
     contexts: ['overlay'],
     isActive: doctorOpen,
     onAction: (action) => {
-      const d = overlayListDecision(action, 0, 0);
-      if (d.type === 'cancel' || d.type === 'commit') {
+      if (action === 'overlay:commit' || action === 'overlay:cancel') {
         setDoctorOpen(false);
         controller.notice('Completed system diagnostics');
       }
