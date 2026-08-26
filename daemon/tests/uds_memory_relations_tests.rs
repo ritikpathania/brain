@@ -181,3 +181,102 @@ async fn store_without_relations_yields_empty_relation_list() {
         "absent relations must surface as an empty list"
     );
 }
+
+#[tokio::test]
+async fn blank_query_lists_stored_concepts_newest_first() {
+    let d = start_daemon_at(get_temp_dir()).await;
+
+    rpc(
+        &d.socket_path,
+        1,
+        "memory/store",
+        serde_json::json!({
+            "label": "Older Plain Node",
+            "content": "older body",
+        }),
+    )
+    .await;
+
+    rpc(
+        &d.socket_path,
+        2,
+        "memory/store",
+        serde_json::json!({
+            "label": "Newer Related Node",
+            "content": "newer body",
+            "scope": "compiler",
+            "relations": [{"relation": "supports", "target_id": "beta-1"}],
+        }),
+    )
+    .await;
+
+    let found = rpc(
+        &d.socket_path,
+        3,
+        "memory/search",
+        serde_json::json!({"query": "", "limit": 10}),
+    )
+    .await;
+    let m = found["memories"].as_array().expect("memories array");
+    assert_eq!(m.len(), 2, "both stored concepts listed: {found}");
+    assert_eq!(m[0]["label"], "Newer Related Node", "newest first");
+    assert_eq!(m[0]["excerpt"], "newer body");
+    assert_eq!(m[0]["scope"], "compiler");
+    assert_eq!(m[0]["relations"][0]["relation"], "supports");
+    assert_eq!(m[1]["label"], "Older Plain Node");
+    assert_eq!(m[1]["relations"].as_array().unwrap().len(), 0);
+
+    let ws = rpc(
+        &d.socket_path,
+        4,
+        "memory/search",
+        serde_json::json!({"query": "   ", "limit": 10}),
+    )
+    .await;
+    assert_eq!(
+        ws["memories"].as_array().unwrap().len(),
+        2,
+        "whitespace-only query behaves as blank"
+    );
+}
+
+#[tokio::test]
+async fn blank_query_honors_limit_and_typed_queries_unchanged() {
+    let d = start_daemon_at(get_temp_dir()).await;
+
+    for i in 1..=3 {
+        rpc(
+            &d.socket_path,
+            i,
+            "memory/store",
+            serde_json::json!({"label": format!("Node{i}"), "content": "c"}),
+        )
+        .await;
+    }
+
+    let limited = rpc(
+        &d.socket_path,
+        10,
+        "memory/search",
+        serde_json::json!({"query": "", "limit": 2}),
+    )
+    .await;
+    assert_eq!(
+        limited["memories"].as_array().unwrap().len(),
+        2,
+        "blank listing honors limit: {limited}"
+    );
+
+    let typed = rpc(
+        &d.socket_path,
+        11,
+        "memory/search",
+        serde_json::json!({"query": "Node2", "limit": 10}),
+    )
+    .await;
+    let tm = typed["memories"].as_array().unwrap();
+    assert!(
+        tm.iter().any(|x| x["label"] == "Node2"),
+        "single-token typed query still finds the stored node: {typed}"
+    );
+}

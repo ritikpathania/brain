@@ -1319,75 +1319,114 @@ pub async fn handle_connection(
             let mut matches = Vec::new();
             let context = ExecutionContext::default();
             let storage = app.runtime().sqlite_storage();
-            let search_query = brain_integrations::dto::v1::SearchQuery {
-                text: query_text.clone(),
-                kinds: None,
-                pagination: None,
-            };
-
-            let now = chrono::Utc::now().timestamp_millis();
-            if let Ok(results) = app.search(search_query, &context).await {
-                for summary in results.into_iter().take(limit) {
-                    let clean_title = if summary.title.trim().starts_with('{') {
-                        if let Ok(v) =
-                            serde_json::from_str::<serde_json::Value>(summary.title.trim())
-                        {
-                            v.get("content")
-                                .and_then(|c| c.as_str())
-                                .map(|s| s.to_string())
-                                .unwrap_or(summary.title.clone())
-                        } else {
-                            summary.title.clone()
-                        }
-                    } else {
-                        summary.title.clone()
-                    };
-
-                    let score = summary
-                        .metadata
-                        .get("score")
-                        .and_then(|s| s.parse::<i64>().ok())
-                        .unwrap_or(100);
-
-                    // Enrich from the stored node when the summary resolves
-                    // to one: the application-layer projection drops node
-                    // properties (SearchMetadata carries none), so relations/
-                    // excerpt/scope are recovered here at the boundary.
-                    // Sessions/messages fail the UUID parse and keep today's
-                    // behavior exactly.
-                    let node_props = uuid::Uuid::parse_str(summary.id.trim())
-                        .ok()
-                        .and_then(|u| {
-                            let nid = brain_domain::NodeId(u);
-                            brain_core::repositories::NodeRepository::find_by_id(
-                                storage.as_ref(),
-                                &nid,
-                            )
-                            .ok()
-                            .flatten()
-                            .map(|n| n.properties)
-                        });
-                    let relations = super::memory_relations::extract_relations(
-                        node_props.as_ref(),
-                        summary.metadata.get("relations").map(|s| s.as_str()),
-                    );
-                    let excerpt = super::memory_relations::preferred_excerpt(
-                        node_props.as_ref(),
-                        &summary.body,
-                    );
+            if query_text.trim().is_empty() {
+                // Blank queries mean "show me what's there": the retrieval
+                // pipeline short-circuits blanks, so list stored concepts
+                // directly (newest first) instead of returning a misleading
+                // empty page.
+                let mut nodes =
+                    brain_core::repositories::NodeRepository::list_all(storage.as_ref())
+                        .unwrap_or_default();
+                nodes.retain(|n| matches!(n.node_type, brain_domain::NodeKind::Concept));
+                nodes.sort_by(|a, b| {
+                    b.updated_at
+                        .cmp(&a.updated_at)
+                        .then_with(|| a.label.cmp(&b.label))
+                });
+                for node in nodes.into_iter().take(limit) {
+                    // Hoist helper results BEFORE moving node fields into the
+                    // DTO — same borrow-order discipline as the typed arm.
+                    let props = node.properties;
+                    let excerpt =
+                        super::memory_relations::preferred_excerpt(Some(&props), &node.label);
                     let scope =
-                        super::memory_relations::preferred_scope(node_props.as_ref(), "workspace");
-
+                        super::memory_relations::preferred_scope(Some(&props), "workspace");
+                    let relations =
+                        super::memory_relations::extract_relations(Some(&props), None);
                     matches.push(crate::server::protocol::MemoryItemDto {
-                        node_id: summary.id,
-                        label: clean_title,
+                        node_id: node.id.to_string(),
+                        label: node.label,
                         excerpt,
-                        score,
+                        score: 100,
                         channel: "knowledge_graph".to_string(),
-                        timestamp: now,
+                        timestamp: (node.updated_at * 1000) as i64,
                         scope,
                         relations,
                     });
+                }
+            } else {
+                let search_query = brain_integrations::dto::v1::SearchQuery {
+                    text: query_text.clone(),
+                    kinds: None,
+                    pagination: None,
+                };
+
+                let now = chrono::Utc::now().timestamp_millis();
+                if let Ok(results) = app.search(search_query, &context).await {
+                    for summary in results.into_iter().take(limit) {
+                        let clean_title = if summary.title.trim().starts_with('{') {
+                            if let Ok(v) =
+                                serde_json::from_str::<serde_json::Value>(summary.title.trim())
+                            {
+                                v.get("content")
+                                    .and_then(|c| c.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or(summary.title.clone())
+                            } else {
+                                summary.title.clone()
+                            }
+                        } else {
+                            summary.title.clone()
+                        };
+
+                        let score = summary
+                            .metadata
+                            .get("score")
+                            .and_then(|s| s.parse::<i64>().ok())
+                            .unwrap_or(100);
+
+                        // Enrich from the stored node when the summary resolves
+                        // to one: the application-layer projection drops node
+                        // properties (SearchMetadata carries none), so relations/
+                        // excerpt/scope are recovered here at the boundary.
+                        // Sessions/messages fail the UUID parse and keep today's
+                        // behavior exactly.
+                        let node_props = uuid::Uuid::parse_str(summary.id.trim())
+                            .ok()
+                            .and_then(|u| {
+                                let nid = brain_domain::NodeId(u);
+                                brain_core::repositories::NodeRepository::find_by_id(
+                                    storage.as_ref(),
+                                    &nid,
+                                )
+                                .ok()
+                                .flatten()
+                                .map(|n| n.properties)
+                            });
+                        let relations = super::memory_relations::extract_relations(
+                            node_props.as_ref(),
+                            summary.metadata.get("relations").map(|s| s.as_str()),
+                        );
+                        let excerpt = super::memory_relations::preferred_excerpt(
+                            node_props.as_ref(),
+                            &summary.body,
+                        );
+                        let scope = super::memory_relations::preferred_scope(
+                            node_props.as_ref(),
+                            "workspace",
+                        );
+
+                        matches.push(crate::server::protocol::MemoryItemDto {
+                            node_id: summary.id,
+                            label: clean_title,
+                            excerpt,
+                            score,
+                            channel: "knowledge_graph".to_string(),
+                            timestamp: now,
+                            scope,
+                            relations,
+                        });
+                    }
                 }
             }
 
