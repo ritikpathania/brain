@@ -100,12 +100,14 @@ ok = True
 ok &= expect("launch-mark", "◆ BRAIN")
 ok &= expect("launch-prompt", "❯")
 os.write(fd, b"/")                       # opens palette with ALL commands
+# Inc 21: the catalog is the canonical registry — eight commands, name-sorted
+# (clear, doctor, help, memory, …), initial selection on the first row.
 ok &= expect("palette-listed", "/help")
 ok &= expect("palette-desc", "List available slash commands")
-os.write(fd, b"\x1b[B")                  # ↓ selection moves to /clear
+os.write(fd, b"\x1b[B")                  # ↓ selection moves to /doctor
+ok &= expect("palette-nav-doctor", "❯ /doctor")
+os.write(fd, b"\x1b[A")                  # ↑ back to first row
 ok &= expect("palette-nav-clear", "❯ /clear")
-os.write(fd, b"\x1b[A")                  # ↑ back to /help
-ok &= expect("palette-nav-help", "❯ /help")
 snapshot("palette")
 os.write(fd, b"\x1b")                    # esc closes the menu…
 pump(0.3)
@@ -153,9 +155,10 @@ while time.time() < deadline:
         with open(FRAMES_FILE) as f:
             for line in f:
                 req = json.loads(line)
-                msgs = (req.get("payload") or {}).get("messages") or []
-                if msgs and isinstance(msgs[-1].get("content"), str) \
-                        and msgs[-1]["content"].strip() == "echo hi":
+                # Bash mode has been a real shell-exec since Inc 5; assert
+                # the '!' prefix is stripped on the exec wire shape.
+                if req.get("action") == "v1/shell/exec" \
+                        and (req.get("payload") or {}).get("command", "").strip() == "echo hi":
                     stripped = True
     except FileNotFoundError:
         pass
