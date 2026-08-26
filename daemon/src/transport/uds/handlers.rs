@@ -363,6 +363,8 @@ pub async fn handle_connection(
                         created_at_ms: created_ms,
                         updated_at_ms: updated_ms,
                         workspace_path: list_req.workspace_path.clone(),
+                        pinned: s.pinned,
+                        archived: s.archived,
                     }
                 })
                 .collect();

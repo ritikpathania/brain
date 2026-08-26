@@ -23,10 +23,21 @@ pub struct VersionedRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct JsonRpcRequest {
+    pub id: serde_json::Value,
+    pub action: String,
+    #[serde(default)]
+    pub payload: serde_json::Value,
+    #[serde(default)]
+    pub body: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ClientRequest {
     Versioned(VersionedRequest),
     Legacy(LegacyRequest),
+    JsonRpc(JsonRpcRequest),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,6 +101,300 @@ pub struct QueryResultNode {
 pub struct LegacyResponse {
     pub status: String,
     pub message: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct StartSessionPayload {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StartSessionResponseBody {
+    pub session_id: String,
+    pub title: String,
+    pub created_at_ms: i64,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct AppendTurnPayload {
+    pub session_id: String,
+    #[serde(default)]
+    pub turn_id: Option<String>,
+    pub role: String,
+    pub content: String,
+    #[serde(default)]
+    pub tool_results: Option<serde_json::Value>,
+    #[serde(default)]
+    pub timestamp_ms: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AppendTurnResponseBody {
+    pub success: bool,
+    pub message_id: String,
+    pub session_id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CompleteTurnPayload {
+    pub session_id: String,
+    #[serde(default)]
+    pub turn_id: Option<String>,
+    pub assistant_response: String,
+    #[serde(default)]
+    pub duration_ms: Option<u64>,
+    #[serde(default)]
+    pub input_tokens: Option<u64>,
+    #[serde(default)]
+    pub output_tokens: Option<u64>,
+    #[serde(default)]
+    pub timestamp_ms: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CompleteTurnResponseBody {
+    pub success: bool,
+    pub session_id: String,
+    pub total_turns: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SearchMemoryPayload {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    pub query: String,
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MemoryItemDto {
+    pub node_id: String,
+    pub label: String,
+    pub excerpt: String,
+    pub score: i64,
+    pub channel: String,
+    pub timestamp: i64,
+    pub scope: String,
+    #[serde(default)]
+    pub relations: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SearchMemoryResponseBody {
+    pub memories: Vec<MemoryItemDto>,
+    pub provenance: serde_json::Value,
+    pub token_count: usize,
+    pub serialized_context: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct StoreMemoryPayload {
+    #[serde(default)]
+    pub session_id: Option<String>,
+    pub label: String,
+    pub content: String,
+    #[serde(default)]
+    pub scope: Option<String>,
+    #[serde(default)]
+    pub relations: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StoreMemoryResponseBody {
+    pub success: bool,
+    pub node_id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ToolFeedbackIdentityDto {
+    #[serde(rename = "sessionId", alias = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "turnId", alias = "turn_id")]
+    pub turn_id: String,
+    #[serde(rename = "toolUseId", alias = "tool_use_id")]
+    pub tool_use_id: String,
+    #[serde(default)]
+    pub sequence: Option<u64>,
+    #[serde(default)]
+    pub timestamp: Option<u64>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ToolFeedbackToolDto {
+    pub name: String,
+    pub status: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+pub struct ToolFeedbackOperationDto {
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(rename = "commandName", alias = "command_name", default)]
+    pub command_name: Option<String>,
+    #[serde(rename = "affectedPaths", alias = "affected_paths", default)]
+    pub affected_paths: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+pub struct ToolFeedbackResultDto {
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(rename = "isError", alias = "is_error", default)]
+    pub is_error: bool,
+    #[serde(rename = "durationMs", alias = "duration_ms", default)]
+    pub duration_ms: Option<u64>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ToolExecutionFeedbackPayload {
+    pub identity: ToolFeedbackIdentityDto,
+    pub tool: ToolFeedbackToolDto,
+    #[serde(default)]
+    pub operation: ToolFeedbackOperationDto,
+    #[serde(default)]
+    pub result: ToolFeedbackResultDto,
+    #[serde(rename = "payloadHash", alias = "payload_hash", default)]
+    pub payload_hash: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ToolFeedbackResponseBody {
+    pub success: bool,
+    pub event_id: String,
+    pub facts_ingested: usize,
+    pub entities_linked: Vec<String>,
+    pub is_duplicate: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, Default)]
+pub struct ListSessionsPayload {
+    #[serde(default)]
+    pub limit: Option<usize>,
+    #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(rename = "workspacePath", alias = "workspace_path", default)]
+    pub workspace_path: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SessionSummaryDto {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+    pub title: String,
+    #[serde(rename = "messageCount")]
+    pub message_count: usize,
+    #[serde(rename = "createdAtMs")]
+    pub created_at_ms: i64,
+    #[serde(rename = "updatedAtMs")]
+    pub updated_at_ms: i64,
+    #[serde(rename = "workspacePath")]
+    pub workspace_path: Option<String>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub archived: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListSessionsResponseBody {
+    pub sessions: Vec<SessionSummaryDto>,
+    pub total: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct LoadSessionPayload {
+    #[serde(rename = "sessionId", alias = "session_id")]
+    pub session_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SessionMessageDto {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SessionDetailDto {
+    #[serde(rename = "sessionId")]
+    pub session_id: String,
+    pub title: String,
+    #[serde(rename = "createdAtMs")]
+    pub created_at_ms: i64,
+    #[serde(rename = "updatedAtMs")]
+    pub updated_at_ms: i64,
+    #[serde(rename = "workspacePath")]
+    pub workspace_path: Option<String>,
+    pub messages: Vec<SessionMessageDto>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LoadSessionResponseBody {
+    pub session: SessionDetailDto,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ConsolidatePayload {
+    #[serde(default, alias = "promotionWeightThreshold")]
+    pub promotion_weight_threshold: Option<f64>,
+    #[serde(default, alias = "pruningWeightThreshold")]
+    pub pruning_weight_threshold: Option<f64>,
+    #[serde(default, alias = "stalenessAgeThresholdSecs")]
+    pub staleness_age_threshold_secs: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConsolidationResponseBody {
+    #[serde(rename = "actionsApplied")]
+    pub actions_applied: usize,
+    pub promoted: usize,
+    pub merged: usize,
+    pub archived: usize,
+    pub pruned: usize,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: u64,
+    pub errors: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ModelDescriptorDto {
+    pub id: String,
+    pub name: String,
+    pub provider: String,
+    #[serde(rename = "contextWindow")]
+    pub context_window: usize,
+    #[serde(rename = "maxOutputTokens")]
+    pub max_output_tokens: usize,
+    #[serde(rename = "supportsThinking")]
+    pub supports_thinking: bool,
+    #[serde(rename = "supportsTools")]
+    pub supports_tools: bool,
+    #[serde(rename = "isDefault")]
+    pub is_default: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListModelsResponseBody {
+    pub models: Vec<ModelDescriptorDto>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ResolveModelPayload {
+    pub query: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ResolveModelResponseBody {
+    pub model: ModelDescriptorDto,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -163,7 +468,7 @@ mod tests {
                 assert_eq!(req.action, "ingest");
                 assert_eq!(req.payload, "hello");
             }
-            ClientRequest::Versioned(_) => panic!("Expected legacy request"),
+            _ => panic!("Expected legacy request"),
         }
     }
 
@@ -179,7 +484,22 @@ mod tests {
                 assert_eq!(req.action, "query");
                 assert_eq!(req.body, "find me");
             }
-            ClientRequest::Legacy(_) => panic!("Expected versioned request"),
+            _ => panic!("Expected versioned request"),
+        }
+    }
+
+    #[test]
+    fn test_jsonrpc_request_parsing() {
+        let json_data =
+            r#"{"id": "req_01", "action": "v1/session/create", "payload": {"title": "Test"}}"#;
+        let request: ClientRequest = serde_json::from_str(json_data).unwrap();
+        match request {
+            ClientRequest::JsonRpc(req) => {
+                assert_eq!(req.id, "req_01");
+                assert_eq!(req.action, "v1/session/create");
+                assert_eq!(req.payload["title"], "Test");
+            }
+            _ => panic!("Expected jsonrpc request"),
         }
     }
 
@@ -523,5 +843,27 @@ mod tests {
         assert_eq!(ctx.len(), 2);
         assert_eq!(ctx[0].as_str().unwrap(), "node-aaa");
         assert_eq!(ctx[1].as_str().unwrap(), "node-bbb");
+    }
+
+    #[test]
+    fn test_session_summary_dto_pinned_archived_serde() {
+        // 1. Deserializing full JSON preserves true values
+        let json = r#"{"sessionId":"s1","title":"T1","messageCount":2,"createdAtMs":1000,"updatedAtMs":2000,"workspacePath":null,"pinned":true,"archived":false}"#;
+        let dto: SessionSummaryDto = serde_json::from_str(json).unwrap();
+        assert_eq!(dto.session_id, "s1");
+        assert!(dto.pinned);
+        assert!(!dto.archived);
+
+        // 2. Deserializing legacy JSON without pinned/archived defaults safely to false
+        let legacy = r#"{"sessionId":"s2","title":"T2","messageCount":1,"createdAtMs":1000,"updatedAtMs":2000,"workspacePath":null}"#;
+        let dto_legacy: SessionSummaryDto = serde_json::from_str(legacy).unwrap();
+        assert_eq!(dto_legacy.session_id, "s2");
+        assert!(!dto_legacy.pinned);
+        assert!(!dto_legacy.archived);
+
+        // 3. Serialization includes pinned and archived
+        let serialized = serde_json::to_string(&dto).unwrap();
+        assert!(serialized.contains(r#""pinned":true"#));
+        assert!(serialized.contains(r#""archived":false"#));
     }
 }
