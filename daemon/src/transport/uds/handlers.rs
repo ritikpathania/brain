@@ -837,6 +837,7 @@ pub async fn handle_connection(
                 brain_domain::MessageRole::User,
                 format!("! {}", command),
             ));
+            session_aggregate.autotitle();
             let _ = storage.save_session(&parsed_session_id, &session_aggregate);
 
             use brain_core::extensibility::{
@@ -1128,6 +1129,7 @@ pub async fn handle_connection(
                         }
 
                     session.updated_at = brain_domain::SessionTimestamp(now_secs);
+                    session.autotitle();
                     let _ = storage.save_session(&parsed_sid, &session);
 
                     let resp_body = crate::server::protocol::AppendTurnResponseBody {
@@ -2036,6 +2038,7 @@ pub async fn handle_connection(
                 last_user_prompt.clone(),
             );
             let _ = session_aggregate.add_message(user_msg);
+            session_aggregate.autotitle();
             let _ = storage.save_session(&parsed_session_id, &session_aggregate);
 
             // Register ActiveGeneration with CancellationToken child token
