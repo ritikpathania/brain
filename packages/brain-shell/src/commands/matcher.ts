@@ -1,8 +1,8 @@
 /**
- * Shell-local static command set + fuzzy matcher for the slash palette.
- * Pure data + functions: no I/O, no React. Distinct from the dynamic
- * registration contract in ./registry.ts — those are daemon-side command
- * modules; these three are handled entirely inside the shell.
+ * Slash-palette parsing + scoring over an injected command catalog.
+ * Pure data + functions: no I/O, no React. The canonical catalog lives in
+ * ./registry.ts and self-registers from ./builtin.js (Inc 21 retired the
+ * duplicate static list that used to live here).
  */
 
 export interface BrainCommand {
@@ -17,16 +17,6 @@ export interface CommandMatch {
   command: BrainCommand;
   score: number;
 }
-
-/** The Inc 2 command set. Later increments extend this list. */
-export const COMMANDS: readonly BrainCommand[] = [
-  { name: 'help', description: 'List available slash commands' },
-  { name: 'clear', description: 'Clear the transcript' },
-  { name: 'resume', description: 'Resume a previous session' },
-  { name: 'theme', description: 'Change the color theme' },
-  { name: 'permissions', description: 'List or remove always-allow rules' },
-  { name: 'quit', description: 'Exit Brain shell', aliases: ['q'] },
-];
 
 /**
  * The palette is open iff the whole buffer is a bare slash token:
@@ -57,7 +47,7 @@ function isSubsequence(needle: string, hay: string): boolean {
  */
 export function fuzzyMatchCommands(
   query: string,
-  commands: readonly BrainCommand[] = COMMANDS,
+  commands: readonly BrainCommand[],
 ): CommandMatch[] {
   const q = query.toLowerCase();
   const matches: CommandMatch[] = [];

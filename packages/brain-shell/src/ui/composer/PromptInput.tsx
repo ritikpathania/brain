@@ -3,6 +3,7 @@ import { Box, Text, useInput, useTheme, useTerminalSize } from '../../compat/ind
 import type { Key } from '../../compat/index.js';
 import type { BrainTokens } from '../../state/palettes.js';
 import { parseCommandQuery, fuzzyMatchCommands } from '../../commands/matcher.js';
+import { getCommands } from '../../commands/registry.js';
 import { paletteKeyDecision } from './paletteLogic.js';
 import { PaletteView } from './PaletteView.js';
 import type { PaletteItemVM } from './PaletteView.js';
@@ -83,7 +84,7 @@ export function PromptInput(props: {
   const query = parseCommandQuery(state.value);
   const matches =
     query !== null && !suppressed && !(props.busy ?? false)
-      ? fuzzyMatchCommands(query)
+      ? fuzzyMatchCommands(query, getCommands())
       : [];
   const paletteItems: PaletteItemVM[] = matches.map((m) => ({
     name: m.command.name,

@@ -12,7 +12,8 @@ import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
 import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
 import { useBoundInput } from '../../keybindings/useBoundInput.js';
-import { COMMANDS } from '../../commands/matcher.js';
+import { getCommand, getCommands } from '../../commands/registry.js';
+import '../../commands/builtin.js';
 import { useTheme } from '../../compat/index.js';
 import { overlayListDecision } from '../overlays/overlayLogic.js';
 import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
@@ -26,7 +27,6 @@ import { ResumePickerView } from '../overlays/ResumePicker.js';
 import { dialogDecision } from '../overlays/permissionDialogLogic.js';
 import { PermissionDialogView } from '../overlays/PermissionDialog.js';
 import { writeThemeSetting } from '../../state/themeStore.js';
-import { runPermissionsCommand } from '../../state/permissionRules.js';
 import type { ThemeSetting } from '../../contracts/theme.js';
 
 /**
@@ -55,6 +55,9 @@ export function AppShell(): React.ReactElement {
   const [resumeSummaries, setResumeSummaries] = React.useState<BrainSessionSummary[]>([]);
   const [resumeSelected, setResumeSelected] = React.useState(0);
   const [resumeQuery, setResumeQuery] = React.useState('');
+  // Command-surface overlays (Inc 21): /doctor and /memory mount points.
+  const [doctorOpen, setDoctorOpen] = React.useState(false);
+  const [memoryOpen, setMemoryOpen] = React.useState(false);
   const resumeItems = React.useMemo(
     () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
     [resumeSummaries, resumeQuery],
@@ -142,20 +145,14 @@ export function AppShell(): React.ReactElement {
     },
   });
 
-  const helpText = (): string =>
-    ['Slash commands:', ...COMMANDS.map((c) => `/${c.name} — ${c.description}`)].join('\n');
-
   const runCommand = (rawValue: string): void => {
     const words = rawValue.trim().slice(1).split(/\s+/); // strip '/', split args
     const token = (words[0] ?? '').toLowerCase();
     const args = words.slice(1);
     if (token.length === 0) return;
-    const exact = COMMANDS.find(
-      (c) => c.name === token || (c.aliases ?? []).includes(token),
-    );
-    let chosen = exact;
+    let chosen = getCommand(token);
     if (chosen === undefined) {
-      const prefixHits = COMMANDS.filter((c) => c.name.startsWith(token));
+      const prefixHits = getCommands().filter((c) => c.name.startsWith(token));
       if (prefixHits.length === 1) chosen = prefixHits[0];
       else if (prefixHits.length > 1) {
         controller.notice(`Ambiguous command: /${token}`);
@@ -165,30 +162,43 @@ export function AppShell(): React.ReactElement {
         return;
       }
     }
-    if (chosen.name === 'help') controller.notice(helpText());
-    else if (chosen.name === 'clear') controller.clear();
-    else if (chosen.name === 'theme') {
-      setThemeOriginal(themeSetting);
-      setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
-      setThemeOpen(true);
-    } else if (chosen.name === 'resume') {
-      if (snapshot.busy) {
-        controller.notice('Busy — wait for the current turn to finish.');
-        return;
-      }
-      void controller.listSessions().then((all) => {
-        if (resumeChoices(all, Date.now()).length === 0) {
-          controller.notice('No previous sessions found.');
-          return;
+    // Commands return declarative results; the shell interprets them.
+    const res = chosen.run({ args, sessionId: controller.activeSessionId });
+    switch (res.type) {
+      case 'text':
+        controller.notice(res.value);
+        break;
+      case 'none':
+        break;
+      case 'action':
+        if (res.action === 'quit') process.exit(0);
+        else if (res.action === 'clear') controller.clear();
+        else if (res.action === 'theme') {
+          setThemeOriginal(themeSetting);
+          setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
+          setThemeOpen(true);
+        } else if (res.action === 'resume') {
+          if (snapshot.busy) {
+            controller.notice('Busy — wait for the current turn to finish.');
+            return;
+          }
+          void controller.listSessions().then((all) => {
+            if (resumeChoices(all, Date.now()).length === 0) {
+              controller.notice('No previous sessions found.');
+              return;
+            }
+            setResumeSummaries(all);
+            setResumeQuery('');
+            setResumeSelected(0);
+            setResumeOpen(true);
+          });
         }
-        setResumeSummaries(all);
-        setResumeQuery('');
-        setResumeSelected(0);
-        setResumeOpen(true);
-      });
-    } else if (chosen.name === 'permissions') {
-      controller.notice(runPermissionsCommand(args));
-    } else if (chosen.name === 'quit') process.exit(0);
+        break;
+      case 'overlay':
+        if (res.overlay === 'doctor') setDoctorOpen(true);
+        else setMemoryOpen(true);
+        break;
+    }
   };
 
   const handleSubmit = (text: string, mode: 'prompt' | 'bash' = 'prompt'): void => {

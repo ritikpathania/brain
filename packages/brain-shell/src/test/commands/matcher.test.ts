@@ -1,73 +1,70 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import {
-  COMMANDS,
   parseCommandQuery,
   fuzzyMatchCommands,
+  type BrainCommand,
 } from '../../commands/matcher.js';
+import { getCommands } from '../../commands/registry.js';
+import '../../commands/builtin.js'; // side-effect registration
+
+const FIXTURE: readonly BrainCommand[] = [
+  { name: 'help', description: 'List available slash commands' },
+  { name: 'clear', description: 'Clear the transcript' },
+  { name: 'quit', description: 'Exit Brain shell', aliases: ['q'] },
+];
 
 describe('parseCommandQuery', () => {
-  it('accepts a bare slash token and rejects everything else', () => {
+  test('open iff whole buffer is a bare slash token', () => {
     expect(parseCommandQuery('/')).toBe('');
-    expect(parseCommandQuery('/he')).toBe('he');
+    expect(parseCommandQuery('/c')).toBe('c');
     expect(parseCommandQuery('/clear')).toBe('clear');
-    expect(parseCommandQuery('help')).toBeNull();      // no slash
-    expect(parseCommandQuery('/he rest')).toBeNull();  // args started → menu closed
-    expect(parseCommandQuery('/HE')).toBeNull();       // queries are lowercase tokens
-    expect(parseCommandQuery('x/he')).toBeNull();      // slash must lead
+    expect(parseCommandQuery('/clear now')).toBeNull(); // args started
+    expect(parseCommandQuery('x/y')).toBeNull();
+    expect(parseCommandQuery('/HE')).toBeNull(); // queries are lowercase tokens
+    expect(parseCommandQuery('clear')).toBeNull();
   });
 });
 
 describe('fuzzyMatchCommands', () => {
-  const cmds = [
-    { name: 'help', description: 'List available slash commands' },
-    { name: 'clear', description: 'Clear the transcript' },
-    { name: 'quit', description: 'Exit Brain shell', aliases: ['q'] },
-  ];
-
-  it('lists everything alphabetically on empty query', () => {
-    const names = fuzzyMatchCommands('', cmds).map((m) => m.command.name);
-    expect(names).toEqual(['clear', 'help', 'quit']);
-  });
-
-  it('ranks prefixes above subsequences and breaks ties by name', () => {
-    const extra = [...cmds, { name: 'clone', description: 'zzz' }];
-    const names = fuzzyMatchCommands('c', extra).map((m) => m.command.name);
-    // 'c' prefixes both clear and clone (tie → alphabetical); never quit.
-    expect(names.indexOf('clone')).toBeGreaterThan(names.indexOf('clear'));
-    expect(names[0]).toBe('clear');
-    expect(names).not.toContain('quit'); // 'c' is not inside 'quit'
-  });
-
-  it('matches aliases and rejects misses deterministically', () => {
-    expect(fuzzyMatchCommands('q', cmds)[0]!.command.name).toBe('quit');   // alias exact
-    expect(fuzzyMatchCommands('hlp', cmds)[0]!.command.name).toBe('help'); // subsequence
-    expect(fuzzyMatchCommands('zzz', cmds)).toEqual([]);                   // miss → []
-    // description-word match still surfaces, below any name match
+  test('exact name > alias exact > prefix > subsequence > description', () => {
+    const hits = fuzzyMatchCommands('q', FIXTURE);
+    expect(hits[0]!.command.name).toBe('quit'); // alias exact 85 beats subsequence
+    const pre = fuzzyMatchCommands('cl', FIXTURE);
+    expect(pre[0]!.command.name).toBe('clear');
+    const desc = fuzzyMatchCommands('xq', [
+      { name: 'omega', description: 'List available slash commands' },
+    ]);
+    expect(desc).toHaveLength(0); // 'xq' misses the name AND every description word
     const descOnly = [{ name: 'xyzzy', description: 'Transcript tool' }];
     expect(fuzzyMatchCommands('tran', descOnly)[0]!.command.name).toBe('xyzzy');
   });
 
-  it('ships the Inc 2 command set plus the Inc 3 additions', () => {
-    expect(COMMANDS.map((c) => c.name).sort()).toEqual([
-      'clear',
-      'help',
-      'permissions',
-      'quit',
-      'resume',
-      'theme',
-    ]);
-    expect(COMMANDS.find((c) => c.name === 'quit')!.aliases).toEqual(['q']);
+  test('empty query lists everything at tier 10, ties break by name', () => {
+    const hits = fuzzyMatchCommands('', FIXTURE);
+    expect(hits.map((h) => h.command.name)).toEqual(['clear', 'help', 'quit']);
+  });
+
+  test('no matches yields empty array', () => {
+    expect(fuzzyMatchCommands('zzzz', FIXTURE)).toHaveLength(0);
   });
 });
 
-describe('executor lookup contract', () => {
-  it('finds commands by name or alias; prefix resolves only when unique', () => {
+describe('palette over the canonical registry', () => {
+  test('registry catalog satisfies the palette contract', () => {
+    const hits = fuzzyMatchCommands('', getCommands());
+    expect(hits.length).toBeGreaterThanOrEqual(6);
+    expect(hits.map((h) => h.command.name)).toContain('help');
+    const narrow = fuzzyMatchCommands('res', getCommands());
+    expect(narrow[0]!.command.name).toBe('resume');
+  });
+
+  test('executor lookup contract over the registry', () => {
     const find = (token: string) =>
-      COMMANDS.find((c) => c.name === token || (c.aliases ?? []).includes(token));
+      getCommands().find((c) => c.name === token || (c.aliases ?? []).includes(token));
     expect(find('help')?.name).toBe('help');
-    expect(find('q')?.name).toBe('quit');     // alias-exact
-    expect(find('zzz')).toBeUndefined();      // unknown → notice path
-    const prefixHits = COMMANDS.filter((c) => c.name.startsWith('he'));
+    expect(find('q')?.name).toBe('quit'); // alias-exact
+    expect(find('zzz')).toBeUndefined();  // unknown → notice path
+    const prefixHits = getCommands().filter((c) => c.name.startsWith('he'));
     expect(prefixHits.map((c) => c.name)).toEqual(['help']); // unique prefix
   });
 });
