@@ -140,6 +140,12 @@ export interface RetrievedMemory {
   relations?: MemoryRelation[];
 }
 
+/** Liveness-discriminated search result: `ok:false` means the daemon is
+ * unreachable — callers render offline copy instead of empty-copy. */
+export type MemorySearchResult =
+  | { ok: true; memories: RetrievedMemory[] }
+  | { ok: false };
+
 export interface ContextBudget {
   maxEstimatedTokens: number;
   maxCharacters?: number;

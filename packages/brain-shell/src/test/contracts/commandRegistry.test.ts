@@ -49,6 +49,10 @@ describe('contracts/commandRegistry (Inc 21)', () => {
     expect(getCommand('doctor')!.run({ args: [] })).toEqual({ type: 'overlay', overlay: 'doctor' });
   });
 
+  test('memory opens the knowledge browser overlay', () => {
+    expect(getCommand('memory')!.run({ args: [] })).toEqual({ type: 'overlay', overlay: 'memory' });
+  });
+
   test('registerCommand replaces by name and resolves aliases', () => {
     const a: Command = { name: 'ping', description: 'v1', run: () => ({ type: 'none' }) };
     registerCommand(a);

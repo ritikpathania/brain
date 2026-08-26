@@ -8,6 +8,7 @@ import type {
   BrainGenerationRequest,
   BrainSessionSummary,
   BrainStreamChunk,
+  MemorySearchResult,
 } from '../client/BrainBackendClient.js';
 import { sessionToRows } from './sessionReplay.js';
 import { normalizeMessagesForBrain } from '../adapter/brainCallModel.js';
@@ -229,6 +230,17 @@ export class SessionController {
   /** Prior sessions for the /resume picker. */
   async listSessions(): Promise<BrainSessionSummary[]> {
     return this.client.listSessions();
+  }
+
+  /** /memory data source. Liveness-discriminated so views can render
+   * offline copy vs empty copy; every transport failure collapses to ok:false. */
+  async searchMemories(query: string, limit = 20): Promise<MemorySearchResult> {
+    try {
+      const res = await this.client.searchMemory({ query, limit });
+      return { ok: true, memories: res.memories };
+    } catch {
+      return { ok: false };
+    }
   }
 
   /** Adopt a stored session and replay its messages as frozen rows. */

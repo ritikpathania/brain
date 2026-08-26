@@ -826,6 +826,7 @@ export class UdsBrainBackendClient implements BrainBackendClient {
         score: m.score || 100,
         timestamp: m.timestamp || Date.now(),
         scope: m.scope || 'workspace',
+        relations: m.relations ?? [],
       })),
       provenance: res.provenance || { count: (res.memories || []).length, sources: [], channels: [] },
       tokenCount: res.token_count || res.tokenCount || 0,

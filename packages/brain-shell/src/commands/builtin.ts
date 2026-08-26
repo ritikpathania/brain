@@ -27,6 +27,7 @@ const BUILTINS: Command[] = [
   },
   { name: 'quit', description: 'Exit Brain shell', aliases: ['q'], run: () => ({ type: 'action', action: 'quit' }) },
   { name: 'doctor', description: 'Run system diagnostics', run: () => ({ type: 'overlay', overlay: 'doctor' }) },
+  { name: 'memory', description: 'Browse the knowledge graph', run: () => ({ type: 'overlay', overlay: 'memory' }) },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

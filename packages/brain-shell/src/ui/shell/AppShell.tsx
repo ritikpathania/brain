@@ -16,6 +16,9 @@ import { getCommand, getCommands } from '../../commands/registry.js';
 import '../../commands/builtin.js';
 import { DoctorProbe, type EngineDiagnosticReport } from '../../adapter/doctorProbe.js';
 import { DoctorOverlayView } from '../overlays/DoctorOverlayView.js';
+import { MemoryOverlayView } from '../overlays/MemoryOverlayView.js';
+import { clampSelection } from '../overlays/memoryOverlayLogic.js';
+import type { RetrievedMemory } from '../../client/BrainBackendClient.js';
 import { useTheme } from '../../compat/index.js';
 import { overlayListDecision } from '../overlays/overlayLogic.js';
 import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
@@ -62,6 +65,12 @@ export function AppShell(): React.ReactElement {
   const [doctorLoading, setDoctorLoading] = React.useState(false);
   const [doctorReport, setDoctorReport] = React.useState<EngineDiagnosticReport | null>(null);
   const [memoryOpen, setMemoryOpen] = React.useState(false);
+  const [memoryQuery, setMemoryQuery] = React.useState('');
+  const [memoryRows, setMemoryRows] = React.useState<RetrievedMemory[]>([]);
+  const [memoryState, setMemoryState] = React.useState<'loading' | 'offline' | 'ready'>('loading');
+  const [memorySelected, setMemorySelected] = React.useState(0);
+  const [memoryExpandedId, setMemoryExpandedId] = React.useState<string | null>(null);
+  const memoryToken = React.useRef(0);
   const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
   const resumeItems = React.useMemo(
     () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
@@ -165,6 +174,51 @@ export function AppShell(): React.ReactElement {
     };
   }, [doctorOpen, doctorProbe]);
 
+  // /memory overlay: type-to-filter over the knowledge graph.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: memoryOpen,
+    onAction: (action, input) => {
+      const d = overlayListDecision(action, memorySelected, Math.min(memoryRows.length, 6));
+      if (d.type === 'move') {
+        setMemoryExpandedId(null);
+        setMemorySelected(d.index);
+      } else if (d.type === 'commit') {
+        const chosen = memoryRows[d.index];
+        setMemoryExpandedId((cur) =>
+          cur === chosen?.node_id ? null : chosen?.node_id ?? null,
+        );
+      } else if (d.type === 'cancel') {
+        setMemoryOpen(false);
+        controller.notice('Closed memory exploration view');
+      } else if (action === 'overlay:insert' || action === 'overlay:backspace') {
+        setMemoryQuery((q) => applyQueryEdit(q, action, input));
+      }
+    },
+  });
+
+  // Debounced /memory search: keystrokes paint instantly, RPCs fire ≥200ms
+  // after the last one; the monotonic token drops stale responses.
+  React.useEffect(() => {
+    if (!memoryOpen) return;
+    const ticket = ++memoryToken.current;
+    setMemoryState('loading');
+    const timer = setTimeout(() => {
+      void controller.searchMemories(memoryQuery, 20).then((r) => {
+        if (memoryToken.current !== ticket) return; // stale response dropped
+        if (!r.ok) {
+          setMemoryState('offline');
+          setMemoryRows([]);
+        } else {
+          setMemoryState('ready');
+          setMemoryRows(r.memories);
+        }
+        setMemorySelected((i) => clampSelection(i, r.ok ? r.memories.length : 0));
+      });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [memoryOpen, memoryQuery, controller]);
+
   // Permission dialog: dismissal never grants — esc and n both deny.
   useBoundInput({
     contexts: ['dialog'],
@@ -235,7 +289,13 @@ export function AppShell(): React.ReactElement {
         break;
       case 'overlay':
         if (res.overlay === 'doctor') setDoctorOpen(true);
-        else setMemoryOpen(true);
+        else {
+          setMemoryQuery('');
+          setMemoryRows([]);
+          setMemorySelected(0);
+          setMemoryExpandedId(null);
+          setMemoryOpen(true);
+        }
         break;
     }
   };
@@ -306,11 +366,23 @@ export function AppShell(): React.ReactElement {
           <DoctorOverlayView loading={doctorLoading} report={doctorReport} tokens={tokens} />
         </Box>
       ) : null}
+      {memoryOpen ? (
+        <Box marginTop={1}>
+          <MemoryOverlayView
+            query={memoryQuery}
+            state={memoryState}
+            rows={memoryRows}
+            selectedIndex={memorySelected}
+            expandedId={memoryExpandedId}
+            tokens={tokens}
+          />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          paused={themeOpen || resumeOpen || permission !== undefined || doctorOpen}
+          paused={themeOpen || resumeOpen || permission !== undefined || doctorOpen || memoryOpen}
           onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />
