@@ -5,8 +5,9 @@ registry, against a REAL daemon.
 Flows:
   A. Type /doctor -> diagnostics modal appears with HEALTHY banner -> enter
      dismisses with the system notice.
-  B. Seed one memory via RPC (with a relation), type /memory -> modal opens,
-     type "cortex" to filter -> seeded node lists, enter expands the detail
+  B. Seed one memory via RPC (with a relation), type /memory -> modal opens
+     AND the seeded node lists immediately (blank queries list stored
+     concepts), typing "cortex" keeps it filtered, enter expands the detail
      pane showing the stored relation target ("Beta Concept"), esc closes
      with the system notice.
 """
@@ -137,12 +138,12 @@ send_key("\r")
 check("A4 dismissed with notice", wait_for("Completed system diagnostics", count=1))
 
 # ── Flow B: /memory ───────────────────────────────────────────────────────
-# The overlay's initial empty-query fetch is deliberately not asserted:
-# server-side behavior for query:'' is unspecified. Instead we type a token
-# the sole seeded node contains ("cortex") — the private tmp DB guarantees
-# it ranks first — and prove listing + expansion behaviorally.
+# The overlay opens with an empty query; the daemon lists stored concepts
+# for blank queries, so the sole seeded node must appear BEFORE any
+# keystrokes. We then prove filtering ("cortex") and expansion behaviorally.
 run_slash("memory")
 check("B1 memory modal opens", wait_for("Relational Knowledge & Memory"))
+check("B0 initial listing shows the seeded concept", wait_for(LABEL))
 for ch in "cortex":
     send_key(ch, 0.3)   # each keystroke re-fires the 200ms debounced search
 pump(0.8)
