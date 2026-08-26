@@ -65,6 +65,8 @@ function isConnectionLoss(text: string): boolean {
 
 export const CONNECTION_LOSS_ROW = 'Connection lost — reconnecting…';
 export const QUEUED_ROW = 'queued — will send on reconnect';
+/** Frozen system row appended when a turn ends because the user escaped. */
+export const INTERRUPTED_ROW = '⎿ Turn interrupted';
 
 export class SessionController {
   private listeners = new Set<() => void>();
@@ -78,6 +80,8 @@ export class SessionController {
   private ticker: ReturnType<typeof setInterval> | null = null;
   private events: BrainTurnEvent[] = [];
   private sawError = false;
+  private userInterrupted = false;
+  private sawCancelledFinish = false;
   private thinkingStartedAt: number | null = null;
   private turnSeq = 0;
   private connection: ConnectionState = { status: 'connected' };
@@ -113,6 +117,15 @@ export class SessionController {
 
   abort(): void {
     this.aborter?.abort();
+  }
+
+  /** User-facing interrupt: aborts the wire stream and remembers why, so
+   * settlement renders an interruption instead of a silent completion.
+   * No-op while idle. */
+  interruptTurn(): void {
+    if (!this.busy || !this.aborter) return;
+    this.userInterrupted = true;
+    this.aborter.abort();
   }
 
   /** Resolve the parked dialog manually. Local UX settles first; the wire
@@ -334,6 +347,8 @@ export class SessionController {
     this.rows = [...this.rows, { kind: 'user', id: `user:${turnId}`, text }];
     this.events = [{ type: 'turn_start', turnId, role: 'assistant' }];
     this.sawError = false;
+    this.userInterrupted = false;
+    this.sawCancelledFinish = false;
     this.queue = new TwoStageTypewriterQueue();
     this.live = { phase: 'responding', thinkingText: '', responseText: '' };
     this.aborter = new AbortController();
@@ -352,21 +367,34 @@ export class SessionController {
         this.handleChunk(chunk);
       }
       // An error chunk doesn't throw — the stream just ends — but the turn
-      // still failed and must settle its tools accordingly.
+      // still failed and must settle its tools accordingly. A user-initiated
+      // interrupt settles as interrupted, never as a silent completion.
+      const interrupted = this.userInterrupted;
       this.finishTurn(
-        this.sawError ? 'error' : 'completed',
-        this.lostDuringTurn ? CONNECTION_LOSS_ROW : undefined,
+        interrupted ? 'interrupted' : this.sawError ? 'error' : 'completed',
+        interrupted || !this.lostDuringTurn ? undefined : CONNECTION_LOSS_ROW,
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (isConnectionLoss(msg)) this.handleConnectionLoss();
-      this.finishTurn('error', isConnectionLoss(msg) ? CONNECTION_LOSS_ROW : msg);
+      const racedInterrupt = this.userInterrupted && !isConnectionLoss(msg);
+      this.finishTurn(
+        racedInterrupt ? 'interrupted' : 'error',
+        racedInterrupt
+          ? undefined
+          : isConnectionLoss(msg)
+            ? CONNECTION_LOSS_ROW
+            : msg,
+      );
     }
   }
 
   private pendingPermission: PendingPermissionView | undefined;
 
   private handleChunk(chunk: BrainStreamChunk): void {
+    if (chunk.type === 'finished' && chunk.status === 'cancelled') {
+      this.sawCancelledFinish = true;
+    }
     if (chunk.type === 'error' && chunk.error) {
       if (CONNECTION_RE.test(chunk.error)) {
         this.connectionError = chunk.error;
@@ -445,7 +473,10 @@ export class SessionController {
     }
   }
 
-  private finishTurn(status: 'completed' | 'error', errorText?: string): void {
+  private finishTurn(
+    status: 'completed' | 'error' | 'interrupted',
+    errorText?: string,
+  ): void {
     this.stopTicker();
     // Frozen rows are built solely from `events`, which already holds every
     // delta verbatim (handleChunk records them before queueing for pacing).
@@ -462,9 +493,13 @@ export class SessionController {
       if (e.type === 'tool_call_requested' && !settled.has(e.callId)) {
         settled.add(e.callId);
         this.events.push(
-          status === 'error'
-            ? { type: 'tool_cancelled', callId: e.callId, reason: 'turn ended' }
-            : { type: 'tool_result', callId: e.callId, output: '' },
+          status === 'completed'
+            ? { type: 'tool_result', callId: e.callId, output: '' }
+            : {
+                type: 'tool_cancelled',
+                callId: e.callId,
+                reason: status === 'interrupted' ? 'turn interrupted' : 'turn ended',
+              },
         );
       }
     }
@@ -481,6 +516,12 @@ export class SessionController {
       this.rows = [...this.rows, ...projected];
     } catch {
       // Transformer mismatch must never kill the shell; keep prior rows.
+    }
+    if (status === 'interrupted') {
+      this.rows = [
+        ...this.rows,
+        { kind: 'system', id: `sys:${++this.sysSeq}`, text: INTERRUPTED_ROW },
+      ];
     }
     this.live = IDLE_LIVE;
     this.busy = false;
