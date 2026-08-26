@@ -884,6 +884,24 @@ impl Session {
             });
     }
 
+    /// One-time default-title backfill (B5): if the title is still the
+    /// default and any user message exists, rename the session from that
+    /// message's first line. Idempotent — after one derivation the default
+    /// check fails forever, so renamed sessions are never touched again.
+    pub fn autotitle(&mut self) {
+        if self.title != SessionTitle::default() {
+            return;
+        }
+        let source = self
+            .messages
+            .iter()
+            .find(|m| m.role == MessageRole::User)
+            .map(|m| m.content.clone());
+        if let Some(derived) = source.as_deref().and_then(derive_session_title) {
+            self.title = SessionTitle(derived);
+        }
+    }
+
     /// Archives a session.
     pub fn archive(
         &mut self,
@@ -1205,5 +1223,36 @@ impl SearchDocument {
             body,
             metadata,
         }
+    }
+}
+
+/// B5: derive a session title from user text — first non-empty line,
+/// internal whitespace collapsed to single spaces, capped at 43 chars
+/// plus an ellipsis (46-column budget shared with the shell's picker row).
+fn derive_session_title(text: &str) -> Option<String> {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let mut collapsed = String::with_capacity(line.len());
+    let mut prev_space = false;
+    for ch in line.chars() {
+        let is_space = ch.is_whitespace();
+        if is_space {
+            if !prev_space && !collapsed.is_empty() {
+                collapsed.push(' ');
+            }
+        } else {
+            collapsed.push(ch);
+        }
+        prev_space = is_space;
+    }
+    let trimmed = collapsed.trim_end();
+    if trimmed.is_empty() {
+        return None;
+    }
+    const CAP: usize = 43;
+    if trimmed.chars().count() <= CAP {
+        Some(trimmed.to_string())
+    } else {
+        let head: String = trimmed.chars().take(CAP).collect();
+        Some(format!("{head}…"))
     }
 }
