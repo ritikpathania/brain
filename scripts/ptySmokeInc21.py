@@ -7,10 +7,8 @@ Flows:
      dismisses with the system notice.
   B. Seed one memory via RPC (with a relation), type /memory -> modal opens,
      type "cortex" to filter -> seeded node lists, enter expands the detail
-     pane, esc closes with the system notice. (Expansion asserts the
-     no-relations row: the daemon's store->search round-trip currently
-     returns relations:[] — client-side preservation of POPULATED relations
-     is proven separately by test/client/memorySearchWire.test.ts.)
+     pane showing the stored relation target ("Beta Concept"), esc closes
+     with the system notice.
 """
 import fcntl, json, os, pty, re, select, shutil, signal, socket, struct, subprocess, sys, termios, time, uuid
 
@@ -150,9 +148,9 @@ for ch in "cortex":
 pump(0.8)
 check("B2 filtered listing shows the seeded concept", wait_for(LABEL))
 send_key("\r")
-# Detail pane opens; daemon currently round-trips relations as [], so the
-# honest end-to-end expectation is the explicit none-row.
-check("B3 expand opens the detail pane", wait_for("(No outgoing relations)", timeout=15))
+# Detail pane opens; the daemon recovers stored relations at the
+# memory/search boundary, so the expanded pane renders the seeded edge target.
+check("B3 expand renders the stored relation target", wait_for("Beta Concept", timeout=15))
 send_key("\x1b")
 pump(0.4)
 check("B4 dismissed with notice", wait_for("Closed memory exploration view"))
