@@ -83,3 +83,40 @@ describe('overlay + dialog contexts (Inc 3)', () => {
     );
   });
 });
+
+describe('overlay printable capture (B5)', () => {
+  it('single plain characters resolve to overlay:insert in overlay context', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], 'h')).toBe('overlay:insert');
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], ' ')).toBe('overlay:insert');
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], 'A')).toBe('overlay:insert');
+  });
+
+  it('backspace resolves to overlay:backspace in overlay context', () => {
+    expect(
+      resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ backspace: true }))),
+    ).toBe('overlay:backspace');
+  });
+
+  it('exact bindings win over printable', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ return: true })))).toBe(
+      'overlay:commit',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ escape: true })))).toBe(
+      'overlay:cancel',
+    );
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('', key({ upArrow: true })))).toBe(
+      'overlay:up',
+    );
+  });
+
+  it('contexts without the printable row are unchanged', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['dialog'], 'h')).toBeNull();
+    expect(resolveAction(DEFAULT_BINDINGS, ['palette'], 'h')).toBeNull();
+    expect(resolveAction(DEFAULT_BINDINGS, ['composer'], 'h')).toBeNull();
+  });
+
+  it('multi-char and control strokes never match printable', () => {
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], strokeToKey('a', key({ ctrl: true })))).toBeNull();
+    expect(resolveAction(DEFAULT_BINDINGS, ['overlay'], '')).toBeNull();
+  });
+});

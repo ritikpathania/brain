@@ -34,6 +34,10 @@ export const DEFAULT_BINDINGS: readonly BindingRule[] = [
   { action: 'dialog:deny', context: 'dialog', key: 'n' },
   { action: 'dialog:commit', context: 'dialog', key: 'return' },
   { action: 'dialog:cancel', context: 'dialog', key: 'escape' },
+  // B5 resume search: overlays opt into plain-character capture via the
+  // 'printable' pseudo-key; exact bindings always win over it.
+  { action: 'overlay:insert', context: 'overlay', key: 'printable' },
+  { action: 'overlay:backspace', context: 'overlay', key: 'backspace' },
 ];
 
 /**
@@ -64,6 +68,16 @@ export function resolveAction(
   for (const ctx of order) {
     const hit = bindings.find((b) => b.context === ctx && b.key === keyId);
     if (hit !== undefined) return hit.action;
+  }
+  // B5: overlays can opt into plain-character capture ('printable'
+  // pseudo-key). Exact bindings above always win; only single plain
+  // characters fall through here — strokeToKey already canonicalized
+  // modifier chords and named keys ahead of the literal char.
+  if (keyId.length === 1 && keyId >= ' ') {
+    for (const ctx of order) {
+      const hit = bindings.find((b) => b.context === ctx && b.key === 'printable');
+      if (hit !== undefined) return hit.action;
+    }
   }
   return null;
 }
