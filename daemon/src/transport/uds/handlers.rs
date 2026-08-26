@@ -1318,6 +1318,7 @@ pub async fn handle_connection(
             let limit = search_req.limit.unwrap_or(10);
             let mut matches = Vec::new();
             let context = ExecutionContext::default();
+            let storage = app.runtime().sqlite_storage();
             let search_query = brain_integrations::dto::v1::SearchQuery {
                 text: query_text.clone(),
                 kinds: None,
@@ -1348,20 +1349,43 @@ pub async fn handle_connection(
                         .and_then(|s| s.parse::<i64>().ok())
                         .unwrap_or(100);
 
-                    let relations = summary
-                        .metadata
-                        .get("relations")
-                        .and_then(|s| serde_json::from_str::<Vec<serde_json::Value>>(s).ok())
-                        .unwrap_or_default();
+                    // Enrich from the stored node when the summary resolves
+                    // to one: the application-layer projection drops node
+                    // properties (SearchMetadata carries none), so relations/
+                    // excerpt/scope are recovered here at the boundary.
+                    // Sessions/messages fail the UUID parse and keep today's
+                    // behavior exactly.
+                    let node_props = uuid::Uuid::parse_str(summary.id.trim())
+                        .ok()
+                        .and_then(|u| {
+                            let nid = brain_domain::NodeId(u);
+                            brain_core::repositories::NodeRepository::find_by_id(
+                                storage.as_ref(),
+                                &nid,
+                            )
+                            .ok()
+                            .flatten()
+                            .map(|n| n.properties)
+                        });
+                    let relations = super::memory_relations::extract_relations(
+                        node_props.as_ref(),
+                        summary.metadata.get("relations").map(|s| s.as_str()),
+                    );
+                    let excerpt = super::memory_relations::preferred_excerpt(
+                        node_props.as_ref(),
+                        &summary.body,
+                    );
+                    let scope =
+                        super::memory_relations::preferred_scope(node_props.as_ref(), "workspace");
 
                     matches.push(crate::server::protocol::MemoryItemDto {
                         node_id: summary.id,
                         label: clean_title,
-                        excerpt: summary.body,
+                        excerpt,
                         score,
                         channel: "knowledge_graph".to_string(),
                         timestamp: now,
-                        scope: "workspace".to_string(),
+                        scope,
                         relations,
                     });
                 }
