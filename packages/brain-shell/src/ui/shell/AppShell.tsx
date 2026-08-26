@@ -14,6 +14,8 @@ import { useShellSnapshot } from './useShellSnapshot.js';
 import { useBoundInput } from '../../keybindings/useBoundInput.js';
 import { getCommand, getCommands } from '../../commands/registry.js';
 import '../../commands/builtin.js';
+import { DoctorProbe, type EngineDiagnosticReport } from '../../adapter/doctorProbe.js';
+import { DoctorOverlayView } from '../overlays/DoctorOverlayView.js';
 import { useTheme } from '../../compat/index.js';
 import { overlayListDecision } from '../overlays/overlayLogic.js';
 import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
@@ -57,7 +59,10 @@ export function AppShell(): React.ReactElement {
   const [resumeQuery, setResumeQuery] = React.useState('');
   // Command-surface overlays (Inc 21): /doctor and /memory mount points.
   const [doctorOpen, setDoctorOpen] = React.useState(false);
+  const [doctorLoading, setDoctorLoading] = React.useState(false);
+  const [doctorReport, setDoctorReport] = React.useState<EngineDiagnosticReport | null>(null);
   const [memoryOpen, setMemoryOpen] = React.useState(false);
+  const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
   const resumeItems = React.useMemo(
     () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
     [resumeSummaries, resumeQuery],
@@ -125,6 +130,40 @@ export function AppShell(): React.ReactElement {
       }
     },
   });
+
+  // /doctor overlay: read-only report; enter or esc dismisses.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: doctorOpen,
+    onAction: (action) => {
+      const d = overlayListDecision(action, 0, 0);
+      if (d.type === 'cancel' || d.type === 'commit') {
+        setDoctorOpen(false);
+        controller.notice('Completed system diagnostics');
+      }
+    },
+  });
+
+  React.useEffect(() => {
+    if (!doctorOpen) return;
+    let alive = true;
+    setDoctorLoading(true);
+    setDoctorReport(null);
+    void doctorProbe
+      .runDiagnostics()
+      .then((rep) => {
+        if (alive) {
+          setDoctorReport(rep);
+          setDoctorLoading(false);
+        }
+      })
+      .catch(() => {
+        if (alive) setDoctorLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [doctorOpen, doctorProbe]);
 
   // Permission dialog: dismissal never grants — esc and n both deny.
   useBoundInput({
@@ -262,11 +301,16 @@ export function AppShell(): React.ReactElement {
           <PermissionDialogView req={permission} selected={permSelected} tokens={tokens} />
         </Box>
       ) : null}
+      {doctorOpen ? (
+        <Box marginTop={1}>
+          <DoctorOverlayView loading={doctorLoading} report={doctorReport} tokens={tokens} />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          paused={themeOpen || resumeOpen || permission !== undefined}
+          paused={themeOpen || resumeOpen || permission !== undefined || doctorOpen}
           onSubmit={handleSubmit}
           onAbort={() => controller.abort()}
         />

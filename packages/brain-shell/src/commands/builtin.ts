@@ -26,6 +26,7 @@ const BUILTINS: Command[] = [
     run: (ctx) => ({ type: 'text', value: runPermissionsCommand(ctx.args) }),
   },
   { name: 'quit', description: 'Exit Brain shell', aliases: ['q'], run: () => ({ type: 'action', action: 'quit' }) },
+  { name: 'doctor', description: 'Run system diagnostics', run: () => ({ type: 'overlay', overlay: 'doctor' }) },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

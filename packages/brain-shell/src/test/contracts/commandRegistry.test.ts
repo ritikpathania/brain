@@ -45,6 +45,10 @@ describe('contracts/commandRegistry (Inc 21)', () => {
     expect(out.type).toBe('text');
   });
 
+  test('doctor opens the diagnostics overlay', () => {
+    expect(getCommand('doctor')!.run({ args: [] })).toEqual({ type: 'overlay', overlay: 'doctor' });
+  });
+
   test('registerCommand replaces by name and resolves aliases', () => {
     const a: Command = { name: 'ping', description: 'v1', run: () => ({ type: 'none' }) };
     registerCommand(a);
