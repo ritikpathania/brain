@@ -203,7 +203,7 @@ Same battery as Inc 22:
   `packages/brain-shell/src/` though untouched) → 0.
 - Zero-diff gates: `crates/**`, all of `packages/brain-shell/src/**`,
   `daemon/src/server/protocol.rs`.
-- PTY regression: `ptySmokeInc21.py` 11 checks PASS (B0 added);
+- PTY regression: `ptySmokeInc21.py` 10 checks PASS (B0 added);
   `ptySmokeInc2.py` 12/12 unaffected.
 - Explicit-path commits + trailer; pre-stage `git diff HEAD -- <file>` on
   shared files (handlers.rs, smoke script) with hunk-filter recipe if foreign
