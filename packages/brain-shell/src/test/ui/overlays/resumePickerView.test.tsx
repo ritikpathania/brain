@@ -84,6 +84,23 @@ describe('ResumePickerView (B5)', () => {
     expect(out).toContain('No sessions match.');
   });
 
+  test('renders ★ glyph for pinned items', () => {
+    const out = textOf(
+      ResumePickerView({
+        items: [
+          { id: 'p', title: 'Pinned Feature', age: '1m ago', pinned: true },
+          { id: 'u', title: 'Unpinned Work', age: '5m ago', pinned: false },
+        ],
+        selectedIndex: 0,
+        tokens,
+        query: '',
+        currentSessionId: undefined,
+      }),
+    );
+    expect(out).toContain('★ Pinned Feature');
+    expect(out).not.toContain('★ Unpinned Work');
+  });
+
   test('hint mentions type-to-filter', () => {
     const out = textOf(
       ResumePickerView({ items: [vm('a', 'Alpha')], selectedIndex: 0, tokens, query: '' }),
