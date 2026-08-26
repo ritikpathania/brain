@@ -64,4 +64,11 @@ describe('SessionController resume', () => {
     const ctl = new SessionController(resumeFake(SESSION, summaries));
     expect(await ctl.listSessions()).toEqual(summaries);
   });
+
+  test('activeSessionId exposes the adopted session for the B5 marker', async () => {
+    const ctl = new SessionController(resumeFake(SESSION));
+    expect(ctl.activeSessionId).toBeUndefined();
+    await ctl.resumeSession('old-1');
+    expect(ctl.activeSessionId).toBe('old-1');
+  });
 });

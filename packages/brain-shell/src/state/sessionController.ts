@@ -105,6 +105,11 @@ export class SessionController {
 
   getSnapshot = (): ShellSnapshot => this.snapshot;
 
+  /** B5: adopted session id, for the resume picker's current-session marker. */
+  get activeSessionId(): string | undefined {
+    return this.sessionId;
+  }
+
   abort(): void {
     this.aborter?.abort();
   }

@@ -17,10 +17,11 @@ import { useTheme } from '../../compat/index.js';
 import { overlayListDecision } from '../overlays/overlayLogic.js';
 import { THEME_CHOICES, ThemePickerView } from '../overlays/ThemePicker.js';
 import {
+  applyQueryEdit,
   resumeChoices,
   resumeListDecision,
-  type ResumeVM,
 } from '../overlays/resumePickerLogic.js';
+import type { BrainSessionSummary } from '../../client/BrainBackendClient.js';
 import { ResumePickerView } from '../overlays/ResumePicker.js';
 import { dialogDecision } from '../overlays/permissionDialogLogic.js';
 import { PermissionDialogView } from '../overlays/PermissionDialog.js';
@@ -51,13 +52,21 @@ export function AppShell(): React.ReactElement {
   const [themeSelected, setThemeSelected] = React.useState(0);
   const [themeOriginal, setThemeOriginal] = React.useState<ThemeSetting>('auto');
   const [resumeOpen, setResumeOpen] = React.useState(false);
-  const [resumeItems, setResumeItems] = React.useState<ResumeVM[]>([]);
+  const [resumeSummaries, setResumeSummaries] = React.useState<BrainSessionSummary[]>([]);
   const [resumeSelected, setResumeSelected] = React.useState(0);
+  const [resumeQuery, setResumeQuery] = React.useState('');
+  const resumeItems = React.useMemo(
+    () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
+    [resumeSummaries, resumeQuery],
+  );
   const permission = snapshot.permission;
   const [permSelected, setPermSelected] = React.useState(0);
   React.useEffect(() => {
     setPermSelected(0);
   }, [permission?.callId]);
+  React.useEffect(() => {
+    setResumeSelected((i) => Math.min(i, Math.max(0, resumeItems.length - 1)));
+  }, [resumeItems.length]);
 
   useBoundInput({
     contexts: ['global'],
@@ -96,7 +105,7 @@ export function AppShell(): React.ReactElement {
   useBoundInput({
     contexts: ['overlay'],
     isActive: resumeOpen,
-    onAction: (action) => {
+    onAction: (action, input) => {
       const d = resumeListDecision(action, resumeSelected, resumeItems.length);
       if (d.type === 'move') {
         setResumeSelected(d.index);
@@ -106,6 +115,10 @@ export function AppShell(): React.ReactElement {
         if (chosen) void controller.resumeSession(chosen.id);
       } else if (d.type === 'cancel') {
         setResumeOpen(false);
+      } else if (action === 'overlay:insert') {
+        setResumeQuery((q) => applyQueryEdit(q, action, input));
+      } else if (action === 'overlay:backspace') {
+        setResumeQuery((q) => applyQueryEdit(q, action, input));
       }
     },
   });
@@ -164,12 +177,12 @@ export function AppShell(): React.ReactElement {
         return;
       }
       void controller.listSessions().then((all) => {
-        const items = resumeChoices(all, Date.now());
-        if (items.length === 0) {
+        if (resumeChoices(all, Date.now()).length === 0) {
           controller.notice('No previous sessions found.');
           return;
         }
-        setResumeItems(items);
+        setResumeSummaries(all);
+        setResumeQuery('');
         setResumeSelected(0);
         setResumeOpen(true);
       });
@@ -225,7 +238,13 @@ export function AppShell(): React.ReactElement {
       ) : null}
       {resumeOpen ? (
         <Box marginTop={1}>
-          <ResumePickerView items={resumeItems} selectedIndex={resumeSelected} tokens={tokens} />
+          <ResumePickerView
+            items={resumeItems}
+            selectedIndex={resumeSelected}
+            tokens={tokens}
+            query={resumeQuery}
+            currentSessionId={controller.activeSessionId}
+          />
         </Box>
       ) : null}
       {permission ? (
