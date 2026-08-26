@@ -617,6 +617,8 @@ export class UdsBrainBackendClient implements BrainBackendClient {
       createdAtMs: s.createdAtMs || s.created_at_ms || (s.created_at ? s.created_at * 1000 : Date.now()),
       updatedAtMs: s.updatedAtMs || s.updated_at_ms || (s.updated_at ? s.updated_at * 1000 : Date.now()),
       workspacePath: s.workspacePath || s.workspace_path,
+      pinned: s.pinned === true,
+      archived: s.archived === true,
     }));
 
     return {
@@ -741,8 +743,8 @@ export class UdsBrainBackendClient implements BrainBackendClient {
       id: s.sessionId,
       title: s.title,
       updatedAtMs: s.updatedAtMs,
-      pinned: false,
-      archived: false,
+      pinned: s.pinned === true,
+      archived: s.archived === true,
     }));
   }
 

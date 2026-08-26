@@ -360,6 +360,8 @@ export interface AuthoritativeSessionSummary {
   createdAtMs: number;
   updatedAtMs: number;
   workspacePath?: string;
+  pinned?: boolean;
+  archived?: boolean;
 }
 
 export interface AuthoritativeSessionMessage {
