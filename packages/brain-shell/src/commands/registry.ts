@@ -1,26 +1,33 @@
 /**
- * Brain-owned slash-command registry. The palette (Inc 2) reads from here;
- * command modules register themselves at import time.
+ * Brain-owned slash-command catalog — the single source of truth for the
+ * palette, /help output, and command execution. Commands are pure data +
+ * a sync `run` returning a declarative result; the shell interprets results
+ * into state (Inc 21). Built-ins self-register from ./builtin.js.
  */
 
-export interface CommandResult {
-  type: 'text' | 'none';
-  value?: string;
-}
+export type CommandAction = 'clear' | 'quit' | 'resume' | 'theme';
+export type CommandOverlay = 'doctor' | 'memory';
+
+export type CommandResult =
+  | { type: 'text'; value: string }
+  | { type: 'none' }
+  | { type: 'action'; action: CommandAction }
+  | { type: 'overlay'; overlay: CommandOverlay };
 
 export interface CommandContext {
   args: string[];
-  sessionId: string;
+  sessionId?: string;
 }
 
 export interface Command {
+  /** Name without the leading '/'. Lowercase `[a-z0-9_-]+`. */
   name: string;
+  /** One-line description shown in the palette and /help output. */
   description: string;
   aliases?: string[];
   argumentHint?: string;
   hidden?: boolean;
-  supportsNonInteractive?: boolean;
-  handler(ctx: CommandContext): Promise<CommandResult>;
+  run(ctx: CommandContext): CommandResult;
 }
 
 const registry = new Map<string, Command>();
