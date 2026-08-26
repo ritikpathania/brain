@@ -1,5 +1,0 @@
---- Oracle [Stage 1: 1_INITIAL_PROMPT]+++ Target [Stage 1: 1_INITIAL_PROMPT]@@ -21,4 +21,4 @@ ────────────────────────────────────────────────────────────────────────────────
- ❯                                                                               
- ────────────────────────────────────────────────────────────────────────────────
--  -- INSERT -- ⏸ manual mode on · ← for agents                                  
-+  -- INSERT -- ⏸ manual on (shift+tab to cycle)                                 

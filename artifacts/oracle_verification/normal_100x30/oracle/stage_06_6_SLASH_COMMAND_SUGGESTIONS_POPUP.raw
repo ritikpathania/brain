@@ -1,19 +1,0 @@
-[2D[4B[2C[4A/[7m [27m
-
-
-
-[3C[4A[3D[4B[2C[2A[38;5;153m/add-dir                      Add a new working directory[73G[39m[K[2C[1B[38;5;246m/agents                       (removed) Ask Claude to create/manage subagents, or[85Gedit[39m[K
-[33G[38;5;246m.claude/agents/[39m
-[3G[38;5;246m/autocompact[33GSet[37Ghow[41Gfull[46Gthe[50Gcontext[58Ggets[63Gbefore[70Gauto-summarizing[39m
-[3G[38;5;246m/background[33GSend[38Gthis[43Gsession[51Gto[54Gthe[58Gbackground[69Gand[73Gfree[78Gthe[82Gterminal[39m
-[3G[38;5;246m/branch[33GCreate[40Ga[42Gbranch[49Gof[52Gthe[56Gcurrent[64Gconversation[77Gat[80Gthis[85Gpoint[39m
-[3G[38;5;246m/btw[33GAsk[37Ga[39Gquick[45Gside[50Gquestion[59Gwithout[67Ginterrupting[80Gthe[84Gmain[39m
-[33G[38;5;246mconversation[39m
-[3G[38;5;246m/bug[33GReport[40Ga[42Gbug[46Gor[49Gshare[55Gyour[60Gconversation[39m
-[3G[38;5;246m/cd[33GMove[38Gthis[43Gsession[51Gto[54Ga[56Gnew[60Gworking[68Gdirectory[39m
-[3G[38;5;246m/clear[33GStart[39Ga[41Gnew[45Gsession[53Gwith[58Gempty[64Gcontext;[73Gprevious[82Gsession[90Gstays[96Gon[39m
-[33G[38;5;246mdisk[38G(resumable[49Gwith[54G/resume)[39m
-[3G[38;5;246m/color[33GSet[37Gthe[41Gprompt[48Gbar[52Gcolor[58Gfor[62Gthis[67Gsession[39m
-[3G[38;5;246m/compact[33GFree[38Gup[41Gcontext[49Gby[52Gsummarizing[64Gthe[68Gconversation[81Gso[84Gfar[39m
-[3G[38;5;246m/config[33GOpen[38Gsettings[39m
-[3C[17A
