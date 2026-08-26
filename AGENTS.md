@@ -39,39 +39,39 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 ## CLI TUI Design System
 
-When writing or modifying Terminal User Interface (TUI) components in the `crates/brain-tui/` directory, always adhere to the design system specified in `crates/brain-tui/src/ui/theme.rs`:
+When writing or modifying Terminal User Interface (TUI) components in the `packages/brain-shell/` directory, always adhere to the design system specified in `packages/brain-shell/src/state/themeStore.ts`, `themeContext.tsx`, and `src/contracts/theme.ts`:
 
 1. **Use Theme Tokens Everywhere**:
-   - Never use raw RGB, hex, or plain ANSI colors directly in layout components. Use semantic colors defined in `Theme`.
+   - Never use hardcoded raw RGB, hex, or plain ANSI colors directly in layout components. Use semantic colors defined in `ThemeTokens` (`primary`, `secondary`, `dim`, `accent`, `error`, `warning`, `success`, `info`, `border`, `bg`, etc.).
 
 2. **Precomputed Theme Maps**:
-   - Access theme properties via the active TUI client theme structures to minimize runtime lookup overhead.
+   - Access theme properties via the active React theme context (`useTheme()`) to ensure live updates without requiring process restarts.
 
 3. **Standard Layout and Primitives**:
-   - Favor themed layout containers over raw text or box primitives. This ensures semantic style encapsulation.
-   - Design layouts to dynamically resize (`SIGWINCH`) using flexbox properties (`flex-grow`, `flex-shrink`) and percentage widths instead of hardcoded column widths.
-   - Handle compact terminal widths (< 80 columns) gracefully by simplifying or hiding sidebar panels.
+   - Favor themed layout containers (`ModalFrame`, `PromptInput`, `PaletteView`) over raw text or box primitives. This ensures semantic style encapsulation.
+   - Design layouts to dynamically resize (`SIGWINCH`) using flexbox properties (`flexGrow`, `flexShrink`) and percentage widths instead of hardcoded column widths.
+   - Handle compact terminal widths (< 80 columns) gracefully by simplifying or wrapping headers.
 4. **Panel Borders**:
-   - Standard interactive panels, popups, and transient modals use `BorderType::Rounded` when `UnicodeSupport::Full` is available. ASCII fallbacks (`+`, `-`, `|`) are preserved for compatibility.
+   - Standard interactive panels, popups, and transient modals use rounded borders (`╭`, `─`, `╮`, `│`, `╯`, `╰`) and semantic header/footer dividers. ASCII fallbacks (`+`, `-`, `|`) are preserved for compatibility.
 
 ## CLI TUI Testing & Verification
 
 When modifying or adding components to the TUI client:
 
-1. **Verify Using Integration Tests**: Run `cargo test -p brain-tui` to check state reducer invariants and layout computations.
-2. **Run Performance Profiling**: Compile the workspace in release mode using cargo and measure peak RSS memory usage and frame draw latency to check for regressions.
+1. **Verify Using Integration Tests**: Run `bun test` in `packages/brain-shell` to check state projections, cell geometry, and keyboard interaction invariants.
+2. **Run Performance Profiling**: Measure frame draw latency and memory footprint to check for regressions.
 
-## UDS Streaming Protocol & Typewriter Renderer
+## UDS Streaming Protocol & Reactive State Projection
 
 When working with queries or communication between the Rust Daemon and the TUI Client:
 
 1. **Monotonic Tagged Stream Events**:
-   - Communication uses `StreamEvent` tagged enum variants (`stream_start`, `stream_progress`, `stream_chunk`, `stream_end`, `stream_cancelled`).
+   - Communication uses tagged chunk types (`token`, `thinking`, `tool_use`, `tool_result`, `permission_request`, `error`, `finished`).
    - Sequence numbers must increment monotonically within a stream.
 
-2. **Two-Stage Client Queue Pipeline**:
-   - The TUI buffers incoming network chunks into a typewriter queue, draining them sequentially to create a smooth rendering effect.
-   - Handles network transport completion independently from the typewriter rendering queue drain.
+2. **Reactive State Projection**:
+   - The TUI receives incoming stream chunks via `SessionController.handleChunk`, updating immutable reactive snapshots and transcript rows with atomic freeze on turn settlement.
+
 
 ## Domain-Driven Design (DDD) Invariants
 

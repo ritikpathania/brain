@@ -6,9 +6,7 @@
   "main": "src/main.tsx",
   "scripts": {
     "start": "bun run --feature AUTO_THEME --preload ./src/preload.ts src/main.tsx",
-    "test:pty": "python3 src/test/pty_verification.py",
-    "test:parity": "python3 src/test/strictDifferentialAudit.py",
-    "test:integrity": "python3 src/test/compareSourceTreesSummary.py"
+    "test:pty": "python3 src/test/pty_verification.py"
   },
   "dependencies": {
     "@commander-js/extra-typings": "12.1.0",
