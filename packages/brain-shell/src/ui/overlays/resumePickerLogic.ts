@@ -89,3 +89,61 @@ export function resumeListDecision(
 ): OverlayListDecision {
   return overlayListDecision(action, selected, count);
 }
+
+export type DirectResumeResolution =
+  | { type: 'exact'; sessionId: string }
+  | { type: 'unique'; sessionId: string }
+  | { type: 'ambiguous'; query: string; candidates: BrainSessionSummary[] }
+  | { type: 'none'; query: string };
+
+/**
+ * Inc 34: Resolves a direct /resume <target> argument against active sessions.
+ * Resolution precedence:
+ * 1. Exact session ID match (case-insensitive) -> exact adoption
+ * 2. Unique session ID prefix match -> unique adoption
+ * 3. Ambiguous session ID prefix matches -> ambiguous (open picker with candidates)
+ * 4. Unique title match -> unique adoption
+ * 5. Ambiguous title matches -> ambiguous (open picker with candidates)
+ * 6. Zero matches -> none (show notice)
+ */
+export function resolveDirectResumeTarget(
+  summaries: BrainSessionSummary[],
+  target: string,
+): DirectResumeResolution {
+  const trimmed = target.trim();
+  if (!trimmed) {
+    return { type: 'ambiguous', query: '', candidates: summaries.filter((s) => !s.archived) };
+  }
+  const active = summaries.filter((s) => !s.archived);
+  const targetLower = trimmed.toLowerCase();
+
+  // 1. Exact session ID match
+  const exact = active.find((s) => s.id.toLowerCase() === targetLower);
+  if (exact) {
+    return { type: 'exact', sessionId: exact.id };
+  }
+
+  // 2. Session ID prefix match
+  const idPrefixMatches = active.filter((s) => s.id.toLowerCase().startsWith(targetLower));
+  if (idPrefixMatches.length === 1) {
+    return { type: 'unique', sessionId: idPrefixMatches[0].id };
+  }
+  if (idPrefixMatches.length > 1) {
+    return { type: 'ambiguous', query: trimmed, candidates: idPrefixMatches };
+  }
+
+  // 3. Title match (exact or substring)
+  const exactTitle = active.find((s) => s.title.toLowerCase() === targetLower);
+  if (exactTitle) {
+    return { type: 'unique', sessionId: exactTitle.id };
+  }
+  const titleMatches = active.filter((s) => s.title.toLowerCase().includes(targetLower));
+  if (titleMatches.length === 1) {
+    return { type: 'unique', sessionId: titleMatches[0].id };
+  }
+  if (titleMatches.length > 1) {
+    return { type: 'ambiguous', query: trimmed, candidates: titleMatches };
+  }
+
+  return { type: 'none', query: trimmed };
+}

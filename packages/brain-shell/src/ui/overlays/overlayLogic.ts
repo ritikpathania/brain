@@ -14,7 +14,9 @@ export function overlayListDecision(
   selected: number,
   count: number,
 ): OverlayListDecision {
-  if (action === null || count === 0) return { type: 'passthrough' };
+  if (action === null) return { type: 'passthrough' };
+  if (action === 'overlay:cancel') return { type: 'cancel' };
+  if (count === 0) return { type: 'passthrough' };
   switch (action) {
     case 'overlay:up':
       return { type: 'move', index: Math.max(0, selected - 1) };
@@ -22,8 +24,6 @@ export function overlayListDecision(
       return { type: 'move', index: Math.min(count - 1, selected + 1) };
     case 'overlay:commit':
       return { type: 'commit', index: Math.min(selected, count - 1) };
-    case 'overlay:cancel':
-      return { type: 'cancel' };
     default:
       return { type: 'passthrough' };
   }

@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test';
 import { overlayListDecision } from '../../../ui/overlays/overlayLogic.js';
 
 describe('overlayListDecision', () => {
-  test('closed or empty lists pass everything through', () => {
+  test('closed or empty lists pass navigation through but allow cancel', () => {
     expect(overlayListDecision('overlay:down', 0, 0)).toEqual({ type: 'passthrough' });
+    expect(overlayListDecision('overlay:cancel', 0, 0)).toEqual({ type: 'cancel' });
     expect(overlayListDecision(null, 0, 5)).toEqual({ type: 'passthrough' });
   });
 
