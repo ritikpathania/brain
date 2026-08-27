@@ -256,6 +256,23 @@ export class SessionController {
     }
   }
 
+  /** Inc 31: Delete a memory node by ID, removing it from storage and future context. */
+  async deleteMemoryNode(nodeId: string): Promise<boolean> {
+    const trimmed = nodeId.trim();
+    if (!trimmed) {
+      this.notice('Usage: /memory delete <node_id>');
+      return false;
+    }
+    try {
+      await this.client.deleteMemory(trimmed);
+      this.notice(`Deleted memory node ${trimmed}`);
+      return true;
+    } catch (e) {
+      this.notice(`Could not delete memory node: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
   /** Adopt a stored session and replay its messages as frozen rows. */
   async resumeSession(sessionId: string): Promise<void> {
     if (this.busy) {

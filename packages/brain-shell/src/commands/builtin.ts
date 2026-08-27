@@ -44,7 +44,21 @@ const BUILTINS: Command[] = [
   },
   { name: 'quit', description: 'Exit Brain shell', aliases: ['q'], run: () => ({ type: 'action', action: 'quit' }) },
   { name: 'doctor', description: 'Run system diagnostics', run: () => ({ type: 'overlay', overlay: 'doctor' }) },
-  { name: 'memory', description: 'Browse the knowledge graph', run: () => ({ type: 'overlay', overlay: 'memory' }) },
+  {
+    name: 'memory',
+    description: 'Browse or manage the knowledge graph',
+    argumentHint: '[delete <id>]',
+    run: (ctx) => {
+      if (ctx.args[0] === 'delete') {
+        const targetId = ctx.args[1];
+        if (!targetId) {
+          return { type: 'text', value: 'Usage: /memory delete <node_id>' };
+        }
+        return { type: 'action', action: 'memory-delete', args: [targetId] };
+      }
+      return { type: 'overlay', overlay: 'memory' };
+    },
+  },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

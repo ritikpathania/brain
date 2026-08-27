@@ -850,6 +850,16 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     };
   }
 
+  async deleteMemory(nodeId: string): Promise<MemoryDeleteOutput> {
+    const res = await this.callRpc<any>('memory/delete', {
+      nodeId,
+    });
+    return {
+      success: res.success !== false,
+      nodeId: res.nodeId || res.node_id || nodeId,
+    };
+  }
+
   async sendToolFeedback(feedback: ToolExecutionFeedback): Promise<ToolFeedbackResult> {
     const res = await this.callRpc<any>('tool/feedback', {
       identity: {

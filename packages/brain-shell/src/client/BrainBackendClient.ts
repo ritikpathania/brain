@@ -312,6 +312,15 @@ export interface MemoryStoreOutput {
   nodeId: string;
 }
 
+export interface MemoryDeleteInput {
+  nodeId: string;
+}
+
+export interface MemoryDeleteOutput {
+  success: boolean;
+  nodeId: string;
+}
+
 export interface ToolFeedbackIdentity {
   sessionId: string;
   turnId: string;
@@ -411,6 +420,7 @@ export interface BrainBackend {
   completeTurn(input: CompleteTurnInput): Promise<CompleteTurnOutput>;
   searchMemory(input: MemorySearchInput): Promise<MemorySearchOutput>;
   storeMemory(input: MemoryStoreInput): Promise<MemoryStoreOutput>;
+  deleteMemory(nodeId: string): Promise<MemoryDeleteOutput>;
   sendToolFeedback(feedback: ToolExecutionFeedback): Promise<ToolFeedbackResult>;
   listAuthoritativeSessions(options?: { limit?: number; offset?: number; workspacePath?: string }): Promise<{ sessions: AuthoritativeSessionSummary[]; total: number }>;
   loadAuthoritativeSession(sessionId: string): Promise<AuthoritativeSessionDetail>;
@@ -713,6 +723,10 @@ export class MockBrainBackendClient implements BrainBackendClient {
 
   async storeMemory(input: MemoryStoreInput): Promise<MemoryStoreOutput> {
     const nodeId = `node_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    return { success: true, nodeId };
+  }
+
+  async deleteMemory(nodeId: string): Promise<MemoryDeleteOutput> {
     return { success: true, nodeId };
   }
 
