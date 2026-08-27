@@ -514,6 +514,395 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "session/fork" || action == "v1/session/fork" {
+            #[derive(serde::Deserialize)]
+            struct ForkPayload {
+                #[serde(rename = "source_session_id", alias = "sourceSessionId")]
+                source_session_id: String,
+                #[serde(rename = "at_message_id", alias = "atMessageId", default)]
+                at_message_id: Option<String>,
+                #[serde(rename = "new_title", alias = "newTitle", default)]
+                new_title: Option<String>,
+            }
+
+            let fork_req: Result<ForkPayload, _> = serde_json::from_str(payload);
+            match fork_req {
+                Ok(p) => {
+                    let parsed_src = parse_session_id_flexible(&p.source_session_id);
+                    let req = brain_integrations::dto::v1::ForkSessionRequest {
+                        source_session_id: parsed_src.to_string(),
+                        at_message_id: p.at_message_id,
+                        new_title: p.new_title,
+                    };
+                    match app.fork_session(req).await {
+                        Ok(res) => {
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": serde_json::to_string(&res)?
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "body": res
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to fork session: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "error",
+                                    "message": err_msg
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid session/fork payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/rename" || action == "v1/session/rename" {
+            #[derive(serde::Deserialize)]
+            struct RenamePayload {
+                #[serde(rename = "session_id", alias = "sessionId")]
+                session_id: String,
+                #[serde(rename = "new_title", alias = "newTitle")]
+                new_title: String,
+            }
+
+            let rename_req: Result<RenamePayload, _> = serde_json::from_str(payload);
+            match rename_req {
+                Ok(p) => {
+                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    match app.rename_session(&parsed_sid.to_string(), &p.new_title).await {
+                        Ok(()) => {
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": "ok"
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "message": "Session renamed successfully"
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to rename session: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "error",
+                                    "message": err_msg
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid session/rename payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/pin" || action == "v1/session/pin" {
+            #[derive(serde::Deserialize)]
+            struct PinPayload {
+                #[serde(rename = "session_id", alias = "sessionId")]
+                session_id: String,
+                pinned: bool,
+            }
+
+            let pin_req: Result<PinPayload, _> = serde_json::from_str(payload);
+            match pin_req {
+                Ok(p) => {
+                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    match app.pin_session(&parsed_sid.to_string(), p.pinned).await {
+                        Ok(()) => {
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": "ok"
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "message": "Session pin status updated successfully"
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to update session pin status: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "error",
+                                    "message": err_msg
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid session/pin payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/archive" || action == "v1/session/archive" {
+            #[derive(serde::Deserialize)]
+            struct ArchivePayload {
+                #[serde(rename = "session_id", alias = "sessionId", default)]
+                session_id: Option<String>,
+                #[serde(default)]
+                id: Option<String>,
+            }
+
+            let sid_str = if let Ok(p) = serde_json::from_str::<ArchivePayload>(payload) {
+                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+            } else {
+                payload.trim().to_string()
+            };
+
+            let parsed_sid = parse_session_id_flexible(&sid_str);
+            match app.archive_session(&parsed_sid.to_string()).await {
+                Ok(()) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": "ok"
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "ok",
+                            "message": "Session archived successfully"
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to archive session: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/restore" || action == "v1/session/restore" {
+            #[derive(serde::Deserialize)]
+            struct RestorePayload {
+                #[serde(rename = "session_id", alias = "sessionId", default)]
+                session_id: Option<String>,
+                #[serde(default)]
+                id: Option<String>,
+            }
+
+            let sid_str = if let Ok(p) = serde_json::from_str::<RestorePayload>(payload) {
+                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+            } else {
+                payload.trim().to_string()
+            };
+
+            let parsed_sid = parse_session_id_flexible(&sid_str);
+            match app.restore_session(&parsed_sid.to_string()).await {
+                Ok(()) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": "ok"
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "ok",
+                            "message": "Session restored successfully"
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to restore session: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "memory/consolidate" || action == "v1/memory/consolidate" {
             let start = std::time::Instant::now();
             let consolidate_req: Result<crate::server::protocol::ConsolidatePayload, _> =
