@@ -109,10 +109,16 @@ impl DefaultContextOrchestrator {
         list.push(candidate);
     }
 
-    /// Marks a node as deleted/archived.
+    /// Marks a node as deleted/archived for immediate in-flight candidate exclusion.
     pub async fn mark_node_deleted(&self, node_id: brain_domain::NodeId) {
         let mut set = self.deleted_nodes.write().await;
         set.insert(node_id);
+    }
+
+    /// Removes deletion tombstone on a node (used for rollback on storage failure).
+    pub async fn unmark_node_deleted(&self, node_id: brain_domain::NodeId) {
+        let mut set = self.deleted_nodes.write().await;
+        set.remove(&node_id);
     }
 
     /// Helper to evaluate candidate scope against request scope.
@@ -370,6 +376,16 @@ impl ContextOrchestrator for DefaultContextOrchestrator {
             request.max_items
         };
         Ok(ranked.into_iter().take(max_items).collect())
+    }
+
+    async fn mark_node_deleted(&self, node_id: brain_domain::NodeId) {
+        let mut set = self.deleted_nodes.write().await;
+        set.insert(node_id);
+    }
+
+    async fn unmark_node_deleted(&self, node_id: brain_domain::NodeId) {
+        let mut set = self.deleted_nodes.write().await;
+        set.remove(&node_id);
     }
 }
 

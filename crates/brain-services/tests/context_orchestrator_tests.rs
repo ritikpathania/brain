@@ -222,12 +222,22 @@ async fn test_orchestrator_deleted_entity_exclusion() {
         reference_time: Some(1_700_000_000),
     };
 
-    let snapshot = orchestrator.assemble_context(req).await.unwrap();
+    let snapshot = orchestrator.assemble_context(req.clone()).await.unwrap();
     assert_eq!(
         snapshot.items.len(),
         0,
         "Deleted entity appeared in assembled context"
     );
+
+    // Rollback tombstone (unmark)
+    orchestrator.unmark_node_deleted(node_id).await;
+    let snapshot_restored = orchestrator.assemble_context(req).await.unwrap();
+    assert_eq!(
+        snapshot_restored.items.len(),
+        1,
+        "Unmarked entity was not restored to eligibility"
+    );
+    assert_eq!(snapshot_restored.items[0].node_id, node_id);
 }
 
 #[tokio::test]

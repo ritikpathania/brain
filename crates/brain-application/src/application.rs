@@ -219,6 +219,36 @@ impl BrainApplication {
         Ok(self.runtime.inspect_node(id_str)?)
     }
 
+    /// Inc 31: Deletes a memory node, cascading incident edges/embeddings and updating context index.
+    pub async fn delete_memory(&self, node_id_str: &str) -> Result<(), ApplicationError> {
+        let node_id = node_id_str
+            .parse::<brain_domain::NodeId>()
+            .map_err(|e| ApplicationError::Validation(format!("Invalid node_id: {}", e)))?;
+
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::NodeRepository;
+
+        // 1. Verify existence before tombstoning
+        if storage.find_by_id(&node_id)?.is_none() {
+            return Err(ApplicationError::Validation(format!(
+                "Memory node '{}' not found",
+                node_id_str
+            )));
+        }
+
+        // 2. Mark node as deleted in orchestrator upfront (candidate eligibility protection)
+        self.context_orchestrator.mark_node_deleted(node_id).await;
+
+        // 3. Delete from persistent SQLite storage (cascades incident edges, embeddings, FTS triggers)
+        if let Err(e) = storage.delete(&node_id) {
+            // Rollback orchestrator tombstone on persistent storage failure
+            self.context_orchestrator.unmark_node_deleted(node_id).await;
+            return Err(e.into());
+        }
+
+        Ok(())
+    }
+
     /// Search capability dispatches search queries to retrieval services.
     pub async fn search(
         &self,
