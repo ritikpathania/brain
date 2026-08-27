@@ -32,6 +32,14 @@ pub trait SessionService: Send + Sync {
 
     /// Restores a session.
     fn restore_session(&self, id: &SessionId) -> Result<(), BrainError>;
+
+    /// Forks a session up to an optional message ID into a new session with the given optional title.
+    fn fork_session(
+        &self,
+        source_id: &SessionId,
+        new_title: Option<&str>,
+        at_message_id: Option<&brain_domain::MessageId>,
+    ) -> Result<SessionId, BrainError>;
 }
 
 /// Service providing unified retrieval capabilities over volatile caches (STM) and persistent storage (LTM).

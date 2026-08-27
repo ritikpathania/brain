@@ -43,12 +43,20 @@ pub mod graph;
 /// Phase 3 Runtime Reasoning execution engine contracts and runner.
 pub mod reasoning;
 
+/// Model provider, gateway, and streaming generation abstractions.
+pub mod model;
+
+/// Phase 3 Memory Context assembly, ranking, and snapshotting abstractions.
+pub mod context;
+
 pub use agents::*;
+pub use context::*;
 pub use errors::*;
 pub use events::*;
 pub use evolution::*;
 pub use extensibility::*;
 pub use graph::*;
+pub use model::*;
 pub use projection::*;
 pub use reasoning::*;
 pub use reflection::*;

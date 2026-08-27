@@ -105,6 +105,15 @@ pub enum BrainError {
         message: String,
     },
 
+    /// Model provider or generation routing failure.
+    #[error("Model Error [Model: {model_id}]: {message}")]
+    Model {
+        /// Identifier of the model or provider.
+        model_id: String,
+        /// Error message.
+        message: String,
+    },
+
     /// Recoverable or unrecoverable internal system error.
     #[error("Internal System Error: {message}")]
     Internal {
