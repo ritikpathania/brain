@@ -22,6 +22,9 @@ import type {
   MemorySearchOutput,
   MemoryStoreInput,
   MemoryStoreOutput,
+  TranscriptSearchInput,
+  TranscriptSearchMatch,
+  TranscriptSearchOutput,
   BrainGenerationRequest,
   BrainStreamChunk,
   BrainSession,
@@ -857,6 +860,29 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     return {
       success: res.success !== false,
       nodeId: res.nodeId || res.node_id || nodeId,
+    };
+  }
+
+  async searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput> {
+    const res = await this.callRpc<any>('search/query', {
+      query: input.query,
+      kinds: input.kinds,
+      limit: input.limit,
+      offset: input.offset,
+    });
+    const matches: TranscriptSearchMatch[] = (res.matches || []).map((m: any) => ({
+      id: m.id,
+      kind: m.kind,
+      sessionId: m.sessionId ?? m.session_id,
+      title: m.title || '',
+      body: m.body || '',
+      snippet: m.snippet ?? m.body ?? '',
+      role: m.role,
+      score: typeof m.score === 'number' ? m.score : undefined,
+    }));
+    return {
+      matches,
+      total: typeof res.total === 'number' ? res.total : matches.length,
     };
   }
 

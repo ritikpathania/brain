@@ -59,6 +59,17 @@ const BUILTINS: Command[] = [
       return { type: 'overlay', overlay: 'memory' };
     },
   },
+  {
+    name: 'search',
+    description: 'Search historical conversation transcripts',
+    argumentHint: '<query>',
+    run: (ctx) => {
+      if (ctx.args.length === 0) {
+        return { type: 'text', value: 'Usage: /search <query>' };
+      }
+      return { type: 'action', action: 'search', args: ctx.args };
+    },
+  },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

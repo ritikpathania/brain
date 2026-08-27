@@ -321,6 +321,29 @@ export interface MemoryDeleteOutput {
   nodeId: string;
 }
 
+export interface TranscriptSearchInput {
+  query: string;
+  kinds?: Array<'message' | 'session'>;
+  limit?: number;
+  offset?: number;
+}
+
+export interface TranscriptSearchMatch {
+  id: string;
+  kind: string;
+  sessionId?: string;
+  title: string;
+  body: string;
+  snippet?: string;
+  role?: string;
+  score?: number;
+}
+
+export interface TranscriptSearchOutput {
+  matches: TranscriptSearchMatch[];
+  total: number;
+}
+
 export interface ToolFeedbackIdentity {
   sessionId: string;
   turnId: string;
@@ -421,6 +444,7 @@ export interface BrainBackend {
   searchMemory(input: MemorySearchInput): Promise<MemorySearchOutput>;
   storeMemory(input: MemoryStoreInput): Promise<MemoryStoreOutput>;
   deleteMemory(nodeId: string): Promise<MemoryDeleteOutput>;
+  searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput>;
   sendToolFeedback(feedback: ToolExecutionFeedback): Promise<ToolFeedbackResult>;
   listAuthoritativeSessions(options?: { limit?: number; offset?: number; workspacePath?: string }): Promise<{ sessions: AuthoritativeSessionSummary[]; total: number }>;
   loadAuthoritativeSession(sessionId: string): Promise<AuthoritativeSessionDetail>;
@@ -728,6 +752,37 @@ export class MockBrainBackendClient implements BrainBackendClient {
 
   async deleteMemory(nodeId: string): Promise<MemoryDeleteOutput> {
     return { success: true, nodeId };
+  }
+
+  async searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput> {
+    const q = input.query.toLowerCase();
+    const matches: TranscriptSearchMatch[] = [];
+    for (const [sid, sess] of this.mockSessions.entries()) {
+      if (sess.title.toLowerCase().includes(q)) {
+        matches.push({
+          id: `session:${sid}`,
+          kind: 'session',
+          sessionId: sid,
+          title: sess.title,
+          body: '',
+          snippet: sess.title,
+        });
+      }
+      for (const msg of sess.messages) {
+        if (msg.content.toLowerCase().includes(q)) {
+          matches.push({
+            id: `message:${msg.id}`,
+            kind: 'message',
+            sessionId: sid,
+            title: msg.role,
+            body: msg.content,
+            snippet: msg.content,
+            role: msg.role,
+          });
+        }
+      }
+    }
+    return { matches, total: matches.length };
   }
 
   async retrieveContext(req: ContextRetrieveRequest): Promise<ContextRetrieveResponse> {

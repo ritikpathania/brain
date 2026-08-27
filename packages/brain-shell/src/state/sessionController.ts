@@ -9,6 +9,7 @@ import type {
   BrainSessionSummary,
   BrainStreamChunk,
   MemorySearchResult,
+  TranscriptSearchMatch,
 } from '../client/BrainBackendClient.js';
 import { sessionToRows } from './sessionReplay.js';
 import { normalizeMessagesForBrain } from '../adapter/brainCallModel.js';
@@ -253,6 +254,18 @@ export class SessionController {
       return { ok: true, memories: res.memories };
     } catch {
       return { ok: false };
+    }
+  }
+
+  /** Inc 32: Search historical message and session transcripts across all sessions. */
+  async searchTranscripts(query: string, limit = 20): Promise<TranscriptSearchMatch[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    try {
+      const res = await this.client.searchTranscripts({ query: trimmed, limit });
+      return res.matches;
+    } catch {
+      return [];
     }
   }
 

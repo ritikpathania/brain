@@ -310,6 +310,23 @@ export function AppShell(): React.ReactElement {
         } else if (res.action === 'memory-delete') {
           const targetId = res.args ? res.args[0] : '';
           if (targetId) void controller.deleteMemoryNode(targetId);
+        } else if (res.action === 'search') {
+          const query = res.args ? res.args.join(' ') : '';
+          if (query) {
+            void controller.searchTranscripts(query).then((matches) => {
+              if (matches.length === 0) {
+                controller.notice(`No transcript matches found for “${query}”.`);
+              } else {
+                const lines = matches.slice(0, 5).map((m) => {
+                  const prefix = m.sessionId ? `[${m.sessionId.slice(0, 8)}] ` : '';
+                  const roleTag = m.role ? `(${m.role}) ` : '';
+                  const snippet = m.snippet || m.body || m.title;
+                  return `• ${prefix}${roleTag}${snippet}`;
+                });
+                controller.notice(`Found ${matches.length} match(es) for “${query}”:\n${lines.join('\n')}`);
+              }
+            });
+          }
         }
         break;
       case 'overlay':
