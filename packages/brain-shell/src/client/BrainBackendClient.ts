@@ -321,6 +321,15 @@ export interface MemoryDeleteOutput {
   nodeId: string;
 }
 
+export interface SessionDeleteInput {
+  sessionId: string;
+}
+
+export interface SessionDeleteOutput {
+  success: boolean;
+  sessionId: string;
+}
+
 export interface TranscriptSearchInput {
   query: string;
   kinds?: Array<'message' | 'session'>;
@@ -444,6 +453,7 @@ export interface BrainBackend {
   searchMemory(input: MemorySearchInput): Promise<MemorySearchOutput>;
   storeMemory(input: MemoryStoreInput): Promise<MemoryStoreOutput>;
   deleteMemory(nodeId: string): Promise<MemoryDeleteOutput>;
+  deleteSession(sessionId: string): Promise<SessionDeleteOutput>;
   searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput>;
   sendToolFeedback(feedback: ToolExecutionFeedback): Promise<ToolFeedbackResult>;
   listAuthoritativeSessions(options?: { limit?: number; offset?: number; workspacePath?: string }): Promise<{ sessions: AuthoritativeSessionSummary[]; total: number }>;
@@ -475,6 +485,7 @@ export interface BrainBackendClient extends BrainBackend {
   createSession(req?: CreateSessionRequest): Promise<CreateSessionResponse>;
   loadSession(sessionId: string): Promise<{ session: BrainSession }>;
   forkSession(req: ForkSessionRequest): Promise<ForkSessionResponse>;
+  deleteSession(sessionId: string): Promise<SessionDeleteOutput>;
   archiveSession(sessionId: string): Promise<void>;
   restoreSession(sessionId: string): Promise<void>;
   renameSession(sessionId: string, newTitle: string): Promise<void>;
@@ -752,6 +763,11 @@ export class MockBrainBackendClient implements BrainBackendClient {
 
   async deleteMemory(nodeId: string): Promise<MemoryDeleteOutput> {
     return { success: true, nodeId };
+  }
+
+  async deleteSession(sessionId: string): Promise<SessionDeleteOutput> {
+    const existed = this.mockSessions.delete(sessionId);
+    return { success: existed, sessionId };
   }
 
   async searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput> {

@@ -36,6 +36,7 @@ import {
 import { BrainTurnTransformer } from '../adapter/BrainTurnTransformer.js';
 import type { BrainTurnEvent } from '../adapter/BrainTurnEvents.js';
 import { turnToRows } from '../ui/transcript/toRows.js';
+import { resolveDirectResumeTarget } from '../ui/overlays/resumePickerLogic.js';
 
 export interface PendingPermissionView {
   callId: string;
@@ -282,6 +283,61 @@ export class SessionController {
       return true;
     } catch (e) {
       this.notice(`Could not delete memory node: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
+  /** Inc 35: Delete a session by ID or prefix, resetting state if active and removing from storage. */
+  async deleteSession(target: string): Promise<boolean> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return false;
+    }
+    const trimmed = target.trim();
+    if (!trimmed) {
+      this.notice('Usage: /session delete <id_or_prefix>');
+      return false;
+    }
+
+    try {
+      const summaries = await this.listSessions();
+      const resolution = resolveDirectResumeTarget(summaries, trimmed);
+
+      let targetId: string;
+      let targetTitle: string | undefined;
+
+      if (resolution.type === 'exact' || resolution.type === 'unique') {
+        targetId = resolution.sessionId;
+        const match = summaries.find((s) => s.id === targetId);
+        targetTitle = match?.title;
+      } else if (resolution.type === 'ambiguous') {
+        const candidateIds = resolution.candidates.map((c) => c.id.slice(0, 8)).join(', ');
+        this.notice(`Ambiguous session prefix “${trimmed}” matches: ${candidateIds}`);
+        return false;
+      } else {
+        this.notice(`No session found matching “${trimmed}”.`);
+        return false;
+      }
+
+      await this.client.deleteSession(targetId);
+
+      const titleDisplay = targetTitle ? `“${targetTitle}” ` : '';
+      if (this.sessionId === targetId) {
+        this.sessionId = undefined;
+        this.rows = [
+          {
+            kind: 'system',
+            id: `sys:${++this.sysSeq}`,
+            text: `Deleted active session ${titleDisplay}(${targetId.slice(0, 8)})`,
+          },
+        ];
+        this.emit();
+      } else {
+        this.notice(`Deleted session ${titleDisplay}(${targetId.slice(0, 8)})`);
+      }
+      return true;
+    } catch (e) {
+      this.notice(`Could not delete session: ${e instanceof Error ? e.message : String(e)}`);
       return false;
     }
   }

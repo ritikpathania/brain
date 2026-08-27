@@ -381,6 +381,9 @@ export function AppShell(): React.ReactElement {
         } else if (res.action === 'fork') {
           const title = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
           void controller.forkCurrentSession(title);
+        } else if (res.action === 'session-delete') {
+          const target = res.args && res.args.length > 0 ? res.args.join(' ') : '';
+          if (target) void controller.deleteSession(target);
         } else if (res.action === 'memory-delete') {
           const targetId = res.args ? res.args[0] : '';
           if (targetId) void controller.deleteMemoryNode(targetId);

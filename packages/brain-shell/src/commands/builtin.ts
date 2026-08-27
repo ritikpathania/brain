@@ -22,10 +22,33 @@ const BUILTINS: Command[] = [
     name: 'resume',
     description: 'Resume a previous session',
     argumentHint: '[session_id]',
-    run: (ctx) =>
-      ctx.args && ctx.args.length > 0
+    run: (ctx) => {
+      if (ctx.args && ctx.args[0] === 'delete') {
+        const targetId = ctx.args.slice(1).join(' ').trim();
+        if (!targetId) {
+          return { type: 'text', value: 'Usage: /resume delete <id_or_prefix>' };
+        }
+        return { type: 'action', action: 'session-delete', args: [targetId] };
+      }
+      return ctx.args && ctx.args.length > 0
         ? { type: 'action', action: 'resume', args: ctx.args }
-        : { type: 'action', action: 'resume' },
+        : { type: 'action', action: 'resume' };
+    },
+  },
+  {
+    name: 'session',
+    description: 'Manage chat sessions',
+    argumentHint: '<delete <id_or_prefix>>',
+    run: (ctx) => {
+      if (ctx.args[0] === 'delete') {
+        const targetId = ctx.args.slice(1).join(' ').trim();
+        if (!targetId) {
+          return { type: 'text', value: 'Usage: /session delete <id_or_prefix>' };
+        }
+        return { type: 'action', action: 'session-delete', args: [targetId] };
+      }
+      return { type: 'text', value: 'Usage: /session delete <id_or_prefix>' };
+    },
   },
   { name: 'theme', description: 'Change the color theme', run: () => ({ type: 'action', action: 'theme' }) },
   {

@@ -863,6 +863,20 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     };
   }
 
+  async deleteSession(sessionId: string): Promise<SessionDeleteOutput> {
+    let cleanSid = sessionId.trim();
+    if (cleanSid.startsWith('session:')) {
+      cleanSid = cleanSid.slice('session:'.length);
+    }
+    const res = await this.callRpc<any>('session/delete', {
+      session_id: cleanSid,
+    });
+    return {
+      success: res.success !== false,
+      sessionId: res.session_id || res.sessionId || cleanSid,
+    };
+  }
+
   async searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput> {
     const res = await this.callRpc<any>('search/query', {
       query: input.query,
