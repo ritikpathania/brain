@@ -144,21 +144,27 @@ ok &= expect("launch-mark", "◆ BRAIN")
 ok &= expect("launch-prompt", "❯")
 
 # Execute /search cryogenic
-os.write(fd, b"/search cryogenic")
-pump(0.3)
+for ch in "/search cryogenic":
+    os.write(fd, ch.encode("utf-8"))
+    pump(0.05)
 os.write(fd, b"\r")
 pump(0.6)
 
-ok &= expect("search-match-count", "match(es) for \u201ccryogenic\u201d")
-ok &= expect("search-match-snippet", "cryogenic dilution refrigerators")
+ok &= expect("search-modal-title", "Search Transcripts")
+ok &= expect("search-match-snippet", "Cryogenic System Topic")
+
+# Dismiss search overlay
+os.write(fd, b"\x1b")
+pump(0.4)
 
 # Execute unmatched search
-os.write(fd, b"/search non_existent_quantum_state")
-pump(0.3)
+for ch in "/search non_existent_quantum_state":
+    os.write(fd, ch.encode("utf-8"))
+    pump(0.05)
 os.write(fd, b"\r")
 pump(0.6)
 
-ok &= expect("search-empty-notice", "No transcript matches found for \u201cnon_existent_quantum_state\u201d")
+ok &= expect("search-empty-notice", "No transcript matches found for \u201cnon_existent_quantum_state\u201d.")
 
 # Close shell
 try:
