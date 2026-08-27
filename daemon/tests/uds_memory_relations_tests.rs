@@ -61,7 +61,7 @@ fn spawn_daemon(test_dir: &PathBuf, socket: &PathBuf, pid: &PathBuf, db: &PathBu
 async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
     let socket_path = test_dir.join("brain.sock");
     let pid_path = test_dir.join("brain.pid");
-    let db_path = test_dir.join("brain.db");
+    let db_path = test_dir.join("brain_runtime.db");
     let analytics_db_path = test_dir.join("analytics.db");
     let child = spawn_daemon(&test_dir, &socket_path, &pid_path, &db_path, &analytics_db_path);
     let mut ready = false;
@@ -280,3 +280,192 @@ async fn blank_query_honors_limit_and_typed_queries_unchanged() {
         "single-token typed query still finds the stored node: {typed}"
     );
 }
+
+#[tokio::test]
+async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
+    let d = start_daemon_at(get_temp_dir()).await;
+
+    // 1. Store concept A and concept B via UDS
+    let res_a = rpc(
+        &d.socket_path,
+        1,
+        "v1/memory/store",
+        serde_json::json!({
+            "label": "Alpha Architecture Service",
+            "content": "Core architecture service node",
+            "scope": "workspace",
+        }),
+    )
+    .await;
+    let node_a_id = res_a["node_id"].as_str().expect("node_id for A").to_string();
+
+    let res_b = rpc(
+        &d.socket_path,
+        2,
+        "v1/memory/store",
+        serde_json::json!({
+            "label": "Beta Dispatch Engine",
+            "content": "Event dispatch engine node",
+            "scope": "workspace",
+        }),
+    )
+    .await;
+    let node_b_id = res_b["node_id"].as_str().expect("node_id for B").to_string();
+
+    // 2. Insert canonical edge into the SQLite edges table directly
+    {
+        let conn = rusqlite::Connection::open(&d.db_path).unwrap();
+        conn.execute(
+            "INSERT INTO edges (source, target, relation, weight, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![&node_a_id, &node_b_id, "uses", 1.0, 1000i64],
+        )
+        .unwrap();
+    }
+
+    // 3. Query memory search for Alpha (outgoing edge)
+    let search_a = rpc(
+        &d.socket_path,
+        3,
+        "v1/memory/search",
+        serde_json::json!({"query": "Alpha", "limit": 5}),
+    )
+    .await;
+    let memories_a = search_a["memories"].as_array().expect("memories array");
+    assert!(!memories_a.is_empty());
+    let rels_a = memories_a[0]["relations"].as_array().expect("relations on Alpha");
+    assert_eq!(rels_a.len(), 1);
+    assert_eq!(rels_a[0]["relation"], "uses");
+    assert_eq!(rels_a[0]["target_id"], node_b_id);
+    assert_eq!(rels_a[0]["target_label"], "Beta Dispatch Engine");
+
+    // 4. Query memory search for Beta (incoming edge)
+    let search_b = rpc(
+        &d.socket_path,
+        4,
+        "v1/memory/search",
+        serde_json::json!({"query": "Beta", "limit": 5}),
+    )
+    .await;
+    let memories_b = search_b["memories"].as_array().expect("memories array");
+    assert!(!memories_b.is_empty());
+    let rels_b = memories_b[0]["relations"].as_array().expect("relations on Beta");
+    assert_eq!(rels_b.len(), 1);
+    assert_eq!(rels_b[0]["relation"], "uses");
+    assert_eq!(rels_b[0]["target_id"], node_a_id);
+    assert_eq!(rels_b[0]["target_label"], "Alpha Architecture Service");
+
+    // 5. Blank query must also materialize relations with resolved labels
+    let blank = rpc(
+        &d.socket_path,
+        5,
+        "v1/memory/search",
+        serde_json::json!({"query": "", "limit": 10}),
+    )
+    .await;
+    let blank_mems = blank["memories"].as_array().expect("blank memories");
+    let alpha_mem = blank_mems.iter().find(|m| m["node_id"] == node_a_id).unwrap();
+    assert_eq!(alpha_mem["relations"][0]["target_label"], "Beta Dispatch Engine");
+}
+
+#[tokio::test]
+async fn dangling_canonical_edge_preserves_target_id_without_label() {
+    let d = start_daemon_at(get_temp_dir()).await;
+
+    let res_a = rpc(
+        &d.socket_path,
+        1,
+        "v1/memory/store",
+        serde_json::json!({
+            "label": "Isolated Node",
+            "content": "Node with dangling relation",
+            "scope": "workspace",
+        }),
+    )
+    .await;
+    let node_a_id = res_a["node_id"].as_str().unwrap().to_string();
+    let dangling_target_id = uuid::Uuid::new_v4().to_string();
+
+    {
+        let conn = rusqlite::Connection::open(&d.db_path).unwrap();
+        conn.execute("PRAGMA foreign_keys = OFF", []).unwrap();
+        conn.execute(
+            "INSERT INTO edges (source, target, relation, weight, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![&node_a_id, &dangling_target_id, "communicates_via", 1.0, 1000i64],
+        )
+        .unwrap();
+    }
+
+    let search = rpc(
+        &d.socket_path,
+        2,
+        "v1/memory/search",
+        serde_json::json!({"query": "Isolated", "limit": 5}),
+    )
+    .await;
+    let mems = search["memories"].as_array().unwrap();
+    assert_eq!(mems.len(), 1);
+    let rels = mems[0]["relations"].as_array().unwrap();
+    assert_eq!(rels.len(), 1);
+    assert_eq!(rels[0]["relation"], "communicates_via");
+    assert_eq!(rels[0]["target_id"], dangling_target_id);
+    assert!(rels[0].get("target_label").is_none());
+}
+
+#[tokio::test]
+async fn canonical_edge_takes_precedence_over_property_duplicate_in_uds() {
+    let d = start_daemon_at(get_temp_dir()).await;
+
+    let res_b = rpc(
+        &d.socket_path,
+        1,
+        "v1/memory/store",
+        serde_json::json!({
+            "label": "Canonical Fresh Beta",
+            "content": "Fresh content",
+        }),
+    )
+    .await;
+    let node_b_id = res_b["node_id"].as_str().unwrap().to_string();
+
+    // Store node A with property relation having stale label
+    let res_a = rpc(
+        &d.socket_path,
+        2,
+        "v1/memory/store",
+        serde_json::json!({
+            "label": "Alpha Client Node",
+            "content": "Client node content",
+            "relations": [
+                {"relation": "uses", "target_id": node_b_id, "target_label": "Stale Beta Label"}
+            ],
+        }),
+    )
+    .await;
+    let node_a_id = res_a["node_id"].as_str().unwrap().to_string();
+
+    // Insert canonical edge A -> B
+    {
+        let conn = rusqlite::Connection::open(&d.db_path).unwrap();
+        conn.execute(
+            "INSERT INTO edges (source, target, relation, weight, updated_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![&node_a_id, &node_b_id, "uses", 1.0, 1000i64],
+        )
+        .unwrap();
+    }
+
+    let search = rpc(
+        &d.socket_path,
+        3,
+        "v1/memory/search",
+        serde_json::json!({"query": "Alpha", "limit": 5}),
+    )
+    .await;
+    let mems = search["memories"].as_array().unwrap();
+    assert_eq!(mems.len(), 1);
+    let rels = mems[0]["relations"].as_array().unwrap();
+    assert_eq!(rels.len(), 1, "Duplicate relation must be deduplicated");
+    assert_eq!(rels[0]["relation"], "uses");
+    assert_eq!(rels[0]["target_id"], node_b_id);
+    assert_eq!(rels[0]["target_label"], "Canonical Fresh Beta");
+}
+

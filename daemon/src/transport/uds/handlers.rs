@@ -1343,8 +1343,12 @@ pub async fn handle_connection(
                         super::memory_relations::preferred_excerpt(Some(&props), &node.label);
                     let scope =
                         super::memory_relations::preferred_scope(Some(&props), "workspace");
-                    let relations =
-                        super::memory_relations::extract_relations(Some(&props), None);
+                    let relations = super::memory_relations::materialize_relations(
+                        Some(&node.id),
+                        Some(&props),
+                        None,
+                        storage.as_ref(),
+                    );
                     matches.push(crate::server::protocol::MemoryItemDto {
                         node_id: node.id.to_string(),
                         label: node.label,
@@ -1393,21 +1397,23 @@ pub async fn handle_connection(
                         // excerpt/scope are recovered here at the boundary.
                         // Sessions/messages fail the UUID parse and keep today's
                         // behavior exactly.
-                        let node_props = uuid::Uuid::parse_str(summary.id.trim())
+                        let node_id_opt = uuid::Uuid::parse_str(summary.id.trim())
                             .ok()
-                            .and_then(|u| {
-                                let nid = brain_domain::NodeId(u);
-                                brain_core::repositories::NodeRepository::find_by_id(
-                                    storage.as_ref(),
-                                    &nid,
-                                )
-                                .ok()
-                                .flatten()
-                                .map(|n| n.properties)
-                            });
-                        let relations = super::memory_relations::extract_relations(
+                            .map(brain_domain::NodeId);
+                        let node_props = node_id_opt.as_ref().and_then(|nid| {
+                            brain_core::repositories::NodeRepository::find_by_id(
+                                storage.as_ref(),
+                                nid,
+                            )
+                            .ok()
+                            .flatten()
+                            .map(|n| n.properties)
+                        });
+                        let relations = super::memory_relations::materialize_relations(
+                            node_id_opt.as_ref(),
                             node_props.as_ref(),
                             summary.metadata.get("relations").map(|s| s.as_str()),
+                            storage.as_ref(),
                         );
                         let excerpt = super::memory_relations::preferred_excerpt(
                             node_props.as_ref(),
