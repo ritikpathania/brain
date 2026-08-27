@@ -77,12 +77,37 @@ pub struct BrainApplication {
     maintenance_runtime: Arc<brain_services::reflection::KnowledgeMaintenanceRuntime>,
     active_maintenance_lock: Arc<tokio::sync::Mutex<()>>,
     last_maintenance_result: Arc<parking_lot::Mutex<Option<v1::MaintenanceCycleResultDto>>>,
+    model_gateway: Arc<dyn brain_core::model::ModelGateway>,
+    context_orchestrator: Arc<dyn brain_core::context::ContextOrchestrator>,
 }
 
 impl BrainApplication {
     /// Returns a reference to the underlying BrainRuntime.
     pub fn runtime(&self) -> &Arc<BrainRuntime> {
         &self.runtime
+    }
+
+    /// Returns a reference to the ModelGateway.
+    pub fn model_gateway(&self) -> &Arc<dyn brain_core::model::ModelGateway> {
+        &self.model_gateway
+    }
+
+    /// Sets a custom ModelGateway.
+    pub fn set_model_gateway(&mut self, gateway: Arc<dyn brain_core::model::ModelGateway>) {
+        self.model_gateway = gateway;
+    }
+
+    /// Returns a reference to the ContextOrchestrator.
+    pub fn context_orchestrator(&self) -> &Arc<dyn brain_core::context::ContextOrchestrator> {
+        &self.context_orchestrator
+    }
+
+    /// Sets a custom ContextOrchestrator.
+    pub fn set_context_orchestrator(
+        &mut self,
+        orchestrator: Arc<dyn brain_core::context::ContextOrchestrator>,
+    ) {
+        self.context_orchestrator = orchestrator;
     }
 
     /// Crate-level stable interface version.
@@ -114,6 +139,11 @@ impl BrainApplication {
         let knowledge_runtime = brain_services::runtime::KnowledgeRuntimeBuilder::new().build();
         let maintenance_runtime =
             brain_services::reflection::KnowledgeMaintenanceRuntime::default();
+        let mock_provider = Arc::new(brain_services::model::DeterministicMockProvider::new());
+        let model_gateway =
+            Arc::new(brain_services::model::DefaultModelGateway::with_mock_provider(mock_provider));
+        let context_orchestrator =
+            Arc::new(brain_services::context::DefaultContextOrchestrator::new());
 
         Self {
             runtime,
@@ -129,6 +159,8 @@ impl BrainApplication {
             maintenance_runtime: Arc::new(maintenance_runtime),
             active_maintenance_lock: Arc::new(tokio::sync::Mutex::new(())),
             last_maintenance_result: Arc::new(parking_lot::Mutex::new(None)),
+            model_gateway,
+            context_orchestrator,
         }
     }
 
@@ -235,15 +267,14 @@ impl BrainApplication {
                 &projection_query,
                 brain_core::CorrelationId::new_v4(),
             );
-            for (node, _score) in projection_result.items {
+            for (node, score) in projection_result.items {
                 results.push(brain_domain::SearchDocument {
                     id: brain_domain::SearchDocumentId::new(node.id.to_string()),
                     kind: brain_domain::SearchDocumentKind::Retrieval,
                     title: node.label.clone(),
                     body: node.label.clone(),
-                    metadata: brain_domain::SearchMetadata::Session {
-                        archived: false,
-                        pinned: false,
+                    metadata: brain_domain::SearchMetadata::Retrieval {
+                        score: Some(score),
                     },
                 });
             }
@@ -270,6 +301,11 @@ impl BrainApplication {
                     brain_domain::SearchMetadata::Message { session_id, role } => {
                         metadata_map.insert("session_id".to_string(), session_id.to_string());
                         metadata_map.insert("role".to_string(), format!("{:?}", role));
+                    }
+                    brain_domain::SearchMetadata::Retrieval { score } => {
+                        if let Some(s) = score {
+                            metadata_map.insert("score".to_string(), s.to_string());
+                        }
                     }
                 }
                 v1::SearchSummary {
@@ -1813,6 +1849,334 @@ impl BrainApplication {
             .ok_or_else(|| {
                 ApplicationError::Internal(format!("Failed to cancel queue item '{}'", queue_id))
             })
+    }
+
+    /// Creates a new session aggregate and stores it in persistent storage.
+    pub async fn create_session(
+        &self,
+        req: v1::CreateSessionRequest,
+    ) -> Result<v1::CreateSessionResponse, ApplicationError> {
+        let session_id = brain_domain::SessionId::new();
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let title_str = req.title.unwrap_or_else(|| "New Session".to_string());
+        let session = brain_domain::Session::new(
+            session_id,
+            brain_domain::SessionTitle(title_str.clone()),
+            brain_domain::SessionTimestamp(now_secs),
+        );
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        storage
+            .save_session(&session_id, &session)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to save session: {}", e)))?;
+
+        Ok(v1::CreateSessionResponse {
+            session_id: session_id.to_string(),
+            title: title_str,
+            created_at_ms: now_secs * 1000,
+        })
+    }
+
+    /// Loads a session aggregate and converts it to a v1::SessionDto.
+    pub async fn load_session(
+        &self,
+        session_id_str: &str,
+    ) -> Result<v1::LoadSessionResponse, ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let session_opt = storage
+            .load_session(&session_id)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to load session: {}", e)))?;
+        let session = session_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!("Session '{}' not found", session_id_str))
+        })?;
+
+        let messages = session
+            .messages
+            .into_iter()
+            .map(|m| v1::SessionMessageDto {
+                id: m.id.to_string(),
+                role: m.role.to_string(),
+                content: m.content,
+                timestamp_ms: m.timestamp * 1000,
+            })
+            .collect();
+        let goals = session.goals.into_iter().map(|g| g.text).collect();
+
+        Ok(v1::LoadSessionResponse {
+            session: v1::SessionDto {
+                id: session.id.to_string(),
+                title: session.title.0,
+                archived: session.archived,
+                pinned: session.pinned,
+                updated_at_ms: session.updated_at.0 * 1000,
+                messages,
+                goals,
+            },
+        })
+    }
+
+    /// Forks a session up to an optional message ID into a new session.
+    pub async fn fork_session(
+        &self,
+        req: v1::ForkSessionRequest,
+    ) -> Result<v1::ForkSessionResponse, ApplicationError> {
+        let source_id = req
+            .source_session_id
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid source_session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let source_opt = storage.load_session(&source_id).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to load source session: {}", e))
+        })?;
+        let source = source_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!(
+                "Source session '{}' not found",
+                req.source_session_id
+            ))
+        })?;
+
+        let at_msg_id =
+            if let Some(ref mid) = req.at_message_id {
+                Some(mid.parse::<brain_domain::MessageId>().map_err(|e| {
+                    ApplicationError::Internal(format!("Invalid at_message_id: {}", e))
+                })?)
+            } else {
+                None
+            };
+
+        let new_id = brain_domain::SessionId::new();
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let title_str = req
+            .new_title
+            .unwrap_or_else(|| format!("{} (fork)", source.title.0));
+
+        let forked = source.fork(
+            new_id,
+            brain_domain::SessionTitle(title_str),
+            at_msg_id.as_ref(),
+            brain_domain::SessionTimestamp(now_secs),
+        );
+        let cloned_count = forked.messages.len();
+
+        storage.save_session(&new_id, &forked).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to save forked session: {}", e))
+        })?;
+
+        Ok(v1::ForkSessionResponse {
+            new_session_id: new_id.to_string(),
+            source_session_id: source_id.to_string(),
+            cloned_messages_count: cloned_count,
+        })
+    }
+
+    /// Archives an active session.
+    pub async fn archive_session(&self, session_id_str: &str) -> Result<(), ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let session_opt = storage
+            .load_session(&session_id)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to load session: {}", e)))?;
+        let mut session = session_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!("Session '{}' not found", session_id_str))
+        })?;
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        session
+            .archive(brain_domain::SessionTimestamp(now_secs))
+            .map_err(|e| ApplicationError::Internal(format!("Failed to archive session: {}", e)))?;
+        storage.save_session(&session_id, &session).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to save archived session: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Restores an archived session.
+    pub async fn restore_session(&self, session_id_str: &str) -> Result<(), ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let session_opt = storage
+            .load_session(&session_id)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to load session: {}", e)))?;
+        let mut session = session_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!("Session '{}' not found", session_id_str))
+        })?;
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        session
+            .restore(brain_domain::SessionTimestamp(now_secs))
+            .map_err(|e| ApplicationError::Internal(format!("Failed to restore session: {}", e)))?;
+        storage.save_session(&session_id, &session).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to save restored session: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Renames a session.
+    pub async fn rename_session(
+        &self,
+        session_id_str: &str,
+        new_title: &str,
+    ) -> Result<(), ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let session_opt = storage
+            .load_session(&session_id)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to load session: {}", e)))?;
+        let mut session = session_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!("Session '{}' not found", session_id_str))
+        })?;
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        session.rename(
+            brain_domain::SessionTitle(new_title.to_string()),
+            brain_domain::SessionTimestamp(now_secs),
+        );
+        storage.save_session(&session_id, &session).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to save renamed session: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Pins or unpins a session.
+    pub async fn pin_session(
+        &self,
+        session_id_str: &str,
+        pinned: bool,
+    ) -> Result<(), ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+        let session_opt = storage
+            .load_session(&session_id)
+            .map_err(|e| ApplicationError::Internal(format!("Failed to load session: {}", e)))?;
+        let mut session = session_opt.ok_or_else(|| {
+            ApplicationError::Internal(format!("Session '{}' not found", session_id_str))
+        })?;
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        session.set_pinned(pinned, brain_domain::SessionTimestamp(now_secs));
+        storage.save_session(&session_id, &session).map_err(|e| {
+            ApplicationError::Internal(format!("Failed to save pinned session: {}", e))
+        })?;
+        Ok(())
+    }
+
+    /// Lists all sessions from the sessions projection read model repository.
+    pub async fn list_sessions_v1(&self) -> Result<Vec<v1::SessionSummaryDto>, ApplicationError> {
+        let pool = self.runtime.sqlite_storage().pool().clone();
+        let repo = brain_storage::SqliteSessionReadModelRepository::new(pool);
+        let list = repo
+            .list_all()
+            .map_err(|e| ApplicationError::Internal(format!("list_sessions failed: {}", e)))?;
+        let summaries = list
+            .into_iter()
+            .map(|s| v1::SessionSummaryDto {
+                id: s.session_id.to_string(),
+                title: s.title,
+                updated_at_ms: s.updated_at.0 * 1000,
+                pinned: s.is_pinned,
+                archived: s.is_archived,
+            })
+            .collect();
+        Ok(summaries)
+    }
+
+    /// Assembles an immutable context snapshot for a given generation prompt and session.
+    pub async fn assemble_context(
+        &self,
+        req: brain_core::context::ContextAssemblyRequest,
+    ) -> Result<brain_core::context::ContextSnapshot, ApplicationError> {
+        self.context_orchestrator
+            .assemble_context(req)
+            .await
+            .map_err(|e| ApplicationError::Internal(format!("Context assembly failed: {}", e)))
+    }
+
+    /// Retrieves memory items and converts them to v1 DTO format.
+    pub async fn retrieve_context(
+        &self,
+        req: v1::ContextRetrieveRequestDto,
+    ) -> Result<v1::ContextRetrieveResponseDto, ApplicationError> {
+        let session_id = req
+            .session_id
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Internal(format!("Invalid session_id: {}", e)))?;
+
+        let core_req = brain_core::context::ContextAssemblyRequest {
+            prompt: req.query,
+            session_id,
+            workspace_id: req.workspace_id,
+            max_tokens: req.max_tokens.unwrap_or(2048),
+            max_items: req.limit.unwrap_or(10),
+            reference_time: None,
+        };
+
+        let snapshot = self.assemble_context(core_req).await?;
+
+        let memories = snapshot
+            .items
+            .into_iter()
+            .map(|m| v1::RetrievedMemoryDto {
+                node_id: m.node_id.to_string(),
+                label: m.label,
+                excerpt: m.content,
+                channel: format!("{:?}", m.channel).to_lowercase(),
+                score: m.score,
+                timestamp: m.timestamp,
+                scope: m.scope.to_string(),
+            })
+            .collect();
+
+        let provenance = v1::MemoryProvenanceDto {
+            count: snapshot.provenance.count,
+            sources: snapshot.provenance.sources,
+            channels: snapshot
+                .provenance
+                .channels
+                .into_iter()
+                .map(|c| format!("{:?}", c).to_lowercase())
+                .collect(),
+            min_score: snapshot.provenance.min_score,
+            max_score: snapshot.provenance.max_score,
+            epoch_id: snapshot.provenance.epoch_id,
+        };
+
+        Ok(v1::ContextRetrieveResponseDto {
+            memories,
+            provenance,
+            token_count: snapshot.token_count,
+            serialized_context: snapshot.serialized_context,
+        })
     }
 }
 

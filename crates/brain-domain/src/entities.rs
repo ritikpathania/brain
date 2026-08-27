@@ -1001,6 +1001,44 @@ impl Session {
         Ok(())
     }
 
+    /// Forks the session up to an optional message ID into a new Session aggregate with a new SessionId.
+    /// The source session remains completely unmodified.
+    pub fn fork(
+        &self,
+        new_id: SessionId,
+        new_title: SessionTitle,
+        at_message_id: Option<&MessageId>,
+        timestamp: SessionTimestamp,
+    ) -> Self {
+        let mut cloned_messages = Vec::new();
+        for msg in &self.messages {
+            cloned_messages.push(msg.clone());
+            if let Some(target_id) = at_message_id {
+                if msg.id == *target_id {
+                    break;
+                }
+            }
+        }
+        let mut forked = Self {
+            id: new_id,
+            title: new_title.clone(),
+            archived: false,
+            pinned: false,
+            messages: cloned_messages,
+            goals: self.goals.clone(),
+            updated_at: timestamp,
+            staged_events: Vec::new(),
+        };
+        forked
+            .staged_events
+            .push(crate::events::DomainEvent::SessionCreated {
+                session_id: new_id,
+                title: new_title,
+                created_at: timestamp,
+            });
+        forked
+    }
+
     /// Removes a goal from the session.
     pub fn remove_goal(&mut self, goal_id: &GoalId) -> Result<(), crate::errors::DomainError> {
         if let Some(pos) = self.goals.iter().position(|g| g.id == *goal_id) {
@@ -1176,6 +1214,11 @@ pub enum SearchMetadata {
         session_id: SessionId,
         /// Sender role (e.g. user, assistant, system).
         role: MessageRole,
+    },
+    /// Metadata specific to a retrieval/concept document.
+    Retrieval {
+        /// Computed relevance score from ranking projection.
+        score: Option<i64>,
     },
 }
 
