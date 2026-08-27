@@ -152,6 +152,23 @@ export function SystemRowView(props: {
   );
 }
 
+export function ContextRowView(props: {
+  row: Extract<TranscriptRow, { kind: 'context' }>;
+  tokens: BrainTokens;
+}): React.ReactElement {
+  const { row, tokens } = props;
+  const t = row.telemetry;
+  const memoryWord = t.memoriesAssembled === 1 ? 'memory' : 'memories';
+  const epochPart = t.retrievalEpochId ? ` · ${t.retrievalEpochId.slice(0, 12)}` : '';
+  const latencyPart = t.assemblyLatencyMs !== undefined ? ` (${t.assemblyLatencyMs}ms)` : '';
+  return (
+    <Text color={tokens.accent}>
+      <Text bold>✦ Context: </Text>
+      {`${t.memoriesAssembled} ${memoryWord} (${t.contextTokensUsed} tokens)${epochPart}${latencyPart}`}
+    </Text>
+  );
+}
+
 /**
  * Memoized dispatch: completed rows keep identity across snapshots, so frozen
  * rows skip re-render entirely; only `expanded` toggles recompute them.
@@ -168,6 +185,8 @@ export const MessageRow = React.memo(
         return <ThinkingRowView row={props.row} tokens={tokens} />;
       case 'tool':
         return <ToolRowView row={props.row} expanded={props.expanded} tokens={tokens} />;
+      case 'context':
+        return <ContextRowView row={props.row} tokens={tokens} />;
       case 'error':
         return <ErrorRowView row={props.row} tokens={tokens} />;
       case 'system':

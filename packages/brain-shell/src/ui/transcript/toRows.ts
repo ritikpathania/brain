@@ -14,7 +14,7 @@ function toolCard(t: ToolExecutionView): ToolCardData {
   };
 }
 
-/** Frozen-row projection of a completed turn. Memory provenance deferred (Inc 3). */
+/** Frozen-row projection of a completed turn with context provenance. */
 export function turnToRows(turn: BrainTurnViewModel): TranscriptRow[] {
   const rows: TranscriptRow[] = [];
   let i = 0;
@@ -31,7 +31,19 @@ export function turnToRows(turn: BrainTurnViewModel): TranscriptRow[] {
     rows.push({ kind: 'tool', id: id('tool'), tool: toolCard(t) });
   }
   if (turn.content.trim().length > 0) {
-    rows.push({ kind: 'assistant', id: id('assistant'), markdown: turn.content });
+    rows.push({
+      kind: 'assistant',
+      id: id('assistant'),
+      markdown: turn.content,
+      telemetry: turn.telemetry,
+    });
+  }
+  if (turn.telemetry && turn.telemetry.memoriesAssembled > 0) {
+    rows.push({
+      kind: 'context',
+      id: id('context'),
+      telemetry: turn.telemetry,
+    });
   }
   if (turn.error) {
     rows.push({ kind: 'error', id: id('error'), text: turn.error });

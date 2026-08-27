@@ -2788,9 +2788,28 @@ pub async fn handle_connection(
                 .rev()
                 .find_map(|m| {
                     if m.get("role").and_then(|r| r.as_str()) == Some("user") {
-                        m.get("content")
-                            .and_then(|c| c.as_str())
-                            .map(|content_str| content_str.to_string())
+                        if let Some(content_str) = m.get("content").and_then(|c| c.as_str()) {
+                            Some(content_str.to_string())
+                        } else if let Some(blocks) = m.get("content").and_then(|c| c.as_array()) {
+                            let text = blocks
+                                .iter()
+                                .filter_map(|b| {
+                                    if b.get("type").and_then(|t| t.as_str()) == Some("text") {
+                                        b.get("text").and_then(|t| t.as_str())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+                            if !text.is_empty() {
+                                Some(text)
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }

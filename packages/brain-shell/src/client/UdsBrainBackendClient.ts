@@ -400,11 +400,8 @@ export class UdsBrainBackendClient implements BrainBackendClient {
 
         while (chunkQueue.length > 0) {
           const chunk = chunkQueue.shift()!;
-          if (chunk.type === 'finished') {
-            return;
-          }
           yield chunk;
-          if (chunk.type === 'error') {
+          if (chunk.type === 'finished' || chunk.type === 'error') {
             return;
           }
         }

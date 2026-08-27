@@ -50,6 +50,8 @@ export interface BrainThinkingViewModel {
   isComplete: boolean;
 }
 
+import type { ContextTelemetry } from '../client/BrainBackendClient.js';
+
 export interface BrainTurnViewModel {
   id: string;
   role: 'user' | 'assistant';
@@ -61,6 +63,7 @@ export interface BrainTurnViewModel {
   agents?: AgentExecutionView[];
   error?: string;
   durationMs?: number;
+  telemetry?: ContextTelemetry;
 }
 
 export interface DiagnosticSubsystemView {

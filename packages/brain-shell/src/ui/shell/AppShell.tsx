@@ -17,6 +17,7 @@ import { getCommand, getCommands } from '../../commands/registry.js';
 import '../../commands/builtin.js';
 import { DoctorProbe, type EngineDiagnosticReport } from '../../adapter/doctorProbe.js';
 import { DoctorOverlayView } from '../overlays/DoctorOverlayView.js';
+import { ContextOverlayView } from '../overlays/ContextOverlayView.js';
 import { MemoryOverlayView } from '../overlays/MemoryOverlayView.js';
 import { clampSelection } from '../overlays/memoryOverlayLogic.js';
 import type { RetrievedMemory } from '../../client/BrainBackendClient.js';
@@ -86,6 +87,8 @@ export function AppShell(): React.ReactElement {
   const [searchState, setSearchState] = React.useState<'idle' | 'loading' | 'ready'>('idle');
   const [searchSelected, setSearchSelected] = React.useState(0);
   const searchToken = React.useRef(0);
+  // Context provenance overlay (Inc 36)
+  const [contextOpen, setContextOpen] = React.useState(false);
   const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
   const resumeItems = React.useMemo(
     () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
@@ -189,6 +192,18 @@ export function AppShell(): React.ReactElement {
       alive = false;
     };
   }, [doctorOpen, doctorProbe]);
+
+  // /context overlay: read-only report; enter/esc dismiss directly.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: contextOpen,
+    onAction: (action) => {
+      if (action === 'overlay:commit' || action === 'overlay:cancel') {
+        setContextOpen(false);
+        controller.notice('Closed context provenance view');
+      }
+    },
+  });
 
   // /memory overlay: type-to-filter over the knowledge graph.
   useBoundInput({
@@ -397,6 +412,7 @@ export function AppShell(): React.ReactElement {
         break;
       case 'overlay':
         if (res.overlay === 'doctor') setDoctorOpen(true);
+        else if (res.overlay === 'context') setContextOpen(true);
         else {
           setMemoryQuery('');
           setMemoryRows([]);
@@ -474,6 +490,15 @@ export function AppShell(): React.ReactElement {
           <DoctorOverlayView loading={doctorLoading} report={doctorReport} tokens={tokens} />
         </Box>
       ) : null}
+      {contextOpen ? (
+        <Box marginTop={1}>
+          <ContextOverlayView
+            telemetry={controller.latestContextTelemetry}
+            activeSessionId={controller.activeSessionId}
+            tokens={tokens}
+          />
+        </Box>
+      ) : null}
       {memoryOpen ? (
         <Box marginTop={1}>
           <MemoryOverlayView
@@ -507,6 +532,7 @@ export function AppShell(): React.ReactElement {
             resumeOpen ||
             permission !== undefined ||
             doctorOpen ||
+            contextOpen ||
             memoryOpen ||
             searchOpen
           }

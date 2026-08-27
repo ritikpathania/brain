@@ -327,6 +327,7 @@ export class BrainTurnTransformer {
           ...state,
           status: 'completed',
           durationMs: event.durationMs !== undefined ? event.durationMs : state.durationMs,
+          telemetry: event.telemetry !== undefined ? event.telemetry : state.telemetry,
         };
       }
 

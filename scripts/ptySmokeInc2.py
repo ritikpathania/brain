@@ -104,8 +104,8 @@ os.write(fd, b"/")                       # opens palette with ALL commands
 # (clear, doctor, help, memory, …), initial selection on the first row.
 ok &= expect("palette-listed", "/help")
 ok &= expect("palette-desc", "List available slash commands")
-os.write(fd, b"\x1b[B")                  # ↓ selection moves to /doctor
-ok &= expect("palette-nav-doctor", "❯ /doctor")
+os.write(fd, b"\x1b[B")                  # ↓ selection moves to next row (/context)
+ok &= expect("palette-nav-context", "❯ /context")
 os.write(fd, b"\x1b[A")                  # ↑ back to first row
 ok &= expect("palette-nav-clear", "❯ /clear")
 snapshot("palette")

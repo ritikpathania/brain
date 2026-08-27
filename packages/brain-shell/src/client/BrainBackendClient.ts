@@ -111,7 +111,31 @@ export interface BrainStreamChunk {
     inputTokens?: number;
     outputTokens?: number;
     memory_provenance?: MemoryProvenance;
+    telemetry?: {
+      generation_id?: string;
+      session_id?: string;
+      retrieval_epoch_id?: string;
+      candidates_retrieved?: number;
+      memories_assembled?: number;
+      context_tokens_used?: number;
+      assembly_latency_ms?: number;
+      total_duration_ms?: number;
+      finish_reason?: string;
+      [key: string]: unknown;
+    };
   };
+}
+
+export interface ContextTelemetry {
+  generationId?: string;
+  sessionId?: string;
+  retrievalEpochId?: string;
+  candidatesRetrieved: number;
+  memoriesAssembled: number;
+  contextTokensUsed: number;
+  assemblyLatencyMs?: number;
+  totalDurationMs?: number;
+  finishReason?: string;
 }
 
 export interface MemoryProvenance {

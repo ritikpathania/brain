@@ -192,10 +192,23 @@ export interface ToolCardData {
   exitCode?: number;
 }
 
+export interface ContextTelemetryData {
+  generationId?: string;
+  sessionId?: string;
+  retrievalEpochId?: string;
+  candidatesRetrieved: number;
+  memoriesAssembled: number;
+  contextTokensUsed: number;
+  assemblyLatencyMs?: number;
+  totalDurationMs?: number;
+  finishReason?: string;
+}
+
 export type TranscriptRow =
   | { kind: 'user'; id: string; text: string }
-  | { kind: 'assistant'; id: string; markdown: string }
+  | { kind: 'assistant'; id: string; markdown: string; telemetry?: ContextTelemetryData }
   | { kind: 'thinking'; id: string; text: string; durationMs?: number; collapsed?: boolean }
   | { kind: 'tool'; id: string; tool: ToolCardData }
+  | { kind: 'context'; id: string; telemetry: ContextTelemetryData }
   | { kind: 'error'; id: string; text: string }
   | { kind: 'system'; id: string; text: string };

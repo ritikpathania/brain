@@ -8,6 +8,7 @@ import type {
   BrainGenerationRequest,
   BrainSessionSummary,
   BrainStreamChunk,
+  ContextTelemetry,
   MemorySearchResult,
   TranscriptSearchMatch,
 } from '../client/BrainBackendClient.js';
@@ -77,6 +78,7 @@ export class SessionController {
   private busy = false;
   private connectionError: string | undefined;
   private sessionId: string | undefined;
+  private latestTelemetry: ContextTelemetry | undefined;
   private aborter: AbortController | null = null;
   private queue = new TwoStageTypewriterQueue();
   private ticker: ReturnType<typeof setInterval> | null = null;
@@ -115,6 +117,11 @@ export class SessionController {
   /** B5: adopted session id, for the resume picker's current-session marker. */
   get activeSessionId(): string | undefined {
     return this.sessionId;
+  }
+
+  /** Inc 36: latest turn context retrieval provenance and telemetry. */
+  get latestContextTelemetry(): ContextTelemetry | undefined {
+    return this.latestTelemetry;
   }
 
   abort(): void {
@@ -231,6 +238,7 @@ export class SessionController {
   /** Wipe the frozen transcript (slash command /clear). */
   clear(): void {
     this.rows = [];
+    this.latestTelemetry = undefined;
     this.emit();
   }
 
@@ -324,6 +332,7 @@ export class SessionController {
       const titleDisplay = targetTitle ? `“${targetTitle}” ` : '';
       if (this.sessionId === targetId) {
         this.sessionId = undefined;
+        this.latestTelemetry = undefined;
         this.rows = [
           {
             kind: 'system',
@@ -351,6 +360,7 @@ export class SessionController {
     try {
       const { session } = await this.client.loadSession(sessionId);
       this.sessionId = session.id;
+      this.latestTelemetry = undefined;
       const replayed = sessionToRows(session);
       this.rows = [
         ...replayed,
@@ -657,6 +667,9 @@ export class SessionController {
     this.events.push({ type: 'turn_complete' });
     try {
       const vm = BrainTurnTransformer.transform(this.events);
+      if (vm.telemetry) {
+        this.latestTelemetry = vm.telemetry;
+      }
       const projected = turnToRows(vm).filter(
         (r) => !(r.kind === 'assistant' && r.markdown.trim().length === 0),
       );

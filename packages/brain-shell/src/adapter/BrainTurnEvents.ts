@@ -6,6 +6,7 @@
  */
 
 import type { MemoryProvenanceView } from './BrainViewModels.js';
+import type { ContextTelemetry } from '../client/BrainBackendClient.js';
 
 export type BrainTurnEvent =
   | { type: 'turn_start'; turnId: string; role: 'user' | 'assistant' }
@@ -26,6 +27,6 @@ export type BrainTurnEvent =
   | { type: 'agent_completed'; agentId: string; status: 'completed' | 'failed' }
   | { type: 'agent_failed'; agentId: string; error: string }
   | { type: 'agent_cancelled'; agentId: string; reason?: string }
-  | { type: 'turn_complete'; durationMs?: number; stopReason?: string }
+  | { type: 'turn_complete'; durationMs?: number; stopReason?: string; telemetry?: ContextTelemetry }
   | { type: 'turn_error'; error: string }
   | { type: 'unknown'; rawType: string; payload?: unknown };

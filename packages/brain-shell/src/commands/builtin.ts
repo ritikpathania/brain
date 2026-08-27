@@ -91,6 +91,11 @@ const BUILTINS: Command[] = [
     },
   },
   {
+    name: 'context',
+    description: 'Inspect active turn memory context provenance and telemetry',
+    run: () => ({ type: 'overlay', overlay: 'context' }),
+  },
+  {
     name: 'search',
     description: 'Search historical conversation transcripts',
     argumentHint: '[query]',
