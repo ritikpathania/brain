@@ -64,4 +64,11 @@ describe('searchMemory wire mapping (Inc 21)', () => {
       { target_id: 'b1', relation: 'supports', target_label: 'Beta Concept' },
     ]);
   });
+
+  test('preserves non-100 relevance scores from the daemon DTO', async () => {
+    const client = new UdsBrainBackendClient(sockPath);
+    const res = await client.searchMemory({ query: 'cortex', limit: 10 });
+    expect(res.memories).toHaveLength(1);
+    expect(res.memories[0]!.score).toBe(97);
+  });
 });
