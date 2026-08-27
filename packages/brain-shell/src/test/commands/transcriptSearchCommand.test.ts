@@ -8,11 +8,11 @@ import { SessionController } from '../../state/sessionController.js';
 import type { BrainBackendClient, TranscriptSearchMatch } from '../../client/BrainBackendClient.js';
 
 describe('/search command specification', () => {
-  it('returns usage text when no query provided', () => {
+  it('returns search action when no query provided (opens interactive overlay)', () => {
     const cmd = getCommand('search');
     expect(cmd).toBeDefined();
     const res = cmd!.run({ args: [] });
-    expect(res).toEqual({ type: 'text', value: 'Usage: /search <query>' });
+    expect(res).toEqual({ type: 'action', action: 'search' });
   });
 
   it('returns search action with args when query provided', () => {

@@ -870,16 +870,22 @@ export class UdsBrainBackendClient implements BrainBackendClient {
       limit: input.limit,
       offset: input.offset,
     });
-    const matches: TranscriptSearchMatch[] = (res.matches || []).map((m: any) => ({
-      id: m.id,
-      kind: m.kind,
-      sessionId: m.sessionId ?? m.session_id,
-      title: m.title || '',
-      body: m.body || '',
-      snippet: m.snippet ?? m.body ?? '',
-      role: m.role,
-      score: typeof m.score === 'number' ? m.score : undefined,
-    }));
+    const matches: TranscriptSearchMatch[] = (res.matches || []).map((m: any) => {
+      let rawSid = m.sessionId ?? m.session_id ?? (m.kind === 'session' ? m.id : undefined);
+      if (typeof rawSid === 'string' && rawSid.startsWith('session:')) {
+        rawSid = rawSid.slice('session:'.length);
+      }
+      return {
+        id: m.id,
+        kind: m.kind,
+        sessionId: rawSid,
+        title: m.title || '',
+        body: m.body || '',
+        snippet: m.snippet ?? m.body ?? '',
+        role: m.role,
+        score: typeof m.score === 'number' ? m.score : undefined,
+      };
+    });
     return {
       matches,
       total: typeof res.total === 'number' ? res.total : matches.length,

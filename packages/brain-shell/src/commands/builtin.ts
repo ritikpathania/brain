@@ -18,7 +18,15 @@ const BUILTINS: Command[] = [
     }),
   },
   { name: 'clear', description: 'Clear the transcript', run: () => ({ type: 'action', action: 'clear' }) },
-  { name: 'resume', description: 'Resume a previous session', run: () => ({ type: 'action', action: 'resume' }) },
+  {
+    name: 'resume',
+    description: 'Resume a previous session',
+    argumentHint: '[session_id]',
+    run: (ctx) =>
+      ctx.args && ctx.args.length > 0
+        ? { type: 'action', action: 'resume', args: ctx.args }
+        : { type: 'action', action: 'resume' },
+  },
   { name: 'theme', description: 'Change the color theme', run: () => ({ type: 'action', action: 'theme' }) },
   {
     name: 'permissions',
@@ -62,13 +70,11 @@ const BUILTINS: Command[] = [
   {
     name: 'search',
     description: 'Search historical conversation transcripts',
-    argumentHint: '<query>',
-    run: (ctx) => {
-      if (ctx.args.length === 0) {
-        return { type: 'text', value: 'Usage: /search <query>' };
-      }
-      return { type: 'action', action: 'search', args: ctx.args };
-    },
+    argumentHint: '[query]',
+    run: (ctx) =>
+      ctx.args && ctx.args.length > 0
+        ? { type: 'action', action: 'search', args: ctx.args }
+        : { type: 'action', action: 'search' },
   },
 ];
 

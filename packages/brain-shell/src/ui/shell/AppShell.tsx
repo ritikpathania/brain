@@ -27,9 +27,16 @@ import {
   applyQueryEdit,
   resumeChoices,
   resumeListDecision,
+  resolveDirectResumeTarget,
 } from '../overlays/resumePickerLogic.js';
-import type { BrainSessionSummary } from '../../client/BrainBackendClient.js';
+import type { BrainSessionSummary, TranscriptSearchMatch } from '../../client/BrainBackendClient.js';
 import { ResumePickerView } from '../overlays/ResumePicker.js';
+import { SearchOverlayView } from '../overlays/SearchOverlayView.js';
+import {
+  toSearchVM,
+  applySearchQueryEdit,
+  clampSearchSelection,
+} from '../overlays/searchOverlayLogic.js';
 import { dialogDecision } from '../overlays/permissionDialogLogic.js';
 import { PermissionDialogView } from '../overlays/PermissionDialog.js';
 import { writeThemeSetting } from '../../state/themeStore.js';
@@ -72,6 +79,13 @@ export function AppShell(): React.ReactElement {
   const [memorySelected, setMemorySelected] = React.useState(0);
   const [memoryExpandedId, setMemoryExpandedId] = React.useState<string | null>(null);
   const memoryToken = React.useRef(0);
+  // Interactive search overlay (Inc 34)
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [searchMatches, setSearchMatches] = React.useState<TranscriptSearchMatch[]>([]);
+  const [searchState, setSearchState] = React.useState<'idle' | 'loading' | 'ready'>('idle');
+  const [searchSelected, setSearchSelected] = React.useState(0);
+  const searchToken = React.useRef(0);
   const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
   const resumeItems = React.useMemo(
     () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
@@ -240,6 +254,57 @@ export function AppShell(): React.ReactElement {
     },
   });
 
+  // /search overlay: type-to-search across conversation transcripts.
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: searchOpen,
+    onAction: (action, input) => {
+      const d = overlayListDecision(action, searchSelected, Math.min(searchMatches.length, 6));
+      if (d.type === 'move') {
+        setSearchSelected(d.index);
+      } else if (d.type === 'commit') {
+        setSearchOpen(false);
+        const chosen = searchMatches[d.index];
+        let sid = chosen?.sessionId || (chosen?.kind === 'session' ? chosen?.id : undefined) || chosen?.id;
+        if (sid && sid.startsWith('session:')) {
+          sid = sid.slice('session:'.length);
+        }
+        if (sid) {
+          void controller.resumeSession(sid);
+        }
+      } else if (d.type === 'cancel') {
+        setSearchOpen(false);
+        controller.notice('Closed transcript search view');
+      } else if (action === 'overlay:insert' || action === 'overlay:backspace') {
+        setSearchQuery((q) => applySearchQueryEdit(q, action, input));
+      }
+    },
+  });
+
+  // Debounced /search transcript search: keystrokes paint instantly, RPCs fire ≥150ms
+  // after the last one; the monotonic token drops stale responses.
+  React.useEffect(() => {
+    if (!searchOpen) return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setSearchState('idle');
+      setSearchMatches([]);
+      setSearchSelected(0);
+      return;
+    }
+    const ticket = ++searchToken.current;
+    setSearchState('loading');
+    const timer = setTimeout(() => {
+      void controller.searchTranscripts(trimmed, 20).then((matches) => {
+        if (searchToken.current !== ticket) return; // stale response dropped
+        setSearchState('ready');
+        setSearchMatches(matches);
+        setSearchSelected((i) => clampSearchSelection(i, matches.length));
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchOpen, searchQuery, controller]);
+
   const runCommand = (rawValue: string): void => {
     const words = rawValue.trim().slice(1).split(/\s+/); // strip '/', split args
     const token = (words[0] ?? '').toLowerCase();
@@ -249,34 +314,23 @@ export function AppShell(): React.ReactElement {
     if (chosen === undefined) {
       const prefixHits = getCommands().filter((c) => c.name.startsWith(token));
       if (prefixHits.length === 1) chosen = prefixHits[0];
-      else if (prefixHits.length > 1) {
-        controller.notice(`Ambiguous command: /${token}`);
-        return;
-      } else {
-        controller.notice(`Unknown command: /${token}`);
-        return;
-      }
     }
-    // Commands return declarative results; the shell interprets them.
-    const res = chosen.run({ args, sessionId: controller.activeSessionId });
+    if (chosen === undefined) {
+      controller.notice(`Unknown command: /${token}`);
+      return;
+    }
+    const res = chosen.run({ args });
     switch (res.type) {
       case 'text':
         controller.notice(res.value);
         break;
-      case 'none':
-        break;
       case 'action':
         if (res.action === 'quit') {
-          const plan = planQuit(controller.getSnapshot().busy);
-          if (plan.kind === 'interrupt') {
+          const plan = planQuit(snapshot.busy);
+          if (plan.action === 'interrupt') {
             controller.interruptTurn();
-            controller.notice(plan.notice);
-            const deadline = Date.now() + 2000;
-            const poll = setInterval(() => {
-              if (!controller.getSnapshot().busy || Date.now() > deadline) {
-                clearInterval(poll);
-                process.exit(0);
-              }
+            setTimeout(() => {
+              controller.notice(plan.notice ?? 'Session interrupted. Press /quit again to exit.');
             }, 50);
           } else {
             process.exit(0);
@@ -291,12 +345,32 @@ export function AppShell(): React.ReactElement {
             controller.notice('Busy — wait for the current turn to finish.');
             return;
           }
+          const target = res.args && res.args.length > 0 ? res.args.join(' ') : '';
           void controller.listSessions().then((all) => {
-            if (resumeChoices(all, Date.now()).length === 0) {
+            if (all.length === 0) {
               controller.notice('No previous sessions found.');
               return;
             }
             setResumeSummaries(all);
+            if (target) {
+              const resolution = resolveDirectResumeTarget(all, target);
+              if (resolution.type === 'exact' || resolution.type === 'unique') {
+                void controller.resumeSession(resolution.sessionId);
+                return;
+              }
+              if (resolution.type === 'ambiguous') {
+                setResumeQuery(resolution.query);
+                setResumeSelected(0);
+                setResumeOpen(true);
+                return;
+              }
+              controller.notice(`No session found matching “${target}”.`);
+              return;
+            }
+            if (resumeChoices(all, Date.now()).length === 0) {
+              controller.notice('No previous sessions found.');
+              return;
+            }
             setResumeQuery('');
             setResumeSelected(0);
             setResumeOpen(true);
@@ -312,21 +386,10 @@ export function AppShell(): React.ReactElement {
           if (targetId) void controller.deleteMemoryNode(targetId);
         } else if (res.action === 'search') {
           const query = res.args ? res.args.join(' ') : '';
-          if (query) {
-            void controller.searchTranscripts(query).then((matches) => {
-              if (matches.length === 0) {
-                controller.notice(`No transcript matches found for “${query}”.`);
-              } else {
-                const lines = matches.slice(0, 5).map((m) => {
-                  const prefix = m.sessionId ? `[${m.sessionId.slice(0, 8)}] ` : '';
-                  const roleTag = m.role ? `(${m.role}) ` : '';
-                  const snippet = m.snippet || m.body || m.title;
-                  return `• ${prefix}${roleTag}${snippet}`;
-                });
-                controller.notice(`Found ${matches.length} match(es) for “${query}”:\n${lines.join('\n')}`);
-              }
-            });
-          }
+          setSearchQuery(query);
+          setSearchMatches([]);
+          setSearchSelected(0);
+          setSearchOpen(true);
         }
         break;
       case 'overlay':
@@ -420,11 +483,30 @@ export function AppShell(): React.ReactElement {
           />
         </Box>
       ) : null}
+      {searchOpen ? (
+        <Box marginTop={1}>
+          <SearchOverlayView
+            query={searchQuery}
+            state={searchState}
+            matches={searchMatches.map(toSearchVM)}
+            selectedIndex={searchSelected}
+            tokens={tokens}
+            currentSessionId={controller.activeSessionId}
+          />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
           busy={snapshot.busy}
-          paused={themeOpen || resumeOpen || permission !== undefined || doctorOpen || memoryOpen}
+          paused={
+            themeOpen ||
+            resumeOpen ||
+            permission !== undefined ||
+            doctorOpen ||
+            memoryOpen ||
+            searchOpen
+          }
           onSubmit={handleSubmit}
           onAbort={() => controller.interruptTurn()}
           onRequestExit={requestExit}
