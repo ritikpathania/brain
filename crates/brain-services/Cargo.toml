@@ -29,9 +29,11 @@ async-trait = "0.1"
 tokio-util = "0.7"
 sha2 = "0.11.0"
 arc-swap = "1.7"
+futures = "0.3"
 
 [dev-dependencies]
 brain-storage = { path = "../brain-storage", features = ["test-utils"] }
+rusqlite.workspace = true
 criterion = "0.5"
 tempfile = "3.8"
 

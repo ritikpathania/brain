@@ -169,4 +169,39 @@ impl SessionService for SessionServiceImpl {
         self.save_session(id, &mut session)?;
         Ok(())
     }
+
+    fn fork_session(
+        &self,
+        source_id: &SessionId,
+        new_title: Option<&str>,
+        at_message_id: Option<&brain_domain::MessageId>,
+    ) -> Result<SessionId, BrainError> {
+        let source_session = self.load_session(source_id)?;
+        let new_id = SessionId::new();
+        let timestamp = SessionTimestamp(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+        );
+        let title_str = new_title
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| format!("{} (fork)", source_session.title.0));
+
+        let mut forked_session =
+            source_session.fork(new_id, SessionTitle(title_str), at_message_id, timestamp);
+
+        // Populate cache context for the new session
+        self.cache_manager.get_or_create(new_id);
+
+        // Persist forked session
+        self.repos
+            .sessions()
+            .save_session(&new_id, &forked_session)?;
+        for event in forked_session.drain_events() {
+            self.publisher.publish(event);
+        }
+
+        Ok(new_id)
+    }
 }

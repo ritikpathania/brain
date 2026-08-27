@@ -20,6 +20,14 @@ pub use retrieval::{
 pub use session::SessionServiceImpl;
 pub use stub::{StubDomainEventPublisher, StubRetrievalService, StubSessionService};
 
+/// Model provider implementations and routing gateway.
+pub mod model;
+pub use model::{DefaultModelGateway, DeterministicMockProvider, ScriptedResponse};
+
+/// Phase 3 Memory context ranking, assembly, and orchestration pipeline.
+pub mod context;
+pub use context::{DefaultContextAssembler, DefaultContextOrchestrator, DefaultMemoryRanker};
+
 /// Unified application runtime lifecycle, builder, and composition locator.
 pub mod runtime;
 pub use runtime::{

@@ -139,6 +139,35 @@ impl SessionService for StubSessionService {
             })
         }
     }
+
+    fn fork_session(
+        &self,
+        source_id: &SessionId,
+        new_title: Option<&str>,
+        at_message_id: Option<&brain_domain::MessageId>,
+    ) -> Result<SessionId, BrainError> {
+        let guard = self.sessions.lock().unwrap();
+        if let Some(source) = guard.get(source_id) {
+            let new_id = SessionId::new();
+            let title_str = new_title
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| format!("{} (fork)", source.title.0));
+            let forked = source.fork(
+                new_id,
+                SessionTitle(title_str),
+                at_message_id,
+                SessionTimestamp(0),
+            );
+            drop(guard);
+            self.sessions.lock().unwrap().insert(new_id, forked);
+            Ok(new_id)
+        } else {
+            Err(BrainError::Session {
+                session_id: *source_id,
+                message: "Session not found".to_string(),
+            })
+        }
+    }
 }
 
 /// Stub implementation of RetrievalService returning mock memory matches.
