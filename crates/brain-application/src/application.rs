@@ -142,8 +142,13 @@ impl BrainApplication {
         let mock_provider = Arc::new(brain_services::model::DeterministicMockProvider::new());
         let model_gateway =
             Arc::new(brain_services::model::DefaultModelGateway::with_mock_provider(mock_provider));
-        let context_orchestrator =
-            Arc::new(brain_services::context::DefaultContextOrchestrator::new());
+        let storage = runtime.sqlite_storage();
+        let context_orchestrator = Arc::new(
+            brain_services::context::DefaultContextOrchestrator::with_storage(
+                Arc::clone(&storage) as Arc<dyn brain_core::repositories::NodeRepository>,
+                Arc::clone(&storage) as Arc<dyn brain_core::repositories::EdgeRepository>,
+            ),
+        );
 
         Self {
             runtime,
