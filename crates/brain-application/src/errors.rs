@@ -76,6 +76,9 @@ impl From<brain_core::errors::BrainError> for ApplicationError {
             brain_core::errors::BrainError::Tool { message, .. } => {
                 ApplicationError::Internal(format!("Tool error: {}", message))
             }
+            brain_core::errors::BrainError::Model { message, .. } => {
+                ApplicationError::Unavailable(format!("Model error: {}", message))
+            }
         }
     }
 }

@@ -9,8 +9,19 @@ pub struct ProtocolRouter;
 impl ProtocolRouter {
     /// Routes a UDS client request to the corresponding typed application request if possible.
     pub fn route(request: &ClientRequest) -> Result<Option<ApplicationRequest>, String> {
+        let body_str;
         let (action, body) = match request {
             ClientRequest::Versioned(req) => (req.action.as_str(), req.body.as_str()),
+            ClientRequest::JsonRpc(req) => {
+                body_str = if let Some(ref b) = req.body {
+                    b.clone()
+                } else if req.payload.is_string() {
+                    req.payload.as_str().unwrap().to_string()
+                } else {
+                    serde_json::to_string(&req.payload).unwrap_or_default()
+                };
+                (req.action.as_str(), body_str.as_str())
+            }
             ClientRequest::Legacy(req) => (req.action.as_str(), req.payload.as_str()),
         };
 
@@ -67,17 +78,96 @@ impl ProtocolRouter {
                     serde_json::from_str(body).unwrap_or_else(|_| body.trim().to_string());
                 Ok(Some(ApplicationRequest::RebuildProjection { name }))
             }
-            "v1/sessions/get" => {
+            "v1/session/create" => {
+                let req: brain_integrations::dto::v1::CreateSessionRequest =
+                    if body.trim().is_empty() {
+                        brain_integrations::dto::v1::CreateSessionRequest {
+                            title: None,
+                            workspace_path: None,
+                        }
+                    } else {
+                        serde_json::from_str(body).unwrap_or_else(|_| {
+                            brain_integrations::dto::v1::CreateSessionRequest {
+                                title: Some(body.trim().to_string()),
+                                workspace_path: None,
+                            }
+                        })
+                    };
+                Ok(Some(ApplicationRequest::CreateSession(req)))
+            }
+            "v1/session/load" | "v1/session/resume" | "v1/sessions/get" => {
                 #[derive(serde::Deserialize)]
                 struct Req {
-                    session_id: String,
+                    session_id: Option<String>,
+                    id: Option<String>,
                 }
                 let session_id = if let Ok(req) = serde_json::from_str::<Req>(body) {
                     req.session_id
+                        .or(req.id)
+                        .unwrap_or_else(|| body.trim().to_string())
                 } else {
                     body.trim().to_string()
                 };
-                Ok(Some(ApplicationRequest::GetSession { session_id }))
+                Ok(Some(ApplicationRequest::LoadSession(session_id)))
+            }
+            "v1/session/fork" => {
+                let req: brain_integrations::dto::v1::ForkSessionRequest =
+                    serde_json::from_str(body)
+                        .map_err(|e| format!("Failed to parse ForkSessionRequest: {}", e))?;
+                Ok(Some(ApplicationRequest::ForkSession(req)))
+            }
+            "v1/session/archive" => {
+                #[derive(serde::Deserialize)]
+                struct Req {
+                    session_id: Option<String>,
+                    id: Option<String>,
+                }
+                let session_id = if let Ok(req) = serde_json::from_str::<Req>(body) {
+                    req.session_id
+                        .or(req.id)
+                        .unwrap_or_else(|| body.trim().to_string())
+                } else {
+                    body.trim().to_string()
+                };
+                Ok(Some(ApplicationRequest::ArchiveSession(
+                    brain_integrations::dto::v1::ArchiveSessionRequest { session_id },
+                )))
+            }
+            "v1/session/restore" => {
+                #[derive(serde::Deserialize)]
+                struct Req {
+                    session_id: Option<String>,
+                    id: Option<String>,
+                }
+                let session_id = if let Ok(req) = serde_json::from_str::<Req>(body) {
+                    req.session_id
+                        .or(req.id)
+                        .unwrap_or_else(|| body.trim().to_string())
+                } else {
+                    body.trim().to_string()
+                };
+                Ok(Some(ApplicationRequest::RestoreSession(
+                    brain_integrations::dto::v1::RestoreSessionRequest { session_id },
+                )))
+            }
+            "v1/session/rename" => {
+                let req: brain_integrations::dto::v1::RenameSessionRequest =
+                    serde_json::from_str(body)
+                        .map_err(|e| format!("Failed to parse RenameSessionRequest: {}", e))?;
+                Ok(Some(ApplicationRequest::RenameSession(req)))
+            }
+            "v1/session/pin" => {
+                let req: brain_integrations::dto::v1::PinSessionRequest =
+                    serde_json::from_str(body)
+                        .map_err(|e| format!("Failed to parse PinSessionRequest: {}", e))?;
+                Ok(Some(ApplicationRequest::PinSession(req)))
+            }
+            "v1/session/list" | "v1/sessions" => Ok(Some(ApplicationRequest::ListSessions)),
+            "v1/context/retrieve" | "v1/memory/retrieve" => {
+                let req: brain_integrations::dto::v1::ContextRetrieveRequestDto =
+                    serde_json::from_str(body)
+                        .map_err(|e| format!("Failed to parse ContextRetrieveRequestDto: {}", e))?;
+                Ok(Some(ApplicationRequest::RetrieveContext(req)))
             }
 
             // Legacy fallbacks (deprecated)

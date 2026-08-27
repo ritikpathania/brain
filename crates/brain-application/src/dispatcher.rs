@@ -72,10 +72,28 @@ pub enum ApplicationRequest {
         /// Session identifier string
         session_id: String,
     },
+    /// Create a new session
+    CreateSession(v1::CreateSessionRequest),
+    /// Load a session
+    LoadSession(String),
+    /// Fork a session
+    ForkSession(v1::ForkSessionRequest),
+    /// Archive a session
+    ArchiveSession(v1::ArchiveSessionRequest),
+    /// Restore a session
+    RestoreSession(v1::RestoreSessionRequest),
+    /// Rename a session
+    RenameSession(v1::RenameSessionRequest),
+    /// Pin a session
+    PinSession(v1::PinSessionRequest),
+    /// Retrieve memory context
+    RetrieveContext(v1::ContextRetrieveRequestDto),
 }
 
 /// Represents the corresponding strongly-typed response returned by the RequestDispatcher.
 pub enum ApplicationResponse {
+    /// Memory context retrieval response
+    Context(v1::ContextRetrieveResponseDto),
     /// Uptime and health metadata
     Status(v1::Status),
     /// Diagnostic operations counters
@@ -126,6 +144,14 @@ pub enum ApplicationResponse {
     ListSessions(String),
     /// Session messages JSON string
     GetSession(String),
+    /// Created session metadata
+    CreateSession(v1::CreateSessionResponse),
+    /// Loaded session full aggregate state
+    LoadSession(v1::LoadSessionResponse),
+    /// Forked session metadata
+    ForkSession(v1::ForkSessionResponse),
+    /// Session operation confirmation
+    SessionOperationSuccess,
 }
 
 /// Transport-agnostic request router routing typed requests directly to the application layer.
@@ -281,6 +307,40 @@ impl RequestDispatcher {
                         e
                     ))),
                 }
+            }
+            ApplicationRequest::CreateSession(req) => {
+                let res = self.app.create_session(req).await?;
+                Ok(ApplicationResponse::CreateSession(res))
+            }
+            ApplicationRequest::LoadSession(session_id) => {
+                let res = self.app.load_session(&session_id).await?;
+                Ok(ApplicationResponse::LoadSession(res))
+            }
+            ApplicationRequest::ForkSession(req) => {
+                let res = self.app.fork_session(req).await?;
+                Ok(ApplicationResponse::ForkSession(res))
+            }
+            ApplicationRequest::ArchiveSession(req) => {
+                self.app.archive_session(&req.session_id).await?;
+                Ok(ApplicationResponse::SessionOperationSuccess)
+            }
+            ApplicationRequest::RestoreSession(req) => {
+                self.app.restore_session(&req.session_id).await?;
+                Ok(ApplicationResponse::SessionOperationSuccess)
+            }
+            ApplicationRequest::RenameSession(req) => {
+                self.app
+                    .rename_session(&req.session_id, &req.new_title)
+                    .await?;
+                Ok(ApplicationResponse::SessionOperationSuccess)
+            }
+            ApplicationRequest::PinSession(req) => {
+                self.app.pin_session(&req.session_id, req.pinned).await?;
+                Ok(ApplicationResponse::SessionOperationSuccess)
+            }
+            ApplicationRequest::RetrieveContext(req) => {
+                let res = self.app.retrieve_context(req).await?;
+                Ok(ApplicationResponse::Context(res))
             }
         }
     }
