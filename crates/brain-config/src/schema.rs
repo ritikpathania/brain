@@ -309,6 +309,8 @@ pub struct BrainSettings {
     pub(crate) retrieval: RetrievalSettings,
     /// Nested reflection settings.
     pub(crate) reflection: ReflectionSettings,
+    /// Nested consolidation settings.
+    pub(crate) consolidation: ConsolidationSettings,
     /// Plugins installation directory path.
     pub(crate) plugins_directory: String,
 }
@@ -344,6 +346,11 @@ impl BrainSettings {
         &self.reflection
     }
 
+    /// Returns the nested consolidation settings.
+    pub fn consolidation(&self) -> &ConsolidationSettings {
+        &self.consolidation
+    }
+
     /// Returns the plugins installation directory path.
     pub fn plugins_directory(&self) -> &str {
         &self.plugins_directory
@@ -371,6 +378,8 @@ pub struct PartialBrainSettings {
     pub retrieval: Option<PartialRetrievalSettings>,
     /// Optional reflection settings block.
     pub reflection: Option<PartialReflectionSettings>,
+    /// Optional consolidation settings block.
+    pub consolidation: Option<PartialConsolidationSettings>,
     /// Optional plugins directory path.
     pub plugins_directory: Option<String>,
 }
@@ -417,6 +426,13 @@ impl Merge for PartialBrainSettings {
             let mut reflection = self.reflection.take().unwrap_or_default();
             reflection.merge(other_reflection);
             self.reflection = Some(reflection);
+        }
+
+        // Merge consolidation
+        if let Some(other_consolidation) = other.consolidation {
+            let mut consolidation = self.consolidation.take().unwrap_or_default();
+            consolidation.merge(other_consolidation);
+            self.consolidation = Some(consolidation);
         }
     }
 }
@@ -530,6 +546,71 @@ impl Merge for PartialReflectionSettings {
         }
         if let Some(budget) = other.cycle_time_budget_ms {
             self.cycle_time_budget_ms = Some(budget);
+        }
+    }
+}
+
+/// Consolidation settings configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsolidationSettings {
+    /// Weight threshold above which relationships qualify for promotion to semantic facts.
+    pub(crate) promotion_weight_threshold: f64,
+    /// Weight threshold below which relationships are pruned or archived.
+    pub(crate) pruning_weight_threshold: f64,
+    /// Elapsed seconds after which an episodic relationship is considered stale.
+    pub(crate) staleness_age_threshold_secs: u64,
+    /// Debounce window in seconds for post-ingestion consolidation sweeps.
+    pub(crate) debounce_secs: u64,
+}
+
+impl ConsolidationSettings {
+    /// Returns the promotion weight threshold.
+    pub fn promotion_weight_threshold(&self) -> f64 {
+        self.promotion_weight_threshold
+    }
+
+    /// Returns the pruning weight threshold.
+    pub fn pruning_weight_threshold(&self) -> f64 {
+        self.pruning_weight_threshold
+    }
+
+    /// Returns the staleness age threshold in seconds.
+    pub fn staleness_age_threshold_secs(&self) -> u64 {
+        self.staleness_age_threshold_secs
+    }
+
+    /// Returns the debounce window in seconds.
+    pub fn debounce_secs(&self) -> u64 {
+        self.debounce_secs
+    }
+}
+
+/// Partial consolidation settings where all fields are optional.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct PartialConsolidationSettings {
+    /// Optional promotion weight threshold.
+    pub promotion_weight_threshold: Option<f64>,
+    /// Optional pruning weight threshold.
+    pub pruning_weight_threshold: Option<f64>,
+    /// Optional staleness age threshold in seconds.
+    pub staleness_age_threshold_secs: Option<u64>,
+    /// Optional debounce window in seconds.
+    pub debounce_secs: Option<u64>,
+}
+
+impl Merge for PartialConsolidationSettings {
+    fn merge(&mut self, other: Self) {
+        if let Some(p) = other.promotion_weight_threshold {
+            self.promotion_weight_threshold = Some(p);
+        }
+        if let Some(p) = other.pruning_weight_threshold {
+            self.pruning_weight_threshold = Some(p);
+        }
+        if let Some(s) = other.staleness_age_threshold_secs {
+            self.staleness_age_threshold_secs = Some(s);
+        }
+        if let Some(d) = other.debounce_secs {
+            self.debounce_secs = Some(d);
         }
     }
 }

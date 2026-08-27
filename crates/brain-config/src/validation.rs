@@ -21,5 +21,26 @@ pub fn validate(settings: &BrainSettings) -> Result<(), BrainError> {
         });
     }
 
+    if !(0.0..=1.0).contains(&settings.consolidation.promotion_weight_threshold) {
+        return Err(BrainError::Configuration {
+            message: "consolidation.promotion_weight_threshold must be between 0.0 and 1.0"
+                .to_string(),
+        });
+    }
+
+    if !(0.0..=1.0).contains(&settings.consolidation.pruning_weight_threshold) {
+        return Err(BrainError::Configuration {
+            message: "consolidation.pruning_weight_threshold must be between 0.0 and 1.0"
+                .to_string(),
+        });
+    }
+
+    if settings.consolidation.staleness_age_threshold_secs == 0 {
+        return Err(BrainError::Configuration {
+            message: "consolidation.staleness_age_threshold_secs must be greater than 0"
+                .to_string(),
+        });
+    }
+
     Ok(())
 }

@@ -1176,3 +1176,202 @@ pub struct MaintenanceCycleResultDto {
     /// Timestamp in milliseconds.
     pub timestamp_ms: u64,
 }
+
+/// Version 1 DTO for a chat message within a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionMessageDto {
+    /// Unique message identifier string (ULID).
+    pub id: String,
+    /// Message sender role ("user", "assistant", "system").
+    pub role: String,
+    /// Text content of the message.
+    pub content: String,
+    /// Message timestamp in milliseconds.
+    pub timestamp_ms: u64,
+}
+
+/// Version 1 DTO representing full session aggregate state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionDto {
+    /// Unique session identifier string (ULID).
+    pub id: String,
+    /// Session title string.
+    pub title: String,
+    /// True if session is archived.
+    pub archived: bool,
+    /// True if session is pinned.
+    pub pinned: bool,
+    /// Session last updated timestamp in milliseconds.
+    pub updated_at_ms: u64,
+    /// Ordered list of messages in this session.
+    pub messages: Vec<SessionMessageDto>,
+    /// Tracked goals text list.
+    pub goals: Vec<String>,
+}
+
+/// Version 1 DTO for lightweight session catalog summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionSummaryDto {
+    /// Unique session identifier string (ULID).
+    pub id: String,
+    /// Session title string.
+    pub title: String,
+    /// Last updated timestamp in milliseconds.
+    pub updated_at_ms: u64,
+    /// True if pinned.
+    pub pinned: bool,
+    /// True if archived.
+    pub archived: bool,
+}
+
+/// Version 1 DTO request for creating a new session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateSessionRequest {
+    /// Optional session title.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Optional workspace path.
+    #[serde(default)]
+    pub workspace_path: Option<String>,
+}
+
+/// Version 1 DTO response for created session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateSessionResponse {
+    /// Generated session ULID string.
+    pub session_id: String,
+    /// Initial session title.
+    pub title: String,
+    /// Creation timestamp in milliseconds.
+    pub created_at_ms: u64,
+}
+
+/// Version 1 DTO response for loading a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LoadSessionResponse {
+    /// Hydrated session state.
+    pub session: SessionDto,
+}
+
+/// Version 1 DTO request for forking a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ForkSessionRequest {
+    /// Source session ULID to fork from.
+    pub source_session_id: String,
+    /// Optional target message ID up to which history should be cloned.
+    #[serde(default)]
+    pub at_message_id: Option<String>,
+    /// Optional title for the new forked session.
+    #[serde(default)]
+    pub new_title: Option<String>,
+}
+
+/// Version 1 DTO response for forked session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ForkSessionResponse {
+    /// New forked session ULID.
+    pub new_session_id: String,
+    /// Source session ULID.
+    pub source_session_id: String,
+    /// Number of cloned messages.
+    pub cloned_messages_count: usize,
+}
+
+/// Version 1 DTO request for renaming a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenameSessionRequest {
+    /// Session ULID to rename.
+    pub session_id: String,
+    /// New title.
+    pub new_title: String,
+}
+
+/// Version 1 DTO request for updating session pinned state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PinSessionRequest {
+    /// Session ULID.
+    pub session_id: String,
+    /// New pinned status.
+    pub pinned: bool,
+}
+
+/// Version 1 DTO request for archiving a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ArchiveSessionRequest {
+    /// Session ULID to archive.
+    pub session_id: String,
+}
+
+/// Version 1 DTO request for restoring an archived session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RestoreSessionRequest {
+    /// Session ULID to restore.
+    pub session_id: String,
+}
+
+/// Version 1 DTO request for retrieving memory context.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ContextRetrieveRequestDto {
+    /// Target session ULID.
+    pub session_id: String,
+    /// User prompt query.
+    pub query: String,
+    /// Optional workspace scope.
+    #[serde(default)]
+    pub workspace_id: Option<String>,
+    /// Max memory items to return.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// Max token budget.
+    #[serde(default)]
+    pub max_tokens: Option<usize>,
+}
+
+/// Version 1 DTO for a retrieved memory entry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RetrievedMemoryDto {
+    /// Entity ID.
+    pub node_id: String,
+    /// Title / label.
+    pub label: String,
+    /// Content excerpt.
+    pub excerpt: String,
+    /// Primary retrieval channel.
+    pub channel: String,
+    /// Relevance score.
+    pub score: f64,
+    /// Timestamp epoch.
+    pub timestamp: u64,
+    /// Memory scope.
+    pub scope: String,
+}
+
+/// Version 1 DTO for memory provenance metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MemoryProvenanceDto {
+    /// Number of recalled memory items.
+    pub count: usize,
+    /// Distinct source identifiers.
+    pub sources: Vec<String>,
+    /// Channels used.
+    pub channels: Vec<String>,
+    /// Minimum score.
+    pub min_score: f64,
+    /// Maximum score.
+    pub max_score: f64,
+    /// Unique immutable retrieval epoch ID.
+    pub epoch_id: String,
+}
+
+/// Version 1 DTO response for context retrieval.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ContextRetrieveResponseDto {
+    /// Retrieved memories.
+    pub memories: Vec<RetrievedMemoryDto>,
+    /// Provenance metadata.
+    pub provenance: MemoryProvenanceDto,
+    /// Estimated token count.
+    pub token_count: usize,
+    /// Serialized canonical context block.
+    pub serialized_context: String,
+}

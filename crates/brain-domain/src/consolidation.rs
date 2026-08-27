@@ -229,6 +229,42 @@ pub struct ConsolidationPolicy {
     pub staleness_age_threshold_secs: u64,
 }
 
+impl Default for ConsolidationPolicy {
+    fn default() -> Self {
+        Self {
+            promotion_weight_threshold: 0.8,
+            pruning_weight_threshold: 0.1,
+            staleness_age_threshold_secs: 86400,
+        }
+    }
+}
+
+impl ConsolidationPolicy {
+    /// Validates policy bounds to prevent unsafe execution.
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.promotion_weight_threshold.is_finite()
+            || !(0.0..=1.0).contains(&self.promotion_weight_threshold)
+        {
+            return Err(format!(
+                "promotion_weight_threshold must be within [0.0, 1.0], got {}",
+                self.promotion_weight_threshold
+            ));
+        }
+        if !self.pruning_weight_threshold.is_finite()
+            || !(0.0..=1.0).contains(&self.pruning_weight_threshold)
+        {
+            return Err(format!(
+                "pruning_weight_threshold must be within [0.0, 1.0], got {}",
+                self.pruning_weight_threshold
+            ));
+        }
+        if self.staleness_age_threshold_secs == 0 {
+            return Err("staleness_age_threshold_secs must be greater than 0".to_string());
+        }
+        Ok(())
+    }
+}
+
 /// Domain engine evaluating lifecycle sweeps and consolidating knowledge.
 #[derive(Debug, Clone, Copy)]
 pub struct Consolidator {

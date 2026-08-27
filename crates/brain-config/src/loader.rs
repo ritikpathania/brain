@@ -1,8 +1,9 @@
 use crate::schema::{
-    BrainSettings, DatabaseSettings, EmbeddingProvider, LlmProvider, Merge, ModelSettings,
-    PartialBrainSettings, PartialDatabaseSettings, PartialModelSettings, PartialReflectionSettings,
-    PartialRetrievalSettings, PartialSessionSettings, PartialTemporalRankingSettings,
-    RankingPolicy, ReflectionSettings, RetrievalSettings, SessionSettings,
+    BrainSettings, ConsolidationSettings, DatabaseSettings, EmbeddingProvider, LlmProvider, Merge,
+    ModelSettings, PartialBrainSettings, PartialConsolidationSettings, PartialDatabaseSettings,
+    PartialModelSettings, PartialReflectionSettings, PartialRetrievalSettings,
+    PartialSessionSettings, PartialTemporalRankingSettings, RankingPolicy, ReflectionSettings,
+    RetrievalSettings, SessionSettings,
 };
 use brain_core::BrainError;
 use std::convert::TryFrom;
@@ -56,6 +57,12 @@ impl ConfigSource for DefaultsSource {
                 min_events_trigger: Some(5),
                 max_nodes_per_cycle: Some(1000),
                 cycle_time_budget_ms: Some(5000),
+            }),
+            consolidation: Some(PartialConsolidationSettings {
+                promotion_weight_threshold: Some(0.8),
+                pruning_weight_threshold: Some(0.1),
+                staleness_age_threshold_secs: Some(86400),
+                debounce_secs: Some(60),
             }),
         })
     }
@@ -232,6 +239,34 @@ impl ConfigSource for EnvironmentSource {
                     s.reflection = Some(rf);
                 }
             }),
+            ("BRAIN_CONSOLIDATION_PROMOTION_THRESHOLD", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut con = s.consolidation.take().unwrap_or_default();
+                    con.promotion_weight_threshold = Some(val);
+                    s.consolidation = Some(con);
+                }
+            }),
+            ("BRAIN_CONSOLIDATION_PRUNING_THRESHOLD", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut con = s.consolidation.take().unwrap_or_default();
+                    con.pruning_weight_threshold = Some(val);
+                    s.consolidation = Some(con);
+                }
+            }),
+            ("BRAIN_CONSOLIDATION_STALENESS_SECS", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut con = s.consolidation.take().unwrap_or_default();
+                    con.staleness_age_threshold_secs = Some(val);
+                    s.consolidation = Some(con);
+                }
+            }),
+            ("BRAIN_CONSOLIDATION_DEBOUNCE_SECS", &|s, v| {
+                if let Ok(val) = v.parse() {
+                    let mut con = s.consolidation.take().unwrap_or_default();
+                    con.debounce_secs = Some(val);
+                    s.consolidation = Some(con);
+                }
+            }),
         ];
 
         for &(key, apply_fn) in mappings {
@@ -367,6 +402,14 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
             cycle_time_budget_ms: ref_partial.cycle_time_budget_ms.unwrap_or(5000),
         };
 
+        let con_partial = partial.consolidation.unwrap_or_default();
+        let consolidation = ConsolidationSettings {
+            promotion_weight_threshold: con_partial.promotion_weight_threshold.unwrap_or(0.8),
+            pruning_weight_threshold: con_partial.pruning_weight_threshold.unwrap_or(0.1),
+            staleness_age_threshold_secs: con_partial.staleness_age_threshold_secs.unwrap_or(86400),
+            debounce_secs: con_partial.debounce_secs.unwrap_or(60),
+        };
+
         Ok(BrainSettings {
             version,
             database,
@@ -374,6 +417,7 @@ impl TryFrom<PartialBrainSettings> for BrainSettings {
             sessions,
             retrieval,
             reflection,
+            consolidation,
             plugins_directory,
         })
     }
