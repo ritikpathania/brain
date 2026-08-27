@@ -301,6 +301,12 @@ export function AppShell(): React.ReactElement {
             setResumeSelected(0);
             setResumeOpen(true);
           });
+        } else if (res.action === 'rename') {
+          const title = res.args ? res.args.join(' ') : '';
+          void controller.renameCurrentSession(title);
+        } else if (res.action === 'fork') {
+          const title = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
+          void controller.forkCurrentSession(title);
         }
         break;
       case 'overlay':

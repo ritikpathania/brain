@@ -276,6 +276,67 @@ export class SessionController {
     }
   }
 
+  /** Inc 29: Rename the active session in storage and record a confirmation. */
+  async renameCurrentSession(newTitle: string): Promise<void> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return;
+    }
+    const trimmed = newTitle.trim();
+    if (!trimmed) {
+      this.notice('Usage: /rename <title>');
+      return;
+    }
+    try {
+      if (!this.sessionId) {
+        const created = await this.client.createSession({ title: trimmed });
+        this.sessionId = created.sessionId;
+      } else {
+        await this.client.renameSession(this.sessionId, trimmed);
+      }
+      this.notice(`Session renamed to “${trimmed}”`);
+    } catch (e) {
+      this.notice(`Could not rename session: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** Inc 29: Fork the active session, switch controller to the new session,
+   * replay the cloned history, and record a confirmation. */
+  async forkCurrentSession(newTitle?: string): Promise<string | undefined> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return undefined;
+    }
+    try {
+      if (!this.sessionId) {
+        const created = await this.client.createSession({ title: newTitle });
+        this.sessionId = created.sessionId;
+        this.notice(`Started session “${created.title}”`);
+        return created.sessionId;
+      }
+      const res = await this.client.forkSession({
+        sourceSessionId: this.sessionId,
+        newTitle: newTitle?.trim() || undefined,
+      });
+      const { session } = await this.client.loadSession(res.newSessionId);
+      this.sessionId = session.id;
+      const replayed = sessionToRows(session);
+      this.rows = [
+        ...replayed,
+        {
+          kind: 'system',
+          id: `sys:${++this.sysSeq}`,
+          text: `Forked to “${session.title}” (${res.clonedMessagesCount} turns cloned)`,
+        },
+      ];
+      this.emit();
+      return session.id;
+    } catch (e) {
+      this.notice(`Could not fork session: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    }
+  }
+
   /** Inc 11: `!` bash passthrough — a standalone turn that never reaches a
    * provider. Rendered through the same reducer/projection path as live
    * agentic cards, so local and replayed rows agree by construction. */

@@ -5,13 +5,13 @@
  * into state (Inc 21). Built-ins self-register from ./builtin.js.
  */
 
-export type CommandAction = 'clear' | 'quit' | 'resume' | 'theme';
+export type CommandAction = 'clear' | 'quit' | 'resume' | 'theme' | 'rename' | 'fork';
 export type CommandOverlay = 'doctor' | 'memory';
 
 export type CommandResult =
   | { type: 'text'; value: string }
   | { type: 'none' }
-  | { type: 'action'; action: CommandAction }
+  | { type: 'action'; action: CommandAction; args?: string[] }
   | { type: 'overlay'; overlay: CommandOverlay };
 
 export interface CommandContext {
