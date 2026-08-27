@@ -1947,6 +1947,89 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "memory/delete" || action == "v1/memory/delete" {
+            #[derive(serde::Deserialize)]
+            struct DeleteMemoryPayload {
+                #[serde(rename = "nodeId", alias = "node_id", alias = "id")]
+                node_id: String,
+            }
+
+            match serde_json::from_str::<DeleteMemoryPayload>(payload) {
+                Ok(req) => match app.delete_memory(&req.node_id).await {
+                    Ok(()) => {
+                        let resp_body = serde_json::json!({
+                            "success": true,
+                            "nodeId": req.node_id,
+                        });
+                        let response = if is_versioned {
+                            serde_json::json!({
+                                "version": "1.0",
+                                "type": "Response",
+                                "id": req_id_val,
+                                "status": "success",
+                                "body": serde_json::to_string(&resp_body)?
+                            })
+                        } else {
+                            serde_json::json!({
+                                "status": "ok",
+                                "body": resp_body
+                            })
+                        };
+                        let mut response_json = serde_json::to_string(&response)?;
+                        response_json.push('\n');
+                        let mut w = writer.lock().await;
+                        w.write_all(response_json.as_bytes()).await?;
+                        w.flush().await?;
+                    }
+                    Err(e) => {
+                        let err_msg = e.to_string();
+                        let response = if is_versioned {
+                            serde_json::json!({
+                                "version": "1.0",
+                                "type": "Response",
+                                "id": req_id_val,
+                                "status": "error",
+                                "body": err_msg
+                            })
+                        } else {
+                            serde_json::json!({
+                                "status": "error",
+                                "error": err_msg
+                            })
+                        };
+                        let mut response_json = serde_json::to_string(&response)?;
+                        response_json.push('\n');
+                        let mut w = writer.lock().await;
+                        w.write_all(response_json.as_bytes()).await?;
+                        w.flush().await?;
+                    }
+                },
+                Err(e) => {
+                    let err_msg = format!("Invalid memory/delete payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "error": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "tool/feedback" || action == "v1/tool/feedback" {
             let feedback_req: Result<crate::server::protocol::ToolExecutionFeedbackPayload, _> =
                 serde_json::from_str(payload);
