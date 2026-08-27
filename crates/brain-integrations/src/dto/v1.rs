@@ -1309,6 +1309,22 @@ pub struct RestoreSessionRequest {
     pub session_id: String,
 }
 
+/// Version 1 DTO request for deleting a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeleteSessionRequest {
+    /// Session ULID to delete.
+    pub session_id: String,
+}
+
+/// Version 1 DTO response for deleting a session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeleteSessionResponse {
+    /// Whether deletion succeeded.
+    pub success: bool,
+    /// Deleted session ULID.
+    pub session_id: String,
+}
+
 /// Version 1 DTO request for retrieving memory context.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ContextRetrieveRequestDto {

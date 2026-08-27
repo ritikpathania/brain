@@ -162,6 +162,23 @@ impl ProtocolRouter {
                         .map_err(|e| format!("Failed to parse PinSessionRequest: {}", e))?;
                 Ok(Some(ApplicationRequest::PinSession(req)))
             }
+            "v1/session/delete" | "session/delete" => {
+                #[derive(serde::Deserialize)]
+                struct Req {
+                    session_id: Option<String>,
+                    id: Option<String>,
+                }
+                let session_id = if let Ok(req) = serde_json::from_str::<Req>(body) {
+                    req.session_id
+                        .or(req.id)
+                        .unwrap_or_else(|| body.trim().to_string())
+                } else {
+                    body.trim().to_string()
+                };
+                Ok(Some(ApplicationRequest::DeleteSession(
+                    brain_integrations::dto::v1::DeleteSessionRequest { session_id },
+                )))
+            }
             "v1/session/list" | "v1/sessions" => Ok(Some(ApplicationRequest::ListSessions)),
             "v1/context/retrieve" | "v1/memory/retrieve" => {
                 let req: brain_integrations::dto::v1::ContextRetrieveRequestDto =

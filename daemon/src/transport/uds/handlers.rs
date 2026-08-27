@@ -903,6 +903,75 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "session/delete" || action == "v1/session/delete" {
+            #[derive(serde::Deserialize)]
+            struct DeletePayload {
+                #[serde(rename = "session_id", alias = "sessionId", default)]
+                session_id: Option<String>,
+                #[serde(default)]
+                id: Option<String>,
+            }
+
+            let sid_str = if let Ok(p) = serde_json::from_str::<DeletePayload>(payload) {
+                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+            } else {
+                payload.trim().to_string()
+            };
+
+            let parsed_sid = parse_session_id_flexible(&sid_str);
+            match app.delete_session(&parsed_sid.to_string()).await {
+                Ok(()) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": {
+                                "success": true,
+                                "session_id": parsed_sid.to_string()
+                            }
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "ok",
+                            "success": true,
+                            "session_id": parsed_sid.to_string(),
+                            "message": "Session deleted successfully"
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to delete session: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "memory/consolidate" || action == "v1/memory/consolidate" {
             let start = std::time::Instant::now();
             let consolidate_req: Result<crate::server::protocol::ConsolidatePayload, _> =

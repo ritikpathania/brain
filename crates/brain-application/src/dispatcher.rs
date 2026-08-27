@@ -86,6 +86,8 @@ pub enum ApplicationRequest {
     RenameSession(v1::RenameSessionRequest),
     /// Pin a session
     PinSession(v1::PinSessionRequest),
+    /// Delete a session
+    DeleteSession(v1::DeleteSessionRequest),
     /// Retrieve memory context
     RetrieveContext(v1::ContextRetrieveRequestDto),
 }
@@ -336,6 +338,10 @@ impl RequestDispatcher {
             }
             ApplicationRequest::PinSession(req) => {
                 self.app.pin_session(&req.session_id, req.pinned).await?;
+                Ok(ApplicationResponse::SessionOperationSuccess)
+            }
+            ApplicationRequest::DeleteSession(req) => {
+                self.app.delete_session(&req.session_id).await?;
                 Ok(ApplicationResponse::SessionOperationSuccess)
             }
             ApplicationRequest::RetrieveContext(req) => {

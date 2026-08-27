@@ -2126,6 +2126,29 @@ impl BrainApplication {
         Ok(())
     }
 
+    /// Inc 35: Deletes a session aggregate, cleaning up turns, session projection, and FTS5 search projection.
+    pub async fn delete_session(&self, session_id_str: &str) -> Result<(), ApplicationError> {
+        let session_id = session_id_str
+            .parse::<brain_domain::SessionId>()
+            .map_err(|e| ApplicationError::Validation(format!("Invalid session_id: {}", e)))?;
+
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::SessionRepository;
+
+        // 1. Verify existence
+        if storage.load_session(&session_id)?.is_none() {
+            return Err(ApplicationError::Validation(format!(
+                "Session '{}' not found",
+                session_id_str
+            )));
+        }
+
+        // 2. Delete from persistent storage (cascades sessions, turns, and search_projection FTS5)
+        storage.delete_session(&session_id)?;
+
+        Ok(())
+    }
+
     /// Lists all sessions from the sessions projection read model repository.
     pub async fn list_sessions_v1(&self) -> Result<Vec<v1::SessionSummaryDto>, ApplicationError> {
         let pool = self.runtime.sqlite_storage().pool().clone();
