@@ -16,6 +16,9 @@ thread_local! {
     static TRANSACTION_ACTIVE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Detailed summary record tuple: `(version, created_at, start_idx, end_idx, text)`
+pub type SessionSummaryRecord = (u64, u64, usize, usize, String);
+
 /// SQLite database storage backend implementing all domain repositories.
 #[derive(Clone)]
 pub struct SqliteStorage {
@@ -165,7 +168,7 @@ impl SqliteStorage {
     pub fn get_latest_session_summary(
         &self,
         session_id: &str,
-    ) -> Result<Option<(u64, u64, usize, usize, String)>, BrainError> {
+    ) -> Result<Option<SessionSummaryRecord>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
             source: Some(Box::new(e)),
@@ -2010,11 +2013,8 @@ fn find_embedding_by_node_id_conn(
 
     match res {
         Ok((bytes, _dimension)) => {
-            let mut vector = Vec::with_capacity(bytes.len() / 4);
-            for chunk in bytes.chunks_exact(4) {
-                let arr = chunk.try_into().unwrap_or([0u8; 4]);
-                vector.push(f32::from_le_bytes(arr));
-            }
+            let (chunks, _) = bytes.as_chunks::<4>();
+            let vector: Vec<f32> = chunks.iter().map(|&arr| f32::from_le_bytes(arr)).collect();
             Ok(Some(Embedding::new(*node_id, vector)))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -2069,11 +2069,8 @@ fn list_all_embeddings_conn(db: &ActiveConnection<'_>) -> Result<Vec<Embedding>,
                 message: format!("Invalid UUID: {}", e),
                 source: Some(Box::new(e)),
             })?;
-        let mut vector = Vec::with_capacity(bytes.len() / 4);
-        for chunk in bytes.chunks_exact(4) {
-            let arr = chunk.try_into().unwrap_or([0u8; 4]);
-            vector.push(f32::from_le_bytes(arr));
-        }
+        let (chunks, _) = bytes.as_chunks::<4>();
+        let vector: Vec<f32> = chunks.iter().map(|&arr| f32::from_le_bytes(arr)).collect();
         embeddings.push(Embedding::new(node_id, vector));
     }
 
@@ -2200,11 +2197,8 @@ fn find_embeddings_by_centroids_conn(
                 message: format!("Invalid UUID: {}", e),
                 source: Some(Box::new(e)),
             })?;
-        let mut vector = Vec::with_capacity(bytes.len() / 4);
-        for chunk in bytes.chunks_exact(4) {
-            let arr = chunk.try_into().unwrap_or([0u8; 4]);
-            vector.push(f32::from_le_bytes(arr));
-        }
+        let (chunks, _) = bytes.as_chunks::<4>();
+        let vector: Vec<f32> = chunks.iter().map(|&arr| f32::from_le_bytes(arr)).collect();
         embeddings.push(Embedding::new(node_id, vector));
     }
 
@@ -2234,6 +2228,42 @@ fn save_session_conn(
         message: format!("Failed to save session {}: {}", id, e),
         source: Some(Box::new(e)),
     })?;
+
+    // Sync to search_projection FTS5 table
+    let _ = db.execute(
+        "DELETE FROM search_projection WHERE id = ?1 OR (kind = 'message' AND session_id = ?2)",
+        rusqlite::params![format!("session:{}", id), id.to_string()],
+    );
+
+    if let Ok(sess_meta) = serde_json::to_string(&brain_domain::SearchMetadata::Session {
+        archived: session.archived,
+        pinned: session.pinned,
+    }) {
+        let _ = db.execute(
+            "INSERT INTO search_projection (id, kind, title, body, metadata, updated_sequence, session_id) VALUES (?1, 'session', ?2, '', ?3, ?4, ?5)",
+            rusqlite::params![format!("session:{}", id), session.title.0, sess_meta, now, id.to_string()],
+        );
+    }
+
+    for msg in &session.messages {
+        if let Ok(msg_meta) = serde_json::to_string(&brain_domain::SearchMetadata::Message {
+            session_id: *id,
+            role: msg.role,
+        }) {
+            let role_title = match msg.role {
+                brain_domain::MessageRole::User => "user",
+                brain_domain::MessageRole::Assistant => "assistant",
+                brain_domain::MessageRole::System => "system",
+                brain_domain::MessageRole::Tool => "tool",
+                brain_domain::MessageRole::Thinking => "thinking",
+            };
+            let _ = db.execute(
+                "INSERT INTO search_projection (id, kind, title, body, metadata, updated_sequence, session_id) VALUES (?1, 'message', ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![format!("message:{}", msg.id), role_title, msg.content, msg_meta, msg.timestamp, id.to_string()],
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -2270,7 +2300,43 @@ fn load_session_conn(
     }
 }
 
+fn list_sessions_conn(
+    db: &ActiveConnection<'_>,
+    limit: usize,
+    offset: usize,
+) -> Result<Vec<Session>, BrainError> {
+    let mut stmt = db
+        .prepare("SELECT history FROM sessions ORDER BY updated_at DESC, id ASC LIMIT ? OFFSET ?")
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to prepare list sessions query: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let rows = stmt
+        .query_map([limit as i64, offset as i64], |row| {
+            let history: String = row.get(0)?;
+            Ok(history)
+        })
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to execute list sessions query: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+    let mut sessions = Vec::new();
+    for history_str in rows.flatten() {
+        if let Ok(session) = serde_json::from_str::<Session>(&history_str) {
+            sessions.push(session);
+        }
+    }
+
+    Ok(sessions)
+}
+
 fn delete_session_conn(db: &ActiveConnection<'_>, id: &SessionId) -> Result<(), BrainError> {
+    let _ = db.execute(
+        "DELETE FROM search_projection WHERE id = ?1 OR (kind = 'message' AND session_id = ?2)",
+        rusqlite::params![format!("session:{}", id), id.to_string()],
+    );
     db.execute("DELETE FROM sessions WHERE id = ?", [id.to_string()])
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to delete session: {}", e),
@@ -2305,6 +2371,18 @@ impl SessionRepository for SqliteStorage {
         })?;
         let active = ActiveConnection::new(&conn);
         delete_session_conn(&active, id)
+    }
+}
+
+impl SqliteStorage {
+    /// Lists stored sessions with deterministic ordering and pagination.
+    pub fn list_sessions(&self, limit: usize, offset: usize) -> Result<Vec<Session>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        let active = ActiveConnection::new(&conn);
+        list_sessions_conn(&active, limit, offset)
     }
 }
 

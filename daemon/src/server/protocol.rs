@@ -196,6 +196,39 @@ pub struct SearchMemoryResponseBody {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TranscriptSearchQueryPayload {
+    pub query: String,
+    #[serde(default)]
+    pub kinds: Option<Vec<String>>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+    #[serde(default)]
+    pub offset: Option<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TranscriptSearchMatchDto {
+    pub id: String,
+    pub kind: String,
+    #[serde(rename = "sessionId", alias = "session_id", skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    pub title: String,
+    pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TranscriptSearchResponseBody {
+    pub matches: Vec<TranscriptSearchMatchDto>,
+    pub total: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StoreMemoryPayload {
     #[serde(default)]
     pub session_id: Option<String>,

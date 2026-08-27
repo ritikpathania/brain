@@ -2030,6 +2030,160 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "search/query" || action == "v1/search/query" {
+            let search_req: Result<crate::server::protocol::TranscriptSearchQueryPayload, _> =
+                serde_json::from_str(payload);
+            match search_req {
+                Ok(req) => {
+                    let query_str = req.query.trim().to_string();
+                    if query_str.is_empty() {
+                        let err_msg = "Search query must not be empty".to_string();
+                        let response = if is_versioned {
+                            serde_json::json!({
+                                "version": "1.0",
+                                "type": "Response",
+                                "id": req_id_val,
+                                "status": "error",
+                                "body": err_msg
+                            })
+                        } else {
+                            serde_json::json!({
+                                "status": "error",
+                                "error": err_msg
+                            })
+                        };
+                        let mut response_json = serde_json::to_string(&response)?;
+                        response_json.push('\n');
+                        let mut w = writer.lock().await;
+                        w.write_all(response_json.as_bytes()).await?;
+                        w.flush().await?;
+                        continue;
+                    }
+
+                    let kinds = req
+                        .kinds
+                        .unwrap_or_else(|| vec!["message".to_string(), "session".to_string()]);
+                    let limit = req.limit.unwrap_or(20).clamp(1, 100);
+                    let offset = req.offset.unwrap_or(0);
+
+                    let search_query = brain_integrations::dto::v1::SearchQuery {
+                        text: query_str,
+                        kinds: Some(kinds),
+                        pagination: Some(brain_integrations::dto::v1::PaginationSpec {
+                            limit: Some(limit),
+                            offset: Some(offset),
+                        }),
+                    };
+
+                    let context = ExecutionContext::default();
+                    match app.search(search_query, &context).await {
+                        Ok(results) => {
+                            let matches: Vec<crate::server::protocol::TranscriptSearchMatchDto> =
+                                results
+                                    .into_iter()
+                                    .map(|s| {
+                                        let session_id = s.metadata.get("session_id").cloned();
+                                        let role = s.metadata.get("role").cloned();
+                                        let score = s
+                                            .metadata
+                                            .get("score")
+                                            .and_then(|v| v.parse::<i64>().ok());
+                                        let snippet = if !s.body.is_empty() {
+                                            Some(s.body.clone())
+                                        } else {
+                                            None
+                                        };
+                                        crate::server::protocol::TranscriptSearchMatchDto {
+                                            id: s.id,
+                                            kind: s.kind,
+                                            session_id,
+                                            title: s.title,
+                                            body: s.body,
+                                            snippet,
+                                            role,
+                                            score,
+                                        }
+                                    })
+                                    .collect();
+
+                            let total = matches.len();
+                            let resp_body =
+                                crate::server::protocol::TranscriptSearchResponseBody {
+                                    matches,
+                                    total,
+                                };
+
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": resp_body
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "body": resp_body
+                                })
+                            };
+
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Search failed: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "error",
+                                    "error": err_msg
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid search/query payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "error": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "tool/feedback" || action == "v1/tool/feedback" {
             let feedback_req: Result<crate::server::protocol::ToolExecutionFeedbackPayload, _> =
                 serde_json::from_str(payload);
