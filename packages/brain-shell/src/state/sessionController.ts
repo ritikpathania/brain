@@ -148,6 +148,11 @@ export class SessionController {
       }
       this.thinkingBudget = budget;
       this.notice(`Reasoning thinking budget set to ${budget} tokens.`);
+      if (this.activeModelDescriptor && !this.activeModelDescriptor.supportsThinking) {
+        this.notice(
+          `Note: Active model “${this.activeModelDescriptor.name}” does not support reasoning thinking; budget will be ignored until switching to a reasoning model.`,
+        );
+      }
     } else {
       this.thinkingBudget = null;
       this.notice('Reasoning thinking budget disabled.');
@@ -160,6 +165,11 @@ export class SessionController {
   reportThinkingStatus(): void {
     if (this.thinkingBudget !== null) {
       this.notice(`Current reasoning thinking budget: ${this.thinkingBudget} tokens.`);
+      if (this.activeModelDescriptor && !this.activeModelDescriptor.supportsThinking) {
+        this.notice(
+          `Note: Active model “${this.activeModelDescriptor.name}” does not support reasoning thinking; budget is currently inactive.`,
+        );
+      }
     } else {
       this.notice('Reasoning thinking budget is disabled (default).');
     }
@@ -195,6 +205,11 @@ export class SessionController {
       this.activeModelDescriptor = resolved;
       this.emit();
       this.notice(`Switched active model to “${resolved.name}” (${resolved.id})`);
+      if (this.thinkingBudget !== null && !resolved.supportsThinking) {
+        this.notice(
+          `Note: Model “${resolved.name}” does not support reasoning thinking; configured budget (${this.thinkingBudget} tokens) is currently inactive.`,
+        );
+      }
       return resolved;
     } catch (e) {
       this.notice(`Could not resolve model: ${e instanceof Error ? e.message : String(e)}`);

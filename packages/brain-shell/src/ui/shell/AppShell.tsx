@@ -651,6 +651,8 @@ export function AppShell(): React.ReactElement {
         theme={themeSetting}
         expandTools={expandTools}
         tokens={tokens}
+        thinkingBudget={snapshot.thinkingBudget}
+        supportsThinking={snapshot.activeModel?.supportsThinking ?? true}
         connectionText={connectionStatusText(snapshot.connection)}
       />
     </Box>

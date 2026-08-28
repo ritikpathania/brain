@@ -28,11 +28,39 @@ describe('StatusBarView', () => {
         tokens: PALETTES.dark,
       }),
     );
-    expect(text).toContain('brain · model brain-default · theme auto');
+    expect(text).toContain('brain · model brain-default · think:off · theme auto');
     expect(text).toContain('! bash');
     expect(text).toContain('/ commands');
     expect(text).toContain('ctrl+c exit');
     expect(text).toContain('ctrl+o expand tools');
+  });
+
+  test('reflects thinking budget and non-thinking capability in status line', () => {
+    const activeText = textOf(
+      StatusBarView({
+        model: 'brain-default',
+        workspace: 'brain',
+        theme: 'auto',
+        expandTools: false,
+        tokens: PALETTES.dark,
+        thinkingBudget: 4096,
+        supportsThinking: true,
+      }),
+    );
+    expect(activeText).toContain('brain · model brain-default · think:4k · theme auto');
+
+    const naText = textOf(
+      StatusBarView({
+        model: 'qwen2.5-coder:32b',
+        workspace: 'brain',
+        theme: 'auto',
+        expandTools: false,
+        tokens: PALETTES.dark,
+        thinkingBudget: 4096,
+        supportsThinking: false,
+      }),
+    );
+    expect(naText).toContain('brain · model qwen2.5-coder:32b · think:n/a · theme auto');
   });
 
   test('reflects the tools toggle state', () => {

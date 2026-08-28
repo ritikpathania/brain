@@ -2937,7 +2937,7 @@ pub async fn handle_connection(
             let mut seq: u64 = 0;
             let mut thinking_started_at: Option<Instant> = None;
 
-            let thinking_budget = match stream_req.thinking_config {
+            let requested_thinking_budget = match stream_req.thinking_config {
                 Some(ref cfg) => match cfg.mode.as_deref() {
                     Some("disabled") | Some("off") => None,
                     Some("enabled") | Some("adaptive") => cfg.budget_tokens.or(Some(2048)),
@@ -2945,6 +2945,13 @@ pub async fn handle_connection(
                     None => cfg.budget_tokens,
                 },
                 None => None,
+            };
+
+            let (thinking_supported, effective_thinking_budget) = if resolved_model_desc.supports_thinking {
+                let clamped = requested_thinking_budget.map(|b| b.min(resolved_model_desc.max_output_tokens));
+                (true, clamped)
+            } else {
+                (false, None)
             };
 
             // Frame 0: stream_start with memory provenance & telemetry metadata
@@ -2958,7 +2965,9 @@ pub async fn handle_connection(
                     "model": resolved_model_desc.id,
                     "model_name": resolved_model_desc.name,
                     "provider": resolved_model_desc.provider,
-                    "thinking_budget": thinking_budget,
+                    "thinking_supported": thinking_supported,
+                    "effective_thinking_budget": effective_thinking_budget,
+                    "thinking_budget": effective_thinking_budget,
                     "memory_provenance": {
                         "count": context_snapshot.provenance.count,
                         "sources": context_snapshot.provenance.sources,
@@ -3015,7 +3024,7 @@ pub async fn handle_connection(
                     messages: model_messages.clone(),
                     system_prompt: combined_system_prompt.clone(),
                     tools: advertised_tools.clone(),
-                    thinking_budget,
+                    thinking_budget: effective_thinking_budget,
                 };
                 let mut stream_result = app
                     .model_gateway()
