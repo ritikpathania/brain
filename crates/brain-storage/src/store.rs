@@ -2272,7 +2272,7 @@ fn load_session_conn(
     id: &SessionId,
 ) -> Result<Option<Session>, BrainError> {
     let mut stmt = db
-        .prepare("SELECT history FROM sessions WHERE id = ?")
+        .prepare("SELECT history, system_prompt FROM sessions WHERE id = ?")
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to prepare query: {}", e),
             source: Some(Box::new(e)),
@@ -2280,16 +2280,26 @@ fn load_session_conn(
 
     let res = stmt.query_row([id.to_string()], |row| {
         let history: String = row.get(0)?;
-        Ok(history)
+        let system_prompt: Option<String> = row.get(1).unwrap_or(None);
+        Ok((history, system_prompt))
     });
 
     match res {
-        Ok(history_str) => {
-            let session: Session =
+        Ok((history_str, col_system_prompt)) => {
+            let mut session: Session =
                 serde_json::from_str(&history_str).map_err(|e| BrainError::Storage {
                     message: format!("Failed to deserialize session: {}", e),
                     source: Some(Box::new(e)),
                 })?;
+            // Authoritative column hydration: SQLite column value is the single source of truth
+            session.system_prompt = col_system_prompt.and_then(|p| {
+                let t = p.trim().to_string();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            });
             Ok(Some(session))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -2306,7 +2316,7 @@ fn list_sessions_conn(
     offset: usize,
 ) -> Result<Vec<Session>, BrainError> {
     let mut stmt = db
-        .prepare("SELECT history FROM sessions ORDER BY updated_at DESC, id ASC LIMIT ? OFFSET ?")
+        .prepare("SELECT history, system_prompt FROM sessions ORDER BY updated_at DESC, id ASC LIMIT ? OFFSET ?")
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to prepare list sessions query: {}", e),
             source: Some(Box::new(e)),
@@ -2315,7 +2325,8 @@ fn list_sessions_conn(
     let rows = stmt
         .query_map([limit as i64, offset as i64], |row| {
             let history: String = row.get(0)?;
-            Ok(history)
+            let system_prompt: Option<String> = row.get(1).unwrap_or(None);
+            Ok((history, system_prompt))
         })
         .map_err(|e| BrainError::Storage {
             message: format!("Failed to execute list sessions query: {}", e),
@@ -2323,8 +2334,17 @@ fn list_sessions_conn(
         })?;
 
     let mut sessions = Vec::new();
-    for history_str in rows.flatten() {
-        if let Ok(session) = serde_json::from_str::<Session>(&history_str) {
+    for row_res in rows.flatten() {
+        let (history_str, col_system_prompt) = row_res;
+        if let Ok(mut session) = serde_json::from_str::<Session>(&history_str) {
+            session.system_prompt = col_system_prompt.and_then(|p| {
+                let t = p.trim().to_string();
+                if t.is_empty() {
+                    None
+                } else {
+                    Some(t)
+                }
+            });
             sessions.push(session);
         }
     }

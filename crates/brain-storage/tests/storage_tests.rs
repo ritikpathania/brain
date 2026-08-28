@@ -239,6 +239,87 @@ fn test_sqlite_storage_session_and_config() {
 }
 
 #[test]
+fn test_sqlite_v17_column_authoritative_hydration() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let db_path = temp_dir.path().join("v17_hydration_test.db");
+
+    let session_id = SessionId::new();
+
+    // 1. Initial connection: save session with legacy JSON (or initial prompt)
+    {
+        let store = SqliteStorage::new(db_path.to_str().unwrap(), 1, false).unwrap();
+        let mut session = Session::new(
+            session_id,
+            SessionTitle("Hydration Test".to_string()),
+            SessionTimestamp(1000),
+        );
+        session.set_system_prompt(
+            Some("Initial Prompt via Aggregate".to_string()),
+            SessionTimestamp(1000),
+        );
+        SessionRepository::save_session(&store, &session_id, &session).unwrap();
+
+        let loaded = SessionRepository::load_session(&store, &session_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            loaded.system_prompt,
+            Some("Initial Prompt via Aggregate".to_string())
+        );
+    }
+
+    // 2. Direct raw SQL update to prove column authoritativeness over JSON
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE sessions SET system_prompt = ?1 WHERE id = ?2",
+            rusqlite::params!["Authoritative Column Value Overriding JSON", session_id.to_string()],
+        )
+        .unwrap();
+    }
+
+    // 3. Fresh storage connection: load_session and list_sessions must reflect column value
+    {
+        let fresh_store = SqliteStorage::new(db_path.to_str().unwrap(), 1, false).unwrap();
+        let loaded = SessionRepository::load_session(&fresh_store, &session_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            loaded.system_prompt,
+            Some("Authoritative Column Value Overriding JSON".to_string())
+        );
+
+        let list = fresh_store.list_sessions(10, 0).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(
+            list[0].system_prompt,
+            Some("Authoritative Column Value Overriding JSON".to_string())
+        );
+    }
+
+    // 4. Test NULL column mapping
+    {
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute(
+            "UPDATE sessions SET system_prompt = NULL WHERE id = ?1",
+            [session_id.to_string()],
+        )
+        .unwrap();
+    }
+
+    {
+        let fresh_store = SqliteStorage::new(db_path.to_str().unwrap(), 1, false).unwrap();
+        let loaded = SessionRepository::load_session(&fresh_store, &session_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.system_prompt, None);
+
+        let list = fresh_store.list_sessions(10, 0).unwrap();
+        assert_eq!(list[0].system_prompt, None);
+    }
+}
+
+#[test]
 fn test_run_transaction_commit() {
     let test_store = TestStorage::new();
     let store = test_store.storage();
