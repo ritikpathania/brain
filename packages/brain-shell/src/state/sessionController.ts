@@ -73,6 +73,65 @@ function isConnectionLoss(text: string): boolean {
 }
 
 export const CONNECTION_LOSS_ROW = 'Connection lost — reconnecting…';
+
+export interface SessionInfoSummaryOptions {
+  sessionId?: string;
+  turnCount: number;
+  modelName: string;
+  supportsThinking?: boolean;
+  thinkingBudget: number | null;
+  systemPrompt: string | null;
+  latestTelemetry?: ContextTelemetry;
+}
+
+export function formatSessionInfoSummary(options: SessionInfoSummaryOptions): string {
+  const lines: string[] = [];
+  const sid = options.sessionId ? options.sessionId : 'ephemeral (unstarted)';
+  lines.push(`Session ID: ${sid}`);
+  lines.push(`Transcript Turns: ${options.turnCount}`);
+  lines.push(`Active Model: ${options.modelName}`);
+
+  if (options.thinkingBudget === null) {
+    lines.push('Reasoning Budget: disabled (default)');
+  } else if (options.supportsThinking === false) {
+    lines.push(
+      `Reasoning Budget: ${options.thinkingBudget} tokens (inactive: unsupported by active model)`,
+    );
+  } else {
+    lines.push(`Reasoning Budget: ${options.thinkingBudget} tokens (active)`);
+  }
+
+  if (options.systemPrompt === null) {
+    lines.push('System Instructions: default engine prompt (no custom instructions)');
+  } else {
+    const preview =
+      options.systemPrompt.length > 80
+        ? `${options.systemPrompt.slice(0, 77)}...`
+        : options.systemPrompt;
+    lines.push(`System Instructions: “${preview}”`);
+  }
+
+  if (options.latestTelemetry) {
+    const mems =
+      options.latestTelemetry.memoriesAssembled ??
+      (options.latestTelemetry as any).count ??
+      0;
+    const tokens =
+      options.latestTelemetry.contextTokensUsed ??
+      (options.latestTelemetry as any).tokenCount ??
+      0;
+    const ms =
+      options.latestTelemetry.assemblyLatencyMs ??
+      options.latestTelemetry.totalDurationMs ??
+      (options.latestTelemetry as any).latencyMs ??
+      0;
+    lines.push(`Latest Context: ${mems} memories (${tokens} tokens, ${ms}ms)`);
+  } else {
+    lines.push('Latest Context: none (no retrieval turns executed yet)');
+  }
+
+  return lines.join('\n');
+}
 export const QUEUED_ROW = 'queued — will send on reconnect';
 /** Frozen system row appended when a turn ends because the user escaped. */
 export const INTERRUPTED_ROW = '⎿ Turn interrupted';
@@ -224,6 +283,21 @@ export class SessionController {
     } else {
       this.notice(`Active system instructions: “${this.systemPrompt}”`);
     }
+  }
+
+  /** Inc 46: Report consolidated runtime session metadata and steering parameters. */
+  reportSessionInfo(): void {
+    const turnCount = this.rows.filter((r) => r.kind === 'user').length;
+    const summary = formatSessionInfoSummary({
+      sessionId: this.sessionId,
+      turnCount,
+      modelName: this.activeModelName,
+      supportsThinking: this.activeModelDescriptor?.supportsThinking,
+      thinkingBudget: this.thinkingBudget,
+      systemPrompt: this.systemPrompt,
+      latestTelemetry: this.latestTelemetry,
+    });
+    this.notice(summary);
   }
 
   /** Inc 45: Underlying backend client handle. */

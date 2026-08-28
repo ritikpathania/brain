@@ -41,12 +41,16 @@ const BUILTINS: Command[] = [
   },
   {
     name: 'session',
-    description: 'Manage chat sessions',
-    argumentHint: '<delete|pin|unpin|archive|restore> [id_or_prefix]',
+    description: 'Inspect or manage chat sessions',
+    argumentHint: '<info|delete|pin|unpin|archive|restore> [id_or_prefix]',
+    aliases: ['stats'],
     run: (ctx) => {
-      const sub = ctx.args[0];
+      const sub = ctx.args[0]?.toLowerCase();
       const targetId = ctx.args.slice(1).join(' ').trim();
 
+      if (!sub || sub === 'info' || sub === 'stats' || sub === 'status') {
+        return { type: 'action', action: 'session-info' };
+      }
       if (sub === 'delete') {
         if (!targetId) {
           return { type: 'text', value: 'Usage: /session delete <id_or_prefix>' };
@@ -68,7 +72,7 @@ const BUILTINS: Command[] = [
         }
         return { type: 'action', action: 'session-restore', args: [targetId] };
       }
-      return { type: 'text', value: 'Usage: /session <delete|pin|unpin|archive|restore> [id_or_prefix]' };
+      return { type: 'text', value: 'Usage: /session <info|delete|pin|unpin|archive|restore> [id_or_prefix]' };
     },
   },
   {

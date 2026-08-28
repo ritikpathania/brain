@@ -8,13 +8,30 @@ import { SessionController } from '../../state/sessionController.js';
 import type { BrainBackendClient, BrainSessionSummary } from '../../client/BrainBackendClient.js';
 
 describe('/session command specification', () => {
+  it('returns session-info action when /session is invoked without args or with info/stats', () => {
+    const cmd = getCommand('session');
+    expect(cmd).toBeDefined();
+    expect(cmd!.run({ args: [] })).toEqual({
+      type: 'action',
+      action: 'session-info',
+    });
+    expect(cmd!.run({ args: ['info'] })).toEqual({
+      type: 'action',
+      action: 'session-info',
+    });
+    expect(cmd!.run({ args: ['stats'] })).toEqual({
+      type: 'action',
+      action: 'session-info',
+    });
+  });
+
   it('returns usage text when /session is invoked with invalid subcommand', () => {
     const cmd = getCommand('session');
     expect(cmd).toBeDefined();
-    const res = cmd!.run({ args: [] });
+    const res = cmd!.run({ args: ['unknown_subcommand'] });
     expect(res).toEqual({
       type: 'text',
-      value: 'Usage: /session <delete|pin|unpin|archive|restore> [id_or_prefix]',
+      value: 'Usage: /session <info|delete|pin|unpin|archive|restore> [id_or_prefix]',
     });
   });
 
