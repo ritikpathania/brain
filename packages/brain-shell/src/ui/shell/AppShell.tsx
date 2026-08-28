@@ -10,7 +10,6 @@ import { PromptInput } from '../composer/PromptInput.js';
 import { SessionController } from '../../state/sessionController.js';
 import { makeUserExit, planQuit } from './exitLogic.js';
 import { UdsBrainBackendClient } from '../../client/UdsBrainBackendClient.js';
-import { useMainLoopModel } from '../../contracts/model.js';
 import { useShellSnapshot } from './useShellSnapshot.js';
 import { useBoundInput } from '../../keybindings/useBoundInput.js';
 import { getCommand, getCommands } from '../../commands/registry.js';
@@ -19,6 +18,8 @@ import { DoctorProbe, type EngineDiagnosticReport } from '../../adapter/doctorPr
 import { DoctorOverlayView } from '../overlays/DoctorOverlayView.js';
 import { ContextOverlayView } from '../overlays/ContextOverlayView.js';
 import { MemoryOverlayView } from '../overlays/MemoryOverlayView.js';
+import { ModelPickerView } from '../overlays/ModelPickerView.js';
+import { toModelItemVM, modelListDecision } from '../overlays/modelPickerLogic.js';
 import { clampSelection } from '../overlays/memoryOverlayLogic.js';
 import type { RetrievedMemory } from '../../client/BrainBackendClient.js';
 import { useTheme } from '../../compat/index.js';
@@ -30,7 +31,11 @@ import {
   resumeListDecision,
   resolveDirectResumeTarget,
 } from '../overlays/resumePickerLogic.js';
-import type { BrainSessionSummary, TranscriptSearchMatch } from '../../client/BrainBackendClient.js';
+import type {
+  BrainModelDescriptor,
+  BrainSessionSummary,
+  TranscriptSearchMatch,
+} from '../../client/BrainBackendClient.js';
 import { ResumePickerView } from '../overlays/ResumePicker.js';
 import { SearchOverlayView } from '../overlays/SearchOverlayView.js';
 import {
@@ -50,7 +55,6 @@ import type { ThemeSetting } from '../../contracts/theme.js';
  */
 export function AppShell(): React.ReactElement {
   const { columns } = useTerminalSize();
-  const model = useMainLoopModel(); // hoisted — hooks never inside JSX
   // One controller per mount; UDS path resolves from BRAIN_SOCKET_PATH.
   const controller = React.useMemo(
     () => new SessionController(new UdsBrainBackendClient()),
@@ -89,6 +93,12 @@ export function AppShell(): React.ReactElement {
   const searchToken = React.useRef(0);
   // Context provenance overlay (Inc 36)
   const [contextOpen, setContextOpen] = React.useState(false);
+  // Interactive model picker overlay (Inc 38)
+  const [modelOpen, setModelOpen] = React.useState(false);
+  const [modelLoading, setModelLoading] = React.useState(false);
+  const [modelError, setModelError] = React.useState<string | undefined>(undefined);
+  const [modelList, setModelList] = React.useState<BrainModelDescriptor[]>([]);
+  const [modelSelected, setModelSelected] = React.useState(0);
   const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
   const [resumeIncludeArchived, setResumeIncludeArchived] = React.useState(false);
   const resumeItems = React.useMemo(
@@ -98,6 +108,10 @@ export function AppShell(): React.ReactElement {
       }),
     [resumeSummaries, resumeQuery, resumeIncludeArchived],
   );
+  const modelItems = React.useMemo(
+    () => toModelItemVM(modelList, snapshot.activeModel?.id),
+    [modelList, snapshot.activeModel?.id],
+  );
   const permission = snapshot.permission;
   const [permSelected, setPermSelected] = React.useState(0);
   React.useEffect(() => {
@@ -106,6 +120,9 @@ export function AppShell(): React.ReactElement {
   React.useEffect(() => {
     setResumeSelected((i) => Math.min(i, Math.max(0, resumeItems.length - 1)));
   }, [resumeItems.length]);
+  React.useEffect(() => {
+    setModelSelected((i) => Math.min(i, Math.max(0, modelItems.length - 1)));
+  }, [modelItems.length]);
 
   const requestExit = React.useMemo(() => makeUserExit(controller), [controller]);
   useBoundInput({
@@ -302,6 +319,26 @@ export function AppShell(): React.ReactElement {
     },
   });
 
+  // /model overlay: keyboard navigation across registered models
+  useBoundInput({
+    contexts: ['overlay'],
+    isActive: modelOpen,
+    onAction: (action) => {
+      const d = modelListDecision(action, modelSelected, modelItems.length);
+      setModelSelected(d.nextSelected);
+      if (d.committed) {
+        setModelOpen(false);
+        const chosen = modelItems[d.nextSelected];
+        if (chosen) {
+          void controller.switchModel(chosen.id);
+        }
+      } else if (d.cancelled) {
+        setModelOpen(false);
+        controller.notice('Closed model selection view');
+      }
+    },
+  });
+
   // Debounced /search transcript search: keystrokes paint instantly, RPCs fire ≥150ms
   // after the last one; the monotonic token drops stale responses.
   React.useEffect(() => {
@@ -428,12 +465,36 @@ export function AppShell(): React.ReactElement {
           setSearchMatches([]);
           setSearchSelected(0);
           setSearchOpen(true);
+        } else if (res.action === 'model-switch') {
+          const query = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
+          void controller.switchModel(query);
         }
         break;
       case 'overlay':
         if (res.overlay === 'doctor') setDoctorOpen(true);
         else if (res.overlay === 'context') setContextOpen(true);
-        else {
+        else if (res.overlay === 'model') {
+          setModelOpen(true);
+          setModelLoading(true);
+          setModelError(undefined);
+          setModelSelected(0);
+          void controller
+            .listAvailableModels()
+            .then((models) => {
+              setModelList(models);
+              setModelLoading(false);
+              if (models.length > 0) {
+                const activeIdx = models.findIndex((m) =>
+                  snapshot.activeModel ? m.id === snapshot.activeModel.id : m.isDefault,
+                );
+                setModelSelected(Math.max(0, activeIdx));
+              }
+            })
+            .catch((err) => {
+              setModelError(err instanceof Error ? err.message : String(err));
+              setModelLoading(false);
+            });
+        } else {
           setMemoryQuery('');
           setMemoryRows([]);
           setMemorySelected(0);
@@ -543,6 +604,17 @@ export function AppShell(): React.ReactElement {
           />
         </Box>
       ) : null}
+      {modelOpen ? (
+        <Box marginTop={1}>
+          <ModelPickerView
+            loading={modelLoading}
+            error={modelError}
+            models={modelItems}
+            selectedIndex={modelSelected}
+            tokens={tokens}
+          />
+        </Box>
+      ) : null}
       <Box marginTop={1}>
         <PromptInput
           disabled={false}
@@ -554,7 +626,8 @@ export function AppShell(): React.ReactElement {
             doctorOpen ||
             contextOpen ||
             memoryOpen ||
-            searchOpen
+            searchOpen ||
+            modelOpen
           }
           onSubmit={handleSubmit}
           onAbort={() => controller.interruptTurn()}
@@ -562,7 +635,7 @@ export function AppShell(): React.ReactElement {
         />
       </Box>
       <StatusBarView
-        model={model}
+        model={snapshot.activeModelName}
         workspace={workspaceLabel}
         theme={themeSetting}
         expandTools={expandTools}

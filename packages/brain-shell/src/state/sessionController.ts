@@ -6,6 +6,7 @@
 import type {
   BrainBackendClient,
   BrainGenerationRequest,
+  BrainModelDescriptor,
   BrainSessionSummary,
   BrainStreamChunk,
   ContextTelemetry,
@@ -53,6 +54,8 @@ export interface ShellSnapshot {
   connectionError?: string;
   connection: ConnectionState;
   permission?: PendingPermissionView;
+  activeModel?: BrainModelDescriptor;
+  activeModelName: string;
 }
 
 const IDLE_LIVE: LiveStreamView = { phase: 'idle', thinkingText: '', responseText: '' };
@@ -92,11 +95,13 @@ export class SessionController {
   private queuedInputs: string[] = [];
   private monitor: ConnectionMonitor | null = null;
   private lostDuringTurn = false;
+  private activeModelDescriptor?: BrainModelDescriptor;
   private snapshot: ShellSnapshot = {
     rows: [],
     live: IDLE_LIVE,
     busy: false,
     connection: { status: 'connected' },
+    activeModelName: 'brain-default',
   };
 
   constructor(
@@ -114,6 +119,16 @@ export class SessionController {
 
   getSnapshot = (): ShellSnapshot => this.snapshot;
 
+  /** Inc 38: Current active model descriptor if explicitly resolved/selected. */
+  get activeModel(): BrainModelDescriptor | undefined {
+    return this.activeModelDescriptor;
+  }
+
+  /** Inc 38: Formatted active model name for presentation. */
+  get activeModelName(): string {
+    return this.activeModelDescriptor?.name ?? 'brain-default';
+  }
+
   /** B5: adopted session id, for the resume picker's current-session marker. */
   get activeSessionId(): string | undefined {
     return this.sessionId;
@@ -122,6 +137,33 @@ export class SessionController {
   /** Inc 36: latest turn context retrieval provenance and telemetry. */
   get latestContextTelemetry(): ContextTelemetry | undefined {
     return this.latestTelemetry;
+  }
+
+  /** Inc 38: List available models from the authoritative backend gateway. */
+  async listAvailableModels(): Promise<BrainModelDescriptor[]> {
+    try {
+      return await this.client.listModels();
+    } catch (e) {
+      this.notice(`Could not list models: ${e instanceof Error ? e.message : String(e)}`);
+      return [];
+    }
+  }
+
+  /** Inc 38: Resolve and switch active LLM generation model. */
+  async switchModel(query?: string): Promise<BrainModelDescriptor | undefined> {
+    const trimmed = query?.trim();
+    try {
+      const resolved = await this.client.resolveModel(
+        trimmed && trimmed.length > 0 ? trimmed : undefined,
+      );
+      this.activeModelDescriptor = resolved;
+      this.emit();
+      this.notice(`Switched active model to “${resolved.name}” (${resolved.id})`);
+      return resolved;
+    } catch (e) {
+      this.notice(`Could not resolve model: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    }
   }
 
   abort(): void {
@@ -672,6 +714,7 @@ export class SessionController {
       const request: BrainGenerationRequest = {
         sessionId: this.sessionId,
         messages: normalizeMessagesForBrain([createUserMessage(text)]),
+        model: this.activeModelDescriptor?.id,
         signal: this.aborter.signal,
       };
       for await (const chunk of this.client.streamText(request)) {
@@ -851,6 +894,8 @@ export class SessionController {
       connectionError: this.connectionError,
       connection: this.connection,
       permission: this.pendingPermission,
+      activeModel: this.activeModelDescriptor,
+      activeModelName: this.activeModelName,
     };
     for (const fn of this.listeners) fn();
   }

@@ -154,6 +154,16 @@ const BUILTINS: Command[] = [
         ? { type: 'action', action: 'search', args: ctx.args }
         : { type: 'action', action: 'search' },
   },
+  {
+    name: 'model',
+    description: 'Inspect or switch active LLM generation model',
+    argumentHint: '[name_or_alias]',
+    aliases: ['models'],
+    run: (ctx) =>
+      ctx.args && ctx.args.length > 0
+        ? { type: 'action', action: 'model-switch', args: ctx.args }
+        : { type: 'overlay', overlay: 'model' },
+  },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);
