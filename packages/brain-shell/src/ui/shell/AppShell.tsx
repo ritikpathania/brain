@@ -474,6 +474,11 @@ export function AppShell(): React.ReactElement {
         } else if (res.action === 'model-switch') {
           const query = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
           void controller.switchModel(query);
+        } else if (res.action === 'thinking-set') {
+          const arg = res.args?.[0];
+          controller.setThinkingBudget(arg === 'off' ? null : Number(arg));
+        } else if (res.action === 'thinking-status') {
+          controller.reportThinkingStatus();
         }
         break;
       case 'overlay':

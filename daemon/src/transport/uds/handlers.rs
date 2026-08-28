@@ -2649,6 +2649,14 @@ pub async fn handle_connection(
             metrics.total_queries.fetch_add(1, Ordering::Relaxed);
 
             #[derive(serde::Deserialize)]
+            struct ThinkingConfigPayload {
+                #[serde(default)]
+                mode: Option<String>,
+                #[serde(rename = "budgetTokens", alias = "budget_tokens", default)]
+                budget_tokens: Option<usize>,
+            }
+
+            #[derive(serde::Deserialize)]
             struct StreamGenPayload {
                 #[serde(rename = "sessionId", alias = "session_id")]
                 session_id: Option<String>,
@@ -2661,7 +2669,7 @@ pub async fn handle_connection(
                 #[serde(default)]
                 _tools: Vec<serde_json::Value>,
                 #[serde(rename = "thinkingConfig", alias = "thinking_config", default)]
-                _thinking_config: Option<serde_json::Value>,
+                thinking_config: Option<ThinkingConfigPayload>,
                 #[serde(default)]
                 model: Option<String>,
             }
@@ -2929,6 +2937,16 @@ pub async fn handle_connection(
             let mut seq: u64 = 0;
             let mut thinking_started_at: Option<Instant> = None;
 
+            let thinking_budget = match stream_req.thinking_config {
+                Some(ref cfg) => match cfg.mode.as_deref() {
+                    Some("disabled") | Some("off") => None,
+                    Some("enabled") | Some("adaptive") => cfg.budget_tokens.or(Some(2048)),
+                    Some(_) => cfg.budget_tokens,
+                    None => cfg.budget_tokens,
+                },
+                None => None,
+            };
+
             // Frame 0: stream_start with memory provenance & telemetry metadata
             let start_packet = serde_json::json!({
                 "type": "stream_start",
@@ -2940,6 +2958,7 @@ pub async fn handle_connection(
                     "model": resolved_model_desc.id,
                     "model_name": resolved_model_desc.name,
                     "provider": resolved_model_desc.provider,
+                    "thinking_budget": thinking_budget,
                     "memory_provenance": {
                         "count": context_snapshot.provenance.count,
                         "sources": context_snapshot.provenance.sources,
@@ -2996,7 +3015,7 @@ pub async fn handle_connection(
                     messages: model_messages.clone(),
                     system_prompt: combined_system_prompt.clone(),
                     tools: advertised_tools.clone(),
-                    thinking_budget: None,
+                    thinking_budget,
                 };
                 let mut stream_result = app
                     .model_gateway()

@@ -56,6 +56,8 @@ pub struct DeterministicMockProvider {
     sentinel_counter: Arc<std::sync::atomic::AtomicUsize>,
     /// Observe-only log of the most recent request's advertised tool names.
     last_request_tools: Arc<Mutex<Vec<String>>>,
+    /// Observe-only log of the most recent request's thinking budget.
+    last_request_thinking_budget: Arc<Mutex<Option<usize>>>,
 }
 
 impl Default for DeterministicMockProvider {
@@ -128,6 +130,7 @@ impl DeterministicMockProvider {
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             last_request_tools: Arc::new(Mutex::new(Vec::new())),
+            last_request_thinking_budget: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -141,6 +144,7 @@ impl DeterministicMockProvider {
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             last_request_tools: Arc::new(Mutex::new(Vec::new())),
+            last_request_thinking_budget: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -157,6 +161,11 @@ impl DeterministicMockProvider {
     /// Names advertised by the most recent `stream_generation` request.
     pub fn last_request_tools(&self) -> Vec<String> {
         self.last_request_tools.lock().clone()
+    }
+
+    /// Thinking budget requested by the most recent `stream_generation` request.
+    pub fn last_request_thinking_budget(&self) -> Option<usize> {
+        *self.last_request_thinking_budget.lock()
     }
 }
 
@@ -226,6 +235,7 @@ impl ModelProvider for DeterministicMockProvider {
         // anything can move out of `request`. Scripting behavior is unchanged.
         *self.last_request_tools.lock() =
             request.tools.iter().map(|t| t.name.clone()).collect();
+        *self.last_request_thinking_budget.lock() = request.thinking_budget;
 
         let last_user_prompt = request
             .messages

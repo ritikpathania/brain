@@ -186,6 +186,30 @@ const BUILTINS: Command[] = [
         ? { type: 'action', action: 'model-switch', args: ctx.args }
         : { type: 'overlay', overlay: 'model' },
   },
+  {
+    name: 'thinking',
+    description: 'Configure or inspect reasoning thinking token budget',
+    argumentHint: '[tokens | off]',
+    aliases: ['think'],
+    run: (ctx) => {
+      const arg = ctx.args[0]?.trim();
+      if (!arg) {
+        return { type: 'action', action: 'thinking-status' };
+      }
+      if (
+        arg.toLowerCase() === 'off' ||
+        arg.toLowerCase() === 'disable' ||
+        arg.toLowerCase() === 'none'
+      ) {
+        return { type: 'action', action: 'thinking-set', args: ['off'] };
+      }
+      const budget = parseInt(arg, 10);
+      if (isNaN(budget) || budget <= 0 || String(budget) !== arg) {
+        return { type: 'text', value: 'Usage: /thinking [tokens | off]' };
+      }
+      return { type: 'action', action: 'thinking-set', args: [String(budget)] };
+    },
+  },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

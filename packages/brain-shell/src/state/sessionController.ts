@@ -58,6 +58,7 @@ export interface ShellSnapshot {
   permission?: PendingPermissionView;
   activeModel?: BrainModelDescriptor;
   activeModelName: string;
+  thinkingBudget?: number | null;
 }
 
 const IDLE_LIVE: LiveStreamView = { phase: 'idle', thinkingText: '', responseText: '' };
@@ -98,12 +99,14 @@ export class SessionController {
   private monitor: ConnectionMonitor | null = null;
   private lostDuringTurn = false;
   private activeModelDescriptor?: BrainModelDescriptor;
+  private thinkingBudget: number | null = null;
   private snapshot: ShellSnapshot = {
     rows: [],
     live: IDLE_LIVE,
     busy: false,
     connection: { status: 'connected' },
     activeModelName: 'brain-default',
+    thinkingBudget: null,
   };
 
   constructor(
@@ -129,6 +132,37 @@ export class SessionController {
   /** Inc 38: Formatted active model name for presentation. */
   get activeModelName(): string {
     return this.activeModelDescriptor?.name ?? 'brain-default';
+  }
+
+  /** Inc 41: Current reasoning thinking budget in tokens (or null if disabled). */
+  get currentThinkingBudget(): number | null {
+    return this.thinkingBudget;
+  }
+
+  /** Inc 41: Configure or disable the reasoning thinking token budget. */
+  setThinkingBudget(budget: number | null): boolean {
+    if (budget !== null) {
+      if (!Number.isFinite(budget) || budget <= 0 || !Number.isInteger(budget)) {
+        this.notice('Thinking budget must be a positive integer (tokens), or "off" to disable.');
+        return false;
+      }
+      this.thinkingBudget = budget;
+      this.notice(`Reasoning thinking budget set to ${budget} tokens.`);
+    } else {
+      this.thinkingBudget = null;
+      this.notice('Reasoning thinking budget disabled.');
+    }
+    this.emit();
+    return true;
+  }
+
+  /** Inc 41: Report the effective reasoning thinking budget state. */
+  reportThinkingStatus(): void {
+    if (this.thinkingBudget !== null) {
+      this.notice(`Current reasoning thinking budget: ${this.thinkingBudget} tokens.`);
+    } else {
+      this.notice('Reasoning thinking budget is disabled (default).');
+    }
   }
 
   /** B5: adopted session id, for the resume picker's current-session marker. */
@@ -775,6 +809,10 @@ export class SessionController {
       const request: BrainGenerationRequest = {
         sessionId: this.sessionId,
         messages: normalizeMessagesForBrain([createUserMessage(text)]),
+        thinkingConfig:
+          this.thinkingBudget !== null
+            ? { mode: 'enabled', budgetTokens: this.thinkingBudget }
+            : undefined,
         model: this.activeModelDescriptor?.id,
         signal: this.aborter.signal,
       };
@@ -957,6 +995,7 @@ export class SessionController {
       permission: this.pendingPermission,
       activeModel: this.activeModelDescriptor,
       activeModelName: this.activeModelName,
+      thinkingBudget: this.thinkingBudget,
     };
     for (const fn of this.listeners) fn();
   }
