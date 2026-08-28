@@ -292,6 +292,7 @@ pub async fn handle_connection(
                 session_id: None,
                 title: None,
                 workspace_path: None,
+                system_prompt: None,
             });
 
             let parsed_sid = start_req
@@ -306,11 +307,15 @@ pub async fn handle_connection(
 
             let storage = app.runtime().sqlite_storage();
             use brain_core::repositories::SessionRepository;
-            let session = brain_domain::Session::new(
+            let mut session = brain_domain::Session::new(
                 parsed_sid,
                 brain_domain::SessionTitle(title.clone()),
                 brain_domain::SessionTimestamp(now_secs),
             );
+            if let Some(ref sp) = start_req.system_prompt {
+                let cleaned = sp.trim().to_string();
+                session.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+            }
             let _ = storage.save_session(&parsed_sid, &session);
 
             let resp_body = crate::server::protocol::StartSessionResponseBody {
@@ -365,6 +370,7 @@ pub async fn handle_connection(
                         workspace_path: list_req.workspace_path.clone(),
                         pinned: s.pinned,
                         archived: s.archived,
+                        system_prompt: s.system_prompt.clone(),
                     }
                 })
                 .collect();
@@ -437,6 +443,7 @@ pub async fn handle_connection(
                                 created_at_ms: updated_ms,
                                 updated_at_ms: updated_ms,
                                 workspace_path: None,
+                                system_prompt: session.system_prompt.clone(),
                                 messages,
                             };
 
@@ -667,6 +674,97 @@ pub async fn handle_connection(
                 }
                 Err(e) => {
                     let err_msg = format!("Invalid session/rename payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": err_msg
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/set_system_prompt"
+            || action == "v1/session/set_system_prompt"
+            || action == "v1/session/update_instructions"
+        {
+            let prompt_req: Result<crate::server::protocol::SetSessionSystemPromptPayload, _> =
+                serde_json::from_str(payload);
+            match prompt_req {
+                Ok(p) => {
+                    let storage = app.runtime().sqlite_storage();
+                    use brain_core::repositories::SessionRepository;
+                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    let maybe_session = storage.load_session(&parsed_sid).ok().flatten();
+                    match maybe_session {
+                        Some(mut session) => {
+                            let now_secs = (chrono::Utc::now().timestamp_millis() / 1000) as u64;
+                            session.set_system_prompt(
+                                p.system_prompt,
+                                brain_domain::SessionTimestamp(now_secs),
+                            );
+                            let _ = storage.save_session(&parsed_sid, &session);
+
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": "ok"
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "message": "System prompt updated successfully"
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        None => {
+                            let err_msg = format!("Session '{}' not found", p.session_id);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "error",
+                                    "message": err_msg
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid session/set_system_prompt payload: {}", e);
                     let response = if is_versioned {
                         serde_json::json!({
                             "version": "1.0",
@@ -3157,7 +3255,13 @@ pub async fn handle_connection(
             use brain_core::repositories::SessionRepository;
             let mut session_aggregate = if is_explicit_session {
                 match storage.load_session(&parsed_session_id) {
-                    Ok(Some(s)) => s,
+                    Ok(Some(mut s)) => {
+                        if let Some(ref sp) = stream_req.system_prompt {
+                            let cleaned = sp.trim().to_string();
+                            s.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+                        }
+                        s
+                    }
                     _ => {
                         let err_frame = serde_json::json!({
                             "type": "error",
@@ -3177,11 +3281,15 @@ pub async fn handle_connection(
                 }
             } else {
                 let now_secs = (chrono::Utc::now().timestamp_millis() / 1000) as u64;
-                let new_sess = brain_domain::Session::new(
+                let mut new_sess = brain_domain::Session::new(
                     parsed_session_id,
                     brain_domain::SessionTitle("Interactive Session".to_string()),
                     brain_domain::SessionTimestamp(now_secs),
                 );
+                if let Some(ref sp) = stream_req.system_prompt {
+                    let cleaned = sp.trim().to_string();
+                    new_sess.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+                }
                 let _ = storage.save_session(&parsed_session_id, &new_sess);
                 new_sess
             };

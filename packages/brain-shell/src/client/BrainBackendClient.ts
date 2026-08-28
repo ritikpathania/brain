@@ -225,6 +225,7 @@ export interface BrainSessionSummary {
   updatedAtMs: number;
   pinned: boolean;
   archived: boolean;
+  systemPrompt?: string | null;
 }
 
 export interface BrainMessage {
@@ -241,7 +242,9 @@ export interface BrainSession {
   updatedAtMs: number;
   pinned: boolean;
   archived: boolean;
+  systemPrompt?: string | null;
   messages: BrainMessage[];
+  goals?: any[];
 }
 
 export interface CreateSessionRequest {
@@ -556,6 +559,7 @@ export interface BrainBackendClient extends BrainBackend {
   restoreSession(sessionId: string): Promise<void>;
   renameSession(sessionId: string, newTitle: string): Promise<void>;
   pinSession(sessionId: string, pinned: boolean): Promise<void>;
+  setSessionSystemPrompt?(sessionId: string, systemPrompt: string | null): Promise<void>;
   listSessions(): Promise<BrainSessionSummary[]>;
 
   /**
@@ -704,6 +708,7 @@ export class MockBrainBackendClient implements BrainBackendClient {
       title: req.newTitle || `${src?.title || 'Session'} (fork)`,
       archived: false,
       pinned: false,
+      systemPrompt: src?.systemPrompt ?? null,
       updatedAtMs: Date.now(),
       messages: msgs,
       goals: src ? [...src.goals] : [],
@@ -748,6 +753,14 @@ export class MockBrainBackendClient implements BrainBackendClient {
     }
   }
 
+  async setSessionSystemPrompt(sessionId: string, systemPrompt: string | null): Promise<void> {
+    const s = this.mockSessions.get(sessionId);
+    if (s) {
+      s.systemPrompt = systemPrompt;
+      s.updatedAtMs = Date.now();
+    }
+  }
+
   async listSessions(): Promise<BrainSessionSummary[]> {
     return Array.from(this.mockSessions.values()).map((s) => ({
       id: s.id,
@@ -755,6 +768,7 @@ export class MockBrainBackendClient implements BrainBackendClient {
       updatedAtMs: s.updatedAtMs,
       pinned: s.pinned,
       archived: s.archived,
+      systemPrompt: s.systemPrompt ?? null,
     }));
   }
 

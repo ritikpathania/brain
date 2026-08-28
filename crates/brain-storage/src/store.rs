@@ -2221,8 +2221,8 @@ fn save_session_conn(
     let now = session.updated_at.0;
 
     db.execute(
-        "INSERT OR REPLACE INTO sessions (id, history, updated_at) VALUES (?, ?, ?)",
-        (id.to_string(), session_str, now),
+        "INSERT OR REPLACE INTO sessions (id, history, updated_at, system_prompt) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![id.to_string(), session_str, now, session.system_prompt],
     )
     .map_err(|e| BrainError::Storage {
         message: format!("Failed to save session {}: {}", id, e),

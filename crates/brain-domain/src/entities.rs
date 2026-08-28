@@ -798,6 +798,9 @@ pub struct Session {
     /// Whether the session is pinned.
     #[serde(default)]
     pub pinned: bool,
+    /// Custom session system prompt instructions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
     /// The ordered list of messages in this session.
     #[serde(default)]
     pub messages: Vec<Message>,
@@ -820,6 +823,7 @@ impl Session {
             title: SessionTitle("Empty Session".to_string()),
             archived: false,
             pinned: false,
+            system_prompt: None,
             messages: Vec::new(),
             goals: Vec::new(),
             updated_at: SessionTimestamp(0),
@@ -834,6 +838,7 @@ impl Session {
             title: title.clone(),
             archived: false,
             pinned: false,
+            system_prompt: None,
             messages: Vec::new(),
             goals: Vec::new(),
             updated_at: timestamp,
@@ -865,11 +870,26 @@ impl Session {
             title,
             archived,
             pinned,
+            system_prompt: None,
             messages,
             goals,
             updated_at,
             staged_events: Vec::new(),
         }
+    }
+
+    /// Sets or clears the custom session system prompt instructions.
+    pub fn set_system_prompt(&mut self, prompt: Option<String>, timestamp: SessionTimestamp) {
+        let cleaned = prompt.and_then(|p| {
+            let t = p.trim().to_string();
+            if t.is_empty() {
+                None
+            } else {
+                Some(t)
+            }
+        });
+        self.system_prompt = cleaned;
+        self.updated_at = timestamp;
     }
 
     /// Renames a session.
@@ -1024,6 +1044,7 @@ impl Session {
             title: new_title.clone(),
             archived: false,
             pinned: false,
+            system_prompt: self.system_prompt.clone(),
             messages: cloned_messages,
             goals: self.goals.clone(),
             updated_at: timestamp,

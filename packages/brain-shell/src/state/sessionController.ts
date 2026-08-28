@@ -248,10 +248,13 @@ export class SessionController {
     return this.systemPrompt;
   }
 
-  /** Inc 44: Configure or clear custom session-level system prompt instructions. */
+  /** Inc 44 & 48: Configure or clear custom session-level system prompt instructions. */
   setSystemPrompt(prompt: string | null): boolean {
     if (prompt === null) {
       this.systemPrompt = null;
+      if (this.sessionId && this.client.setSessionSystemPrompt) {
+        this.client.setSessionSystemPrompt(this.sessionId, null).catch(() => {});
+      }
       this.notice('Cleared custom system instructions (using default engine prompt).');
       this.emit();
       return true;
@@ -272,12 +275,18 @@ export class SessionController {
       lower === 'disable'
     ) {
       this.systemPrompt = null;
+      if (this.sessionId && this.client.setSessionSystemPrompt) {
+        this.client.setSessionSystemPrompt(this.sessionId, null).catch(() => {});
+      }
       this.notice('Cleared custom system instructions (using default engine prompt).');
       this.emit();
       return true;
     }
 
     this.systemPrompt = trimmed;
+    if (this.sessionId && this.client.setSessionSystemPrompt) {
+      this.client.setSessionSystemPrompt(this.sessionId, trimmed).catch(() => {});
+    }
     const preview = trimmed.length > 60 ? `${trimmed.slice(0, 57)}...` : trimmed;
     this.notice(`Set system instructions: “${preview}”`);
     this.emit();
@@ -1013,6 +1022,7 @@ export class SessionController {
     try {
       const { session } = await this.client.loadSession(sessionId);
       this.sessionId = session.id;
+      this.systemPrompt = session.systemPrompt ?? null;
       this.latestTelemetry = undefined;
       const replayed = sessionToRows(session);
       this.rows = [
@@ -1069,6 +1079,7 @@ export class SessionController {
       });
       const { session } = await this.client.loadSession(res.newSessionId);
       this.sessionId = session.id;
+      this.systemPrompt = session.systemPrompt ?? null;
       const replayed = sessionToRows(session);
       this.rows = [
         ...replayed,

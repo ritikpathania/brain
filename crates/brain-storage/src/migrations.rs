@@ -35,7 +35,8 @@ pub const MIGRATIONS: &[&str] = &[
     CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         history TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        system_prompt TEXT
     );
     CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
@@ -293,6 +294,9 @@ impl MigrationRunner {
         // 3. Apply V16 (backfill session_id & rebuild virtual table if needed)
         Self::apply_v16_add_session_id_column(conn)?;
 
+        // 4. Apply V17 (add system_prompt column to sessions table if needed)
+        Self::apply_v17_add_session_system_prompt_column(conn)?;
+
         Ok(())
     }
 
@@ -387,6 +391,66 @@ impl MigrationRunner {
 
         Ok(())
     }
+
+    fn apply_v17_add_session_system_prompt_column(conn: &mut Connection) -> Result<(), BrainError> {
+        if Self::is_version_applied(conn, 17)? {
+            return Ok(());
+        }
+
+        let tx = conn.transaction().map_err(|e| BrainError::Storage {
+            message: format!("Failed to begin migration transaction V17: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        // Check if system_prompt column exists on sessions table
+        let mut has_column = false;
+        {
+            let mut stmt = tx
+                .prepare("PRAGMA table_info(sessions)")
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to inspect sessions table info: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(1))
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to query table_info rows: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+            for col_name in rows.flatten() {
+                if col_name == "system_prompt" {
+                    has_column = true;
+                    break;
+                }
+            }
+        }
+
+        if !has_column {
+            tx.execute_batch("ALTER TABLE sessions ADD COLUMN system_prompt TEXT;")
+                .map_err(|e| BrainError::Storage {
+                    message: format!("Failed to add system_prompt column to sessions: {}", e),
+                    source: Some(Box::new(e)),
+                })?;
+        }
+
+        // Record migration V17 in _schema_migrations
+        let now = chrono::Utc::now().to_rfc3339();
+        tx.execute(
+            "INSERT INTO _schema_migrations (version, applied_at) VALUES (17, ?1)",
+            [now],
+        )
+        .map_err(|e| BrainError::Storage {
+            message: format!("Failed to record migration V17: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        tx.commit().map_err(|e| BrainError::Storage {
+            message: format!("Failed to commit migration transaction V17: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -394,28 +458,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_migration_v16_and_restart_idempotency() {
+    fn test_migration_v16_and_v17_and_restart_idempotency() {
         let mut conn = Connection::open_in_memory().unwrap();
 
         // 1. Run migrations on fresh connection
         MigrationRunner::run_migrations(&mut conn).unwrap();
 
-        // Verify session_id column exists
-        let count: u32 = conn
+        // Verify V16 and V17 applied
+        let count_v16: u32 = conn
             .query_row(
                 "SELECT COUNT(*) FROM _schema_migrations WHERE version = 16",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count_v16, 1);
+
+        let count_v17: u32 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM _schema_migrations WHERE version = 17",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count_v17, 1);
+
+        // Verify system_prompt column exists on sessions table
+        {
+            let mut stmt = conn.prepare("PRAGMA table_info(sessions)").unwrap();
+            let cols: Vec<String> = stmt
+                .query_map([], |row| row.get::<_, String>(1))
+                .unwrap()
+                .flatten()
+                .collect();
+            assert!(cols.contains(&"system_prompt".to_string()));
+        }
 
         // 2. Restart / Rerun migration idempotency test
         MigrationRunner::run_migrations(&mut conn).unwrap();
 
-        let count: u32 = conn
+        let total_migrations: u32 = conn
             .query_row("SELECT COUNT(*) FROM _schema_migrations", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(total_migrations, 2);
     }
 }

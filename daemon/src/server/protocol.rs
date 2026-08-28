@@ -111,6 +111,8 @@ pub struct StartSessionPayload {
     pub title: Option<String>,
     #[serde(default)]
     pub workspace_path: Option<String>,
+    #[serde(rename = "systemPrompt", alias = "system_prompt", default)]
+    pub system_prompt: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -384,6 +386,8 @@ pub struct SessionSummaryDto {
     pub pinned: bool,
     #[serde(default)]
     pub archived: bool,
+    #[serde(rename = "systemPrompt", default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -396,6 +400,14 @@ pub struct ListSessionsResponseBody {
 pub struct LoadSessionPayload {
     #[serde(rename = "sessionId", alias = "session_id")]
     pub session_id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SetSessionSystemPromptPayload {
+    #[serde(rename = "sessionId", alias = "session_id")]
+    pub session_id: String,
+    #[serde(rename = "systemPrompt", alias = "system_prompt", default)]
+    pub system_prompt: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -417,6 +429,8 @@ pub struct SessionDetailDto {
     pub updated_at_ms: i64,
     #[serde(rename = "workspacePath")]
     pub workspace_path: Option<String>,
+    #[serde(rename = "systemPrompt", default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
     pub messages: Vec<SessionMessageDto>,
 }
 

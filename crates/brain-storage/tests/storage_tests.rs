@@ -176,8 +176,57 @@ fn test_sqlite_storage_session_and_config() {
         .unwrap();
     assert_eq!(loaded.messages.len(), 1);
     assert_eq!(loaded.messages[0].content, "Hello");
+    assert_eq!(loaded.system_prompt, None);
+
+    // Test system_prompt persistence and update
+    let mut session_with_prompt = session.clone();
+    session_with_prompt.set_system_prompt(
+        Some("You are an expert compiler engineer".to_string()),
+        SessionTimestamp(100),
+    );
+    SessionRepository::save_session(store, &session_id, &session_with_prompt).unwrap();
+
+    let loaded_prompt = SessionRepository::load_session(store, &session_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        loaded_prompt.system_prompt,
+        Some("You are an expert compiler engineer".to_string())
+    );
+
+    // Test fork preserves system_prompt
+    let forked_id = SessionId::new();
+    let forked = loaded_prompt.fork(
+        forked_id,
+        SessionTitle("Forked Session".to_string()),
+        None,
+        SessionTimestamp(200),
+    );
+    assert_eq!(
+        forked.system_prompt,
+        Some("You are an expert compiler engineer".to_string())
+    );
+    SessionRepository::save_session(store, &forked_id, &forked).unwrap();
+
+    let loaded_forked = SessionRepository::load_session(store, &forked_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        loaded_forked.system_prompt,
+        Some("You are an expert compiler engineer".to_string())
+    );
+
+    // Clear system prompt
+    let mut cleared_session = loaded_prompt.clone();
+    cleared_session.set_system_prompt(None, SessionTimestamp(300));
+    SessionRepository::save_session(store, &session_id, &cleared_session).unwrap();
+    let loaded_cleared = SessionRepository::load_session(store, &session_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(loaded_cleared.system_prompt, None);
 
     SessionRepository::delete_session(store, &session_id).unwrap();
+    SessionRepository::delete_session(store, &forked_id).unwrap();
     assert!(SessionRepository::load_session(store, &session_id)
         .unwrap()
         .is_none());

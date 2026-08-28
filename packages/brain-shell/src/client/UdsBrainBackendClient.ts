@@ -554,6 +554,8 @@ export class UdsBrainBackendClient implements BrainBackendClient {
         title: s.title,
         archived: s.archived,
         pinned: s.pinned,
+        systemPrompt: s.system_prompt ?? s.systemPrompt ?? null,
+        createdAtMs: s.created_at_ms || s.createdAtMs || Date.now(),
         updatedAtMs: s.updated_at_ms || s.updatedAtMs || s.updated_at || Date.now(),
         messages: (s.messages || []).map((m: any) => ({
           id: m.id,
@@ -602,6 +604,13 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     await this.callRpc<void>('v1/session/pin', {
       session_id: sessionId,
       pinned,
+    });
+  }
+
+  async setSessionSystemPrompt(sessionId: string, systemPrompt: string | null): Promise<void> {
+    await this.callRpc<void>('v1/session/set_system_prompt', {
+      sessionId,
+      systemPrompt,
     });
   }
 
