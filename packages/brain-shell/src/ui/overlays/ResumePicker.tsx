@@ -24,6 +24,7 @@ export function ResumePickerView(props: {
             {(i === sel ? '❯ ' : '  ') + (it.pinned ? '★ ' : '')}
             {it.id === props.currentSessionId ? <Text dimColor>● </Text> : null}
             {`${it.title.slice(0, 46)} — ${it.age}`}
+            {it.archived ? <Text dimColor> [archived]</Text> : null}
           </Text>
         ))
       )}

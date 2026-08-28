@@ -21,7 +21,7 @@ const BUILTINS: Command[] = [
   {
     name: 'resume',
     description: 'Resume a previous session',
-    argumentHint: '[session_id]',
+    argumentHint: '[all | session_id]',
     run: (ctx) => {
       if (ctx.args && ctx.args[0] === 'delete') {
         const targetId = ctx.args.slice(1).join(' ').trim();
@@ -29,6 +29,9 @@ const BUILTINS: Command[] = [
           return { type: 'text', value: 'Usage: /resume delete <id_or_prefix>' };
         }
         return { type: 'action', action: 'session-delete', args: [targetId] };
+      }
+      if (ctx.args && (ctx.args[0] === 'all' || ctx.args[0] === '--all')) {
+        return { type: 'action', action: 'resume-all', args: ctx.args.slice(1) };
       }
       return ctx.args && ctx.args.length > 0
         ? { type: 'action', action: 'resume', args: ctx.args }
@@ -38,16 +41,63 @@ const BUILTINS: Command[] = [
   {
     name: 'session',
     description: 'Manage chat sessions',
-    argumentHint: '<delete <id_or_prefix>>',
+    argumentHint: '<delete|pin|unpin|archive|restore> [id_or_prefix]',
     run: (ctx) => {
-      if (ctx.args[0] === 'delete') {
-        const targetId = ctx.args.slice(1).join(' ').trim();
+      const sub = ctx.args[0];
+      const targetId = ctx.args.slice(1).join(' ').trim();
+
+      if (sub === 'delete') {
         if (!targetId) {
           return { type: 'text', value: 'Usage: /session delete <id_or_prefix>' };
         }
         return { type: 'action', action: 'session-delete', args: [targetId] };
       }
-      return { type: 'text', value: 'Usage: /session delete <id_or_prefix>' };
+      if (sub === 'pin') {
+        return { type: 'action', action: 'session-pin', args: targetId ? [targetId] : [] };
+      }
+      if (sub === 'unpin') {
+        return { type: 'action', action: 'session-unpin', args: targetId ? [targetId] : [] };
+      }
+      if (sub === 'archive') {
+        return { type: 'action', action: 'session-archive', args: targetId ? [targetId] : [] };
+      }
+      if (sub === 'restore') {
+        if (!targetId) {
+          return { type: 'text', value: 'Usage: /session restore <id_or_prefix>' };
+        }
+        return { type: 'action', action: 'session-restore', args: [targetId] };
+      }
+      return { type: 'text', value: 'Usage: /session <delete|pin|unpin|archive|restore> [id_or_prefix]' };
+    },
+  },
+  {
+    name: 'pin',
+    description: 'Pin the active or specified session',
+    argumentHint: '[id_or_prefix]',
+    run: (ctx) => ({ type: 'action', action: 'session-pin', args: ctx.args }),
+  },
+  {
+    name: 'unpin',
+    description: 'Unpin the active or specified session',
+    argumentHint: '[id_or_prefix]',
+    run: (ctx) => ({ type: 'action', action: 'session-unpin', args: ctx.args }),
+  },
+  {
+    name: 'archive',
+    description: 'Archive the active or specified session',
+    argumentHint: '[id_or_prefix]',
+    run: (ctx) => ({ type: 'action', action: 'session-archive', args: ctx.args }),
+  },
+  {
+    name: 'restore',
+    description: 'Restore an archived session',
+    argumentHint: '<id_or_prefix>',
+    run: (ctx) => {
+      const target = ctx.args.join(' ').trim();
+      if (!target) {
+        return { type: 'text', value: 'Usage: /restore <id_or_prefix>' };
+      }
+      return { type: 'action', action: 'session-restore', args: [target] };
     },
   },
   { name: 'theme', description: 'Change the color theme', run: () => ({ type: 'action', action: 'theme' }) },

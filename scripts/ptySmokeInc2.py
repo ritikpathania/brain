@@ -100,14 +100,14 @@ ok = True
 ok &= expect("launch-mark", "◆ BRAIN")
 ok &= expect("launch-prompt", "❯")
 os.write(fd, b"/")                       # opens palette with ALL commands
-# Inc 21: the catalog is the canonical registry — eight commands, name-sorted
-# (clear, doctor, help, memory, …), initial selection on the first row.
-ok &= expect("palette-listed", "/help")
-ok &= expect("palette-desc", "List available slash commands")
-os.write(fd, b"\x1b[B")                  # ↓ selection moves to next row (/context)
-ok &= expect("palette-nav-context", "❯ /context")
-os.write(fd, b"\x1b[A")                  # ↑ back to first row
+# Inc 21 / Inc 37: the catalog is the canonical registry — name-sorted
+# (archive, clear, context, doctor, fork, help, memory, …), initial selection on first row (/archive).
+ok &= expect("palette-listed", "/clear")
+ok &= expect("palette-desc", "Archive the active or specified session")
+os.write(fd, b"\x1b[B")                  # ↓ selection moves to next row (/clear)
 ok &= expect("palette-nav-clear", "❯ /clear")
+os.write(fd, b"\x1b[A")                  # ↑ back to first row (/archive)
+ok &= expect("palette-nav-archive", "❯ /archive")
 snapshot("palette")
 os.write(fd, b"\x1b")                    # esc closes the menu…
 pump(0.3)

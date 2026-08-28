@@ -90,9 +90,13 @@ export function AppShell(): React.ReactElement {
   // Context provenance overlay (Inc 36)
   const [contextOpen, setContextOpen] = React.useState(false);
   const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
+  const [resumeIncludeArchived, setResumeIncludeArchived] = React.useState(false);
   const resumeItems = React.useMemo(
-    () => resumeChoices(resumeSummaries, Date.now(), resumeQuery),
-    [resumeSummaries, resumeQuery],
+    () =>
+      resumeChoices(resumeSummaries, Date.now(), resumeQuery, {
+        includeArchived: resumeIncludeArchived,
+      }),
+    [resumeSummaries, resumeQuery, resumeIncludeArchived],
   );
   const permission = snapshot.permission;
   const [permSelected, setPermSelected] = React.useState(0);
@@ -147,10 +151,12 @@ export function AppShell(): React.ReactElement {
         setResumeSelected(d.index);
       } else if (d.type === 'commit') {
         setResumeOpen(false);
+        setResumeIncludeArchived(false);
         const chosen = resumeItems[d.index];
         if (chosen) void controller.resumeSession(chosen.id);
       } else if (d.type === 'cancel') {
         setResumeOpen(false);
+        setResumeIncludeArchived(false);
       } else if (action === 'overlay:insert') {
         setResumeQuery((q) => applyQueryEdit(q, action, input));
       } else if (action === 'overlay:backspace') {
@@ -355,11 +361,12 @@ export function AppShell(): React.ReactElement {
           setThemeOriginal(themeSetting);
           setThemeSelected(Math.max(0, THEME_CHOICES.findIndex((c) => c.setting === themeSetting)));
           setThemeOpen(true);
-        } else if (res.action === 'resume') {
+        } else if (res.action === 'resume' || res.action === 'resume-all') {
           if (snapshot.busy) {
             controller.notice('Busy — wait for the current turn to finish.');
             return;
           }
+          const isAll = res.action === 'resume-all';
           const target = res.args && res.args.length > 0 ? res.args.join(' ') : '';
           void controller.listSessions().then((all) => {
             if (all.length === 0) {
@@ -367,8 +374,9 @@ export function AppShell(): React.ReactElement {
               return;
             }
             setResumeSummaries(all);
+            setResumeIncludeArchived(isAll);
             if (target) {
-              const resolution = resolveDirectResumeTarget(all, target);
+              const resolution = resolveDirectResumeTarget(all, target, { includeArchived: isAll });
               if (resolution.type === 'exact' || resolution.type === 'unique') {
                 void controller.resumeSession(resolution.sessionId);
                 return;
@@ -382,7 +390,7 @@ export function AppShell(): React.ReactElement {
               controller.notice(`No session found matching “${target}”.`);
               return;
             }
-            if (resumeChoices(all, Date.now()).length === 0) {
+            if (resumeChoices(all, Date.now(), '', { includeArchived: isAll }).length === 0) {
               controller.notice('No previous sessions found.');
               return;
             }
@@ -399,6 +407,18 @@ export function AppShell(): React.ReactElement {
         } else if (res.action === 'session-delete') {
           const target = res.args && res.args.length > 0 ? res.args.join(' ') : '';
           if (target) void controller.deleteSession(target);
+        } else if (res.action === 'session-pin') {
+          const target = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
+          void controller.pinSession(target, true);
+        } else if (res.action === 'session-unpin') {
+          const target = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
+          void controller.pinSession(target, false);
+        } else if (res.action === 'session-archive') {
+          const target = res.args && res.args.length > 0 ? res.args.join(' ') : undefined;
+          void controller.archiveSession(target);
+        } else if (res.action === 'session-restore') {
+          const target = res.args ? res.args.join(' ') : '';
+          if (target) void controller.restoreSession(target);
         } else if (res.action === 'memory-delete') {
           const targetId = res.args ? res.args[0] : '';
           if (targetId) void controller.deleteMemoryNode(targetId);

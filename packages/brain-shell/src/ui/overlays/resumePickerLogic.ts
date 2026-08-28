@@ -7,6 +7,7 @@ export interface ResumeVM {
   title: string;
   age: string;
   pinned: boolean;
+  archived?: boolean;
 }
 
 export const RESUME_MAX_ITEMS = 8;
@@ -52,12 +53,18 @@ export function applyQueryEdit(query: string, action: string, input: string): st
 }
 
 function toVm(nowMs: number) {
-  return (s: BrainSessionSummary): ResumeVM => ({
-    id: s.id,
-    title: s.title,
-    age: formatAge(nowMs, s.updatedAtMs),
-    pinned: s.pinned,
-  });
+  return (s: BrainSessionSummary): ResumeVM => {
+    const vm: ResumeVM = {
+      id: s.id,
+      title: s.title,
+      age: formatAge(nowMs, s.updatedAtMs),
+      pinned: s.pinned,
+    };
+    if (s.archived) {
+      vm.archived = true;
+    }
+    return vm;
+  };
 }
 
 const byPinnedThenRecency = (a: BrainSessionSummary, b: BrainSessionSummary): number =>
@@ -67,12 +74,14 @@ export function resumeChoices(
   summaries: BrainSessionSummary[],
   nowMs: number,
   query: string = '',
+  options?: { includeArchived?: boolean },
 ): ResumeVM[] {
-  const active = summaries.filter((s) => !s.archived);
+  const includeArchived = options?.includeArchived ?? false;
+  const pool = includeArchived ? summaries : summaries.filter((s) => !s.archived);
   if (query.length === 0) {
-    return active.sort(byPinnedThenRecency).slice(0, RESUME_MAX_ITEMS).map(toVm(nowMs));
+    return pool.sort(byPinnedThenRecency).slice(0, RESUME_MAX_ITEMS).map(toVm(nowMs));
   }
-  return active
+  return pool
     .flatMap((s) => {
       const score = fuzzyScore(query, s.title);
       return score === null ? [] : [{ s, score }];
@@ -97,34 +106,34 @@ export type DirectResumeResolution =
   | { type: 'none'; query: string };
 
 /**
- * Inc 34: Resolves a direct /resume <target> argument against active sessions.
+ * Inc 34 / Inc 37: Resolves a direct /resume or /session <target> argument against sessions.
  * Resolution precedence:
  * 1. Exact session ID match (case-insensitive) -> exact adoption
- * 2. Unique session ID prefix match -> unique adoption
- * 3. Ambiguous session ID prefix matches -> ambiguous (open picker with candidates)
- * 4. Unique title match -> unique adoption
- * 5. Ambiguous title matches -> ambiguous (open picker with candidates)
- * 6. Zero matches -> none (show notice)
+ * 2. Session ID prefix match -> unique adoption or ambiguous
+ * 3. Title match (exact or substring) -> unique adoption or ambiguous
+ * 4. Zero matches -> none (show notice)
  */
 export function resolveDirectResumeTarget(
   summaries: BrainSessionSummary[],
   target: string,
+  options?: { includeArchived?: boolean },
 ): DirectResumeResolution {
+  const includeArchived = options?.includeArchived ?? false;
+  const pool = includeArchived ? summaries : summaries.filter((s) => !s.archived);
   const trimmed = target.trim();
   if (!trimmed) {
-    return { type: 'ambiguous', query: '', candidates: summaries.filter((s) => !s.archived) };
+    return { type: 'ambiguous', query: '', candidates: pool };
   }
-  const active = summaries.filter((s) => !s.archived);
   const targetLower = trimmed.toLowerCase();
 
   // 1. Exact session ID match
-  const exact = active.find((s) => s.id.toLowerCase() === targetLower);
+  const exact = pool.find((s) => s.id.toLowerCase() === targetLower);
   if (exact) {
     return { type: 'exact', sessionId: exact.id };
   }
 
   // 2. Session ID prefix match
-  const idPrefixMatches = active.filter((s) => s.id.toLowerCase().startsWith(targetLower));
+  const idPrefixMatches = pool.filter((s) => s.id.toLowerCase().startsWith(targetLower));
   if (idPrefixMatches.length === 1) {
     return { type: 'unique', sessionId: idPrefixMatches[0].id };
   }
@@ -133,11 +142,11 @@ export function resolveDirectResumeTarget(
   }
 
   // 3. Title match (exact or substring)
-  const exactTitle = active.find((s) => s.title.toLowerCase() === targetLower);
+  const exactTitle = pool.find((s) => s.title.toLowerCase() === targetLower);
   if (exactTitle) {
     return { type: 'unique', sessionId: exactTitle.id };
   }
-  const titleMatches = active.filter((s) => s.title.toLowerCase().includes(targetLower));
+  const titleMatches = pool.filter((s) => s.title.toLowerCase().includes(targetLower));
   if (titleMatches.length === 1) {
     return { type: 'unique', sessionId: titleMatches[0].id };
   }

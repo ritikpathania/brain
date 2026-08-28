@@ -351,6 +351,160 @@ export class SessionController {
     }
   }
 
+  /** Inc 37: Pin or unpin a session in storage and emit a confirmation notice. */
+  async pinSession(target?: string, pinned = true): Promise<boolean> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return false;
+    }
+    const trimmed = (target ?? '').trim();
+
+    try {
+      const summaries = await this.listSessions();
+      let targetId: string;
+      let targetTitle: string | undefined;
+
+      if (!trimmed) {
+        if (!this.sessionId) {
+          this.notice(`No active session to ${pinned ? 'pin' : 'unpin'}. Specify a session ID or prefix.`);
+          return false;
+        }
+        targetId = this.sessionId;
+        const match = summaries.find((s) => s.id === targetId);
+        targetTitle = match?.title;
+      } else {
+        const resolution = resolveDirectResumeTarget(summaries, trimmed);
+        if (resolution.type === 'exact' || resolution.type === 'unique') {
+          targetId = resolution.sessionId;
+          const match = summaries.find((s) => s.id === targetId);
+          targetTitle = match?.title;
+        } else if (resolution.type === 'ambiguous') {
+          const candidateIds = resolution.candidates.map((c) => c.id.slice(0, 8)).join(', ');
+          this.notice(`Ambiguous session prefix “${trimmed}” matches: ${candidateIds}`);
+          return false;
+        } else {
+          this.notice(`No session found matching “${trimmed}”.`);
+          return false;
+        }
+      }
+
+      await this.client.pinSession(targetId, pinned);
+
+      const titleDisplay = targetTitle ? `“${targetTitle}” ` : '';
+      const actionWord = pinned ? 'Pinned' : 'Unpinned';
+      this.notice(`${actionWord} session ${titleDisplay}(${targetId.slice(0, 8)})`);
+      return true;
+    } catch (e) {
+      this.notice(`Could not ${pinned ? 'pin' : 'unpin'} session: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
+  /** Inc 37: Archive a session, resetting active state if it was the active session. */
+  async archiveSession(target?: string): Promise<boolean> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return false;
+    }
+    const trimmed = (target ?? '').trim();
+
+    try {
+      const summaries = await this.listSessions();
+      let targetId: string;
+      let targetTitle: string | undefined;
+
+      if (!trimmed) {
+        if (!this.sessionId) {
+          this.notice('No active session to archive. Specify a session ID or prefix.');
+          return false;
+        }
+        targetId = this.sessionId;
+        const match = summaries.find((s) => s.id === targetId);
+        targetTitle = match?.title;
+      } else {
+        const resolution = resolveDirectResumeTarget(summaries, trimmed);
+        if (resolution.type === 'exact' || resolution.type === 'unique') {
+          targetId = resolution.sessionId;
+          const match = summaries.find((s) => s.id === targetId);
+          targetTitle = match?.title;
+        } else if (resolution.type === 'ambiguous') {
+          const candidateIds = resolution.candidates.map((c) => c.id.slice(0, 8)).join(', ');
+          this.notice(`Ambiguous session prefix “${trimmed}” matches: ${candidateIds}`);
+          return false;
+        } else {
+          this.notice(`No session found matching “${trimmed}”.`);
+          return false;
+        }
+      }
+
+      await this.client.archiveSession(targetId);
+
+      const titleDisplay = targetTitle ? `“${targetTitle}” ` : '';
+      if (this.sessionId === targetId) {
+        this.sessionId = undefined;
+        this.latestTelemetry = undefined;
+        this.rows = [
+          {
+            kind: 'system',
+            id: `sys:${++this.sysSeq}`,
+            text: `Archived active session ${titleDisplay}(${targetId.slice(0, 8)})`,
+          },
+        ];
+        this.emit();
+      } else {
+        this.notice(`Archived session ${titleDisplay}(${targetId.slice(0, 8)})`);
+      }
+      return true;
+    } catch (e) {
+      this.notice(`Could not archive session: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
+  /** Inc 37: Restore an archived session back to active visibility. */
+  async restoreSession(target: string): Promise<boolean> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return false;
+    }
+    const trimmed = target.trim();
+    if (!trimmed) {
+      this.notice('Usage: /session restore <id_or_prefix>');
+      return false;
+    }
+
+    try {
+      const summaries = await this.listSessions();
+      // Hard Invariant: restore must resolve against complete catalog (includeArchived: true)
+      const resolution = resolveDirectResumeTarget(summaries, trimmed, { includeArchived: true });
+
+      let targetId: string;
+      let targetTitle: string | undefined;
+
+      if (resolution.type === 'exact' || resolution.type === 'unique') {
+        targetId = resolution.sessionId;
+        const match = summaries.find((s) => s.id === targetId);
+        targetTitle = match?.title;
+      } else if (resolution.type === 'ambiguous') {
+        const candidateIds = resolution.candidates.map((c) => c.id.slice(0, 8)).join(', ');
+        this.notice(`Ambiguous session prefix “${trimmed}” matches: ${candidateIds}`);
+        return false;
+      } else {
+        this.notice(`No session found matching “${trimmed}”.`);
+        return false;
+      }
+
+      await this.client.restoreSession(targetId);
+
+      const titleDisplay = targetTitle ? `“${targetTitle}” ` : '';
+      this.notice(`Restored session ${titleDisplay}(${targetId.slice(0, 8)})`);
+      return true;
+    } catch (e) {
+      this.notice(`Could not restore session: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
   /** Adopt a stored session and replay its messages as frozen rows. */
   async resumeSession(sessionId: string): Promise<void> {
     if (this.busy) {

@@ -101,6 +101,23 @@ describe('ResumePickerView (B5)', () => {
     expect(out).not.toContain('★ Unpinned Work');
   });
 
+  test('renders [archived] badge for archived items', () => {
+    const out = textOf(
+      ResumePickerView({
+        items: [
+          { id: 'a', title: 'Archived Feature', age: '1m ago', pinned: false, archived: true },
+          { id: 'u', title: 'Active Work', age: '5m ago', pinned: false },
+        ],
+        selectedIndex: 0,
+        tokens,
+        query: '',
+        currentSessionId: undefined,
+      }),
+    );
+    expect(out).toContain('Archived Feature — 1m ago [archived]');
+    expect(out).not.toContain('Active Work — 5m ago [archived]');
+  });
+
   test('hint mentions type-to-filter', () => {
     const out = textOf(
       ResumePickerView({ items: [vm('a', 'Alpha')], selectedIndex: 0, tokens, query: '' }),

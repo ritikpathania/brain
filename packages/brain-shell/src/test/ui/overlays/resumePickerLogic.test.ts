@@ -140,4 +140,17 @@ describe('resumeChoices with query (B5)', () => {
   test('no matches yields empty array', () => {
     expect(resumeChoices([s({ id: 'a', title: 'T' })], NOW, 'zzz')).toEqual([]);
   });
+
+  test('includeArchived includes archived items marked with archived=true', () => {
+    const list = [
+      s({ id: 'active', title: 'Active Session', updatedAtMs: NOW - MIN }),
+      s({ id: 'arch', title: 'Archived Session', archived: true, updatedAtMs: NOW - 2 * MIN }),
+    ];
+    const defaultOut = resumeChoices(list, NOW);
+    expect(defaultOut.map((v) => v.id)).toEqual(['active']);
+
+    const allOut = resumeChoices(list, NOW, '', { includeArchived: true });
+    expect(allOut.map((v) => v.id)).toEqual(['active', 'arch']);
+    expect(allOut.find((v) => v.id === 'arch')?.archived).toBe(true);
+  });
 });

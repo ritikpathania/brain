@@ -7,12 +7,15 @@ import '../../commands/builtin.js';
 import { SessionController } from '../../state/sessionController.js';
 import type { BrainBackendClient, BrainSessionSummary } from '../../client/BrainBackendClient.js';
 
-describe('/session and /resume delete command specification', () => {
-  it('returns usage text when /session is invoked without delete', () => {
+describe('/session command specification', () => {
+  it('returns usage text when /session is invoked with invalid subcommand', () => {
     const cmd = getCommand('session');
     expect(cmd).toBeDefined();
     const res = cmd!.run({ args: [] });
-    expect(res).toEqual({ type: 'text', value: 'Usage: /session delete <id_or_prefix>' });
+    expect(res).toEqual({
+      type: 'text',
+      value: 'Usage: /session <delete|pin|unpin|archive|restore> [id_or_prefix]',
+    });
   });
 
   it('returns usage text when /session delete has no target ID', () => {
@@ -29,6 +32,28 @@ describe('/session and /resume delete command specification', () => {
     expect(res).toEqual({
       type: 'action',
       action: 'session-delete',
+      args: ['01M123456789'],
+    });
+  });
+
+  it('returns session-pin action when /session pin is used', () => {
+    const cmd = getCommand('session');
+    expect(cmd).toBeDefined();
+    const res = cmd!.run({ args: ['pin', '01M123456789'] });
+    expect(res).toEqual({
+      type: 'action',
+      action: 'session-pin',
+      args: ['01M123456789'],
+    });
+  });
+
+  it('returns session-restore action when /session restore has target', () => {
+    const cmd = getCommand('session');
+    expect(cmd).toBeDefined();
+    const res = cmd!.run({ args: ['restore', '01M123456789'] });
+    expect(res).toEqual({
+      type: 'action',
+      action: 'session-restore',
       args: ['01M123456789'],
     });
   });

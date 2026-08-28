@@ -54,7 +54,7 @@ describe('palette over the canonical registry', () => {
     const hits = fuzzyMatchCommands('', getCommands());
     expect(hits.length).toBeGreaterThanOrEqual(6);
     expect(hits.map((h) => h.command.name)).toContain('help');
-    const narrow = fuzzyMatchCommands('res', getCommands());
+    const narrow = fuzzyMatchCommands('resu', getCommands());
     expect(narrow[0]!.command.name).toBe('resume');
   });
 
