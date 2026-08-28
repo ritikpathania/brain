@@ -27,6 +27,7 @@ import type {
   MemoryLinkOutput,
   MemoryUnlinkInput,
   MemoryUnlinkOutput,
+  SystemStatusOutput,
   TranscriptSearchInput,
   TranscriptSearchMatch,
   TranscriptSearchOutput,
@@ -1024,6 +1025,20 @@ export class UdsBrainBackendClient implements BrainBackendClient {
       max_tokens: req.max_tokens,
     });
     return res;
+  }
+
+  async getSystemStatus(): Promise<SystemStatusOutput> {
+    const res = await this.callRpc<any>('v1/system/status', {});
+    return {
+      status: res.status ?? (res.sqlite_healthy === false ? 'degraded' : 'healthy'),
+      version: res.version ?? '1.1.0',
+      uptimeSeconds: Number(res.uptime_seconds ?? res.uptimeSeconds ?? 0),
+      sqliteHealthy: res.sqlite_healthy ?? res.sqliteHealthy ?? true,
+      totalSessions: Number(res.total_sessions ?? res.totalSessions ?? 0),
+      totalNodes: Number(res.total_nodes ?? res.totalNodes ?? 0),
+      totalEdges: Number(res.total_edges ?? res.totalEdges ?? 0),
+      activeModelsCount: Number(res.active_models_count ?? res.activeModelsCount ?? 0),
+    };
   }
 
   disconnect(): void {

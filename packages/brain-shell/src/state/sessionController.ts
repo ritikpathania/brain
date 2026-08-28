@@ -226,6 +226,11 @@ export class SessionController {
     }
   }
 
+  /** Inc 45: Underlying backend client handle. */
+  get backendClient(): BrainBackendClient {
+    return this.client;
+  }
+
   /** B5: adopted session id, for the resume picker's current-session marker. */
   get activeSessionId(): string | undefined {
     return this.sessionId;

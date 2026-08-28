@@ -381,6 +381,17 @@ export interface SessionDeleteOutput {
   sessionId: string;
 }
 
+export interface SystemStatusOutput {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  version: string;
+  uptimeSeconds: number;
+  sqliteHealthy: boolean;
+  totalSessions: number;
+  totalNodes: number;
+  totalEdges: number;
+  activeModelsCount: number;
+}
+
 export interface TranscriptSearchInput {
   query: string;
   kinds?: Array<'message' | 'session'>;
@@ -518,6 +529,7 @@ export interface BrainBackend {
   }): Promise<ConsolidationResult>;
   listModels(): Promise<BrainModelDescriptor[]>;
   resolveModel(query?: string): Promise<BrainModelDescriptor>;
+  getSystemStatus(): Promise<SystemStatusOutput>;
   isAvailable(): Promise<boolean>;
 }
 
@@ -883,6 +895,19 @@ export class MockBrainBackendClient implements BrainBackendClient {
       },
       token_count: 0,
       serialized_context: '',
+    };
+  }
+
+  async getSystemStatus(): Promise<SystemStatusOutput> {
+    return {
+      status: 'healthy',
+      version: '1.1.0',
+      uptimeSeconds: 42,
+      sqliteHealthy: true,
+      totalSessions: this.mockSessions.size,
+      totalNodes: 0,
+      totalEdges: 0,
+      activeModelsCount: 1,
     };
   }
 }

@@ -99,7 +99,10 @@ export function AppShell(): React.ReactElement {
   const [modelError, setModelError] = React.useState<string | undefined>(undefined);
   const [modelList, setModelList] = React.useState<BrainModelDescriptor[]>([]);
   const [modelSelected, setModelSelected] = React.useState(0);
-  const doctorProbe = React.useMemo(() => new DoctorProbe(), []);
+  const doctorProbe = React.useMemo(
+    () => new DoctorProbe(undefined, controller.backendClient),
+    [controller],
+  );
   const [resumeIncludeArchived, setResumeIncludeArchived] = React.useState(false);
   const resumeItems = React.useMemo(
     () =>

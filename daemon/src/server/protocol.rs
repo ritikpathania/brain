@@ -284,6 +284,18 @@ pub struct UnlinkMemoryResponseBody {
     pub relation: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SystemStatusResponseBody {
+    pub status: String,
+    pub version: String,
+    pub uptime_seconds: u64,
+    pub sqlite_healthy: bool,
+    pub total_sessions: usize,
+    pub total_nodes: usize,
+    pub total_edges: usize,
+    pub active_models_count: usize,
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ToolFeedbackIdentityDto {
     #[serde(rename = "sessionId", alias = "session_id")]

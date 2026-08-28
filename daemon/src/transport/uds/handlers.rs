@@ -2469,6 +2469,56 @@ pub async fn handle_connection(
             continue;
         }
 
+        // ── Inc 45: Authoritative Daemon Diagnostics Telemetry (`v1/system/status`) ──
+        if action == "system/status" || action == "v1/system/status" {
+            let storage = app.runtime().sqlite_storage();
+            let sessions_res = storage.list_sessions(10000, 0);
+            let nodes_res = brain_core::repositories::NodeRepository::list_all(storage.as_ref());
+            let edges_res = brain_core::repositories::EdgeRepository::list_all(storage.as_ref());
+
+            let sqlite_healthy = sessions_res.is_ok() && nodes_res.is_ok() && edges_res.is_ok();
+            let total_sessions = sessions_res.map(|s| s.len()).unwrap_or(0);
+            let total_nodes = nodes_res.map(|n| n.len()).unwrap_or(0);
+            let total_edges = edges_res.map(|e| e.len()).unwrap_or(0);
+
+            let active_models_count = app.model_gateway().list_models().len();
+            let uptime_seconds = app.runtime().status().uptime.as_secs();
+            let status = if sqlite_healthy { "healthy" } else { "degraded" };
+
+            let resp_body = crate::server::protocol::SystemStatusResponseBody {
+                status: status.to_string(),
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                uptime_seconds,
+                sqlite_healthy,
+                total_sessions,
+                total_nodes,
+                total_edges,
+                active_models_count,
+            };
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": resp_body
+                })
+            } else {
+                serde_json::json!({
+                    "status": "ok",
+                    "body": resp_body
+                })
+            };
+
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
         if action == "search/query" || action == "v1/search/query" {
             let search_req: Result<crate::server::protocol::TranscriptSearchQueryPayload, _> =
                 serde_json::from_str(payload);

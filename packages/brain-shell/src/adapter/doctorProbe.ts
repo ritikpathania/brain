@@ -1,12 +1,13 @@
 /**
- * Local Engine Diagnostic Health Probes (Layer 2 Brain Adapter)
+ * Local & Authoritative Engine Diagnostic Health Probes (Layer 2 Brain Adapter)
  *
- * Implements local subsystem health checks for /doctor and shell startup,
- * replacing remote Anthropic telemetry with local daemon, IPC, and storage integrity checks.
+ * Implements authoritative subsystem health checks for /doctor and shell startup,
+ * querying the live daemon over UDS via getSystemStatus() and checking local connectivity.
  */
 
 import * as net from 'net';
 import * as fs from 'fs';
+import type { BrainBackendClient, SystemStatusOutput } from '../client/BrainBackendClient.js';
 
 export interface SubsystemHealthStatus {
   subsystem: string;
@@ -23,8 +24,21 @@ export interface EngineDiagnosticReport {
   subsystems: SubsystemHealthStatus[];
 }
 
+export function formatUptime(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = secs % 60;
+  if (mins < 60) return `${mins}m ${remSecs}s`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hours}h ${remMins}m`;
+}
+
 export class DoctorProbe {
-  constructor(private socketPath: string = process.env.BRAIN_SOCKET_PATH || '/tmp/brain.sock') {}
+  constructor(
+    private socketPath: string = process.env.BRAIN_SOCKET_PATH || '/tmp/brain.sock',
+    private client?: BrainBackendClient,
+  ) {}
 
   /**
    * Run full health diagnostics against the local Brain runtime.
@@ -39,21 +53,78 @@ export class DoctorProbe {
 
     // 1. Check UDS Socket & Ping
     const socketHealth = await this.checkUdsSocket();
-    report.subsystems.push(socketHealth);
-    if (socketHealth.status === 'unhealthy') {
-      report.overallHealthy = false;
+
+    // 2. Query authoritative daemon telemetry if socket is alive and client is provided
+    let daemonStatus: SystemStatusOutput | null = null;
+    if (socketHealth.status === 'healthy' && this.client) {
+      try {
+        daemonStatus = await this.client.getSystemStatus();
+      } catch {
+        daemonStatus = null;
+      }
     }
 
-    // 2. Check Local SQLite Storage Files
-    const storageHealth = await this.checkLocalStorage();
-    report.subsystems.push(storageHealth);
-    if (storageHealth.status === 'unhealthy') {
-      report.overallHealthy = false;
-    }
+    if (daemonStatus) {
+      // Subsystem 1: Authoritative UDS Daemon Socket & Runtime
+      report.subsystems.push({
+        subsystem: 'UDS Daemon Socket & Runtime',
+        status: daemonStatus.status === 'healthy' ? 'healthy' : 'degraded',
+        latencyMs: socketHealth.latencyMs,
+        details: {
+          version: daemonStatus.version,
+          uptimeSeconds: daemonStatus.uptimeSeconds,
+          socketPath: this.socketPath,
+        },
+        message: `Daemon v${daemonStatus.version} online · Uptime: ${formatUptime(daemonStatus.uptimeSeconds)}`,
+      });
 
-    // 3. Check Memory Subsystem Status
-    const memoryHealth = await this.checkMemorySubsystem();
-    report.subsystems.push(memoryHealth);
+      // Subsystem 2: Authoritative SQLite Storage & Graph
+      report.subsystems.push({
+        subsystem: 'SQLite Database & Graph',
+        status: daemonStatus.sqliteHealthy ? 'healthy' : 'degraded',
+        details: {
+          sqliteHealthy: daemonStatus.sqliteHealthy,
+          totalSessions: daemonStatus.totalSessions,
+          totalNodes: daemonStatus.totalNodes,
+          totalEdges: daemonStatus.totalEdges,
+        },
+        message: daemonStatus.sqliteHealthy
+          ? `SQLite WAL operational · ${daemonStatus.totalSessions} sessions · ${daemonStatus.totalNodes} concepts · ${daemonStatus.totalEdges} relations`
+          : 'SQLite database connection degraded or reported query failures',
+      });
+
+      // Subsystem 3: Authoritative Model Gateway
+      report.subsystems.push({
+        subsystem: 'Model Gateway & Inference',
+        status: daemonStatus.activeModelsCount > 0 ? 'healthy' : 'degraded',
+        details: {
+          activeModelsCount: daemonStatus.activeModelsCount,
+        },
+        message:
+          daemonStatus.activeModelsCount > 0
+            ? `Model Gateway operational · ${daemonStatus.activeModelsCount} active models registered`
+            : 'No active inference models registered with model gateway',
+      });
+
+      if (daemonStatus.status === 'unhealthy' || !daemonStatus.sqliteHealthy) {
+        report.overallHealthy = false;
+      }
+    } else {
+      // Fallback: If daemon query failed or client not present, use raw socket & local storage probe
+      report.subsystems.push(socketHealth);
+      if (socketHealth.status === 'unhealthy') {
+        report.overallHealthy = false;
+      }
+
+      const storageHealth = await this.checkLocalStorage();
+      report.subsystems.push(storageHealth);
+      if (storageHealth.status === 'unhealthy') {
+        report.overallHealthy = false;
+      }
+
+      const memoryHealth = await this.checkMemorySubsystem();
+      report.subsystems.push(memoryHealth);
+    }
 
     return report;
   }
