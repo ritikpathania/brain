@@ -463,6 +463,8 @@ export function AppShell(): React.ReactElement {
           const label = res.args?.[0] ?? '';
           const content = res.args?.[1] ?? label;
           if (label) void controller.storeMemoryNode(label, content);
+        } else if (res.action === 'memory-consolidate') {
+          void controller.consolidateMemories();
         } else if (res.action === 'search') {
           const query = res.args ? res.args.join(' ') : '';
           setSearchQuery(query);

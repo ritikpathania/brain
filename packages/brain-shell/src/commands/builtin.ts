@@ -129,7 +129,7 @@ const BUILTINS: Command[] = [
   {
     name: 'memory',
     description: 'Browse or manage the knowledge graph',
-    argumentHint: '<add <label> [--content <text>] | delete <id>>',
+    argumentHint: '<add <label> [--content <text>] | delete <id> | consolidate>',
     run: (ctx) => {
       const sub = ctx.args[0]?.toLowerCase();
       if (sub === 'delete') {
@@ -151,8 +151,16 @@ const BUILTINS: Command[] = [
           args: [res.data.label, res.data.content],
         };
       }
+      if (sub === 'consolidate') {
+        return { type: 'action', action: 'memory-consolidate' };
+      }
       return { type: 'overlay', overlay: 'memory' };
     },
+  },
+  {
+    name: 'consolidate',
+    description: 'Consolidate, merge duplicates, and prune stale edges in the knowledge graph',
+    run: () => ({ type: 'action', action: 'memory-consolidate' }),
   },
   {
     name: 'context',

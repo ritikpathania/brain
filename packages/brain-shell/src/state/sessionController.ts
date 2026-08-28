@@ -9,6 +9,7 @@ import type {
   BrainModelDescriptor,
   BrainSessionSummary,
   BrainStreamChunk,
+  ConsolidationResult,
   ContextTelemetry,
   MemorySearchResult,
   MemoryStoreOutput,
@@ -348,6 +349,34 @@ export class SessionController {
       return res;
     } catch (e) {
       this.notice(`Could not store memory node: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    }
+  }
+
+  /** Inc 40: Consolidate knowledge graph memories, merging duplicates and pruning stale edges. */
+  async consolidateMemories(options?: {
+    promotionWeightThreshold?: number;
+    pruningWeightThreshold?: number;
+    stalenessAgeThresholdSecs?: number;
+  }): Promise<ConsolidationResult | undefined> {
+    if (this.busy) {
+      this.notice('Busy — wait for the current turn to finish.');
+      return undefined;
+    }
+    try {
+      const res = await this.client.triggerConsolidation(options);
+      if (res.errors && res.errors.length > 0) {
+        this.notice(`Memory consolidation completed with errors: ${res.errors.join('; ')}`);
+      } else if (res.actionsApplied > 0) {
+        this.notice(
+          `Consolidated memory graph: ${res.actionsApplied} actions applied (${res.promoted} promoted, ${res.merged} merged, ${res.archived} archived, ${res.pruned} pruned) in ${res.durationMs}ms`,
+        );
+      } else {
+        this.notice(`Memory graph is fully consolidated: 0 actions needed in ${res.durationMs}ms`);
+      }
+      return res;
+    } catch (e) {
+      this.notice(`Could not consolidate memory graph: ${e instanceof Error ? e.message : String(e)}`);
       return undefined;
     }
   }

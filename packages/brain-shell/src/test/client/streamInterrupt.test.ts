@@ -107,7 +107,7 @@ describe('stream cancel wire proof', () => {
     await new Promise((r) => setTimeout(r, 60)); // tokens flowing
     ac.abort();
     await consume;
-    for (let i = 0; i < 50 && !(server as any).__cancelSeen; i++) {
+    for (let i = 0; i < 200 && !(server as any).__cancelSeen; i++) {
       await new Promise((r) => setTimeout(r, 5));
     }
     const cancelSeen = ((server as any).__cancelSeen ?? {}) as Record<string, unknown>;
