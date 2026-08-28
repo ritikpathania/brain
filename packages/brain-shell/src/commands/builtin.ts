@@ -129,7 +129,7 @@ const BUILTINS: Command[] = [
   {
     name: 'memory',
     description: 'Browse or manage the knowledge graph',
-    argumentHint: '<add <label> [--content <text>] | delete <id> | consolidate>',
+    argumentHint: '<add <label> [--content <text>] | delete <id> | link <src> <tgt> [rel] | unlink <src> <tgt> [rel] | consolidate>',
     run: (ctx) => {
       const sub = ctx.args[0]?.toLowerCase();
       if (sub === 'delete') {
@@ -138,6 +138,32 @@ const BUILTINS: Command[] = [
           return { type: 'text', value: 'Usage: /memory delete <node_id>' };
         }
         return { type: 'action', action: 'memory-delete', args: [targetId] };
+      }
+      if (sub === 'link') {
+        const source = ctx.args[1];
+        const target = ctx.args[2];
+        const relation = ctx.args[3] || 'associated_with';
+        if (!source || !target) {
+          return { type: 'text', value: 'Usage: /memory link <source> <target> [relation]' };
+        }
+        return {
+          type: 'action',
+          action: 'memory-link',
+          args: [source, target, relation],
+        };
+      }
+      if (sub === 'unlink') {
+        const source = ctx.args[1];
+        const target = ctx.args[2];
+        const relation = ctx.args[3] || 'associated_with';
+        if (!source || !target) {
+          return { type: 'text', value: 'Usage: /memory unlink <source> <target> [relation]' };
+        }
+        return {
+          type: 'action',
+          action: 'memory-unlink',
+          args: [source, target, relation],
+        };
       }
       if (sub === 'add') {
         const addTokens = tokenizeArgs(ctx.args.slice(1).join(' '));
@@ -155,6 +181,42 @@ const BUILTINS: Command[] = [
         return { type: 'action', action: 'memory-consolidate' };
       }
       return { type: 'overlay', overlay: 'memory' };
+    },
+  },
+  {
+    name: 'link',
+    description: 'Link two memory concepts with a directed relation edge',
+    argumentHint: '<source> <target> [relation]',
+    run: (ctx) => {
+      const source = ctx.args[0];
+      const target = ctx.args[1];
+      const relation = ctx.args[2] || 'associated_with';
+      if (!source || !target) {
+        return { type: 'text', value: 'Usage: /link <source> <target> [relation]' };
+      }
+      return {
+        type: 'action',
+        action: 'memory-link',
+        args: [source, target, relation],
+      };
+    },
+  },
+  {
+    name: 'unlink',
+    description: 'Remove a directed relation edge between two memory concepts',
+    argumentHint: '<source> <target> [relation]',
+    run: (ctx) => {
+      const source = ctx.args[0];
+      const target = ctx.args[1];
+      const relation = ctx.args[2] || 'associated_with';
+      if (!source || !target) {
+        return { type: 'text', value: 'Usage: /unlink <source> <target> [relation]' };
+      }
+      return {
+        type: 'action',
+        action: 'memory-unlink',
+        args: [source, target, relation],
+      };
     },
   },
   {

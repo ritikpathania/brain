@@ -345,6 +345,33 @@ export interface MemoryDeleteOutput {
   nodeId: string;
 }
 
+export interface MemoryLinkInput {
+  sourceNodeId: string;
+  targetNodeId: string;
+  relation?: string;
+  weight?: number;
+}
+
+export interface MemoryLinkOutput {
+  success: boolean;
+  source: string;
+  target: string;
+  relation: string;
+}
+
+export interface MemoryUnlinkInput {
+  sourceNodeId: string;
+  targetNodeId: string;
+  relation?: string;
+}
+
+export interface MemoryUnlinkOutput {
+  success: boolean;
+  source: string;
+  target: string;
+  relation: string;
+}
+
 export interface SessionDeleteInput {
   sessionId: string;
 }
@@ -477,6 +504,8 @@ export interface BrainBackend {
   searchMemory(input: MemorySearchInput): Promise<MemorySearchOutput>;
   storeMemory(input: MemoryStoreInput): Promise<MemoryStoreOutput>;
   deleteMemory(nodeId: string): Promise<MemoryDeleteOutput>;
+  linkMemory(input: MemoryLinkInput): Promise<MemoryLinkOutput>;
+  unlinkMemory(input: MemoryUnlinkInput): Promise<MemoryUnlinkOutput>;
   deleteSession(sessionId: string): Promise<SessionDeleteOutput>;
   searchTranscripts(input: TranscriptSearchInput): Promise<TranscriptSearchOutput>;
   sendToolFeedback(feedback: ToolExecutionFeedback): Promise<ToolFeedbackResult>;
@@ -787,6 +816,24 @@ export class MockBrainBackendClient implements BrainBackendClient {
 
   async deleteMemory(nodeId: string): Promise<MemoryDeleteOutput> {
     return { success: true, nodeId };
+  }
+
+  async linkMemory(input: MemoryLinkInput): Promise<MemoryLinkOutput> {
+    return {
+      success: true,
+      source: input.sourceNodeId,
+      target: input.targetNodeId,
+      relation: input.relation || 'related_to',
+    };
+  }
+
+  async unlinkMemory(input: MemoryUnlinkInput): Promise<MemoryUnlinkOutput> {
+    return {
+      success: true,
+      source: input.sourceNodeId,
+      target: input.targetNodeId,
+      relation: input.relation || 'related_to',
+    };
   }
 
   async deleteSession(sessionId: string): Promise<SessionDeleteOutput> {

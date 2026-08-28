@@ -463,6 +463,16 @@ export function AppShell(): React.ReactElement {
           const label = res.args?.[0] ?? '';
           const content = res.args?.[1] ?? label;
           if (label) void controller.storeMemoryNode(label, content);
+        } else if (res.action === 'memory-link') {
+          const source = res.args?.[0] ?? '';
+          const target = res.args?.[1] ?? '';
+          const relation = res.args?.[2];
+          if (source && target) void controller.linkMemories(source, target, relation);
+        } else if (res.action === 'memory-unlink') {
+          const source = res.args?.[0] ?? '';
+          const target = res.args?.[1] ?? '';
+          const relation = res.args?.[2];
+          if (source && target) void controller.unlinkMemories(source, target, relation);
         } else if (res.action === 'memory-consolidate') {
           void controller.consolidateMemories();
         } else if (res.action === 'search') {

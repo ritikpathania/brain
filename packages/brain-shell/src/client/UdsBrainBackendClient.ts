@@ -22,6 +22,11 @@ import type {
   MemorySearchOutput,
   MemoryStoreInput,
   MemoryStoreOutput,
+  MemoryDeleteOutput,
+  MemoryLinkInput,
+  MemoryLinkOutput,
+  MemoryUnlinkInput,
+  MemoryUnlinkOutput,
   TranscriptSearchInput,
   TranscriptSearchMatch,
   TranscriptSearchOutput,
@@ -857,6 +862,35 @@ export class UdsBrainBackendClient implements BrainBackendClient {
     return {
       success: res.success !== false,
       nodeId: res.nodeId || res.node_id || nodeId,
+    };
+  }
+
+  async linkMemory(input: MemoryLinkInput): Promise<MemoryLinkOutput> {
+    const res = await this.callRpc<any>('memory/link', {
+      source_node_id: input.sourceNodeId,
+      target_node_id: input.targetNodeId,
+      relation: input.relation || 'related_to',
+      weight: input.weight ?? 1.0,
+    });
+    return {
+      success: res.success !== false,
+      source: res.source || input.sourceNodeId,
+      target: res.target || input.targetNodeId,
+      relation: res.relation || input.relation || 'related_to',
+    };
+  }
+
+  async unlinkMemory(input: MemoryUnlinkInput): Promise<MemoryUnlinkOutput> {
+    const res = await this.callRpc<any>('memory/unlink', {
+      source_node_id: input.sourceNodeId,
+      target_node_id: input.targetNodeId,
+      relation: input.relation || 'related_to',
+    });
+    return {
+      success: res.success !== false,
+      source: res.source || input.sourceNodeId,
+      target: res.target || input.targetNodeId,
+      relation: res.relation || input.relation || 'related_to',
     };
   }
 

@@ -2099,6 +2099,376 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "memory/link" || action == "v1/memory/link" {
+            match serde_json::from_str::<crate::server::protocol::LinkMemoryPayload>(payload) {
+                Ok(req) => {
+                    let source_uuid = match uuid::Uuid::parse_str(req.source_node_id.trim()) {
+                        Ok(u) => brain_domain::NodeId(u),
+                        Err(e) => {
+                            let err_msg = format!("Invalid source node ID: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    let target_uuid = match uuid::Uuid::parse_str(req.target_node_id.trim()) {
+                        Ok(u) => brain_domain::NodeId(u),
+                        Err(e) => {
+                            let err_msg = format!("Invalid target node ID: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    let storage = app.runtime().sqlite_storage();
+                    use brain_core::repositories::{EdgeRepository, NodeRepository};
+
+                    // Server-side validation: verify both nodes exist
+                    match NodeRepository::find_by_id(storage.as_ref(), &source_uuid) {
+                        Ok(Some(_)) => {}
+                        Ok(None) => {
+                            let err_msg = format!("Source node '{}' not found", req.source_node_id);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to lookup source node: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    match NodeRepository::find_by_id(storage.as_ref(), &target_uuid) {
+                        Ok(Some(_)) => {}
+                        Ok(None) => {
+                            let err_msg = format!("Target node '{}' not found", req.target_node_id);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to lookup target node: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    let relation_str = req
+                        .relation
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("related_to");
+                    use std::str::FromStr;
+                    let relation_kind = brain_domain::RelationKind::from_str(relation_str)
+                        .unwrap_or(brain_domain::RelationKind::AssociatedWith);
+                    let weight = req.weight.unwrap_or(1.0).clamp(0.0, 1.0);
+
+                    let edge = brain_domain::Edge::new(
+                        source_uuid,
+                        target_uuid,
+                        relation_kind.clone(),
+                        weight,
+                    );
+
+                    match EdgeRepository::save(storage.as_ref(), &edge) {
+                        Ok(()) => {
+                            let resp_body = crate::server::protocol::LinkMemoryResponseBody {
+                                success: true,
+                                source: source_uuid.to_string(),
+                                target: target_uuid.to_string(),
+                                relation: relation_kind.id().as_str().to_string(),
+                            };
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": resp_body
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "body": resp_body
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to save edge: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid memory/link payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "error": err_msg })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "memory/unlink" || action == "v1/memory/unlink" {
+            match serde_json::from_str::<crate::server::protocol::UnlinkMemoryPayload>(payload) {
+                Ok(req) => {
+                    let source_uuid = match uuid::Uuid::parse_str(req.source_node_id.trim()) {
+                        Ok(u) => brain_domain::NodeId(u),
+                        Err(e) => {
+                            let err_msg = format!("Invalid source node ID: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    let target_uuid = match uuid::Uuid::parse_str(req.target_node_id.trim()) {
+                        Ok(u) => brain_domain::NodeId(u),
+                        Err(e) => {
+                            let err_msg = format!("Invalid target node ID: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                            continue;
+                        }
+                    };
+
+                    let relation_str = req
+                        .relation
+                        .as_deref()
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or("related_to");
+                    use std::str::FromStr;
+                    let relation_kind = brain_domain::RelationKind::from_str(relation_str)
+                        .unwrap_or(brain_domain::RelationKind::AssociatedWith);
+
+                    let storage = app.runtime().sqlite_storage();
+                    use brain_core::repositories::EdgeRepository;
+
+                    let edge_id = brain_domain::EdgeId::new(source_uuid, target_uuid, relation_kind.id());
+                    match EdgeRepository::delete(storage.as_ref(), &edge_id) {
+                        Ok(()) => {
+                            let resp_body = crate::server::protocol::UnlinkMemoryResponseBody {
+                                success: true,
+                                source: source_uuid.to_string(),
+                                target: target_uuid.to_string(),
+                                relation: relation_kind.id().as_str().to_string(),
+                            };
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": resp_body
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "body": resp_body
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to delete edge: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "error": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid memory/unlink payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "error": err_msg })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
         if action == "search/query" || action == "v1/search/query" {
             let search_req: Result<crate::server::protocol::TranscriptSearchQueryPayload, _> =
                 serde_json::from_str(payload);

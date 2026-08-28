@@ -197,7 +197,7 @@ impl std::str::FromStr for RelationKind {
             "stored_in" => Self::StoredIn,
             "configures" => Self::Configures,
             "communicates_via" => Self::CommunicatesVia,
-            "associated_with" => Self::AssociatedWith,
+            "associated_with" | "related_to" | "relates_to" | "related" => Self::AssociatedWith,
             _ => Self::Unknown,
         };
         Ok(kind)

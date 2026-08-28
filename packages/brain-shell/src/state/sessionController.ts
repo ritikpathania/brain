@@ -447,6 +447,174 @@ export class SessionController {
     }
   }
 
+  /**
+   * Helper to resolve a node query (exact UUID / ID prefix or label) against the authoritative memory index.
+   */
+  private async resolveMemoryNode(
+    query: string,
+  ): Promise<{ id: string; label: string } | 'ambiguous' | 'not_found'> {
+    const trimmed = query.trim();
+    if (!trimmed) return 'not_found';
+
+    const searchRes = await this.searchMemories('', 100);
+    if (!searchRes.ok || !searchRes.memories) {
+      return 'not_found';
+    }
+
+    const memories = searchRes.memories;
+
+    // Helper to safely get the node id
+    const getNodeId = (m: RetrievedMemory): string => m.node_id || (m as any).id || '';
+
+    // 1. Exact ID match
+    const exactId = memories.find(
+      (m) => getNodeId(m).toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (exactId) {
+      return { id: getNodeId(exactId), label: exactId.label };
+    }
+
+    // 2. ID prefix match
+    const prefixMatches = memories.filter((m) =>
+      getNodeId(m).toLowerCase().startsWith(trimmed.toLowerCase()),
+    );
+    if (prefixMatches.length === 1) {
+      return { id: getNodeId(prefixMatches[0]), label: prefixMatches[0].label };
+    }
+    if (prefixMatches.length > 1) {
+      return 'ambiguous';
+    }
+
+    // 3. Exact label match (case-insensitive)
+    const labelMatches = memories.filter(
+      (m) => m.label.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (labelMatches.length === 1) {
+      return { id: getNodeId(labelMatches[0]), label: labelMatches[0].label };
+    }
+    if (labelMatches.length > 1) {
+      return 'ambiguous';
+    }
+
+    // 4. Case-insensitive substring match
+    const subMatches = memories.filter((m) =>
+      m.label.toLowerCase().includes(trimmed.toLowerCase()),
+    );
+    if (subMatches.length === 1) {
+      return { id: getNodeId(subMatches[0]), label: subMatches[0].label };
+    }
+    if (subMatches.length > 1) {
+      return 'ambiguous';
+    }
+
+    return 'not_found';
+  }
+
+  /** Inc 43: Create a directed relationship edge between two memory concept nodes. */
+  async linkMemories(
+    sourceQuery: string,
+    targetQuery: string,
+    relation = 'associated_with',
+    weight = 1.0,
+  ): Promise<boolean> {
+    const sQuery = sourceQuery.trim();
+    const tQuery = targetQuery.trim();
+    if (!sQuery || !tQuery) {
+      this.notice('Usage: /memory link <source> <target> [relation]');
+      return false;
+    }
+
+    const sourceRes = await this.resolveMemoryNode(sQuery);
+    if (sourceRes === 'not_found') {
+      this.notice(`Source concept '${sQuery}' not found in memory`);
+      return false;
+    }
+    if (sourceRes === 'ambiguous') {
+      this.notice(`Source concept query '${sQuery}' is ambiguous; specify full ID or unique label`);
+      return false;
+    }
+
+    const targetRes = await this.resolveMemoryNode(tQuery);
+    if (targetRes === 'not_found') {
+      this.notice(`Target concept '${tQuery}' not found in memory`);
+      return false;
+    }
+    if (targetRes === 'ambiguous') {
+      this.notice(`Target concept query '${tQuery}' is ambiguous; specify full ID or unique label`);
+      return false;
+    }
+
+    if (sourceRes.id === targetRes.id) {
+      this.notice('Cannot link a concept node to itself');
+      return false;
+    }
+
+    const cleanRelation = (relation.trim() || 'associated_with').toLowerCase().replace(/-/g, '_');
+
+    try {
+      const res = await this.client.linkMemory({
+        sourceNodeId: sourceRes.id,
+        targetNodeId: targetRes.id,
+        relation: cleanRelation,
+        weight,
+      });
+      this.notice(`Linked “${sourceRes.label}” → [${res.relation}] → “${targetRes.label}”`);
+      return true;
+    } catch (e) {
+      this.notice(`Could not link memory concepts: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
+  /** Inc 43: Remove a directed relationship edge between two memory concept nodes. */
+  async unlinkMemories(
+    sourceQuery: string,
+    targetQuery: string,
+    relation = 'associated_with',
+  ): Promise<boolean> {
+    const sQuery = sourceQuery.trim();
+    const tQuery = targetQuery.trim();
+    if (!sQuery || !tQuery) {
+      this.notice('Usage: /memory unlink <source> <target> [relation]');
+      return false;
+    }
+
+    const sourceRes = await this.resolveMemoryNode(sQuery);
+    if (sourceRes === 'not_found') {
+      this.notice(`Source concept '${sQuery}' not found in memory`);
+      return false;
+    }
+    if (sourceRes === 'ambiguous') {
+      this.notice(`Source concept query '${sQuery}' is ambiguous; specify full ID or unique label`);
+      return false;
+    }
+
+    const targetRes = await this.resolveMemoryNode(tQuery);
+    if (targetRes === 'not_found') {
+      this.notice(`Target concept '${tQuery}' not found in memory`);
+      return false;
+    }
+    if (targetRes === 'ambiguous') {
+      this.notice(`Target concept query '${tQuery}' is ambiguous; specify full ID or unique label`);
+      return false;
+    }
+
+    const cleanRelation = (relation.trim() || 'associated_with').toLowerCase().replace(/-/g, '_');
+
+    try {
+      const res = await this.client.unlinkMemory({
+        sourceNodeId: sourceRes.id,
+        targetNodeId: targetRes.id,
+        relation: cleanRelation,
+      });
+      this.notice(`Unlinked “${sourceRes.label}” ✕ [${res.relation}] ✕ “${targetRes.label}”`);
+      return true;
+    } catch (e) {
+      this.notice(`Could not unlink memory concepts: ${e instanceof Error ? e.message : String(e)}`);
+      return false;
+    }
+  }
+
   /** Inc 35: Delete a session by ID or prefix, resetting state if active and removing from storage. */
   async deleteSession(target: string): Promise<boolean> {
     if (this.busy) {

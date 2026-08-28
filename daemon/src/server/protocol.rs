@@ -247,6 +247,44 @@ pub struct StoreMemoryResponseBody {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct LinkMemoryPayload {
+    #[serde(rename = "sourceNodeId", alias = "source_node_id")]
+    pub source_node_id: String,
+    #[serde(rename = "targetNodeId", alias = "target_node_id")]
+    pub target_node_id: String,
+    #[serde(default)]
+    pub relation: Option<String>,
+    #[serde(default)]
+    pub weight: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LinkMemoryResponseBody {
+    pub success: bool,
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct UnlinkMemoryPayload {
+    #[serde(rename = "sourceNodeId", alias = "source_node_id")]
+    pub source_node_id: String,
+    #[serde(rename = "targetNodeId", alias = "target_node_id")]
+    pub target_node_id: String,
+    #[serde(default)]
+    pub relation: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UnlinkMemoryResponseBody {
+    pub success: bool,
+    pub source: String,
+    pub target: String,
+    pub relation: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ToolFeedbackIdentityDto {
     #[serde(rename = "sessionId", alias = "session_id")]
     pub session_id: String,
