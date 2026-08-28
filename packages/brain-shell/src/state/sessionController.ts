@@ -81,6 +81,7 @@ export interface SessionInfoSummaryOptions {
   supportsThinking?: boolean;
   thinkingBudget: number | null;
   systemPrompt: string | null;
+  contextMaxTokens?: number | null;
   latestTelemetry?: ContextTelemetry;
 }
 
@@ -109,6 +110,12 @@ export function formatSessionInfoSummary(options: SessionInfoSummaryOptions): st
         ? `${options.systemPrompt.slice(0, 77)}...`
         : options.systemPrompt;
     lines.push(`System Instructions: “${preview}”`);
+  }
+
+  if (options.contextMaxTokens !== undefined && options.contextMaxTokens !== null) {
+    lines.push(`Context Budget: ${options.contextMaxTokens} tokens (configured)`);
+  } else {
+    lines.push('Context Budget: 2048 tokens (engine default)');
   }
 
   if (options.latestTelemetry) {
@@ -160,6 +167,7 @@ export class SessionController {
   private activeModelDescriptor?: BrainModelDescriptor;
   private thinkingBudget: number | null = null;
   private systemPrompt: string | null = null;
+  private contextMaxTokens: number | null = null;
   private snapshot: ShellSnapshot = {
     rows: [],
     live: IDLE_LIVE,
@@ -285,6 +293,46 @@ export class SessionController {
     }
   }
 
+  /** Inc 47: Current configured context token budget (or null for engine default). */
+  get currentContextMaxTokens(): number | null {
+    return this.contextMaxTokens;
+  }
+
+  /** Inc 47: Configure or reset context retrieval token budget. */
+  setContextBudget(budget: number | null): boolean {
+    if (budget === null) {
+      this.contextMaxTokens = null;
+      this.notice('Context retrieval budget reset to engine default (2048 tokens).');
+      this.emit();
+      return true;
+    }
+
+    if (
+      typeof budget !== 'number' ||
+      isNaN(budget) ||
+      !Number.isFinite(budget) ||
+      budget <= 0 ||
+      !Number.isInteger(budget)
+    ) {
+      this.notice('Context budget must be a positive integer (tokens), or "default" to reset.');
+      return false;
+    }
+
+    this.contextMaxTokens = budget;
+    this.notice(`Context retrieval budget set to ${budget} tokens.`);
+    this.emit();
+    return true;
+  }
+
+  /** Inc 47: Report current context retrieval token budget status without mutating state. */
+  reportContextBudgetStatus(): void {
+    if (this.contextMaxTokens !== null) {
+      this.notice(`Current context retrieval budget: ${this.contextMaxTokens} tokens (configured).`);
+    } else {
+      this.notice('Current context retrieval budget: 2048 tokens (engine default).');
+    }
+  }
+
   /** Inc 46: Report consolidated runtime session metadata and steering parameters. */
   reportSessionInfo(): void {
     const turnCount = this.rows.filter((r) => r.kind === 'user').length;
@@ -295,6 +343,7 @@ export class SessionController {
       supportsThinking: this.activeModelDescriptor?.supportsThinking,
       thinkingBudget: this.thinkingBudget,
       systemPrompt: this.systemPrompt,
+      contextMaxTokens: this.contextMaxTokens,
       latestTelemetry: this.latestTelemetry,
     });
     this.notice(summary);
@@ -1127,6 +1176,7 @@ export class SessionController {
             ? { mode: 'enabled', budgetTokens: this.thinkingBudget }
             : undefined,
         systemPrompt: this.systemPrompt ?? undefined,
+        contextMaxTokens: this.contextMaxTokens ?? undefined,
         model: this.activeModelDescriptor?.id,
         signal: this.aborter.signal,
       };

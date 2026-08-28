@@ -230,8 +230,34 @@ const BUILTINS: Command[] = [
   },
   {
     name: 'context',
-    description: 'Inspect active turn memory context provenance and telemetry',
-    run: () => ({ type: 'overlay', overlay: 'context' }),
+    description: 'Inspect active turn memory context provenance or configure retrieval token budget',
+    argumentHint: '[budget <tokens | default>]',
+    run: (ctx) => {
+      const sub = ctx.args[0]?.toLowerCase();
+      if (!sub) {
+        return { type: 'overlay', overlay: 'context' };
+      }
+      if (sub === 'budget') {
+        const val = ctx.args[1]?.trim();
+        if (!val) {
+          return { type: 'action', action: 'context-budget-status' };
+        }
+        if (
+          val.toLowerCase() === 'default' ||
+          val.toLowerCase() === 'reset' ||
+          val.toLowerCase() === 'none' ||
+          val.toLowerCase() === 'auto'
+        ) {
+          return { type: 'action', action: 'context-budget-set', args: ['default'] };
+        }
+        const tokens = parseInt(val, 10);
+        if (isNaN(tokens) || tokens <= 0 || String(tokens) !== val) {
+          return { type: 'text', value: 'Usage: /context budget <tokens | default>' };
+        }
+        return { type: 'action', action: 'context-budget-set', args: [String(tokens)] };
+      }
+      return { type: 'text', value: 'Usage: /context [budget <tokens | default>]' };
+    },
   },
   {
     name: 'search',

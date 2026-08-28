@@ -382,6 +382,7 @@ export class UdsBrainBackendClient implements BrainBackendClient {
           systemPrompt: request.systemPrompt,
           tools: request.tools,
           thinkingConfig: request.thinkingConfig,
+          contextMaxTokens: request.contextMaxTokens,
           model: request.model,
         },
       };

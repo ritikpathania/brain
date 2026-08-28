@@ -499,6 +499,11 @@ export function AppShell(): React.ReactElement {
           controller.setSystemPrompt(arg);
         } else if (res.action === 'system-status') {
           controller.reportSystemPromptStatus();
+        } else if (res.action === 'context-budget-set') {
+          const arg = res.args?.[0];
+          controller.setContextBudget(arg === 'default' ? null : Number(arg));
+        } else if (res.action === 'context-budget-status') {
+          controller.reportContextBudgetStatus();
         }
         break;
       case 'overlay':

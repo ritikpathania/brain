@@ -3090,6 +3090,8 @@ pub async fn handle_connection(
                 _tools: Vec<serde_json::Value>,
                 #[serde(rename = "thinkingConfig", alias = "thinking_config", default)]
                 thinking_config: Option<ThinkingConfigPayload>,
+                #[serde(rename = "contextMaxTokens", alias = "context_max_tokens", default)]
+                context_max_tokens: Option<usize>,
                 #[serde(default)]
                 model: Option<String>,
             }
@@ -3307,7 +3309,7 @@ pub async fn handle_connection(
                 prompt: last_user_prompt.clone(),
                 session_id: parsed_session_id,
                 workspace_id: None,
-                max_tokens: 2048,
+                max_tokens: stream_req.context_max_tokens.unwrap_or(2048),
                 max_items: 10,
                 reference_time: None,
             };

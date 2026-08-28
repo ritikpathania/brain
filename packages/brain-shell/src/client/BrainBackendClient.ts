@@ -65,6 +65,7 @@ export interface BrainGenerationRequest {
   systemPrompt?: string;
   tools?: BrainToolDefinition[];
   thinkingConfig?: BrainThinkingConfig;
+  contextMaxTokens?: number;
   model?: string;
   signal?: AbortSignal;
 }
