@@ -11,6 +11,7 @@ import type {
   BrainStreamChunk,
   ContextTelemetry,
   MemorySearchResult,
+  MemoryStoreOutput,
   TranscriptSearchMatch,
 } from '../client/BrainBackendClient.js';
 import { sessionToRows } from './sessionReplay.js';
@@ -317,6 +318,37 @@ export class SessionController {
       return res.matches;
     } catch {
       return [];
+    }
+  }
+
+  /** Inc 39: Store a concept node in the knowledge graph, making it searchable and available for context. */
+  async storeMemoryNode(
+    label: string,
+    content: string,
+    scope = 'workspace',
+  ): Promise<MemoryStoreOutput | undefined> {
+    const trimmedLabel = label.trim();
+    const trimmedContent = content.trim();
+    if (!trimmedLabel) {
+      this.notice('Memory node requires a non-empty label.');
+      return undefined;
+    }
+    if (!trimmedContent) {
+      this.notice('Memory node requires non-empty content.');
+      return undefined;
+    }
+    try {
+      const res = await this.client.storeMemory({
+        label: trimmedLabel,
+        content: trimmedContent,
+        scope,
+        sessionId: this.sessionId,
+      });
+      this.notice(`Stored memory concept “${trimmedLabel}” (${res.nodeId})`);
+      return res;
+    } catch (e) {
+      this.notice(`Could not store memory node: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
     }
   }
 

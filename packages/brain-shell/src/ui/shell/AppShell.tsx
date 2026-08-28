@@ -459,6 +459,10 @@ export function AppShell(): React.ReactElement {
         } else if (res.action === 'memory-delete') {
           const targetId = res.args ? res.args[0] : '';
           if (targetId) void controller.deleteMemoryNode(targetId);
+        } else if (res.action === 'memory-add') {
+          const label = res.args?.[0] ?? '';
+          const content = res.args?.[1] ?? label;
+          if (label) void controller.storeMemoryNode(label, content);
         } else if (res.action === 'search') {
           const query = res.args ? res.args.join(' ') : '';
           setSearchQuery(query);

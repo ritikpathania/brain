@@ -2,6 +2,7 @@
 
 import { registerCommand, getCommands, type Command } from './registry.js';
 import { runPermissionsCommand } from '../state/permissionRules.js';
+import { tokenizeArgs, parseMemoryAddArgs } from './memoryArgs.js';
 
 const BUILTINS: Command[] = [
   {
@@ -128,14 +129,27 @@ const BUILTINS: Command[] = [
   {
     name: 'memory',
     description: 'Browse or manage the knowledge graph',
-    argumentHint: '[delete <id>]',
+    argumentHint: '<add <label> [--content <text>] | delete <id>>',
     run: (ctx) => {
-      if (ctx.args[0] === 'delete') {
+      const sub = ctx.args[0]?.toLowerCase();
+      if (sub === 'delete') {
         const targetId = ctx.args[1];
         if (!targetId) {
           return { type: 'text', value: 'Usage: /memory delete <node_id>' };
         }
         return { type: 'action', action: 'memory-delete', args: [targetId] };
+      }
+      if (sub === 'add') {
+        const addTokens = tokenizeArgs(ctx.args.slice(1).join(' '));
+        const res = parseMemoryAddArgs(addTokens.length > 0 ? addTokens : ctx.args.slice(1));
+        if (!res.ok) {
+          return { type: 'text', value: res.error };
+        }
+        return {
+          type: 'action',
+          action: 'memory-add',
+          args: [res.data.label, res.data.content],
+        };
       }
       return { type: 'overlay', overlay: 'memory' };
     },
