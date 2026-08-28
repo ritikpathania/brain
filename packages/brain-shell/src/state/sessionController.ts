@@ -100,6 +100,7 @@ export class SessionController {
   private lostDuringTurn = false;
   private activeModelDescriptor?: BrainModelDescriptor;
   private thinkingBudget: number | null = null;
+  private systemPrompt: string | null = null;
   private snapshot: ShellSnapshot = {
     rows: [],
     live: IDLE_LIVE,
@@ -172,6 +173,56 @@ export class SessionController {
       }
     } else {
       this.notice('Reasoning thinking budget is disabled (default).');
+    }
+  }
+
+  /** Inc 44: Current custom session-level system prompt instructions (or null if using engine defaults). */
+  get currentSystemPrompt(): string | null {
+    return this.systemPrompt;
+  }
+
+  /** Inc 44: Configure or clear custom session-level system prompt instructions. */
+  setSystemPrompt(prompt: string | null): boolean {
+    if (prompt === null) {
+      this.systemPrompt = null;
+      this.notice('Cleared custom system instructions (using default engine prompt).');
+      this.emit();
+      return true;
+    }
+
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      this.notice('System instructions cannot be empty or whitespace only.');
+      return false;
+    }
+
+    const lower = trimmed.toLowerCase();
+    if (
+      lower === 'clear' ||
+      lower === 'off' ||
+      lower === 'reset' ||
+      lower === 'none' ||
+      lower === 'disable'
+    ) {
+      this.systemPrompt = null;
+      this.notice('Cleared custom system instructions (using default engine prompt).');
+      this.emit();
+      return true;
+    }
+
+    this.systemPrompt = trimmed;
+    const preview = trimmed.length > 60 ? `${trimmed.slice(0, 57)}...` : trimmed;
+    this.notice(`Set system instructions: “${preview}”`);
+    this.emit();
+    return true;
+  }
+
+  /** Inc 44: Report current active system prompt instructions status without mutating state. */
+  reportSystemPromptStatus(): void {
+    if (this.systemPrompt === null) {
+      this.notice('Default engine prompt active (no custom instructions configured).');
+    } else {
+      this.notice(`Active system instructions: “${this.systemPrompt}”`);
     }
   }
 
@@ -996,6 +1047,7 @@ export class SessionController {
           this.thinkingBudget !== null
             ? { mode: 'enabled', budgetTokens: this.thinkingBudget }
             : undefined,
+        systemPrompt: this.systemPrompt ?? undefined,
         model: this.activeModelDescriptor?.id,
         signal: this.aborter.signal,
       };

@@ -272,6 +272,19 @@ const BUILTINS: Command[] = [
       return { type: 'action', action: 'thinking-set', args: [String(budget)] };
     },
   },
+  {
+    name: 'system',
+    description: 'Inspect or configure custom session-level system prompt instructions',
+    argumentHint: '[instructions | clear | off | reset]',
+    aliases: ['instructions', 'sysprompt'],
+    run: (ctx) => {
+      if (!ctx.args || ctx.args.length === 0 || !ctx.args[0]?.trim()) {
+        return { type: 'action', action: 'system-status' };
+      }
+      const text = ctx.args.join(' ');
+      return { type: 'action', action: 'system-set', args: [text] };
+    },
+  },
 ];
 
 for (const cmd of BUILTINS) registerCommand(cmd);

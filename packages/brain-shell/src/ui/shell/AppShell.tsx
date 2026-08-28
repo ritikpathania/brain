@@ -489,6 +489,11 @@ export function AppShell(): React.ReactElement {
           controller.setThinkingBudget(arg === 'off' ? null : Number(arg));
         } else if (res.action === 'thinking-status') {
           controller.reportThinkingStatus();
+        } else if (res.action === 'system-set') {
+          const arg = res.args?.[0] ?? null;
+          controller.setSystemPrompt(arg);
+        } else if (res.action === 'system-status') {
+          controller.reportSystemPromptStatus();
         }
         break;
       case 'overlay':
