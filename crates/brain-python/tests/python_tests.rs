@@ -11,6 +11,7 @@ use brain_core::errors::BrainError;
 use brain_core::extensibility::{HostContext, PluginLifecycle};
 use brain_domain::{Node, NodeId, NodeType, PluginId, PluginState, Session, SessionId};
 use brain_plugins::{InstalledPlugin, LoaderKind};
+use brain_python::api::PyRuntimeContext;
 use brain_python::loader::PythonPluginLoader;
 
 struct TempDirGuard {
@@ -96,7 +97,7 @@ fn create_test_plugin(
 
 #[test]
 fn test_plugin_loader_and_agent_wrappers() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -142,6 +143,11 @@ class MockPlugin:
         assert len(nodes) == 1
         assert nodes[0].label == "MockNode"
 
+        # Verify tool execution works during the active lifecycle callback.
+        result = ctx.execute_tool("mock_tool", {"task": "test"})
+        assert result.value["tool"] == "mock_tool"
+        assert result.value["args"]["task"] == "test"
+
     def on_unload(self, ctx):
         pass
 
@@ -162,8 +168,7 @@ class MockPlugin:
         path: plugin_dir.clone(),
         loader_kind: LoaderKind::Python,
     };
-    let mut loaded =
-        Python::with_gil(|py| PythonPluginLoader::load_plugin(py, &installed).unwrap());
+    let mut loaded = Python::attach(|py| PythonPluginLoader::load_plugin(py, &installed).unwrap());
 
     // Verify PluginLifecycle implementations
     assert_eq!(
@@ -187,10 +192,12 @@ class MockPlugin:
     });
     let session_id = SessionId::new();
 
-    Python::with_gil(|py| {
-        loaded.trigger_on_load(py, &*runtime, session_id).unwrap();
+    Python::attach(|py| {
         loaded
-            .trigger_on_session_start(py, &*runtime, session_id)
+            .trigger_on_load(py, runtime.clone(), session_id)
+            .unwrap();
+        loaded
+            .trigger_on_session_start(py, runtime.clone(), session_id)
             .unwrap();
     });
 
@@ -225,7 +232,7 @@ class MockPlugin:
 
 #[test]
 fn test_plugin_isolation_and_fault_tolerance() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     // 1. Create a valid plugin
@@ -264,7 +271,7 @@ class BrokenPlugin
         py_code_broken,
     );
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::scan_and_load_plugins(py, &guard.path));
+    let loaded = Python::attach(|py| PythonPluginLoader::scan_and_load_plugins(py, &guard.path));
 
     // Verify that the valid plugin is loaded successfully, and the broken one is isolated and skipped
     assert_eq!(loaded.len(), 1);
@@ -276,7 +283,7 @@ class BrokenPlugin
 
 #[test]
 fn test_gil_release_and_parallelism() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -296,7 +303,7 @@ class ParallelPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "parallel_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
 
     let loaded = Arc::new(loaded);
     let mut handles = Vec::new();
@@ -320,7 +327,7 @@ class ParallelPlugin:
 
 #[test]
 fn test_permission_checks() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -340,14 +347,14 @@ class PermissionPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "permission_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let runtime = Arc::new(MockAgentRuntime {
         should_fail_tool: true,
     });
     let session_id = SessionId::new();
 
     // Expect the execution error to propagate back as a BrainError::Python wrapping PyErr
-    let res = Python::with_gil(|py| loaded.trigger_on_load(py, &*runtime, session_id));
+    let res = Python::attach(|py| loaded.trigger_on_load(py, runtime.clone(), session_id));
     assert!(res.is_err());
     match res.err().unwrap() {
         BrainError::Python { message, .. } => {
@@ -359,7 +366,7 @@ class PermissionPlugin:
 
 #[test]
 fn test_exception_propagation_and_tracebacks() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -376,7 +383,7 @@ class ExceptionPlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "exception_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let chat_agent = loaded.chat_agent.as_ref().unwrap();
     let session_id = SessionId::new();
 
@@ -395,7 +402,7 @@ class ExceptionPlugin:
 
 #[test]
 fn test_version_validation() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -411,7 +418,7 @@ class IncompatiblePlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "incompatible_plugin", manifest, py_code);
 
-    let res = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir));
+    let res = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir));
     assert!(res.is_err());
     match res.err().unwrap() {
         BrainError::Validation { message } => {
@@ -423,7 +430,7 @@ class IncompatiblePlugin:
 
 #[test]
 fn test_retained_context_misuse_detection() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
     let guard = TempDirGuard::new();
 
     let manifest = r#"
@@ -444,14 +451,18 @@ class MisusePlugin:
 "#;
     let plugin_dir = create_test_plugin(&guard.path, "misuse_plugin", manifest, py_code);
 
-    let loaded = Python::with_gil(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
     let runtime = Arc::new(MockAgentRuntime {
         should_fail_tool: false,
     });
     let session_id = SessionId::new();
 
     // Trigger on_load which stores context
-    Python::with_gil(|py| loaded.trigger_on_load(py, &*runtime, session_id).unwrap());
+    Python::attach(|py| {
+        loaded
+            .trigger_on_load(py, runtime.clone(), session_id)
+            .unwrap()
+    });
 
     // Call chat, which attempts to use the stored context
     let chat_agent = loaded.chat_agent.as_ref().unwrap();
@@ -459,8 +470,162 @@ class MisusePlugin:
     assert!(res.is_err());
     match res.err().unwrap() {
         BrainError::Python { message, .. } => {
-            assert!(message.contains("RuntimeContext has expired"));
+            assert!(message.contains("RuntimeContext is closed"));
         }
         other => panic!("Expected BrainError::Python, got: {:?}", other),
     }
+}
+
+#[test]
+fn test_retained_context_clones_are_closed_on_another_python_thread() {
+    Python::initialize();
+    let guard = TempDirGuard::new();
+
+    let manifest = r#"
+id = "retained_clone_plugin"
+version = "1.0.0"
+api_version = "v1"
+entrypoint = "plugin.py"
+required_permissions = []
+"#;
+    let py_code = r#"
+import threading
+
+class RetainedClonePlugin:
+    def on_load(self, ctx):
+        # These are separate Python references to the same Rust-owned bridge.
+        self.contexts = [ctx, ctx, ctx]
+
+    def chat(self, session_id, prompt):
+        result = []
+
+        def use_retained_context():
+            try:
+                self.contexts[1].retrieve("hello", 10)
+            except RuntimeError as error:
+                result.append(str(error))
+
+        worker = threading.Thread(target=use_retained_context)
+        worker.start()
+        worker.join()
+        return result[0]
+"#;
+    let plugin_dir = create_test_plugin(&guard.path, "retained_clone_plugin", manifest, py_code);
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let runtime: Arc<dyn HostContext> = Arc::new(MockAgentRuntime {
+        should_fail_tool: false,
+    });
+    let session_id = SessionId::new();
+
+    Python::attach(|py| {
+        loaded
+            .trigger_on_load(py, runtime.clone(), session_id)
+            .unwrap()
+    });
+
+    let result = loaded
+        .chat_agent
+        .as_ref()
+        .unwrap()
+        .chat(session_id, "retained");
+    assert_eq!(result.unwrap(), "RuntimeContext is closed");
+}
+
+#[test]
+fn test_runtime_context_host_operations_are_safe_from_python_threads() {
+    Python::initialize();
+    let guard = TempDirGuard::new();
+
+    let manifest = r#"
+id = "threaded_context_plugin"
+version = "1.0.0"
+api_version = "v1"
+entrypoint = "plugin.py"
+required_permissions = []
+"#;
+    let py_code = r#"
+import threading
+
+class ThreadedContextPlugin:
+    def on_load(self, ctx):
+        self.result = []
+
+        def use_context():
+            self.result.append(ctx.retrieve("hello", 10)[0].label)
+
+        worker = threading.Thread(target=use_context)
+        worker.start()
+        worker.join()
+
+    def chat(self, session_id, prompt):
+        return self.result[0]
+"#;
+    let plugin_dir = create_test_plugin(&guard.path, "threaded_context_plugin", manifest, py_code);
+    let loaded = Python::attach(|py| PythonPluginLoader::load_from_dir(py, &plugin_dir).unwrap());
+    let runtime: Arc<dyn HostContext> = Arc::new(MockAgentRuntime {
+        should_fail_tool: false,
+    });
+    let session_id = SessionId::new();
+
+    Python::attach(|py| loaded.trigger_on_load(py, runtime, session_id).unwrap());
+
+    assert_eq!(
+        loaded
+            .chat_agent
+            .as_ref()
+            .unwrap()
+            .chat(session_id, "threaded")
+            .unwrap(),
+        "MockNode"
+    );
+}
+
+#[test]
+fn test_runtime_context_settlement_race_is_safe() {
+    Python::initialize();
+
+    for _ in 0..100 {
+        let runtime: Arc<dyn HostContext> = Arc::new(MockAgentRuntime {
+            should_fail_tool: false,
+        });
+        let context = PyRuntimeContext::new(runtime, SessionId::new());
+        let context_for_operation = context.clone();
+        let start = Arc::new(std::sync::Barrier::new(2));
+        let start_for_operation = start.clone();
+
+        let operation = thread::spawn(move || {
+            start_for_operation.wait();
+            Python::attach(|py| context_for_operation.retrieve(py, "hello".to_string(), 10))
+        });
+
+        start.wait();
+        context.close();
+
+        match operation.join().unwrap() {
+            Ok(nodes) => assert_eq!(nodes.len(), 1),
+            Err(error) => {
+                Python::attach(|py| {
+                    assert!(error.is_instance_of::<pyo3::exceptions::PyRuntimeError>(py));
+                    assert_eq!(error.value(py).to_string(), "RuntimeContext is closed");
+                });
+            }
+        }
+    }
+}
+
+#[test]
+fn test_pyo3_interpreter_version_identity() {
+    Python::initialize();
+    Python::attach(|py| {
+        let sys = py.import("sys").unwrap();
+        let version_info = sys.getattr("version_info").unwrap();
+        let major: u8 = version_info.getattr("major").unwrap().extract().unwrap();
+        let minor: u8 = version_info.getattr("minor").unwrap().extract().unwrap();
+        let micro: u8 = version_info.getattr("micro").unwrap().extract().unwrap();
+        assert_eq!(
+            (major, minor, micro),
+            (3, 15, 2),
+            "expected CPython 3.15.2 interpreter tuple"
+        );
+    });
 }

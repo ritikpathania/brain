@@ -7,10 +7,10 @@ use std::collections::HashMap;
 
 /// Helper function to extract and format a Python exception traceback string.
 fn get_traceback_str(py: Python<'_>, err: &PyErr) -> Option<String> {
-    if let Some(tb) = err.traceback_bound(py) {
-        if let Ok(traceback_module) = py.import_bound("traceback") {
+    if let Some(tb) = err.traceback(py) {
+        if let Ok(traceback_module) = py.import("traceback") {
             if let Ok(formatted) =
-                traceback_module.call_method1("format_exception", (err.value_bound(py),))
+                traceback_module.call_method1("format_exception", (err.value(py),))
             {
                 if let Ok(list) = formatted.extract::<Vec<String>>() {
                     return Some(list.join(""));
@@ -38,8 +38,8 @@ pub(crate) fn py_err_to_brain_error(py: Python<'_>, err: PyErr) -> BrainError {
 /// A handle wrapping a Python agent instance and caching its method callables.
 #[derive(Clone)]
 pub struct PythonAgentHandle {
-    pub instance: Py<PyAny>,
-    pub methods: HashMap<String, Py<PyAny>>,
+    pub instance: std::sync::Arc<Py<PyAny>>,
+    pub methods: std::sync::Arc<HashMap<String, Py<PyAny>>>,
     pub plugin_id: String,
     pub api_version: String,
 }
@@ -91,20 +91,20 @@ impl PythonAgentHandle {
         }
 
         Ok(Self {
-            instance,
-            methods,
+            instance: std::sync::Arc::new(instance),
+            methods: std::sync::Arc::new(methods),
             plugin_id,
             api_version,
         })
     }
 
     /// Invokes a cached method with the given arguments, resolving traceback on exception.
-    pub fn call_cached_method(
+    pub fn call_cached_method<'py>(
         &self,
-        py: Python<'_>,
+        py: Python<'py>,
         method_name: &str,
-        args: impl IntoPy<Py<PyTuple>>,
-    ) -> Result<PyObject, BrainError> {
+        args: &Bound<'py, PyTuple>,
+    ) -> Result<Py<PyAny>, BrainError> {
         let method = self
             .methods
             .get(method_name)
@@ -116,11 +116,9 @@ impl PythonAgentHandle {
             })?;
 
         let bound_method = method.bind(py);
-        let args_tuple: Py<PyTuple> = args.into_py(py);
-        let bound_args = args_tuple.bind(py);
 
         bound_method
-            .call1(bound_args)
+            .call1(args)
             .map(|res| res.unbind())
             .map_err(|err| self.to_brain_error(py, method_name, err))
     }
@@ -144,7 +142,7 @@ pub struct PythonChatAgent {
 
 impl PythonChatAgent {
     pub fn new(py: Python<'_>, instance: Py<PyAny>) -> Result<Self, BrainError> {
-        let handle = PythonAgentHandle::new(py, instance.clone(), &["chat"])?;
+        let handle = PythonAgentHandle::new(py, instance.clone_ref(py), &["chat"])?;
 
         let bound_instance = instance.bind(py);
         let name = bound_instance
@@ -168,13 +166,18 @@ impl ChatAgent for PythonChatAgent {
     }
 
     fn chat(&self, session_id: SessionId, prompt: &str) -> Result<String, BrainError> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let py_sid = Py::new(py, crate::api::PySessionId { inner: session_id })
                 .map_err(|e| py_err_to_brain_error(py, e))?;
 
-            let res = self
-                .handle
-                .call_cached_method(py, "chat", (py_sid, prompt))?;
+            let py_sid_any = py_sid.into_any().into_bound(py);
+            let prompt_obj = prompt
+                .into_pyobject(py)
+                .expect("string into_pyobject is infallible")
+                .into_any();
+            let args = PyTuple::new(py, [py_sid_any, prompt_obj])
+                .map_err(|e| py_err_to_brain_error(py, e))?;
+            let res = self.handle.call_cached_method(py, "chat", &args)?;
             let bound_res = res.bind(py);
 
             let reply = bound_res
@@ -195,7 +198,7 @@ pub struct PythonPlannerAgent {
 
 impl PythonPlannerAgent {
     pub fn new(py: Python<'_>, instance: Py<PyAny>) -> Result<Self, BrainError> {
-        let handle = PythonAgentHandle::new(py, instance.clone(), &["plan_steps"])?;
+        let handle = PythonAgentHandle::new(py, instance.clone_ref(py), &["plan_steps"])?;
 
         let bound_instance = instance.bind(py);
         let name = bound_instance
@@ -228,7 +231,7 @@ impl PlannerAgent for PythonPlannerAgent {
             Json(serde_json::Value),
         }
 
-        let raw_items = Python::with_gil(|py| {
+        let raw_items = Python::attach(|py| {
             let py_conv = Py::new(
                 py,
                 crate::api::PyConversation {
@@ -237,18 +240,25 @@ impl PlannerAgent for PythonPlannerAgent {
             )
             .map_err(|e| py_err_to_brain_error(py, e))?;
 
-            let res =
-                self.handle
-                    .call_cached_method(py, "plan_steps", (task_description, py_conv))?;
+            let py_task = task_description
+                .into_pyobject(py)
+                .expect("string into_pyobject is infallible");
+            let args = PyTuple::new(
+                py,
+                [py_task.into_any(), py_conv.into_any().bind(py).to_owned()],
+            )
+            .map_err(|e| py_err_to_brain_error(py, e))?;
+
+            let res = self.handle.call_cached_method(py, "plan_steps", &args)?;
             let bound_res = res.bind(py);
 
             let bound_list = bound_res
-                .downcast::<PyList>()
+                .cast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
 
             let mut raw_items = Vec::new();
             for item in bound_list.iter() {
-                if let Ok(py_tc) = item.downcast::<crate::api::PyToolCall>() {
+                if let Ok(py_tc) = item.cast::<crate::api::PyToolCall>() {
                     let borrow_tc = py_tc.try_borrow().map_err(|e| BrainError::Python {
                         message: format!("Failed to borrow PyToolCall: {}", e),
                         traceback: None,
@@ -292,7 +302,7 @@ pub struct PythonEmbeddingAgent {
 
 impl PythonEmbeddingAgent {
     pub fn new(py: Python<'_>, instance: Py<PyAny>) -> Result<Self, BrainError> {
-        let handle = PythonAgentHandle::new(py, instance.clone(), &["embed_text"])?;
+        let handle = PythonAgentHandle::new(py, instance.clone_ref(py), &["embed_text"])?;
 
         let bound_instance = instance.bind(py);
         let name = bound_instance
@@ -333,8 +343,9 @@ impl EmbeddingAgent for PythonEmbeddingAgent {
     }
 
     fn embed_text(&self, text: &str) -> Result<Vec<f32>, BrainError> {
-        Python::with_gil(|py| {
-            let res = self.handle.call_cached_method(py, "embed_text", (text,))?;
+        Python::attach(|py| {
+            let args = PyTuple::new(py, [text]).map_err(|e| py_err_to_brain_error(py, e))?;
+            let res = self.handle.call_cached_method(py, "embed_text", &args)?;
             let bound_res = res.bind(py);
 
             let embedding = bound_res
@@ -359,7 +370,7 @@ pub struct PythonExtractionAgent {
 
 impl PythonExtractionAgent {
     pub fn new(py: Python<'_>, instance: Py<PyAny>) -> Result<Self, BrainError> {
-        let handle = PythonAgentHandle::new(py, instance.clone(), &["extract_graph"])?;
+        let handle = PythonAgentHandle::new(py, instance.clone_ref(py), &["extract_graph"])?;
 
         let bound_instance = instance.bind(py);
         let name = bound_instance
@@ -383,75 +394,73 @@ impl ExtractionAgent for PythonExtractionAgent {
     }
 
     fn extract_graph(&self, text: &str) -> Result<(Vec<NodeDTO>, Vec<EdgeDTO>), BrainError> {
-        let (raw_nodes, raw_edges) = Python::with_gil(|py| {
-            let res = self
-                .handle
-                .call_cached_method(py, "extract_graph", (text,))?;
+        let (raw_nodes, raw_edges) = Python::attach(|py| {
+            let args = PyTuple::new(py, [text]).map_err(|e| py_err_to_brain_error(py, e))?;
+            let res = self.handle.call_cached_method(py, "extract_graph", &args)?;
             let bound_res = res.bind(py);
 
-            let (py_nodes, py_edges) =
-                if let Ok(tuple) = bound_res.downcast::<pyo3::types::PyTuple>() {
-                    if tuple.len() != 2 {
-                        return Err(BrainError::Python {
-                            message: format!(
-                                "Expected extract_graph to return a tuple of size 2, got size {}",
-                                tuple.len()
-                            ),
-                            traceback: None,
-                        });
-                    }
-                    (
-                        tuple
-                            .get_item(0)
-                            .map_err(|e| py_err_to_brain_error(py, e))?,
-                        tuple
-                            .get_item(1)
-                            .map_err(|e| py_err_to_brain_error(py, e))?,
-                    )
-                } else if let Ok(list) = bound_res.downcast::<PyList>() {
-                    if list.len() != 2 {
-                        return Err(BrainError::Python {
-                            message: format!(
-                                "Expected extract_graph to return a list of size 2, got size {}",
-                                list.len()
-                            ),
-                            traceback: None,
-                        });
-                    }
-                    (
-                        list.get_item(0).map_err(|e| py_err_to_brain_error(py, e))?,
-                        list.get_item(1).map_err(|e| py_err_to_brain_error(py, e))?,
-                    )
-                } else if let Ok(dict) = bound_res.downcast::<PyDict>() {
-                    let nodes = dict
-                        .get_item("nodes")
-                        .map_err(|e| py_err_to_brain_error(py, e))?
-                        .ok_or_else(|| BrainError::Python {
-                            message: "Expected extract_graph dict to contain 'nodes'".to_string(),
-                            traceback: None,
-                        })?;
-                    let edges = dict
-                        .get_item("edges")
-                        .map_err(|e| py_err_to_brain_error(py, e))?
-                        .ok_or_else(|| BrainError::Python {
-                            message: "Expected extract_graph dict to contain 'edges'".to_string(),
-                            traceback: None,
-                        })?;
-                    (nodes, edges)
-                } else {
+            let (py_nodes, py_edges) = if let Ok(tuple) = bound_res.cast::<pyo3::types::PyTuple>() {
+                if tuple.len() != 2 {
                     return Err(BrainError::Python {
                         message: format!(
-                            "Expected extract_graph to return tuple, list, or dict, got: {:?}",
-                            bound_res
+                            "Expected extract_graph to return a tuple of size 2, got size {}",
+                            tuple.len()
                         ),
                         traceback: None,
                     });
-                };
+                }
+                (
+                    tuple
+                        .get_item(0)
+                        .map_err(|e| py_err_to_brain_error(py, e))?,
+                    tuple
+                        .get_item(1)
+                        .map_err(|e| py_err_to_brain_error(py, e))?,
+                )
+            } else if let Ok(list) = bound_res.cast::<PyList>() {
+                if list.len() != 2 {
+                    return Err(BrainError::Python {
+                        message: format!(
+                            "Expected extract_graph to return a list of size 2, got size {}",
+                            list.len()
+                        ),
+                        traceback: None,
+                    });
+                }
+                (
+                    list.get_item(0).map_err(|e| py_err_to_brain_error(py, e))?,
+                    list.get_item(1).map_err(|e| py_err_to_brain_error(py, e))?,
+                )
+            } else if let Ok(dict) = bound_res.cast::<PyDict>() {
+                let nodes = dict
+                    .get_item("nodes")
+                    .map_err(|e| py_err_to_brain_error(py, e))?
+                    .ok_or_else(|| BrainError::Python {
+                        message: "Expected extract_graph dict to contain 'nodes'".to_string(),
+                        traceback: None,
+                    })?;
+                let edges = dict
+                    .get_item("edges")
+                    .map_err(|e| py_err_to_brain_error(py, e))?
+                    .ok_or_else(|| BrainError::Python {
+                        message: "Expected extract_graph dict to contain 'edges'".to_string(),
+                        traceback: None,
+                    })?;
+                (nodes, edges)
+            } else {
+                return Err(BrainError::Python {
+                    message: format!(
+                        "Expected extract_graph to return tuple, list, or dict, got: {:?}",
+                        bound_res
+                    ),
+                    traceback: None,
+                });
+            };
 
             // Extract nodes
             let mut raw_nodes = Vec::new();
             let bound_nodes = py_nodes
-                .downcast::<PyList>()
+                .cast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
             for item in bound_nodes.iter() {
                 let json_val =
@@ -462,7 +471,7 @@ impl ExtractionAgent for PythonExtractionAgent {
             // Extract edges
             let mut raw_edges = Vec::new();
             let bound_edges = py_edges
-                .downcast::<PyList>()
+                .cast::<PyList>()
                 .map_err(|e| py_err_to_brain_error(py, e.into()))?;
             for item in bound_edges.iter() {
                 let json_val =
@@ -501,8 +510,8 @@ mod tests {
 
     #[test]
     fn test_python_agent_handle_and_wrappers() {
-        pyo3::prepare_freethreaded_python();
-        Python::with_gil(|py| {
+        Python::initialize();
+        Python::attach(|py| {
             let mock_agent_code = r#"
 class MockAgent:
     def __init__(self):
@@ -532,15 +541,17 @@ class MockAgent:
             [{"source": "node_1", "target": "node_2", "relation": "links", "weight": 1.0}]
         )
 "#;
-            let locals = pyo3::types::PyDict::new_bound(py);
-            py.run_bound(mock_agent_code, None, Some(&locals)).unwrap();
+            let locals = pyo3::types::PyDict::new(py);
+            let code_cstring = std::ffi::CString::new(mock_agent_code).unwrap();
+            py.run(code_cstring.as_c_str(), None, Some(&locals))
+                .unwrap();
             let mock_class = locals.get_item("MockAgent").unwrap().unwrap();
             let instance: Py<PyAny> = mock_class.call0().unwrap().into();
 
             // Test PythonAgentHandle constructor & required methods caching
             let handle = PythonAgentHandle::new(
                 py,
-                instance.clone(),
+                instance.clone_ref(py),
                 &["chat", "plan_steps", "embed_text", "extract_graph"],
             )
             .unwrap();
@@ -549,11 +560,11 @@ class MockAgent:
 
             // Test missing method validation
             let missing_handle_res =
-                PythonAgentHandle::new(py, instance.clone(), &["non_existent_method"]);
+                PythonAgentHandle::new(py, instance.clone_ref(py), &["non_existent_method"]);
             assert!(missing_handle_res.is_err());
 
             // Test PythonChatAgent
-            let chat_agent = PythonChatAgent::new(py, instance.clone()).unwrap();
+            let chat_agent = PythonChatAgent::new(py, instance.clone_ref(py)).unwrap();
             assert_eq!(chat_agent.name(), "TestAgent");
             let session_id = SessionId::new();
             let chat_res = chat_agent.chat(session_id, "hello").unwrap();
@@ -563,7 +574,7 @@ class MockAgent:
             );
 
             // Test PythonPlannerAgent
-            let planner_agent = PythonPlannerAgent::new(py, instance.clone()).unwrap();
+            let planner_agent = PythonPlannerAgent::new(py, instance.clone_ref(py)).unwrap();
             let history = Session::new_empty();
             let plans = planner_agent.plan_steps("do task", &history).unwrap();
             assert_eq!(plans.len(), 1);
@@ -575,13 +586,13 @@ class MockAgent:
             );
 
             // Test PythonEmbeddingAgent
-            let embedding_agent = PythonEmbeddingAgent::new(py, instance.clone()).unwrap();
+            let embedding_agent = PythonEmbeddingAgent::new(py, instance.clone_ref(py)).unwrap();
             assert_eq!(embedding_agent.dimension(), 128);
             let vec = embedding_agent.embed_text("text").unwrap();
             assert_eq!(vec, vec![0.1, 0.2, 0.3]);
 
             // Test PythonExtractionAgent
-            let extraction_agent = PythonExtractionAgent::new(py, instance.clone()).unwrap();
+            let extraction_agent = PythonExtractionAgent::new(py, instance.clone_ref(py)).unwrap();
             let (nodes, edges) = extraction_agent.extract_graph("text").unwrap();
             assert_eq!(nodes.len(), 1);
             assert_eq!(nodes[0].id, "node_1");

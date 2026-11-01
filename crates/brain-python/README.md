@@ -4,7 +4,7 @@
 Strictly encapsulated PyO3 CPython FFI boundary and plugin loader.
 
 ## Responsibilities
-* Encapsulate raw PyO3 bindings and CPython 3.12 GIL runtime management.
+* Encapsulate raw PyO3 bindings and CPython 3.15.2 GIL runtime management.
 * Expose safe, Rust-native traits for semantic extraction and custom Python plugins.
 * Prevent PyO3 types and symbols from leaking into upstream workspace crates.
 

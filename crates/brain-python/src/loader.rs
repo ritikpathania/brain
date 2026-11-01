@@ -80,18 +80,14 @@ impl PluginCapabilities for LoadedPlugin {
 
 impl PluginEventHandler for LoadedPlugin {
     fn dispatch(&self, event: &PluginEvent<'_>) -> Result<(), BrainError> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let session_id = event
                 .context
                 .session_id
                 .ok_or_else(|| BrainError::Validation {
                     message: "Session ID is required for Python runtime context".to_string(),
                 })?;
-            let ctx = crate::api::PyRuntimeContext {
-                host_ptr: unsafe { std::mem::transmute(event.context.host) },
-                session_id: Some(session_id),
-                is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
-            };
+            let ctx = crate::api::PyRuntimeContext::new(event.context.host.clone(), session_id);
             match event.kind {
                 PluginEventKind::Load => {
                     call_lifecycle_hook(py, &self.instance, &self.module, "on_load", ctx)
@@ -117,14 +113,10 @@ impl LoadedPlugin {
     pub fn trigger_on_load(
         &self,
         py: Python<'_>,
-        host: &dyn HostContext,
+        host: Arc<dyn HostContext>,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
-        let ctx = crate::api::PyRuntimeContext {
-            host_ptr: unsafe { std::mem::transmute(host) },
-            session_id: Some(session_id),
-            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
-        };
+        let ctx = crate::api::PyRuntimeContext::new(host, session_id);
         call_lifecycle_hook(py, &self.instance, &self.module, "on_load", ctx)
     }
 
@@ -132,14 +124,10 @@ impl LoadedPlugin {
     pub fn trigger_on_unload(
         &self,
         py: Python<'_>,
-        host: &dyn HostContext,
+        host: Arc<dyn HostContext>,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
-        let ctx = crate::api::PyRuntimeContext {
-            host_ptr: unsafe { std::mem::transmute(host) },
-            session_id: Some(session_id),
-            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
-        };
+        let ctx = crate::api::PyRuntimeContext::new(host, session_id);
         call_lifecycle_hook(py, &self.instance, &self.module, "on_unload", ctx)
     }
 
@@ -147,14 +135,10 @@ impl LoadedPlugin {
     pub fn trigger_on_session_start(
         &self,
         py: Python<'_>,
-        host: &dyn HostContext,
+        host: Arc<dyn HostContext>,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
-        let ctx = crate::api::PyRuntimeContext {
-            host_ptr: unsafe { std::mem::transmute(host) },
-            session_id: Some(session_id),
-            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
-        };
+        let ctx = crate::api::PyRuntimeContext::new(host, session_id);
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_start", ctx)
     }
 
@@ -162,14 +146,10 @@ impl LoadedPlugin {
     pub fn trigger_on_session_end(
         &self,
         py: Python<'_>,
-        host: &dyn HostContext,
+        host: Arc<dyn HostContext>,
         session_id: brain_domain::SessionId,
     ) -> Result<(), BrainError> {
-        let ctx = crate::api::PyRuntimeContext {
-            host_ptr: unsafe { std::mem::transmute(host) },
-            session_id: Some(session_id),
-            is_valid: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
-        };
+        let ctx = crate::api::PyRuntimeContext::new(host, session_id);
         call_lifecycle_hook(py, &self.instance, &self.module, "on_session_end", ctx)
     }
 }
@@ -179,8 +159,8 @@ fn load_python_module(
     py: Python<'_>,
     plugin_id: &str,
     entrypoint_path: &Path,
-) -> PyResult<PyObject> {
-    let importlib_util = py.import_bound("importlib.util")?;
+) -> PyResult<Py<PyAny>> {
+    let importlib_util = py.import("importlib.util")?;
     let entrypoint_str = entrypoint_path.to_string_lossy().to_string();
 
     let spec =
@@ -196,7 +176,7 @@ fn load_python_module(
     let module = importlib_util.call_method1("module_from_spec", (&spec,))?;
 
     // Register the module in sys.modules to support relative imports
-    let sys = py.import_bound("sys")?;
+    let sys = py.import("sys")?;
     let modules = sys.getattr("modules")?;
     modules.set_item(plugin_id, &module)?;
 
@@ -268,7 +248,6 @@ fn call_lifecycle_hook(
     hook_name: &str,
     ctx: crate::api::PyRuntimeContext,
 ) -> Result<(), BrainError> {
-    let is_valid = ctx.is_valid.clone();
     let res = (|| {
         let bound_inst = instance.bind(py);
         if let Ok(hook) = bound_inst.getattr(hook_name) {
@@ -282,7 +261,7 @@ fn call_lifecycle_hook(
         let bound_mod = module.bind(py);
         if let Ok(hook) = bound_mod.getattr(hook_name) {
             if hook.is_callable() {
-                hook.call1((ctx,))
+                hook.call1((ctx.clone(),))
                     .map_err(|e| py_err_to_brain_error(py, e))?;
                 return Ok(());
             }
@@ -290,8 +269,10 @@ fn call_lifecycle_hook(
 
         Ok(())
     })();
-    // Invalidate the runtime context immediately on hook completion to detect Python misuse.
-    is_valid.store(false, std::sync::atomic::Ordering::Relaxed);
+    // Settle every Python reference to this shared bridge immediately after
+    // the hook completes. Any in-flight operation owns an Arc and can finish
+    // safely; later operations receive a stable closed-context error.
+    ctx.close();
     res
 }
 
@@ -308,7 +289,7 @@ impl PluginLoader for PythonPluginLoader {
     }
 
     fn load(&self, descriptor: &InstalledPlugin) -> Result<Box<dyn Plugin>, BrainError> {
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             let loaded = Self::load_plugin(py, descriptor)?;
             Ok(Box::new(loaded) as Box<dyn Plugin>)
         })
@@ -338,14 +319,13 @@ impl PythonPluginLoader {
         let module = load_python_module(py, &manifest.id().to_string(), &entrypoint_path)
             .map_err(|e| py_err_to_brain_error(py, e))?;
 
-        let bound_module =
-            module
-                .bind(py)
-                .downcast::<PyModule>()
-                .map_err(|e| BrainError::Python {
-                    message: format!("Failed to downcast module to PyModule: {}", e),
-                    traceback: None,
-                })?;
+        let bound_module = module
+            .bind(py)
+            .cast::<PyModule>()
+            .map_err(|e| BrainError::Python {
+                message: format!("Failed to cast module to PyModule: {}", e),
+                traceback: None,
+            })?;
 
         let agent_class =
             find_agent_class(bound_module, &manifest.id().to_string()).map_err(|e| {
@@ -365,25 +345,25 @@ impl PythonPluginLoader {
             .unbind();
 
         let chat_agent = if instance.bind(py).getattr("chat").is_ok() {
-            Some(PythonChatAgent::new(py, instance.clone())?)
+            Some(PythonChatAgent::new(py, instance.clone_ref(py))?)
         } else {
             None
         };
 
         let planner_agent = if instance.bind(py).getattr("plan_steps").is_ok() {
-            Some(PythonPlannerAgent::new(py, instance.clone())?)
+            Some(PythonPlannerAgent::new(py, instance.clone_ref(py))?)
         } else {
             None
         };
 
         let embedding_agent = if instance.bind(py).getattr("embed_text").is_ok() {
-            Some(PythonEmbeddingAgent::new(py, instance.clone())?)
+            Some(PythonEmbeddingAgent::new(py, instance.clone_ref(py))?)
         } else {
             None
         };
 
         let extraction_agent = if instance.bind(py).getattr("extract_graph").is_ok() {
-            Some(PythonExtractionAgent::new(py, instance.clone())?)
+            Some(PythonExtractionAgent::new(py, instance.clone_ref(py))?)
         } else {
             None
         };

@@ -6,8 +6,8 @@ use pyo3::prelude::*;
 
 #[pymodule]
 fn brain_ai(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let api_mod = PyModule::new_bound(py, "api")?;
-    let v1_mod = PyModule::new_bound(py, "v1")?;
+    let api_mod = PyModule::new(py, "api")?;
+    let v1_mod = PyModule::new(py, "v1")?;
 
     v1_mod.add_class::<api::PySessionId>()?;
     v1_mod.add_class::<api::PyNodeId>()?;
@@ -26,10 +26,10 @@ fn brain_ai(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 /// Initializes the embedded Python runtime for multithreaded operation.
 pub fn initialize_python_runtime() {
-    pyo3::prepare_freethreaded_python();
+    Python::initialize();
 }
 
 /// Verifies that the Python GIL and runtime are healthy and operational.
 pub fn check_python_health() -> bool {
-    pyo3::Python::with_gil(|_py| true)
+    Python::attach(|_py| true)
 }
