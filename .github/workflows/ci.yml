@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
 
@@ -54,22 +54,6 @@ jobs:
           cd daemon
           uv run --no-sync ruff check .
 
-  msrv-check:
-    name: MSRV Check (Rust 1.80.0)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Rust MSRV
-        uses: dtolnay/rust-toolchain@1.80.0
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      - name: Check Workspace MSRV
-        run: cargo check --workspace --all-targets
-
   xtask-verify-gate:
     name: Quality Gate (cargo xtask verify)
     runs-on: ubuntu-latest
@@ -78,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -120,7 +104,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2

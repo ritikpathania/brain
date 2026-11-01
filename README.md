@@ -3,7 +3,7 @@
 [![CI](https://github.com/ritikpathania/brain/actions/workflows/ci.yml/badge.svg)](https://github.com/ritikpathania/brain/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ritikpathania/brain?color=blue&label=release)](https://github.com/ritikpathania/brain/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Rust MSRV](https://img.shields.io/badge/rustc-1.80%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust MSRV](https://img.shields.io/badge/rustc-1.99.1%2B-orange.svg)](https://www.rust-lang.org)
 [![Docs](https://img.shields.io/badge/docs-active-blue)](docs/README.md)
 
 **Brain** is a high-performance, stateful Relational Memory Engine designed to store, canonicalize, and query structured knowledge for autonomous coding agents and interactive console interfaces.
@@ -113,7 +113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 CI continuously benchmarks query latencies, ingestion throughput, and typewriter drain performance.
 
-> **Test Hardware Baseline**: Apple M-Series (ARM64) / x86_64 Linux (Ubuntu 24.04), Rust 1.80+.
+> **Test Hardware Baseline**: Apple M-Series (ARM64) / x86_64 Linux (Ubuntu 24.04), Rust 1.99.1+.
 
 * **Search Projection Latency**: Sub-millisecond read-model execution (`< 0.5 ms`).
 * **Ingestion Throughput**: High-rate transactional observation writes (`> 10,000 obs/sec`).
