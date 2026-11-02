@@ -48,6 +48,19 @@ struct DocsCheckReport {
     subsystem_violations: Vec<String>,
 }
 
+impl DocsCheckReport {
+    /// Returns whether this report contains a violation in active documentation.
+    /// Archived material remains reportable but non-blocking.
+    fn has_active_errors(&self) -> bool {
+        !self.active_broken_links.is_empty()
+            || !self.missing_readmes.is_empty()
+            || !self.active_orphan_documents.is_empty()
+            || !self.invalid_snippets.is_empty()
+            || !self.frontmatter_violations.is_empty()
+            || !self.subsystem_violations.is_empty()
+    }
+}
+
 fn docs_cmd(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let subcommand = args.first().map(|s| s.as_str()).unwrap_or("all");
     let json_output = args.iter().any(|a| a == "--json");
@@ -84,15 +97,12 @@ fn docs_cmd(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         print_docs_summary(subcommand, &report)?;
     }
 
-    let has_errors = !report.active_broken_links.is_empty()
-        || !report.missing_readmes.is_empty()
-        || !report.active_orphan_documents.is_empty()
-        || !report.invalid_snippets.is_empty()
-        || !report.frontmatter_violations.is_empty()
-        || !report.subsystem_violations.is_empty();
-
-    if has_errors && subcommand != "all" && !json_output {
-        std::process::exit(1);
+    if report.has_active_errors() {
+        return Err(std::io::Error::other(format!(
+            "documentation validation found active violations in '{}'; see the report above",
+            subcommand
+        ))
+        .into());
     }
 
     Ok(())
@@ -178,7 +188,12 @@ fn collect_md_files(
         let entry = entry?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().into_owned();
-        if name.starts_with('.') || name == "target" || name == "node_modules" || name == ".venv" {
+        if name.starts_with('.')
+            || name == "target"
+            || name == "node_modules"
+            || name == ".venv"
+            || name == "vendor"
+        {
             continue;
         }
         if path.is_dir() {
@@ -191,8 +206,15 @@ fn collect_md_files(
 }
 
 fn check_links(report: &mut DocsCheckReport) -> Result<(), Box<dyn std::error::Error>> {
+    check_links_in_dir(Path::new("."), report)
+}
+
+fn check_links_in_dir(
+    root: &Path,
+    report: &mut DocsCheckReport,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut files = Vec::new();
-    collect_md_files(Path::new("."), &mut files)?;
+    collect_md_files(root, &mut files)?;
 
     for file_path in &files {
         let content = match fs::read_to_string(file_path) {
@@ -201,11 +223,25 @@ fn check_links(report: &mut DocsCheckReport) -> Result<(), Box<dyn std::error::E
         };
         let file_dir = file_path.parent().unwrap_or_else(|| Path::new("."));
 
-        for line_num in 1..=content.lines().count() {
-            let line = content.lines().nth(line_num - 1).unwrap();
+        let mut in_fenced_code = false;
+        for (line_num, line) in content.lines().enumerate() {
+            let line_num = line_num + 1;
+            let trimmed = line.trim_start();
+            if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+                in_fenced_code = !in_fenced_code;
+                continue;
+            }
+            if in_fenced_code {
+                continue;
+            }
+
             let mut start = 0;
             while let Some(open_bracket) = line[start..].find('[') {
                 let pos = start + open_bracket;
+                if is_inside_inline_code(line, pos) {
+                    start = pos + 1;
+                    continue;
+                }
                 if let Some(close_bracket) = line[pos..].find(']') {
                     let link_start = pos + close_bracket + 1;
                     if link_start < line.len() && line.as_bytes()[link_start] == b'(' {
@@ -266,6 +302,35 @@ fn check_links(report: &mut DocsCheckReport) -> Result<(), Box<dyn std::error::E
         }
     }
     Ok(())
+}
+
+fn is_inside_inline_code(line: &str, byte_index: usize) -> bool {
+    let bytes = line.as_bytes();
+    let mut index = 0;
+    let mut opening_delimiter_len = None;
+
+    while index < byte_index {
+        if bytes[index] != b'`' {
+            index += 1;
+            continue;
+        }
+
+        let delimiter_start = index;
+        while index < bytes.len() && bytes[index] == b'`' {
+            index += 1;
+        }
+        let delimiter_len = index - delimiter_start;
+
+        match opening_delimiter_len {
+            Some(opening_len) if opening_len == delimiter_len => {
+                opening_delimiter_len = None;
+            }
+            None => opening_delimiter_len = Some(delimiter_len),
+            Some(_) => {}
+        }
+    }
+
+    opening_delimiter_len.is_some()
 }
 
 fn check_readmes(report: &mut DocsCheckReport) -> Result<(), Box<dyn std::error::Error>> {
@@ -852,4 +917,66 @@ fn verify_contracts() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("All contract verification quality gates: PASSED!");
     Ok(())
+}
+
+#[cfg(test)]
+mod docs_check_tests {
+    use super::*;
+
+    #[test]
+    fn active_documentation_violations_are_failing() {
+        let report = DocsCheckReport {
+            active_broken_links: vec!["docs/README.md:L1 -> missing.md".to_string()],
+            ..Default::default()
+        };
+
+        assert!(report.has_active_errors());
+    }
+
+    #[test]
+    fn archived_documentation_violations_remain_informational() {
+        let report = DocsCheckReport {
+            archive_broken_links: vec!["docs/archive/old.md:L1 -> missing.md".to_string()],
+            ..Default::default()
+        };
+
+        assert!(!report.has_active_errors());
+    }
+
+    #[test]
+    fn ci_runs_active_documentation_validation_as_a_blocking_gate() {
+        let workflow = include_str!("../../.github/workflows/ci.yml");
+        let docs_job = workflow
+            .split("\n  docs-validation:")
+            .nth(1)
+            .and_then(|remaining| remaining.split("\n  canonical-frontend:").next())
+            .expect("CI must contain a distinct documentation validation job");
+
+        assert!(docs_job.contains("name: Documentation validation"));
+        assert!(docs_job.contains("run: cargo xtask docs all"));
+        assert!(!docs_job.contains("continue-on-error: true"));
+        assert!(!docs_job.contains("reporting-only"));
+        assert!(!docs_job.contains("non-blocking"));
+    }
+
+    #[test]
+    fn inline_markdown_examples_are_not_interpreted_as_links() {
+        let fixture_dir =
+            std::env::temp_dir().join(format!("brain-xtask-inline-link-{}", std::process::id()));
+        fs::create_dir_all(&fixture_dir).expect("fixture directory should be created");
+        fs::write(
+            fixture_dir.join("example.md"),
+            "Use `[text](url)` or ``[text](url)`` to describe a Markdown link.\n\n```markdown\n[text](url)\n```\n",
+        )
+        .expect("fixture document should be written");
+
+        let mut report = DocsCheckReport::default();
+        check_links_in_dir(&fixture_dir, &mut report).expect("fixture link scan should complete");
+        fs::remove_dir_all(&fixture_dir).expect("fixture directory should be removed");
+
+        assert!(
+            report.active_broken_links.is_empty(),
+            "an inline Markdown syntax example must not be reported as a broken link"
+        );
+    }
 }

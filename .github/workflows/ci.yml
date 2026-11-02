@@ -152,6 +152,22 @@ jobs:
           # Test exit code semantics (brain health when daemon unreachable should exit 1)
           /tmp/pkg_verify/brain health || [ $? -eq 1 ]
 
+  docs-validation:
+    name: Documentation validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.99.1
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Documentation Quality Gate
+        run: cargo xtask docs all
+
   canonical-frontend:
     name: First-party frontend and real-daemon E2E
     runs-on: ubuntu-latest
