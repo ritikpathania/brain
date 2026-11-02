@@ -6,8 +6,50 @@ on:
       - 'v*'
 
 jobs:
+  release-quality:
+    name: Release quality verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.99.1
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Strict Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Run Workspace Tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Run Documentation Quality Gate
+        run: cargo xtask docs all
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.15.2'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Run Python Daemon Tests
+        run: |
+          cd daemon
+          uv sync --no-install-project
+          uv run --frozen pytest -ra
+
   build-binaries:
-    name: Build Release Binary (${{ matrix.target }})
+    name: Build Product Archive (${{ matrix.target }})
+    needs: release-quality
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -15,9 +57,11 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: brain-linux-x86_64
+            repeat_smoke: 1
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: brain-macos-arm64
+            repeat_smoke: 3
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -31,50 +75,102 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Set up Python
+        id: python
         uses: actions/setup-python@v5
         with:
           python-version: '3.15.2'
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf build-essential
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.4'
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
 
-      - name: Sync Dependencies & Maturin Bridge
+      - name: Sync Daemon Dependencies
         run: |
           cd daemon
           uv sync --no-install-project
-          uv run maturin develop
 
-      - name: Build Standalone Binaries (brain & brain-daemon)
+      - name: Frontend typecheck and tests
+        working-directory: packages/brain-frontend
         run: |
-          PYO3_PYTHON=python3 cargo build --release --package brain --target ${{ matrix.target }}
-          PYO3_PYTHON=python3 cargo build --release --manifest-path daemon/Cargo.toml --bin brain-daemon --target ${{ matrix.target }}
-          
-          mkdir -p release_staging
-          cp target/${{ matrix.target }}/release/brain release_staging/brain
-          if [ -f daemon/target/${{ matrix.target }}/release/brain-daemon ]; then
-            cp daemon/target/${{ matrix.target }}/release/brain-daemon release_staging/brain-daemon
-          else
-            cp target/${{ matrix.target }}/release/brain-daemon release_staging/brain-daemon
-          fi
-          cp README.md release_staging/README.md
-          cp CHANGELOG.md release_staging/CHANGELOG.md
-          cp LICENSE release_staging/LICENSE 2>/dev/null || true
-          cp -r docs release_staging/docs
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun run test
 
-          TAR_NAME="${{ matrix.artifact_name }}.tar.gz"
-          tar -czf ${TAR_NAME} -C release_staging .
+      - name: Compile release binaries with remapped prefix
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+          RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=. --remap-path-prefix=${{ runner.temp }}=.
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }} -p brain -p brain-daemon
+
+      - name: Build standalone frontend
+        working-directory: packages/brain-frontend
+        run: bun run build
+
+      - name: Verify standalone frontend artifact
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          ./scripts/verify-frontend-artifact.sh \
+            --artifact packages/brain-frontend/dist/brain-frontend \
+            --brain-version "1.1.0" \
+            --target "${{ matrix.target }}"
+
+      - name: Assemble complete product
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          mkdir -p "${{ runner.temp }}/product-stage"
+          ./scripts/package-brain-product.sh \
+            --cli "target/${{ matrix.target }}/release/brain" \
+            --daemon "target/${{ matrix.target }}/release/brain-daemon" \
+            --frontend "packages/brain-frontend/dist/brain-frontend" \
+            --output "${{ runner.temp }}/product-stage" \
+            --target "${{ matrix.target }}"
+
+      - name: Verify daemon runtime relocation in product
+        run: |
+          ./scripts/verify-daemon-runtime.sh \
+            --artifact "${{ runner.temp }}/product-stage" \
+            --repeat 1
+
+      - name: Archive product delivery
+        run: |
+          mkdir -p "${{ runner.temp }}/archive-stage/brain-dist"
+          cp -R "${{ runner.temp }}/product-stage/"* "${{ runner.temp }}/archive-stage/brain-dist/"
+          tar -czf "${{ matrix.artifact_name }}.tar.gz" -C "${{ runner.temp }}/archive-stage" brain-dist
+          shasum -a 256 "${{ matrix.artifact_name }}.tar.gz" > "${{ matrix.artifact_name }}.tar.gz.sha256"
+
+      - name: Verify clean extraction and PTY smoke proof
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          ./scripts/verify-brain-product.sh \
+            --archive "${{ matrix.artifact_name }}.tar.gz" \
+            --target "${{ matrix.target }}" \
+            --repeat ${{ matrix.repeat_smoke }}
 
       - name: Upload Package Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}.tar.gz
+          path: |
+            ${{ matrix.artifact_name }}.tar.gz
+            ${{ matrix.artifact_name }}.tar.gz.sha256
 
   publish-release:
     name: Create GitHub Release
-    needs: build-binaries
+    needs: [release-quality, build-binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -98,9 +194,4 @@ jobs:
         with:
           name: Brain ${{ github.ref_name }}
           draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            release_assets/*
-            CHANGELOG.md
-            LICENSE
+          files: release_assets/*

@@ -5,7 +5,7 @@ Primary user-facing command-line interface binary and interactive frontend launc
 
 ## Responsibilities
 * Parse CLI command arguments and subcommands (daemon start/stop/status/run, ingest, query, ui).
-* Launch interactive React + Ink + Yoga terminal user interface console (`packages/brain-shell`).
+* Resolve and launch the first-party `packages/brain-frontend` for `brain ui` from packaged product installation or development repository ancestry. `BRAIN_FRONTEND_ROOT` is only an explicit development override; `packages/brain-shell` is legacy/reference code and is not a fallback.
 * Manage local background daemon lifecycle against canonical DaemonHost topology.
 
 ## Boundaries & Constraints

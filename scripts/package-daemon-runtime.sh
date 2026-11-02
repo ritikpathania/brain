@@ -183,6 +183,16 @@ for module in modules:
         + "        )\n"
     )
     module.write_text(rewritten)
+
+json_modules = sorted((runtime_home / "lib").glob("python3.*/_sysconfig_vars__*.json"))
+for json_module in json_modules:
+    source = json_module.read_text()
+    rewritten = (
+        source.replace(build_home, "__BRAIN_PYTHON_HOME__")
+        .replace("/Users/runner", "__BRAIN_USER_BASE__")
+        .replace("/home/runner", "__BRAIN_USER_BASE__")
+    )
+    json_module.write_text(rewritten)
 PY
 
 PYTHONHOME="$output_directory/runtime/python" \

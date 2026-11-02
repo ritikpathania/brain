@@ -57,8 +57,8 @@ make build-daemon
 make build-brain
 ```
 
-### Option C: Download Pre-Built Binaries
-Download ready-to-run release binaries (`brain-linux-x86_64`, `brain-macos-arm64`) directly from [GitHub Releases](https://github.com/ritikpathania/brain/releases).
+### Option C: Download Pre-Built Product Archives
+Download self-contained release archives (`brain-macos-arm64.tar.gz`, `brain-linux-x86_64.tar.gz`) directly from [GitHub Releases](https://github.com/ritikpathania/brain/releases). See the [Product Distribution Guide](docs/guides/product-distribution.md) for complete details on bundle contents, integrity verification, and runtime isolation.
 
 ---
 

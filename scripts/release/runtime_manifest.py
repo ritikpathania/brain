@@ -27,8 +27,13 @@ def validate_runtime_manifest(root: Path) -> dict:
     except (OSError, json.JSONDecodeError) as e:
         raise RuntimeManifestError(f"invalid JSON in runtime manifest: {e}") from e
 
-    if manifest.get("schema_version") != 1 or manifest.get("artifact") != "brain-daemon-runtime":
-        raise RuntimeManifestError("invalid daemon runtime manifest schema or artifact identity")
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("artifact") != "brain-daemon-runtime"
+    ):
+        raise RuntimeManifestError(
+            "invalid daemon runtime manifest schema or artifact identity"
+        )
 
     python_section = manifest.get("python")
     if not isinstance(python_section, dict):
@@ -40,15 +45,23 @@ def validate_runtime_manifest(root: Path) -> dict:
 
     home = python_section.get("home")
     if home != "runtime/python":
-        raise RuntimeManifestError(f"unexpected python.home: {home}, expected 'runtime/python'")
+        raise RuntimeManifestError(
+            f"unexpected python.home: {home}, expected 'runtime/python'"
+        )
 
     library_rel = python_section.get("library")
     if not isinstance(library_rel, str) or not library_rel or "\\" in library_rel:
-        raise RuntimeManifestError("python.library must be a non-empty relative POSIX path")
+        raise RuntimeManifestError(
+            "python.library must be a non-empty relative POSIX path"
+        )
 
     posix_path = PurePosixPath(library_rel)
-    if posix_path.is_absolute() or any(p in {"", ".", ".."} for p in library_rel.split("/")):
-        raise RuntimeManifestError(f"python.library must not be absolute or traverse: {library_rel}")
+    if posix_path.is_absolute() or any(
+        p in {"", ".", ".."} for p in library_rel.split("/")
+    ):
+        raise RuntimeManifestError(
+            f"python.library must not be absolute or traverse: {library_rel}"
+        )
 
     return manifest
 
@@ -76,3 +89,23 @@ def resolve_python_library(root: Path) -> Path:
 def resolve_python_version(root: Path) -> str:
     manifest = validate_runtime_manifest(root)
     return manifest["python"]["version"]
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Resolve CPython shared library from runtime manifest"
+    )
+    parser.add_argument(
+        "--artifact", required=True, type=Path, help="Artifact root directory"
+    )
+    args = parser.parse_args()
+
+    try:
+        lib_path = resolve_python_library(args.artifact)
+        print(str(lib_path))
+    except Exception as e:
+        sys.stderr.write(f"error: {e}\n")
+        sys.exit(1)

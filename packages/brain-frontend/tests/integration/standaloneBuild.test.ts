@@ -209,6 +209,7 @@ for (const dev of [undefined, 'false', 'true'] as const) {
         }
         await Bun.sleep(10);
       }
+      await Bun.sleep(50);
       terminal.terminal!.write('\x03');
       await Promise.race([terminal.exited, Bun.sleep(3_000).then(() => { throw new Error('compiled frontend did not exit'); })]);
       expect(terminal.exitCode).toBe(0);

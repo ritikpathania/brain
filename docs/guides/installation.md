@@ -21,7 +21,23 @@ Ensure the following are installed and available on your system `PATH`:
 
 ---
 
-## 1. Install via `cargo install` (Recommended)
+## 1. Install via Pre-built Product Archive (Recommended)
+
+Brain is distributed as a self-contained product bundle containing the native CLI, relocatable daemon runtime, and standalone compiled terminal frontend with zero external Bun/Node runtime prerequisites.
+
+Download the latest release archive for your platform, extract it, and add `bin/` to your PATH:
+
+```bash
+tar -xzf brain-macos-arm64.tar.gz
+export PATH="/path/to/brain-dist/bin:$PATH"
+brain ui
+```
+
+See [Product Distribution Guide](product-distribution.md) for full details on bundle structure and verification.
+
+---
+
+## 2. Install from Source via `cargo install` (Development)
 You can compile and install `brain` directly from source:
 
 ```bash
@@ -41,7 +57,7 @@ Once installed, the binaries `brain` and `brain-daemon` will be available in you
 
 ---
 
-## 2. Verification
+## 3. Verification
 To verify the installation, check the tool version:
 
 ```bash
@@ -51,7 +67,7 @@ brain-daemon --version
 
 ---
 
-## 3. Quick Start
+## 4. Quick Start
 1. **Start the background memory engine daemon**:
    ```bash
    brain daemon start

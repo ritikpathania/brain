@@ -3,107 +3,76 @@ status: active
 owner: tui
 canonical: false
 review_cycle: quarterly
-last_reviewed: 2026-08-14
+last_reviewed: 2026-09-30
 applies_to: v1.1+
 subsystem: tui
 owns:
-  - crates/brain-tui
+  - frontend integration boundary
 depends_on:
   - protocol
-  - sdk
+  - sessions
 used_by:
-  - app
+  - cli
 canonical_specs:
-  - docs/design/CLAUDE_VISUAL_CONTRACT.md
-  - docs/design/CLAUDE_COMPONENT_MODEL.md
-  - docs/design/BRAIN_CLAUDE_SURFACE_MAPPING.md
+  - docs/reference/protocol.md
+  - docs/architecture/principles.md
 adrs: []
-rfcs:
-  - RFC-008
-  - RFC-009
+rfcs: []
 ---
 
-# Terminal User Interface (TUI) Subsystem Mini-Handbook
+# Canonical Frontend Integration Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical TUI visual and interaction contracts live in [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](../design/CLAUDE_VISUAL_CONTRACT.md) and component models live in [`docs/design/CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md).
+> **Governance role:** This is an integration handbook, not a visual-design authority. The canonical development frontend is the independently authored first-party `packages/brain-frontend`.
 
----
+## Purpose
 
-## 1. Purpose
-The TUI subsystem provides a rich, interactive, full-screen terminal experience built using Rust, `Ratatui`, and `Crossterm`. It faithfully reproduces Claude's UI/UX presentation and interaction grammar while projecting Brain's relational memory, hybrid search, and streaming capabilities.
+Brain's terminal product boundary is:
 
-## 2. Responsibilities
-- Manages alternate screen buffer (`EnterAlternateScreen`) initialization and teardown.
-- Implements immediate-mode differential rendering loops at 60 FPS (16.6ms frame budget).
-- Buffers network stream chunks into a smooth typewriter queue.
-- Surfaces interactive tool permission dialogs (`RFC-009`), slash command autocompletions, and command palettes (`Ctrl+K`).
-
-## 3. Out of Scope
-- IPC frame encoding or network socket listener management (owned by **Protocol**).
-- Domain entity mutations or graph operations (owned by **Compiler** / **Domain**).
-- Database disk storage (owned by **Storage**).
-
-## 4. Architecture Overview
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. Scrollable Message Canvas (flexGrow: 1, borderless floor)                │
-│    ├── Typographic Greeting Header                                          │
-│    ├── User Query & Assistant Response Stream (Markdown, Code Fences)       │
-│    ├── Inline Collapsible Thinking Blocks (⠋ Thinking 2.4s)                 │
-│    ├── Inline Tool Execution Cards (✓ Read 42 lines)                        │
-│    └── Recalled Memory Provenance Chips (⟡ Recalled 4 memories)             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. Pinned Bottom Region (flexShrink: 0)                                     │
-│    ├── Floating Overlays (Slash Autocomplete Popup / Command Palette Ctrl+K)│
-│    ├── Prompt Input Composer (Boxed, rounded borders, multiline expansion)  │
-│    └── Status Line (Single-row borderless hint bar at y = height - 1)       │
-└─────────────────────────────────────────────────────────────────────────────┘
+Brain CLI and services
+  → versioned UDS frontend protocol
+  → owned TypeScript Brain adapter/projection
+  → frontend-neutral state
+  → first-party Brain terminal presentation
 ```
 
-## 5. Runtime Flow
-1. **Startup**: TUI enters alt-screen mode, initializes Crossterm raw mode, connects to UDS socket.
-2. **Event Loop**: Listens to terminal keyboard input and UDS `StreamEvent` frames.
-3. **Typewriter Queue**: Network chunks enter a typewriter buffer, draining sequentially onto the Ratatui canvas at 60 FPS.
+The CLI resolves `packages/brain-frontend` from the Brain repository containing its executable. `BRAIN_FRONTEND_ROOT` is an optional explicit development override, never an automatic home-directory/private-checkout search. The validated package root becomes the child working directory. `packages/brain-shell` is legacy migration/reference code and is not the `brain ui` destination.
 
-## 6. Key Invariants
-- **Theme Token Encapsulation**: Components use semantic theme tokens mapped to Claude's warm neutral/terracotta palette, never raw ANSI escape sequences.
-- **SIGWINCH Resizing**: Layouts dynamically adapt using two-pass layout calculation without negative rectangle panics.
-- **Non-Blocking Render Loop**: Network I/O and state updates run asynchronously from the draw loop.
+## Responsibilities
 
-## 7. Owning Crates
-- [`crates/brain-tui`](../../crates/brain-tui/README.md): Layout containers, widgets, theme structures, typewriter pipeline.
+- Resolve the first-party development package (or explicit override) and launch it with the effective daemon socket configuration.
+- Require `v1/frontend/handshake` before Brain-backed work is usable.
+- Keep Brain authoritative for sessions, transcript history, generation lifecycle, tool execution, permission settlement, reconnect reconciliation, and retrieval metadata.
+- Map only versioned protocol DTOs into the frontend adapter; Rust domain/storage structures do not enter presentation components.
+- Keep rendering, keyboard, focus, scrolling, and terminal behavior in the frontend presentation/input layer, above protocol and neutral state.
 
-## 8. Implementation Notes
-- Access theme structures via `Theme` maps defined in `crates/brain-tui/src/ui/theme/mod.rs`.
+## Runtime flow
 
-## 9. Canonical References
-- [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](../design/CLAUDE_VISUAL_CONTRACT.md): **Sole Canonical Visual & Interaction Authority**.
-- [`docs/design/CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md): **Canonical Component Architecture**.
-- [`docs/design/BRAIN_CLAUDE_SURFACE_MAPPING.md`](../design/BRAIN_CLAUDE_SURFACE_MAPPING.md): **Canonical Capability Surface Mapping**.
-- [`docs/architecture/STABLE_UI_INVARIANTS.md`](../architecture/STABLE_UI_INVARIANTS.md): Component state invariants.
-- [`docs/design/README.md`](../design/README.md): Index of all TUI design specifications.
-
-## 10. Related ADRs
-- None directly assigned.
-
-## 11. Related RFCs
-- [`RFC-008: Immediate-Mode Ratatui Differential Rendering`](../architecture/rfc/RFC-008.md)
-- [`RFC-009: Plan Mode & Interactive Terminal Review Modals`](../architecture/rfc/RFC-009.md)
-
-## 12. Operations
-- Target draw frame latency: $< 16\text{ ms}$ (60 FPS).
-
-## 13. Testing
-- Integration tests in `crates/brain-tui/tests/` verify state reducers and layout computations.
-
-## 14. Extension Points
-- Implement custom Ratatui widgets inside `crates/brain-tui/src/ui/components/`.
-
-## 15. Subsystem Dependencies
 ```text
-TUI Subsystem
-├── Depends on: Protocol (brain-integrations) & Client SDK (brain-sdk-rs)
-├── Communicates with: Background Daemon (daemon) over UDS
-├── Visualizes: Retrieval results & Memory graph provenance
-└── Consumes: Theme Tokens (crates/brain-tui)
+brain ui
+  → explicit BRAIN_FRONTEND_ROOT override, otherwise executable-relative repository package
+  → ensure/connect daemon
+  → launch frontend at that root
+  → frontend adapter connects over UDS
+  → v1/frontend/handshake negotiates protocol and capabilities
+  → Brain-backed session and generation operations become available
 ```
+
+An invalid override or unavailable repository package is an actionable nonzero launch failure. The manifest must identify `@brain/frontend`, provide a version, and start `bun run src/cli/main.ts`. Bun is resolved from `PATH` or explicit `BRAIN_FRONTEND_RUNTIME`; absence is an error, not an installation or fallback request. After daemon preflight, Unix terminal ownership is handed to Bun, preserving exit/signal status.
+
+## Operational boundaries
+
+- Canonical CI verifies the owned in-repo package; it does not fetch external/private source.
+- Packaged artifact resolution and full product delivery are implemented and verified via closed manifests and clean-extraction PTY smoke proof (see `docs/guides/product-distribution.md`).
+- The frontend does not execute Brain tools locally. Brain owns tool identity, permission resolution, process lifecycle, and results.
+- Retrieval metadata is a minimal `brain_context` contract, not raw storage records, ranking diagnostics, or prompt contents.
+
+## Verification
+
+The launcher and daemon protocol suites verify discovery, handshake, sessions/history, streams, tools/permissions, reconnect, and safe context metadata. CI requires frozen Bun installation, full package typecheck, owned unit/state/render tests, and isolated real-daemon E2E including actual `brain ui` PTY launch/shutdown. Missing daemon/CLI prerequisites fail; required tests do not skip. Daemon-side Bash tests retain process-group timeout/TERM/KILL/reap proof rather than duplicating it in the UI. Production standalone frontend build, artifact verification, and clean-extraction interactive PTY smoke are verified in the product packaging orchestrator.
+
+## References
+
+- [UDS protocol reference](../reference/protocol.md)
+- [Architecture principles](../architecture/principles.md)
+- [Audit 2](../audits/PROJECT_AUDIT_2.md) — historical evidence and remaining release blockers

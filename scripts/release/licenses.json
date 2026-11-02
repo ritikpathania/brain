@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "name": "brain",
+      "version": "1.1.0",
+      "evidence": {
+        "kind": "repository-root",
+        "location": "LICENSE",
+        "sha256": "1a52ca382eb41dd61219b190bcf8db89734d312e711aa69290986a16db5e7a39"
+      },
+      "notice_source": "scripts/release/notices/Brain-LICENSE.txt",
+      "notice_sha256": "1a52ca382eb41dd61219b190bcf8db89734d312e711aa69290986a16db5e7a39",
+      "output_filename": "Brain-LICENSE.txt"
+    },
+    {
+      "name": "bun",
+      "version": "1.4.4",
+      "evidence": {
+        "kind": "pinned-runtime",
+        "location": "oven-sh/bun@1.4.4",
+        "sha256": "e468d81e16b45e1cb6e263dfe6bacd76419206ce4ca1f1f0f1ea6277e103eacf"
+      },
+      "notice_source": "scripts/release/notices/Bun-LICENSE.txt",
+      "notice_sha256": "e468d81e16b45e1cb6e263dfe6bacd76419206ce4ca1f1f0f1ea6277e103eacf",
+      "output_filename": "Bun-LICENSE.txt"
+    },
+    {
+      "name": "cpython",
+      "version": "3.15.2",
+      "evidence": {
+        "kind": "base-distribution",
+        "location": "python/cpython@3.15.2",
+        "sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231"
+      },
+      "notice_source": "scripts/release/notices/CPython-LICENSE.txt",
+      "notice_sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231",
+      "output_filename": "CPython-LICENSE.txt"
+    },
+    {
+      "name": "ink",
+      "version": "7.1.1",
+      "evidence": {
+        "kind": "npm-package",
+        "location": "packages/brain-frontend/node_modules/ink",
+        "sha256": "de84e62e27d9a970b50446d0af1f713c1439a4180faa098adfa5da94f5158a55"
+      },
+      "notice_source": "scripts/release/notices/Ink-LICENSE.txt",
+      "notice_sha256": "de84e62e27d9a970b50446d0af1f713c1439a4180faa098adfa5da94f5158a55",
+      "output_filename": "Ink-LICENSE.txt"
+    },
+    {
+      "name": "react",
+      "version": "19.2.8",
+      "evidence": {
+        "kind": "npm-package",
+        "location": "packages/brain-frontend/node_modules/react",
+        "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+      },
+      "notice_source": "scripts/release/notices/React-LICENSE.txt",
+      "notice_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "output_filename": "React-LICENSE.txt"
+    },
+    {
+      "name": "react-devtools-core",
+      "version": "7.0.1",
+      "evidence": {
+        "kind": "npm-package-transitive",
+        "location": "packages/brain-frontend/node_modules/react-devtools-core",
+        "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+      },
+      "notice_source": "scripts/release/notices/React-LICENSE.txt",
+      "notice_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "output_filename": "ReactDevTools-LICENSE.txt"
+    },
+    {
+      "name": "string-width",
+      "version": "8.3.0",
+      "evidence": {
+        "kind": "npm-package",
+        "location": "packages/brain-frontend/node_modules/string-width",
+        "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3"
+      },
+      "notice_source": "scripts/release/notices/StringWidth-LICENSE.txt",
+      "notice_sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+      "output_filename": "StringWidth-LICENSE.txt"
+    },
+    {
+      "name": "ws",
+      "version": "8.18.0",
+      "evidence": {
+        "kind": "npm-package-transitive",
+        "location": "packages/brain-frontend/node_modules/ws",
+        "sha256": "3de284c8e6fa7e8437eff6f53695471e0332129a5b42a79361e17b7637de94b3"
+      },
+      "notice_source": "scripts/release/notices/Ws-LICENSE.txt",
+      "notice_sha256": "3de284c8e6fa7e8437eff6f53695471e0332129a5b42a79361e17b7637de94b3",
+      "output_filename": "Ws-LICENSE.txt"
+    },
+    {
+      "name": "yoga-layout",
+      "version": "3.1.0",
+      "evidence": {
+        "kind": "npm-package-wasm",
+        "location": "packages/brain-frontend/node_modules/yoga-layout",
+        "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+      },
+      "notice_source": "scripts/release/notices/Yoga-LICENSE.txt",
+      "notice_sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "output_filename": "Yoga-LICENSE.txt"
+    }
+  ]
+}

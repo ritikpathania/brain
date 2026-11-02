@@ -79,6 +79,9 @@ command -v cc >/dev/null || {
     exit 2
 }
 
+repository_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+resolved_initial_lib="$(python3 "$repository_root/scripts/release/runtime_manifest.py" --artifact "$artifact")"
+
 ARTIFACT_ROOT="$artifact" python3 - <<'PY'
 import hashlib
 import json
@@ -139,7 +142,6 @@ python_library_rel="$(printf '%s\n' "$python_library_info" | sed -n '2p')"
 python_version="$(printf '%s\n' "$python_library_info" | sed -n '3p')"
 python_library_name="$(basename "$python_library_rel")"
 
-repository_root="$(cd "$(dirname "$0")/.." && pwd -P)"
 if find "$artifact/bin" "$artifact/runtime/python" -type f -print0 |
     xargs -0 strings 2>/dev/null | grep -F "$repository_root" >/dev/null; then
     echo "error: artifact retained the source checkout path" >&2
@@ -293,11 +295,12 @@ int main(int argc, char **argv) {
     return import_result == 0 && finalize_result == 0 ? 0 : 1;
 }
 C
+    extracted_lib="$(python3 "$repository_root/scripts/release/runtime_manifest.py" --artifact "$extracted")"
     env -i \
         PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
         "$extension_probe" \
         "$extracted/$python_home_rel" \
-        "$extracted/$python_home_rel/$python_library_rel"
+        "$extracted_lib"
     echo "Clean-extraction compiled-extension smoke passed ($iteration/$repeat)"
 
     health_port="$(python3 - <<'PY'
