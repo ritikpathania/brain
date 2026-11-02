@@ -151,3 +151,70 @@ jobs:
           
           # Test exit code semantics (brain health when daemon unreachable should exit 1)
           /tmp/pkg_verify/brain health || [ $? -eq 1 ]
+
+  canonical-frontend:
+    name: First-party frontend and real-daemon E2E
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Brain
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.99.1
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.15.2'
+
+      - name: Set up the locked frontend Bun version
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Build CLI and daemon for the actual launcher and frontend E2E
+        run: >-
+          PYO3_PYTHON="${{ steps.python.outputs.python-path }}"
+          cargo build -p brain -p brain-daemon --locked
+
+      - name: Install the first-party frontend from its lockfile
+        working-directory: packages/brain-frontend
+        run: bun install --frozen-lockfile
+
+      - name: Type-check the first-party frontend
+        working-directory: packages/brain-frontend
+        run: bun run typecheck
+
+      - name: Run owned protocol, state, interaction, and rendering tests
+        working-directory: packages/brain-frontend
+        env:
+          HOME: ${{ runner.temp }}/brain-frontend-home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/brain-frontend-home/config
+        run: |
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME"
+          bun run test
+
+      - name: Require real-daemon and actual brain ui PTY tests with zero skips
+        working-directory: packages/brain-frontend
+        env:
+          HOME: ${{ runner.temp }}/brain-frontend-home
+          XDG_CONFIG_HOME: ${{ runner.temp }}/brain-frontend-home/config
+          BRAIN_DAEMON_BIN: ${{ github.workspace }}/target/debug/brain-daemon
+          BRAIN_CLI_BIN: ${{ github.workspace }}/target/debug/brain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME" "$XDG_CONFIG_HOME"
+          # Each test owns a temporary config/socket/DB and reaps its processes.
+          # stderr is included because Bun writes test results there.
+          output_file="$(mktemp)"
+          trap 'rm -f "$output_file"' EXIT
+          bun run test:e2e 2>&1 | tee "$output_file"
+          if rg -i '(\(skip\)|^[[:space:]]*[1-9][0-9]* (skip|todo))' "$output_file"; then
+            echo "Required first-party real-daemon E2E was skipped." >&2
+            exit 1
+          fi
