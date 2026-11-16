@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use daemon_bridge::python_runtime::{
     packaged_python_home_from_executable, resolve_packaged_python_runtime_from_executable,
@@ -10,10 +9,7 @@ struct TemporaryDirectory(PathBuf);
 
 impl TemporaryDirectory {
     fn new() -> Self {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock after Unix epoch")
-            .as_nanos();
+        let unique = uuid::Uuid::new_v4();
         let path = std::env::temp_dir().join(format!(
             "brain-daemon-portable-runtime-{}-{unique}",
             std::process::id()
