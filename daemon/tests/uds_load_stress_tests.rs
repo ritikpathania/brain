@@ -13,6 +13,7 @@ struct DaemonProcess {
     analytics_db_path: PathBuf,
     pid_path: PathBuf,
     port: u16,
+    mock_chunk_delay_ms: Option<u64>,
 }
 
 impl Drop for DaemonProcess {
@@ -25,10 +26,16 @@ impl Drop for DaemonProcess {
 
 fn get_temp_dir() -> PathBuf {
     let uuid_str = uuid::Uuid::new_v4().to_string();
-    let path = PathBuf::from(format!("/tmp/bd-load-{}", &uuid_str[0..8]));
-    let _ = fs::remove_dir_all(&path);
-    fs::create_dir_all(&path).unwrap();
-    path
+    let sub = format!("bd-load-{}", &uuid_str[0..8]);
+    let tmp_path = std::env::temp_dir().join(&sub);
+    if let Ok(()) = fs::create_dir_all(&tmp_path) {
+        return tmp_path;
+    }
+    let alt_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../target/tmp")
+        .join(&sub);
+    fs::create_dir_all(&alt_path).unwrap();
+    alt_path
 }
 
 fn get_free_port() -> u16 {
@@ -40,6 +47,16 @@ fn get_free_port() -> u16 {
 }
 
 async fn start_test_daemon() -> DaemonProcess {
+    start_test_daemon_with_optional_chunk_delay(None).await
+}
+
+async fn start_test_daemon_with_chunk_delay(mock_chunk_delay_ms: u64) -> DaemonProcess {
+    start_test_daemon_with_optional_chunk_delay(Some(mock_chunk_delay_ms)).await
+}
+
+async fn start_test_daemon_with_optional_chunk_delay(
+    mock_chunk_delay_ms: Option<u64>,
+) -> DaemonProcess {
     let bin_path = env!("CARGO_BIN_EXE_brain-daemon");
     let test_dir = get_temp_dir();
     let socket_path = test_dir.join("brain.sock");
@@ -48,7 +65,8 @@ async fn start_test_daemon() -> DaemonProcess {
     let analytics_db_path = test_dir.join("analytics.db");
     let port = get_free_port();
 
-    let child = Command::new(bin_path)
+    let mut command = Command::new(bin_path);
+    command
         .arg("daemon")
         .arg("run")
         .env("BRAIN_SOCKET_PATH", &socket_path)
@@ -56,7 +74,11 @@ async fn start_test_daemon() -> DaemonProcess {
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
         .env("BRAIN_CONFIG_DIR", &test_dir)
-        .env("BRAIN_HEALTH_PORT", port.to_string())
+        .env("BRAIN_HEALTH_PORT", port.to_string());
+    if let Some(delay_ms) = mock_chunk_delay_ms {
+        command.env("BRAIN_MOCK_CHUNK_DELAY_MS", delay_ms.to_string());
+    }
+    let child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -80,6 +102,7 @@ async fn start_test_daemon() -> DaemonProcess {
         analytics_db_path,
         pid_path,
         port,
+        mock_chunk_delay_ms,
     }
 }
 
@@ -88,7 +111,8 @@ async fn restart_daemon_with_existing_db(daemon: &mut DaemonProcess) {
     let port = get_free_port();
     daemon.port = port;
 
-    let child = Command::new(bin_path)
+    let mut command = Command::new(bin_path);
+    command
         .arg("daemon")
         .arg("run")
         .env("BRAIN_SOCKET_PATH", &daemon.socket_path)
@@ -96,7 +120,11 @@ async fn restart_daemon_with_existing_db(daemon: &mut DaemonProcess) {
         .env("BRAIN_DB_PATH", &daemon.db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &daemon.analytics_db_path)
         .env("BRAIN_CONFIG_DIR", &daemon.test_dir)
-        .env("BRAIN_HEALTH_PORT", port.to_string())
+        .env("BRAIN_HEALTH_PORT", port.to_string());
+    if let Some(delay_ms) = daemon.mock_chunk_delay_ms {
+        command.env("BRAIN_MOCK_CHUNK_DELAY_MS", delay_ms.to_string());
+    }
+    let child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -330,7 +358,10 @@ async fn test_load_concurrent_wal_writes_during_streaming() {
 
 #[tokio::test]
 async fn test_load_sigkill_crash_recovery_persistence_checkpoints() {
-    let mut daemon = start_test_daemon().await;
+    // The checkpoint is meaningful only while the mock has outstanding stream
+    // chunks.  Use a fixture-local pace rather than relying on scheduling
+    // under the workspace's parallel test load.
+    let mut daemon = start_test_daemon_with_chunk_delay(50).await;
     let session_id = create_test_session(&daemon.socket_path, "Crash Checkpoint Session").await;
 
     // Start a generation stream over UDS
@@ -364,7 +395,7 @@ async fn test_load_sigkill_crash_recovery_persistence_checkpoints() {
     line.clear();
     buf_reader.read_line(&mut line).await.unwrap();
     let next_frame: serde_json::Value = serde_json::from_str(&line).unwrap();
-    assert!(next_frame["type"] == "thinking_start" || next_frame["type"] == "token");
+    assert_eq!(next_frame["type"], "thinking_start");
 
     // Checkpoint T3: Hard SIGKILL daemon mid-generation
     let _ = daemon.child.kill();
@@ -406,22 +437,23 @@ async fn test_load_sigkill_crash_recovery_persistence_checkpoints() {
 }
 
 #[tokio::test]
-async fn test_telemetry_failure_non_blocking_isolation() {
+async fn test_generation_stream_telemetry_isolation() {
     let daemon = start_test_daemon().await;
     let session_id = create_test_session(&daemon.socket_path, "Telemetry Isolation Session").await;
 
-    // Execute generation turn and inspect telemetry in start and end frames
+    // Stream start carries only the safe brain_context metadata and omits early telemetry.
     let (_resp, start, end) =
         execute_generation_turn(&daemon.socket_path, &session_id, "Telemetry check prompt").await;
 
     assert_eq!(start["type"], "stream_start");
-    let telemetry_start = &start["metadata"]["telemetry"];
-    assert_eq!(telemetry_start["session_id"], session_id);
-    assert!(telemetry_start["assembly_latency_ms"].is_number());
+    assert!(start["metadata"].get("telemetry").is_none());
+    assert!(start["metadata"].get("memory_provenance").is_none());
+    assert!(start["metadata"]["brain_context"].is_object());
 
     assert_eq!(end["type"], "stream_end");
     let telemetry_end = &end["metadata"]["telemetry"];
     assert_eq!(telemetry_end["session_id"], session_id);
-    assert!(telemetry_end["total_duration_ms"].is_number());
     assert_eq!(telemetry_end["finish_reason"], "end_turn");
+    assert!(end["metadata"].get("memory_provenance").is_none());
+    assert!(end["metadata"]["brain_context"].is_object());
 }

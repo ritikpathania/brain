@@ -18,22 +18,22 @@ Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domai
 
 ---
 
-## ⚡ 30-Second Quick Start
+## ⚡ Quick Start
 
-Get up and running in under 30 seconds:
+From a checkout, complete the source setup below before running these commands.
 
 ```bash
-# 1. Build and start background daemon
-cargo run --bin brain daemon start
+# 1. Start the background daemon
+./target/debug/brain daemon start
 
 # 2. Ingest an observation into relational memory
-cargo run --bin brain ingest "Knowledge compiler reconciles graph facts transactionally"
+./target/debug/brain ingest "Knowledge compiler reconciles graph facts transactionally"
 
 # 3. Query memory graph projections
-cargo run --bin brain query "compiler"
+./target/debug/brain query "compiler"
 
 # 4. Launch interactive Terminal UI console
-cargo run --bin brain ui
+./target/debug/brain ui
 ```
 
 ---
@@ -41,24 +41,28 @@ cargo run --bin brain ui
 ## 📦 Installation Options
 
 ### Option A: Install via Cargo
-```bash
-cargo install --path apps/brain --bin brain
-```
+Use the [development installation guide](docs/guides/installation.md#3-install-cli-binaries-with-cargo-development) for CLI installation and source frontend setup.
 
 ### Option B: Build from Source
+
+Install the repository Rust toolchain, uv, CPython 3.15.2, and Bun 1.4.4.
+
 ```bash
 # Clone the repository
 git clone https://github.com/ritikpathania/brain.git
 cd brain
 
-# Initialize dependencies and build binaries
+# Initialize the daemon environment and the owned frontend dependencies
 make setup
+(cd packages/brain-frontend && bun install --frozen-lockfile)
+
+# Build CLI and daemon into target/debug
 make build-daemon
 make build-brain
 ```
 
 ### Option C: Download Pre-Built Product Archives
-Download self-contained release archives (`brain-macos-arm64.tar.gz`, `brain-linux-x86_64.tar.gz`) directly from [GitHub Releases](https://github.com/ritikpathania/brain/releases). See the [Product Distribution Guide](docs/guides/product-distribution.md) for complete details on bundle contents, integrity verification, and runtime isolation.
+For published versions, find available product archives on [GitHub Releases](https://github.com/ritikpathania/brain/releases). The [Product Distribution Guide](docs/guides/product-distribution.md) records the archive names, verification steps, and evidence for each platform.
 
 ---
 
@@ -66,12 +70,14 @@ Download self-contained release archives (`brain-macos-arm64.tar.gz`, `brain-lin
 
 ```mermaid
 graph TD
-    Client[Ratatui TUI / Python SDK / MCP Adapter] -->|UDS IPC JSON Protocol| Daemon[brain-daemon]
+    Launcher[brain ui] --> Frontend[First-party Brain terminal frontend]
+    Frontend -->|Versioned UDS JSON| Daemon[brain-daemon]
+    Client[CLI / SDKs / adapters] -->|UDS JSON| Daemon
     Daemon -->|Direct Memory Calls| Runtime[BrainRuntime Composition Root]
     
     subgraph Engine Core
         Runtime --> Storage[SqliteStorage Transaction Engine]
-        Runtime --> Compiler[6-Pass Knowledge Compiler]
+        Runtime --> Compiler[18-pass Knowledge Compiler across six phases]
         Runtime --> Projections[Search & Session Projections]
         Runtime --> Reflection[Background Reflection Engine]
     end
@@ -80,7 +86,7 @@ graph TD
 ```
 
 ### System Layers
-1. **Presentation Layer (`crates/brain-tui/`)**: Ratatui-based interactive terminal console interface.
+1. **Presentation Layer (`packages/brain-frontend/`)**: First-party TypeScript terminal frontend. `brain ui` launches the standalone executable from a product bundle or the Bun source entry point from a development checkout.
 2. **IPC Daemon (`daemon/`)**: Non-blocking Unix Domain Socket daemon handling connection pools and schema validation.
 3. **Core Engine (`crates/brain-services/`)**: Authoritative runtime (`BrainRuntime`) backing SQLite persistence (`crates/brain-storage/`) and event dispatching (`crates/brain-events/`).
 
@@ -135,7 +141,7 @@ CI continuously benchmarks query latencies, ingestion throughput, and typewriter
 
 ## 🗺️ Roadmap
 
-- [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, UDS IPC daemon, and Ratatui TUI.
+- [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, and UDS IPC daemon. Historical TUI milestones and the current frontend transition are tracked separately in the roadmap.
 - [x] **v1.1.0**: Phase 2 Retrieval UI, Knowledge Exploration Experience & Reasoning Reflection Pipeline.
 - [ ] **v2.0.0**: Active-active Raft distributed consensus & WASM plugin sandbox.
 

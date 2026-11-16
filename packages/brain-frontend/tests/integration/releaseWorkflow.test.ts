@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test';
-import { resolve } from 'node:path';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+const repositoryRoot = resolve(import.meta.dir, '../../../..');
 
 type WorkflowStep = {
   name?: string;
@@ -9,10 +13,12 @@ type WorkflowStep = {
   uses?: string;
   with?: Record<string, unknown>;
   shell?: string;
+  env?: Record<string, string>;
 };
 
 type WorkflowJob = {
   name?: string;
+  if?: string;
   needs?: string | string[];
   runs_on?: string;
   strategy?: {
@@ -28,6 +34,7 @@ type WorkflowJob = {
 };
 
 type ReleaseWorkflow = {
+  on: { push: { branches: string[]; tags: string[] }; workflow_dispatch?: unknown };
   jobs: {
     'release-quality': WorkflowJob;
     'build-binaries': WorkflowJob;
@@ -35,9 +42,12 @@ type ReleaseWorkflow = {
   };
 };
 
+async function loadWorkflow(): Promise<ReleaseWorkflow> {
+  return Bun.YAML.parse(await Bun.file(join(repositoryRoot, '.github/workflows/release.yml')).text()) as ReleaseWorkflow;
+}
+
 test('release workflow defines unified product matrix, blocking quality, and product verification without external authorization guards', async () => {
-  const workflowPath = resolve(import.meta.dir, '../../../../.github/workflows/release.yml');
-  const workflow = Bun.YAML.parse(await Bun.file(workflowPath).text()) as ReleaseWorkflow;
+  const workflow = await loadWorkflow();
 
   // 1. release-quality job assertions
   const quality = workflow.jobs['release-quality'];
@@ -89,4 +99,79 @@ test('release workflow defines unified product matrix, blocking quality, and pro
   expect(publish).toBeDefined();
   const needs = Array.isArray(publish.needs) ? publish.needs : [publish.needs];
   expect(needs.sort()).toEqual(['build-binaries', 'release-quality']);
+});
+
+test('release quality selects pinned CPython before each all-features Rust gate', async () => {
+  const steps = (await loadWorkflow()).jobs['release-quality'].steps;
+  const setupPython = steps.findIndex(step => step.uses?.startsWith('actions/setup-python'));
+  expect(setupPython).toBeGreaterThanOrEqual(0);
+  expect(steps[setupPython]?.with?.['python-version']).toBe('3.15.2');
+  const gates = steps.filter(step => step.run?.includes('--all-features'));
+  expect(gates).toHaveLength(2);
+  for (const gate of gates) {
+    expect(steps.indexOf(gate)).toBeGreaterThan(setupPython);
+    expect(gate.env?.PYO3_PYTHON).toBe('${{ steps.python.outputs.python-path }}');
+  }
+});
+
+test('each release matrix target requires native frontend E2E before standalone compilation', async () => {
+  const steps = (await loadWorkflow()).jobs['build-binaries'].steps;
+  const native = steps.findIndex(step => step.run?.includes('cargo build --release --locked'));
+  const e2e = steps.findIndex(step => step.run?.includes('./scripts/verify-frontend-e2e.sh'));
+  const standalone = steps.findIndex(step => step.run?.includes('bun run build'));
+  expect(native).toBeGreaterThanOrEqual(0);
+  expect(e2e).toBeGreaterThan(native);
+  expect(standalone).toBeGreaterThan(e2e);
+  expect(steps[e2e]?.if).toBeUndefined();
+  expect(steps[e2e]?.env?.BRAIN_CLI_BIN).toBe('${{ github.workspace }}/target/${{ matrix.target }}/release/brain');
+  expect(steps[e2e]?.env?.BRAIN_DAEMON_BIN).toBe('${{ github.workspace }}/target/${{ matrix.target }}/release/brain-daemon');
+});
+
+test('release verification can be dispatched or run from an opt-in branch while only tag pushes publish', async () => {
+  const workflow = await loadWorkflow();
+  expect(workflow.on).toHaveProperty('workflow_dispatch');
+  expect(workflow.on.push.branches).toEqual(['release-verify/**']);
+  expect(workflow.on.push.tags).toEqual(['v*']);
+  expect(workflow.jobs['publish-release'].if).toBe("github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')");
+});
+
+test('local packaging stops at a failed frontend E2E before standalone compilation', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'bfp release ')));
+  const bashEnv = join(root, 'bash-env');
+  const trace = join(root, 'trace');
+  const flags = join(root, 'flags');
+  try {
+    for (const path of ['daemon/.venv/bin', 'packages/brain-frontend', 'scripts']) {
+      mkdirSync(join(root, path), { recursive: true });
+    }
+    copyFileSync(join(repositoryRoot, 'package.sh'), join(root, 'package.sh'));
+    writeFileSync(join(root, 'daemon/.venv/bin/python'), '#!/bin/bash\nprintf "/fixture/lib\\n"\n', { mode: 0o755 });
+    writeFileSync(bashEnv, `
+rustc() { printf 'host: aarch64-apple-darwin\\n'; }
+cargo() {
+  printf 'cargo %s\\n' "$*" >> "$RELEASE_TRACE"
+  if [[ "$1" == build ]]; then printf '%s' "$CARGO_ENCODED_RUSTFLAGS" > "$RELEASE_FLAGS"; fi
+}
+bun() { printf 'bun %s\\n' "$*" >> "$RELEASE_TRACE"; }
+`);
+    writeFileSync(join(root, 'scripts/verify-frontend-e2e.sh'), `#!/bin/bash
+set -eu
+[[ "$BRAIN_CLI_BIN" == "$RELEASE_ROOT/target/release/brain" ]]
+[[ "$BRAIN_DAEMON_BIN" == "$RELEASE_ROOT/target/release/brain-daemon" ]]
+printf 'frontend e2e\\n' >> "$RELEASE_TRACE"
+exit 83
+`, { mode: 0o755 });
+    const run = Bun.spawnSync(['bash', join(root, 'package.sh')], {
+      env: { ...process.env, BASH_ENV: bashEnv, RELEASE_ROOT: root, RELEASE_TRACE: trace, RELEASE_FLAGS: flags,
+        CARGO_ENCODED_RUSTFLAGS: '--cfg\x1fbrain_test', RUSTFLAGS: '' },
+    });
+    expect({ exit: run.exitCode, trace: readFileSync(trace, 'utf8').trim().split('\n') }).toEqual({
+      exit: 83,
+      trace: ['cargo xtask verify', 'cargo xtask docs all', 'bun install --frozen-lockfile', 'bun run typecheck',
+        'bun run test', 'cargo build --release --package brain --package brain-daemon --locked', 'frontend e2e'],
+    });
+    const encodedFlags = readFileSync(flags, 'utf8').split('\x1f');
+    expect(encodedFlags.slice(0, 2)).toEqual(['--cfg', 'brain_test']);
+    expect(encodedFlags).toContain(`--remap-path-prefix=${root}=.`);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

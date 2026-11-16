@@ -3,9 +3,9 @@
 #
 # Orchestrates:
 # 1. Quality & documentation gates (xtask verify, docs all)
-# 2. First-party frontend quality (frozen install, typecheck, tests, standalone build)
+# 2. First-party frontend quality (frozen install, typecheck, unit tests)
 # 3. Release binary compilation (CLI + daemon with remapped path prefix)
-# 4. Frontend artifact verification (hash, loader, and host-path scans)
+# 4. Required real-daemon E2E, standalone build, and frontend artifact verification
 # 5. Product assembly (CLI + daemon + standalone frontend + licenses + manifests)
 # 6. Daemon relocation verification
 # 7. Clean-extraction interactive PTY product smoke verification (3 repetitions)
@@ -22,16 +22,28 @@ if [ ! -x "$daemon_python" ]; then
     exit 2
 fi
 
-python_library_directory="$($daemon_python - <<'PY'
+python_library_directory="$("$daemon_python" - <<'PY'
 import sysconfig
 print(sysconfig.get_config_var("LIBDIR"))
 PY
 )"
 export PYO3_PYTHON="$daemon_python"
 export DYLD_FALLBACK_FRAMEWORK_PATH="$python_library_directory"
-export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$HOME=."
+
+# Cargo's encoded flags preserve each remap as one argument, even with spaces.
+rustflags=()
+if [[ -n "${CARGO_ENCODED_RUSTFLAGS:-}" ]]; then
+    IFS=$'\x1f' read -r -a rustflags <<< "$CARGO_ENCODED_RUSTFLAGS"
+elif [[ -n "${RUSTFLAGS:-}" ]]; then
+    read -r -a rustflags <<< "$RUSTFLAGS"
+fi
+rustflags+=("--remap-path-prefix=$HOME=." "--remap-path-prefix=$repository_root=.")
+release_rustflags="$(IFS=$'\x1f'; printf '%s' "${rustflags[*]}")"
 
 target_triple="$(rustc -vV | awk '/^host: / { print $2 }')"
+brain_version="$("$daemon_python" -c 'import tomllib; print(tomllib.load(open("apps/brain/Cargo.toml", "rb"))["package"]["version"])')"
+release_cli="$repository_root/target/release/brain"
+release_daemon="$repository_root/target/release/brain-daemon"
 
 echo "=== Brain Product Orchestrator ==="
 echo "Target: $target_triple"
@@ -46,16 +58,20 @@ echo "Step 2: Checking first-party frontend..."
     bun install --frozen-lockfile
     bun run typecheck
     bun run test
-    bun run build
 )
 
 echo "Step 3: Compiling release binaries with remapped prefixes..."
-cargo build --release --package brain --package brain-daemon --locked
+CARGO_ENCODED_RUSTFLAGS="$release_rustflags" cargo build --release --package brain --package brain-daemon --locked
 
-echo "Step 4: Verifying frontend standalone artifact..."
+echo "Step 4: Running required frontend E2E and building the standalone artifact..."
+BRAIN_CLI_BIN="$release_cli" BRAIN_DAEMON_BIN="$release_daemon" ./scripts/verify-frontend-e2e.sh
+(
+    cd packages/brain-frontend
+    bun run build
+)
 ./scripts/verify-frontend-artifact.sh \
     --artifact packages/brain-frontend/dist/brain-frontend \
-    --brain-version "1.1.0" \
+    --brain-version "$brain_version" \
     --target "$target_triple"
 
 staging_parent="$(mktemp -d /tmp/brain-product-pkg.XXXXXX)"
@@ -67,8 +83,8 @@ trap cleanup EXIT INT TERM
 
 echo "Step 5: Assembling product layout and manifests..."
 ./scripts/package-brain-product.sh \
-    --cli "$repository_root/target/release/brain" \
-    --daemon "$repository_root/target/release/brain-daemon" \
+    --cli "$release_cli" \
+    --daemon "$release_daemon" \
     --frontend "$repository_root/packages/brain-frontend/dist/brain-frontend" \
     --output "$artifact_root" \
     --target "$target_triple"

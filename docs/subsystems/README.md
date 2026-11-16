@@ -21,8 +21,8 @@ Each hub connects the subsystem's **Architecture** ("Why?"), **Reference** ("Exa
   * **Crate**: [`crates/brain-services`](../../crates/brain-services/README.md)
 
 * **[Terminal User Interface (TUI) Hub](tui.md)**
-  * **Domain**: Ratatui differential immediate-mode rendering, alt-screen event loop, theme tokens, peek panel.
-  * **Crate**: [`crates/brain-tui`](../../crates/brain-tui/README.md)
+  * **Domain**: First-party frontend launch, versioned daemon integration, and development and packaged verification.
+  * **Package**: [`packages/brain-frontend`](../../packages/brain-frontend/package.json)
 
 * **[IPC & Wire Protocol Hub](protocol.md)**
   * **Domain**: Unix Domain Sockets (UDS), frame codecs, versioned requests, HTTP Prometheus telemetry (`/metrics`).

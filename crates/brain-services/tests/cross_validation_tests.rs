@@ -2,7 +2,6 @@ mod common;
 
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 
 use brain_domain::NodeId;
 use brain_services::retrieval::eval_harness::{
@@ -429,7 +428,10 @@ fn test_5_fold_cross_validation_evaluation() {
         ));
     }
 
-    let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
-    fs::create_dir_all(&base_path).unwrap();
-    fs::write(base_path.join("production_lambdamart_cv_report.md"), &md).unwrap();
+    let report_dir = tempfile::tempdir().unwrap();
+    fs::write(
+        report_dir.path().join("production_lambdamart_cv_report.md"),
+        &md,
+    )
+    .unwrap();
 }

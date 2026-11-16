@@ -1,5 +1,7 @@
 # Master Quality Engineering Index
 
+> Historical Ratatui quality evidence. Paths for the former TUI crate and external artifacts identify the original inputs. Current frontend verification is described in the [integration handbook](../subsystems/tui.md).
+
 This document serves as the high-level index of the quality validation strategy, automation harnesses, CI regression gates, and empirical baselines for the **`brain` AI Coding Companion**.
 
 ---
@@ -11,8 +13,8 @@ This document serves as the high-level index of the quality validation strategy,
 | **Cold Startup Latency** | **497 ms** (Socket health poll) | $\le +10\%$ max delta | ↔ **Stable** | [`scripts/perf_runner.sh`](../../scripts/perf_runner.sh) |
 | **Sampled Steady-State RSS** | **16,080 KB** (~16.08 MB) | $\le +5\%$ max growth | ↔ **Stable** | [`scripts/check_perf.py`](../../scripts/check_perf.py) |
 | **Idle CPU Utilization** | **0.0 %** | $\le 1.0\%$ absolute CPU | ↔ **Stable** | [`scripts/perf_runner.sh`](../../scripts/perf_runner.sh) |
-| **Frame Draw Latency (P95)** | **108.12 µs** | Criterion bench baseline | ↔ **Stable** | [`benches/ui_benchmarks.rs`](../../crates/brain-tui/benches/ui_benchmarks.rs) |
-| **Tokenizer Throughput** | **516.59 ns** / chunk | Criterion bench baseline | ↔ **Stable** | [`benches/ui_benchmarks.rs`](../../crates/brain-tui/benches/ui_benchmarks.rs) |
+| **Frame Draw Latency (P95)** | **108.12 µs** | Criterion bench baseline | ↔ **Stable** | `crates/brain-tui/benches/ui_benchmarks.rs` |
+| **Tokenizer Throughput** | **516.59 ns** / chunk | Criterion bench baseline | ↔ **Stable** | `crates/brain-tui/benches/ui_benchmarks.rs` |
 | **Steady-State RSS Growth** | **0.17 %** (30 soak cycles) | $\le 5.0\%$ growth | ✅ **PASS** | [`scripts/soak_runner.sh`](../../scripts/soak_runner.sh) |
 | **File Descriptor Delta ($\Delta$ FDs)**| **+0** (26 open FDs) | $\le +2$ lingering FDs | ✅ **PASS** | [`scripts/sample_telemetry.py`](../../scripts/sample_telemetry.py) |
 | **Thread Count Delta ($\Delta$ Threads)**| **+0** (13 active threads) | $\le +1$ lingering thread | ✅ **PASS** | [`scripts/sample_telemetry.py`](../../scripts/sample_telemetry.py) |
@@ -21,8 +23,8 @@ This document serves as the high-level index of the quality validation strategy,
 | **Daemon Restart Recovery** | **PASSED** (100% data persistence) | Zero memory loss | ✅ **PASS** | [`scripts/test_fault_recovery.py`](../../scripts/test_fault_recovery.py) |
 | **Socket File Deletion Recovery**| **PASSED** (Auto socket recreate) | Zero IPC deadlock | ✅ **PASS** | [`scripts/test_fault_recovery.py`](../../scripts/test_fault_recovery.py) |
 | **Terminal Compatibility Matrix** | **36/36 gates passed** (6 profiles) | $100\%$ Required gates | ✅ **PASS** | [`scripts/validate_terminal_matrix.py`](../../scripts/validate_terminal_matrix.py) |
-| **Viewport Width Render Safety** | **40, 60, 80, 120 cols** | Zero overflow / panic | ✅ **PASS** | [`tests/terminal_matrix_tests.rs`](../../crates/brain-tui/tests/terminal_matrix_tests.rs) |
-| **UX Virtualization & Footer** | **Passed all tests** | Autocomplete, Footer, Scroll | ✅ **PASS** | [`tests/ux_refinement_tests.rs`](../../crates/brain-tui/tests/ux_refinement_tests.rs) |
+| **Viewport Width Render Safety** | **40, 60, 80, 120 cols** | Zero overflow / panic | ✅ **PASS** | `crates/brain-tui/tests/terminal_matrix_tests.rs` |
+| **UX Virtualization & Footer** | **Passed all tests** | Autocomplete, Footer, Scroll | ✅ **PASS** | `crates/brain-tui/tests/ux_refinement_tests.rs` |
 
 ---
 
@@ -94,7 +96,7 @@ flowchart TD
 - **Objective**: Validate real-world TUI behavior, event loops, and slash commands inside native macOS `Terminal.app`.
 - **Validation Method**: Automated AppleScript (`System Events`) keystroke driving and live screen capture.
 - **Empirical Evidence**: Tested `Tab` focus switching, `Up`/`Down` arrow session/history recall, `/memory`, `/plan`, `Ctrl+P` modal overlay, and `SIGWINCH` 75-column resize.
-- **Artifacts**: [`implementation_plan.md`](artifact://implementation_plan.md) | [`walkthrough.md`](artifact://walkthrough.md)
+- **Artifacts**: `artifact://implementation_plan.md` | `artifact://walkthrough.md`
 
 ### 2. Performance Baseline & CI Regression Gates
 - **Objective**: Measure baseline execution latencies and enforce automated CI performance regression gates.
@@ -140,4 +142,4 @@ flowchart TD
   - Virtual Scroll Engine: Verified offset window `Showing 11-30 of 50` across 20-row viewport.
   - Result Group Expansion: Verified toggle state `Action::ToggleGroupExpand` and collapsed status.
   - Multi-Viewport Rendering: Status footer render verified at 120 and 60 column widths without panics.
-- **Artifacts**: [`crates/brain-tui/tests/ux_refinement_tests.rs`](../../crates/brain-tui/tests/ux_refinement_tests.rs)
+- **Artifacts**: `crates/brain-tui/tests/ux_refinement_tests.rs`

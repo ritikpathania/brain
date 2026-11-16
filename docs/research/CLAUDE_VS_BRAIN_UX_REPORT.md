@@ -75,7 +75,7 @@ While the visual foundation of Brain TUI is exceptionally strong, two key event-
 
 All research outputs have been generated and documented across the following set of artifacts:
 
-- [`CLAUDE_UX_BASELINE.md`](artifact://CLAUDE_UX_BASELINE.md): Full baseline document analyzing Claude Code's Ink/React architecture, geometry, prompt input, slash commands, global search, status bar, and state machine.
-- [`CLAUDE_FEATURE_MATRIX.md`](artifact://CLAUDE_FEATURE_MATRIX.md): Detailed comparative matrix mapping features between Claude Code and Brain TUI.
-- [`CLAUDE_BRAIN_VISUAL_DIFF.md`](artifact://CLAUDE_BRAIN_VISUAL_DIFF.md): Structural layout diff, color mappings, and visual comparisons.
-- [`CLAUDE_VS_BRAIN_UX_REPORT.md`](artifact://CLAUDE_VS_BRAIN_UX_REPORT.md): Final synthesis report containing actionable recommendations and gap analysis.
+- [`CLAUDE_UX_BASELINE.md`](CLAUDE_UX_BASELINE.md): Full baseline document analyzing Claude Code's Ink/React architecture, geometry, prompt input, slash commands, global search, status bar, and state machine.
+- [`CLAUDE_FEATURE_MATRIX.md`](CLAUDE_FEATURE_MATRIX.md): Detailed comparative matrix mapping features between Claude Code and Brain TUI.
+- [`CLAUDE_BRAIN_VISUAL_DIFF.md`](CLAUDE_BRAIN_VISUAL_DIFF.md): Structural layout diff, color mappings, and visual comparisons.
+- [`CLAUDE_VS_BRAIN_UX_REPORT.md`](CLAUDE_VS_BRAIN_UX_REPORT.md): Final synthesis report containing actionable recommendations and gap analysis.

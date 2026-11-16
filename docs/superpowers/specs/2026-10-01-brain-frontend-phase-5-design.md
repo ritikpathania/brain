@@ -9,12 +9,9 @@ applies_to: v1.1+
 
 # Brain Frontend Phase 5 — Standalone Product Distribution Design
 
-**Stage:** The conversational design is approved. This written specification is
-pending review; it is not implementation or release-verification evidence.
+This specification records the Phase 5 distribution requirements. The [implementation plan](../plans/2026-10-01-brain-frontend-phase-5.md) records the build history. Current platform evidence requirements are in the [distribution guide](../../guides/product-distribution.md#4-platform-verification-status).
 
-**Source plan:** [Brain frontend consolidation](../../audits/BRAIN_FRONTEND_CONSOLIDATION_PLAN.md),
-Phase 5. The [architectural invariants](../../architecture/ARCHITECTURAL_INVARIANTS.md)
-continue to govern protocol, state, and presentation ownership.
+The original design was based on Phase 5 of `docs/audits/BRAIN_FRONTEND_CONSOLIDATION_PLAN.md`, which is absent from this checkout. The [architecture principles](../../architecture/principles.md) govern protocol, state, and presentation ownership.
 
 ## 1. Outcome and scope
 
@@ -29,19 +26,9 @@ It does not change UI behavior, UDS contracts, daemon execution semantics,
 presentation hierarchy, or the Phase 1–4 dependency direction. It does not remove
 the legacy shell or start Phase 6.
 
-## 2. Current release boundary
+## 2. Product and development boundaries
 
-The existing `package.sh` builds only the release daemon. The daemon packaging
-script assembles `bin/brain-daemon`, `runtime/python`, its file-digest inventory,
-and `runtime-manifest.json`. macOS linkage is relocated to
-`@rpath/libpython3.12.dylib`; Linux uses artifact-relative loader resolution.
-
-The release workflow builds daemon-only archives on native macOS arm64 and
-Linux x86_64 runners. Publication is still conditional on the obsolete
-`BRAIN_AUTHORIZED_FRONTEND_RELEASE` variable. Development `brain ui` instead
-executes Bun against a structurally validated source package. These are two
-different operational models today; Phase 5 joins them without changing the
-daemon runtime layout.
+The product pipeline combines the CLI, standalone frontend, and relocatable daemon into one archive. The existing daemon layout supplies `bin/brain-daemon`, `runtime/python`, the Python file inventory, and `runtime-manifest.json`. Development `brain ui` continues to execute Bun against a structurally validated source package.
 
 ## 3. Execution model decision
 
@@ -65,10 +52,7 @@ either without separate evidence.
 
 ## 4. Build and identity contract
 
-Add `bun run build` to `packages/brain-frontend`. The release path must first run
-`bun install --frozen-lockfile`, full typecheck, unit tests, and configured
-real-daemon E2E with zero required skips. Build only owned production source;
-do not ship frontend source, `node_modules`, test fixtures, or source maps.
+Before the standalone `bun run build` in `packages/brain-frontend`, both the native release workflow and local `package.sh` require `bun install --frozen-lockfile`, full typecheck, unit tests, and real-daemon E2E through `scripts/verify-frontend-e2e.sh`. This gate uses the explicit native CLI and daemon binaries, requires at least one passing test, and fails on any skips, todos, or test errors. The standalone artifact ships owned production code and dependencies. Frontend source, `node_modules`, test fixtures, and source maps remain build inputs.
 
 The compile operation must disable automatic dotenv, bunfig, tsconfig, and
 package-manifest loading by the resulting executable. An unrelated working
@@ -168,21 +152,13 @@ runtime/configuration inputs and caller terminal capabilities.
 
 Compose the verified daemon runtime layout with the CLI and frontend; do not
 redesign CPython acquisition, initialization, library relocation, or service
-behavior. The frozen CPython pin is currently **3.12.13**.
+behavior. The frozen CPython pin is **3.15.2**. On macOS the runtime manifest records the relocated `@rpath/libpython3.15.dylib` dependency.
 
-One necessary verifier correction is identified: the clean-extraction compiled
-extension probe currently constructs a macOS `.dylib` path even in the Linux
-verification branch. Resolve the library from the existing daemon manifest's
-`python.library` field instead, with containment validation and regression
-coverage. Preserve the proof that a real `lib-dynload` module imports from
-inside the extracted runtime, not the build interpreter.
+The clean-extraction compiled-extension probe resolves the library from the daemon manifest's `python.library` field. Validate containment and prove that a real `lib-dynload` module imports from the extracted runtime.
 
 ## 8. Blocking verification and clean extraction
 
-Replace the external-source publication guard with required first-party build
-and artifact gates; do not merely remove the guard. Native platform release
-jobs must build, assemble, archive, extract, and test the complete product before
-publication. No skipped frontend gate counts as release proof.
+Native platform release jobs must build, assemble, archive, extract, and test the complete product. Manual dispatch and pushes to `release-verify/**` exercise the same matrix and upload workflow artifacts for inspection. Publication requires a version-matching `v*` tag push and successful quality and native matrix jobs.
 
 The product smoke must:
 
@@ -223,11 +199,7 @@ daemon verifier correction; release workflow; and current install/release docs.
 Presentation source and daemon protocol remain unchanged. Preserve all unrelated
 dirty-tree work and do not commit it as part of this increment.
 
-Append Phase 5 evidence to the consolidation plan only after verification, and
-reassess retirement gates without deleting anything. Historical audit/provenance
-records remain historical. Independent first-party artifacts replace the old
-external-source release requirement; neither private reference tree becomes an
-authorized release input.
+Record Phase 5 evidence after verification, including the source commit and archive digest for each platform. Keep the earlier audit and provenance records. The separate Phase 6 decision requires the final caller inventory and verified product evidence.
 
 Phase 5 is complete only with a runnable, validated macOS extracted product,
 blocking native platform release checks, explicit Linux evidence/pending status,

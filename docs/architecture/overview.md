@@ -19,7 +19,7 @@ The platform operates as a decoupled client-server system communicating over a l
 
 ```text
   ┌─────────────────────────────────┐
-  │           Ratatui TUI           │ (Interactive Console Client)
+  │        Brain terminal UI        │ (First-party frontend)
   └────────────────┬────────────────┘
                    │
                    │ Unix Domain Socket (UDS) JSON-IPC

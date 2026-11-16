@@ -56,7 +56,7 @@ To eliminate competing UI design authorities across the repository, all obsolete
 | [`docs/design/README.md`](./README.md) | `supporting` / `governance` / `active` | Directory index sitemap. | `supporting` / `governance` / `active` | N/A | Update directory index to position `CLAUDE_VISUAL_CONTRACT.md` as primary authority. |
 | [`docs/architecture/STABLE_UI_INVARIANTS.md`](../architecture/STABLE_UI_INVARIANTS.md) | `canonical` / `governance` / `active` | Architecture state invariants remain valid. | `canonical` / `governance` / `active` | N/A | Update canonical references to `CLAUDE_VISUAL_CONTRACT.md`. |
 | [`docs/subsystems/tui.md`](../../docs/subsystems/tui.md) | `supporting` / `operational` / `active` | Subsystem overview guide. | `supporting` / `operational` / `active` | N/A | Update canonical reference link to `CLAUDE_VISUAL_CONTRACT.md`. |
-| [`crates/brain-tui/README.md`](../../crates/brain-tui/README.md) | `supporting` / `operational` / `active` | References `TUI_DESIGN_SYSTEM.md`. | `supporting` / `operational` / `active` | N/A | Update canonical reference link to `CLAUDE_VISUAL_CONTRACT.md`. |
+| `crates/brain-tui/README.md` (historical path `crates/brain-tui/README.md`) | `supporting` / `operational` / `active` | References `TUI_DESIGN_SYSTEM.md`. | `supporting` / `operational` / `active` | N/A | Update canonical reference link to `CLAUDE_VISUAL_CONTRACT.md`. |
 
 ---
 

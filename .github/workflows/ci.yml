@@ -216,7 +216,6 @@ jobs:
           bun run test
 
       - name: Require real-daemon and actual brain ui PTY tests with zero skips
-        working-directory: packages/brain-frontend
         env:
           HOME: ${{ runner.temp }}/brain-frontend-home
           XDG_CONFIG_HOME: ${{ runner.temp }}/brain-frontend-home/config
@@ -226,12 +225,4 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME" "$XDG_CONFIG_HOME"
-          # Each test owns a temporary config/socket/DB and reaps its processes.
-          # stderr is included because Bun writes test results there.
-          output_file="$(mktemp)"
-          trap 'rm -f "$output_file"' EXIT
-          bun run test:e2e 2>&1 | tee "$output_file"
-          if rg -i '(\(skip\)|^[[:space:]]*[1-9][0-9]* (skip|todo))' "$output_file"; then
-            echo "Required first-party real-daemon E2E was skipped." >&2
-            exit 1
-          fi
+          ./scripts/verify-frontend-e2e.sh

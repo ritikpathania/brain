@@ -1,6 +1,6 @@
-# Brain Frontend Design Authority & Technical Specifications Index
+# Historical Brain Frontend Design Index
 
-This directory contains the canonical visual contracts, component models, capability surface mappings, and subordinate engineering specifications for the Brain Terminal User Interface (`crates/brain-tui`).
+This directory records contracts and engineering guides from the Ratatui and Claude parity work. The section titles below reflect the original authority of those documents. See the [frontend integration handbook](../subsystems/tui.md) for the first-party launcher and the [historical frontend evidence](../archive/frontend-parity/README.md#design-and-migration-evidence) for the related reports.
 
 ---
 

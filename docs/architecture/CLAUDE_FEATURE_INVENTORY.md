@@ -1,3 +1,12 @@
+---
+status: historical
+owner: tui
+canonical: false
+review_cycle: static
+last_reviewed: 2026-11-17
+applies_to: historical frontend and architecture work
+---
+
 # Claude Feature Inventory & Brain Superset Architecture Document
 
 **Document Version:** 1.1.0 (Comprehensive Source-Traced Edition)  

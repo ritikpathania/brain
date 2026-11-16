@@ -3,76 +3,52 @@ status: active
 owner: cli
 canonical: true
 review_cycle: quarterly
-last_reviewed: 2026-07-30
-applies_to: v0.8+
+last_reviewed: 2026-11-17
+applies_to: v1.1+
 ---
 
 # Brain Installation Guide
 
-`brain` is a unified, standalone relational memory engine developer tool. It can be installed and ready to use in under two minutes using Cargo.
+## 1. Install a product archive
 
----
+The product bundle includes the native CLI, relocatable daemon CPython runtime, and standalone terminal frontend. The frontend runs with its bundled Bun runtime.
 
-## Prerequisites
-Ensure the following are installed and available on your system `PATH`:
-- **Rust (Cargo)**: Rust toolchain (MSRV >= 1.99.1).
-- **Python (>= 3.10)**: For out-of-band semantic NLP extraction.
-- **`uv`**: Fast Python package manager (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
-
----
-
-## 1. Install via Pre-built Product Archive (Recommended)
-
-Brain is distributed as a self-contained product bundle containing the native CLI, relocatable daemon runtime, and standalone compiled terminal frontend with zero external Bun/Node runtime prerequisites.
-
-Download the latest release archive for your platform, extract it, and add `bin/` to your PATH:
+Download the archive and checksum for your platform and follow the [distribution guide](product-distribution.md#2-installation--usage) to verify and extract them. Keep the extracted directory together.
 
 ```bash
-tar -xzf brain-macos-arm64.tar.gz
 export PATH="/path/to/brain-dist/bin:$PATH"
+brain --version
+brain-daemon --version
 brain ui
 ```
 
-See [Product Distribution Guide](product-distribution.md) for full details on bundle structure and verification.
+## 2. Build and run from a checkout
 
----
-
-## 2. Install from Source via `cargo install` (Development)
-You can compile and install `brain` directly from source:
+Install the repository's Rust 1.99.1 toolchain, uv and CPython 3.15.2 for the daemon, and Bun 1.4.4 for the source frontend. Then run the following from the repository root.
 
 ```bash
-# Clone the repository
-git clone https://github.com/ritikpathania/brain.git brain-engine
-cd brain-engine
-
-# Initialize Python virtualenv and PyO3 dependencies
 make setup
-
-# Build and install binaries globally into Cargo bin (~/.cargo/bin/)
-PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo install --path apps/brain --bin brain
-PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo install --manifest-path daemon/Cargo.toml --bin brain-daemon
+(cd packages/brain-frontend && bun install --frozen-lockfile)
+make build-daemon
+make build-brain
+./target/debug/brain ui
 ```
 
-Once installed, the binaries `brain` and `brain-daemon` will be available in your Cargo bin directory (usually `~/.cargo/bin/`).
-
----
-
-## 3. Verification
-To verify the installation, check the tool version:
+The checkout launcher resolves the frontend from the repository that contains its executable. It uses Bun from `PATH`, or the explicit `BRAIN_FRONTEND_RUNTIME` executable. On macOS, if the development daemon needs a Python framework search path, set it from the daemon's interpreter before launch.
 
 ```bash
-brain --version
-brain-daemon --version
+export DYLD_FALLBACK_FRAMEWORK_PATH="$(daemon/.venv/bin/python -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')"
 ```
 
----
+## 3. Install CLI binaries with Cargo (development)
 
-## 4. Quick Start
-1. **Start the background memory engine daemon**:
-   ```bash
-   brain daemon start
-   ```
-2. **Launch the interactive terminal UI**:
-   ```bash
-   brain
-   ```
+Complete the dependency setup from the previous section. The following commands install binaries into Cargo's bin directory.
+
+```bash
+PYO3_PYTHON="$PWD/daemon/.venv/bin/python" cargo install --locked --path apps/brain --bin brain
+PYO3_PYTHON="$PWD/daemon/.venv/bin/python" cargo install --locked --path daemon --bin brain-daemon
+export BRAIN_FRONTEND_ROOT="$PWD/packages/brain-frontend"
+brain ui
+```
+
+For source UI launch with these globally installed binaries, keep the checkout and set `BRAIN_FRONTEND_ROOT` to its frontend package directory.

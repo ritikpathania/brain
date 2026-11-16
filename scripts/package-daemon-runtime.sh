@@ -80,7 +80,7 @@ if [ -z "$python_version_pin" ]; then
     exit 2
 fi
 
-python_details="$($pyo3_python - <<'PY'
+python_details="$("$pyo3_python" - <<'PY'
 import pathlib
 import sys
 import sysconfig
@@ -158,7 +158,7 @@ find "$output_directory/runtime/python" -type d -name '__pycache__' -empty -dele
 # retaining the build host in the distributed runtime.
 PACKAGED_PYTHON_HOME="$output_directory/runtime/python" \
 BUILD_PYTHON_HOME="$python_home" \
-$pyo3_python - <<'PY'
+"$pyo3_python" - <<'PY'
 import os
 from pathlib import Path
 
@@ -196,7 +196,7 @@ for json_module in json_modules:
 PY
 
 PYTHONHOME="$output_directory/runtime/python" \
-$base_interpreter -B -S -c '
+"$base_interpreter" -B -S -c '
 import os
 import sys
 import sysconfig

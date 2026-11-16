@@ -84,7 +84,7 @@ The 442 repository documents are classified into 5 mutually exclusive categories
 | [`docs/architecture/STABLE_UI_INVARIANTS.md`](../architecture/STABLE_UI_INVARIANTS.md) | `canonical` / `governance` / `active` | Mentions legacy component names in invariant descriptions. | 🟡 **MODERATE** | Maintain architectural invariants; update component references to `CLAUDE_VISUAL_CONTRACT.md`. | **PARTIALLY_RECONCILE** | `docs/design/CLAUDE_VISUAL_CONTRACT.md` |
 | [`docs/subsystems/tui.md`](../../docs/subsystems/tui.md) | `supporting` / `operational` / `active` | Subsystem guide referencing legacy design specs. | 🟡 **MODERATE** | Update canonical specification reference link to `CLAUDE_VISUAL_CONTRACT.md`. | **PARTIALLY_RECONCILE** | `docs/design/CLAUDE_VISUAL_CONTRACT.md` |
 | [`docs/design/README.md`](./README.md) | `supporting` / `governance` / `active` | Design sitemap index. | 🟡 **MODERATE** | Reorganize sitemap to establish `CLAUDE_VISUAL_CONTRACT.md` as primary design authority. | **PARTIALLY_RECONCILE** | `docs/design/CLAUDE_VISUAL_CONTRACT.md` |
-| [`crates/brain-tui/README.md`](../../crates/brain-tui/README.md) | `supporting` / `operational` / `active` | References `TUI_DESIGN_SYSTEM.md` as canonical reference. | 🟡 **MODERATE** | Update canonical specification link to `CLAUDE_VISUAL_CONTRACT.md`. | **PARTIALLY_RECONCILE** | `docs/design/CLAUDE_VISUAL_CONTRACT.md` |
+| `crates/brain-tui/README.md` (historical path `crates/brain-tui/README.md`) | `supporting` / `operational` / `active` | References `TUI_DESIGN_SYSTEM.md` as canonical reference. | 🟡 **MODERATE** | Update canonical specification link to `CLAUDE_VISUAL_CONTRACT.md`. | **PARTIALLY_RECONCILE** | `docs/design/CLAUDE_VISUAL_CONTRACT.md` |
 
 ---
 

@@ -1,5 +1,7 @@
 # Brain macOS Automated QA Production Validation Report
 
+> Historical QA run. Screenshot paths record the original filenames. The image files are absent from this checkout.
+
 **Date**: 2026-08-13 18:41:58
 **Duration**: 153.7 seconds
 **Mode**: Regression
@@ -67,31 +69,31 @@ BRAIN
 ## Target Window Evidence Screenshots
 
 ### Cold User First-Time Experience
-![Cold User First-Time Experience](../screenshots/scenario_cold_user_first-time_experience_184002_904.png)
+`../screenshots/scenario_cold_user_first-time_experience_184002_904.png`
 
 ### Command Palette Navigation & Keyboard Selection
-![Command Palette Navigation & Keyboard Selection](../screenshots/scenario_command_palette_navigation_&_keyboard_selection_184017_176.png)
+`../screenshots/scenario_command_palette_navigation_&_keyboard_selection_184017_176.png`
 
 ### Command Discovery & Slash Command Verification
-![Command Discovery & Slash Command Verification](../screenshots/scenario_command_discovery_&_slash_command_verification_184103_737.png)
+`../screenshots/scenario_command_discovery_&_slash_command_verification_184103_737.png`
 
 ### Onboarding & Feature Discovery
-![Onboarding & Feature Discovery](../screenshots/scenario_onboarding_&_feature_discovery_184112_286.png)
+`../screenshots/scenario_onboarding_&_feature_discovery_184112_286.png`
 
 ### Failure Injection & Auto-Recovery
-![Failure Injection & Auto-Recovery](../screenshots/scenario_failure_injection_&_auto-recovery_184117_335.png)
+`../screenshots/scenario_failure_injection_&_auto-recovery_184117_335.png`
 
 ### Resize Geometry
-![Resize Geometry](../screenshots/scenario_resize_geometry_184122_636.png)
+`../screenshots/scenario_resize_geometry_184122_636.png`
 
 ### Retrieval Quality & Knowledge Graph Evaluation
-![Retrieval Quality & Knowledge Graph Evaluation](../screenshots/scenario_retrieval_quality_&_knowledge_graph_evaluation_184135_951.png)
+`../screenshots/scenario_retrieval_quality_&_knowledge_graph_evaluation_184135_951.png`
 
 ### Keyboard Shortcuts
-![Keyboard Shortcuts](../screenshots/scenario_keyboard_shortcuts_184144_905.png)
+`../screenshots/scenario_keyboard_shortcuts_184144_905.png`
 
 ### Random & Heavy Typing Input Torture
-![Random & Heavy Typing Input Torture](../screenshots/scenario_random_&_heavy_typing_input_torture_184157_753.png)
+`../screenshots/scenario_random_&_heavy_typing_input_torture_184157_753.png`
 
 
 ## Dynamic Computed Release Verdict

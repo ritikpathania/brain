@@ -1,6 +1,15 @@
+---
+status: historical
+owner: architecture
+canonical: false
+review_cycle: static
+last_reviewed: 2026-11-17
+applies_to: historical frontend and architecture work
+---
+
 # Architectural Invariants: Brain Framework & TUI
 
-This document canonicalizes the architectural invariants and design principles governing the **Brain** system, Daemon IPC, and TUI Client.
+> Historical framework and TUI invariants from the earlier frontend designs. See the [architecture principles](principles.md) and [frontend integration handbook](../subsystems/tui.md) for the current system.
 
 ---
 

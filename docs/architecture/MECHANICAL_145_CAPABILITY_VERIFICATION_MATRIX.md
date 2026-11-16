@@ -1,3 +1,12 @@
+---
+status: historical
+owner: tui
+canonical: false
+review_cycle: static
+last_reviewed: 2026-11-17
+applies_to: historical frontend and architecture work
+---
+
 # Mechanically Auditable 145-Capability Verification Matrix
 
 **Document Version:** 1.0.0 (Authoritative Execution Ledger)  

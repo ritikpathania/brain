@@ -1,3 +1,12 @@
+---
+status: draft
+owner: architecture
+canonical: false
+review_cycle: static
+last_reviewed: 2026-11-17
+applies_to: proposed memory architecture
+---
+
 # ADR-007: Memory Architecture & `/memory` Command Semantics
 
 **Status**: Proposed  

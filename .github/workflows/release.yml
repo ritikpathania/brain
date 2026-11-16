@@ -2,13 +2,21 @@ name: Release Packaging
 
 on:
   push:
+    branches:
+      - 'release-verify/**'
     tags:
       - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   release-quality:
     name: Release quality verification
     runs-on: ubuntu-latest
+    outputs:
+      brain-version: ${{ steps.version.outputs.brain-version }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -19,22 +27,39 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      - name: Set up Python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.15.2'
+
+      - name: Validate product version against the release tag
+        id: version
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          version="$("$PYO3_PYTHON" -c 'import tomllib; print(tomllib.load(open("apps/brain/Cargo.toml", "rb"))["package"]["version"])')"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "error: tag $GITHUB_REF_NAME does not match Brain product version $version" >&2
+            exit 1
+          fi
+          printf 'brain-version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
       - name: Check Formatting
         run: cargo fmt --all -- --check
 
       - name: Run Strict Clippy
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
         run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Run Workspace Tests
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
         run: cargo test --workspace --all-features --locked
 
       - name: Run Documentation Quality Gate
         run: cargo xtask docs all
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.15.2'
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
@@ -109,9 +134,19 @@ jobs:
       - name: Compile release binaries with remapped prefix
         env:
           PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
-          RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=. --remap-path-prefix=${{ runner.temp }}=.
+        shell: bash
         run: |
+          export CARGO_ENCODED_RUSTFLAGS="$(printf '%s\x1f%s\x1f%s' \
+            "--remap-path-prefix=$HOME=." \
+            "--remap-path-prefix=$GITHUB_WORKSPACE=." \
+            "--remap-path-prefix=$RUNNER_TEMP=.")"
           cargo build --release --locked --target ${{ matrix.target }} -p brain -p brain-daemon
+
+      - name: Require real-daemon and actual brain ui PTY tests with zero skips
+        env:
+          BRAIN_CLI_BIN: ${{ github.workspace }}/target/${{ matrix.target }}/release/brain
+          BRAIN_DAEMON_BIN: ${{ github.workspace }}/target/${{ matrix.target }}/release/brain-daemon
+        run: ./scripts/verify-frontend-e2e.sh
 
       - name: Build standalone frontend
         working-directory: packages/brain-frontend
@@ -119,11 +154,12 @@ jobs:
 
       - name: Verify standalone frontend artifact
         env:
+          BRAIN_PRODUCT_VERSION: ${{ needs.release-quality.outputs.brain-version }}
           PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
         run: |
           ./scripts/verify-frontend-artifact.sh \
             --artifact packages/brain-frontend/dist/brain-frontend \
-            --brain-version "1.1.0" \
+            --brain-version "$BRAIN_PRODUCT_VERSION" \
             --target "${{ matrix.target }}"
 
       - name: Assemble complete product
@@ -170,6 +206,7 @@ jobs:
 
   publish-release:
     name: Create GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: [release-quality, build-binaries]
     runs-on: ubuntu-latest
     permissions:

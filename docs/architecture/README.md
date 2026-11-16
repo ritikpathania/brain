@@ -56,6 +56,10 @@ Start here to understand the structural design and guidelines:
 
 The core architectural decisions are recorded chronologically in the **[adr/](adr)** directory.
 
+- [ADR-007 memory architecture proposal](ADR_MEMORY.md)
+- [ADR-027 retrieval UI projection pipeline](adr/ADR-027-retrieval-ui-projection-pipeline.md)
+- [ADR-028 knowledge exploration UI architecture](adr/ADR-028-knowledge-exploration-architecture.md)
+
 ### ADR Dependency Graph
 ```mermaid
 flowchart TD

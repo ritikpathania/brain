@@ -1,5 +1,7 @@
 # Brain v2.0 Cold-User Usability & UX Evaluation Report
 
+> Historical QA run. Screenshot paths record the original filenames. The image files are absent from this checkout.
+
 **Date**: 2026-08-11 18:43:30
 **Mode**: Usability (Cold-User Adaptive Evaluation)
 **Total Scenario Duration**: 47.9 seconds
@@ -86,7 +88,7 @@
 
 | Suite | Status | 5-Layer Chain Findings | Screenshot |
 |---|---|---|---|
-| **Command Discovery & Slash Command Verification** | 🔴 FAILED | First-frame UI observation timeout (10.0s): deterministic marker not detected | [View](../screenshots/scenario_command_discovery_&_slash_command_verification_184329_743.png) |
+| **Command Discovery & Slash Command Verification** | 🔴 FAILED | First-frame UI observation timeout (10.0s): deterministic marker not detected | `../screenshots/scenario_command_discovery_&_slash_command_verification_184329_743.png` |
 
 ## Commercial UX Benchmarks & Evaluator Assessment
 

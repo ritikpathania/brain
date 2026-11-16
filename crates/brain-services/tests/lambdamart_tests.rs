@@ -2,7 +2,6 @@ mod common;
 
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 use std::time::Instant;
 
 use brain_domain::NodeId;
@@ -428,10 +427,11 @@ fn test_production_corpus_lambdamart_comparison() {
         );
     }
 
-    let base_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/evaluation");
-    fs::create_dir_all(&base_path).unwrap();
+    let report_dir = tempfile::tempdir().unwrap();
     fs::write(
-        base_path.join("production_lambdamart_matured_report.md"),
+        report_dir
+            .path()
+            .join("production_lambdamart_matured_report.md"),
         &md,
     )
     .unwrap();

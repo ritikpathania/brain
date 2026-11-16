@@ -8,9 +8,9 @@ This document outlines the high-level roadmap and architectural direction for th
 
 - [x] **Composition Root**: `BrainRuntime` single authoritative composition root.
 - [x] **Storage Engine**: SQLite FTS5 lexical + vector BLOB hybrid search engine.
-- [x] **Reconciliation Engine**: 6-pass deterministic knowledge compiler (`crates/brain-services`).
+- [x] **Reconciliation Engine**: Deterministic knowledge compiler with 18 passes across six phases (`crates/brain-services`).
 - [x] **IPC Daemon**: Unix Domain Socket (UDS) background daemon with streaming frames.
-- [x] **Terminal UI (TUI)**: Native Ratatui client with command palette, typewriter queue, and theme system.
+- [x] **Terminal UI (historical)**: The original Ratatui milestone covered the command palette, typewriter queue, and theme system.
 - [x] **Observability**: Prometheus metrics exposition and HTTP health endpoints (`:8080`).
 - [x] **Quality Gate**: Comprehensive `cargo xtask verify` contract and architecture verification.
 
@@ -28,6 +28,15 @@ This document outlines the high-level roadmap and architectural direction for th
   - Publish `brain-engine` to PyPI.
   - Publish `brain-sdk-rs` to crates.io.
 - [ ] **MCP Adapter Enhancement**: Full support for Model Context Protocol (MCP) tool call streaming & resource subscriptions.
+
+---
+
+## First-party frontend and product delivery
+
+- [x] **Canonical launch**. `brain ui` resolves the first-party `packages/brain-frontend` from a development checkout or validates the standalone executable in an installed product bundle.
+- [x] **Daemon integration**. The frontend uses the versioned handshake, session, generation, tool, and permission contracts over UDS.
+- [ ] **Platform release evidence**. Each release candidate requires actual verification of its own archives. The [distribution guide](docs/guides/product-distribution.md#4-platform-verification-status) records the evidence boundary for macOS arm64 and Linux x86_64.
+- [ ] **Legacy retirement (Phase 6, on hold)**. Retain `packages/brain-shell` and reference assets until the required product verification and final caller inventory support a separate retirement decision.
 
 ---
 

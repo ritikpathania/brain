@@ -37,7 +37,7 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 
 ## 2. Responsibilities
 - Defines Data Transfer Object (DTO) contracts and Specta type generation targets.
-- Manages Unix Domain Socket (UDS) frame encoding and decoding (`~/.brain/brain.sock`).
+- Manages Unix Domain Socket (UDS) frame encoding and decoding.
 - Serves HTTP Prometheus metrics (`GET /metrics`) and JSON health endpoints (`GET /status`).
 - Enforces request versioning (`VersionedRequest`) and workspace context propagation.
 
@@ -51,7 +51,7 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
   Clients (TUI / CLI / Python SDK / TS SDK)
                     │
                     ▼
-     Unix Domain Socket (~/.brain/brain.sock)
+     Unix Domain Socket (daemon.sock)
                     │
                     ▼
  ┌─────────────────────────────────────────────────────┐
@@ -64,12 +64,13 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 ```
 
 ## 5. Runtime Flow
-1. **Connect**: Client connects to `~/.brain/brain.sock`.
-2. **Frame Dispatch**: Client sends a length-prefixed JSON `VersionedRequest`.
-3. **Stream Events**: Daemon streams monotonic `StreamEvent` variants (`stream_start`, `stream_chunk`, `stream_end`).
+1. The client connects to the effective socket path. `BRAIN_SOCKET_PATH` takes precedence over `daemon.sock` under `BRAIN_CONFIG_DIR` or the default `~/.brain` directory.
+2. The client sends a JSON request followed by a newline.
+3. The first-party frontend negotiates compatibility with `v1/frontend/handshake` before session and generation operations.
+4. The daemon emits newline-terminated JSON responses. Generation frames are correlated by session and generation ID and start their sequence at zero.
 
 ## 6. Key Invariants
-- **Monotonic Sequence Numbers**: `StreamEvent` sequence numbers increment monotonically within a session.
+- **Stream ordering**. Sequence numbers are scoped to one stream. See the [wire reference](../reference/protocol.md) for the search and generation frame formats.
 - **Protocol Independence**: Domain logic remains completely decoupled from IPC wire codecs.
 
 ## 7. Owning Crates
@@ -94,7 +95,7 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 - [`RFC-007: Versioned Request Frames`](../architecture/rfc/RFC-007.md)
 
 ## 12. Operations
-- Prometheus metric scraping path: `http://localhost:9090/metrics`.
+- Prometheus metrics are served at `http://127.0.0.1:8080/metrics` by default. `BRAIN_HEALTH_PORT` overrides the port.
 
 ## 13. Testing
 - Integration tests in `daemon/tests/` verify UDS request-response frames and HTTP endpoints.

@@ -8,7 +8,9 @@
 
 **Tech Stack:** Bun **1.4.4**, TypeScript **5.9.3**, Rust **1.88.0**, locked Cargo/Bun inputs, frozen uv environment with CPython **3.12.13**, existing shell packager, Python standard-library manifest/PTY verification, native Mach-O/ELF tools.
 
-**Spec:** [Approved Phase 5 written specification](../specs/2026-10-01-brain-frontend-phase-5-design.md). User approval of that specification is recorded by this planning handoff; its original authoring-stage banner is not implementation evidence. [Consolidation plan](../../audits/BRAIN_FRONTEND_CONSOLIDATION_PLAN.md), section 10, supplies the Phase 1–4 baseline and Phase 6 boundary.
+**Spec:** [Phase 5 distribution design](../specs/2026-10-01-brain-frontend-phase-5-design.md). The original handoff cited section 10 of `docs/audits/BRAIN_FRONTEND_CONSOLIDATION_PLAN.md` for the Phase 1–4 baseline and Phase 6 boundary. That file is absent from this checkout.
+
+The task checklist below preserves the original plan, including its former toolchain pins. Current builds use Rust 1.99.1, CPython 3.15.2, and Bun 1.4.4. The [distribution guide](../../guides/product-distribution.md) describes the current packaging commands and platform evidence.
 
 ## Global Constraints
 
@@ -309,9 +311,9 @@ Run with explicit local `PYO3_PYTHON=<repo>/daemon/.venv/bin/python` and, on mac
 | Docs/fmt | `cargo xtask docs all`; `cargo fmt --all -- --check` | 0 active docs violations; exit 0 |
 | Workflow/whitespace/boundaries | Bun YAML + real-shell gate tests; `git diff --check -- <Phase-5-paths>` plus no-index checks for new files; private import/path searches | No failure masking, whitespace error, source coupling or legacy change |
 
-**Implementation & Acceptance Status (2026-11-02):** Phase 5 is fully implemented, verified, and accepted on macOS arm64 (`aarch64-apple-darwin`).
+**Historical acceptance (2026-11-02).** The macOS arm64 (`aarch64-apple-darwin`) results below apply to the earlier archive identified by its digest. Each later candidate requires fresh evidence.
 
-### Phase 5 Completion Evidence Summary
+### November 2026 verification record
 1. **Toolchain Modernization Baseline:**
    - Rust: 1.99.1 (`rustc 1.99.1`, `cargo 1.99.1`, Clippy `0.1.99`)
    - Bun: 1.4.4 (`bun 1.4.4 (38afee6c8)`)
@@ -347,3 +349,9 @@ Run with explicit local `PYO3_PYTHON=<repo>/daemon/.venv/bin/python` and, on mac
 8. **Platform Status:**
    - macOS arm64: **PASS** (reproducibly verified locally and through orchestrator).
    - Linux x86_64: Release workflow configured and tested; native runtime execution remains **PENDING** CI release run. Notarization and Phase 6 remain pending.
+
+### Current release verification
+
+The native [Release Packaging workflow](../../../.github/workflows/release.yml) runs for a `v*` tag push, a push to `release-verify/**`, or a manual dispatch. The publication job requires a matching product version and successful verification of both platform archives from the tag run. Branch and manual runs upload GitHub Actions artifacts.
+
+The native workflow and `package.sh` invoke `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries before compiling the standalone frontend. The gate requires a passing E2E suite with zero skipped or todo tests. Archive verification is separate and exercises the extracted product on the native host. For acceptance, capture the source commit, target, completed test result, and archive SHA-256 from the same run. Phase 6 remains on hold while the release evidence and final caller inventory are incomplete.

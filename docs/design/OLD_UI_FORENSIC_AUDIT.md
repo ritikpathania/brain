@@ -69,7 +69,7 @@ This audit inventories all 442 artifacts, categorizes their UI dependencies, ide
 
 | Path | Authority | Role | Lifecycle | Current Claim | Action |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| [`crates/brain-tui/README.md`](../../crates/brain-tui/README.md) | `supporting` | `operational` | `active` | References `TUI_DESIGN_SYSTEM.md` as canonical specification. | `PARTIALLY_RECONCILE` (Update canonical reference to `CLAUDE_VISUAL_CONTRACT.md`) |
+| `crates/brain-tui/README.md` (historical path `crates/brain-tui/README.md`) | `supporting` | `operational` | `active` | References `TUI_DESIGN_SYSTEM.md` as canonical specification. | `PARTIALLY_RECONCILE` (Update canonical reference to `CLAUDE_VISUAL_CONTRACT.md`) |
 | [`apps/brain/README.md`](../../apps/brain/README.md) | `supporting` | `operational` | `active` | References CLI application entry point and interactive UI launcher. | `KEEP_SUPPORTING` |
 | [`daemon/README.md`](../../daemon/README.md) | `supporting` | `operational` | `active` | Headless background daemon service with UDS socket interface. | `KEEP_SUPPORTING` |
 
