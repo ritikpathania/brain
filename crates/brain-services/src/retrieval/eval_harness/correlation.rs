@@ -321,8 +321,8 @@ impl CorrelationReportWriter {
         // Format rows
         for (i, row_f) in report.matrix.features.iter().enumerate() {
             md.push_str(&format!("| {} |", row_f.as_str()));
-            for j in 0..report.matrix.features.len() {
-                md.push_str(&format!(" {:.4} |", report.matrix.values[i][j]));
+            for value in &report.matrix.values[i][..report.matrix.features.len()] {
+                md.push_str(&format!(" {value:.4} |"));
             }
             md.push('\n');
         }

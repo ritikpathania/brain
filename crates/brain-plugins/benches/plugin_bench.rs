@@ -9,6 +9,7 @@ use brain_plugins::{InstalledPlugin, LoaderKind, PluginLoader, PluginManager, Pl
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 struct DummyHost;
 impl HostContext for DummyHost {
