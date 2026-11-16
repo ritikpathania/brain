@@ -88,7 +88,7 @@ The orchestrator verifies standalone identity and host paths, assembles the clos
 
 | Target | Recorded evidence |
 | --- | --- |
-| macOS arm64 (`aarch64-apple-darwin`) | The November 2 verification record documents three successful clean extractions of an earlier archive. Each later candidate requires its own archive proof. |
+| macOS arm64 (`aarch64-apple-darwin`) | **PASS** on 2026-11-17 for clean source commit `6cd25406d1e2818267f527fc405cc267464554ae`. The 12-case frontend E2E gate, CPython relocation and compiled-extension probe, and all three clean-extraction product smokes passed. Archive SHA-256 `30c507c7c16a95c6cd40e2283c705bfda9e7dc7c611c419859e1409670a9f02c`. |
 | Linux x86_64 (`x86_64-unknown-linux-gnu`) | Native archive verification remains pending in the checked-in record. The matrix configuration is in place. |
 
 Record the exact source commit, native target, completed test result, and archive SHA-256 for each candidate. Use the [Phase 5 implementation plan](../superpowers/plans/2026-10-01-brain-frontend-phase-5.md#november-2026-verification-record) for the historical macOS evidence.
