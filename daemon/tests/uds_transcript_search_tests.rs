@@ -202,10 +202,15 @@ async fn test_uds_transcript_search_matches_historical_messages_across_sessions(
     .await;
     assert_eq!(status_search_a, "success");
     let matches_a = res_a["matches"].as_array().expect("matches array");
-    assert!(!matches_a.is_empty(), "Must find at least one match for Josephson");
+    assert!(
+        !matches_a.is_empty(),
+        "Must find at least one match for Josephson"
+    );
     // Verify match belongs to Session A
     let match_msg = &matches_a[0];
-    let sid = match_msg["sessionId"].as_str().or_else(|| match_msg["session_id"].as_str());
+    let sid = match_msg["sessionId"]
+        .as_str()
+        .or_else(|| match_msg["session_id"].as_str());
     assert_eq!(sid, Some(session_a_id.as_str()));
 
     // 4. Search for "ytterbium" -> match should map to Session B
@@ -218,9 +223,14 @@ async fn test_uds_transcript_search_matches_historical_messages_across_sessions(
     .await;
     assert_eq!(status_search_b, "success");
     let matches_b = res_b["matches"].as_array().expect("matches array");
-    assert!(!matches_b.is_empty(), "Must find at least one match for ytterbium");
+    assert!(
+        !matches_b.is_empty(),
+        "Must find at least one match for ytterbium"
+    );
     let match_b_msg = &matches_b[0];
-    let sid_b = match_b_msg["sessionId"].as_str().or_else(|| match_b_msg["session_id"].as_str());
+    let sid_b = match_b_msg["sessionId"]
+        .as_str()
+        .or_else(|| match_b_msg["session_id"].as_str());
     assert_eq!(sid_b, Some(session_b_id.as_str()));
 }
 

@@ -212,7 +212,11 @@ pub struct TranscriptSearchQueryPayload {
 pub struct TranscriptSearchMatchDto {
     pub id: String,
     pub kind: String,
-    #[serde(rename = "sessionId", alias = "session_id", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sessionId",
+        alias = "session_id",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub session_id: Option<String>,
     pub title: String,
     pub body: String,
@@ -386,7 +390,11 @@ pub struct SessionSummaryDto {
     pub pinned: bool,
     #[serde(default)]
     pub archived: bool,
-    #[serde(rename = "systemPrompt", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "systemPrompt",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub system_prompt: Option<String>,
 }
 
@@ -429,7 +437,11 @@ pub struct SessionDetailDto {
     pub updated_at_ms: i64,
     #[serde(rename = "workspacePath")]
     pub workspace_path: Option<String>,
-    #[serde(rename = "systemPrompt", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "systemPrompt",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub system_prompt: Option<String>,
     pub messages: Vec<SessionMessageDto>,
 }

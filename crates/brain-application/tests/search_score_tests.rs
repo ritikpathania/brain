@@ -18,7 +18,8 @@ async fn test_search_summary_carries_projection_relevance_score() {
         "Alpha Memory Pipeline".to_string(),
         brain_domain::NodeKind::Concept,
     );
-    brain_core::repositories::NodeRepository::save(runtime.sqlite_storage().as_ref(), &node).unwrap();
+    brain_core::repositories::NodeRepository::save(runtime.sqlite_storage().as_ref(), &node)
+        .unwrap();
 
     let app = BrainApplication::new(runtime);
     let context = ExecutionContext::default();
@@ -34,7 +35,10 @@ async fn test_search_summary_carries_projection_relevance_score() {
 
     let first = &results[0];
     assert_eq!(first.title, "Alpha Memory Pipeline");
-    let score_str = first.metadata.get("score").expect("metadata must contain 'score'");
+    let score_str = first
+        .metadata
+        .get("score")
+        .expect("metadata must contain 'score'");
     let score: i64 = score_str.parse().expect("score must be a valid integer");
     assert!(score > 0, "Score must be positive, got {}", score);
 }

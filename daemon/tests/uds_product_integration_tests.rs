@@ -252,7 +252,14 @@ async fn test_product_multi_turn_generation_persistence() {
     let messages = load_session_messages(&daemon.socket_path, &session_id).await;
     assert_eq!(messages.len(), 9, "Expected 9 messages across 3 turns");
     for (i, role) in [
-        "user", "thinking", "assistant", "user", "thinking", "assistant", "user", "thinking",
+        "user",
+        "thinking",
+        "assistant",
+        "user",
+        "thinking",
+        "assistant",
+        "user",
+        "thinking",
         "assistant",
     ]
     .iter()

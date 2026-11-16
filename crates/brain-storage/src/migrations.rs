@@ -405,12 +405,12 @@ impl MigrationRunner {
         // Check if system_prompt column exists on sessions table
         let mut has_column = false;
         {
-            let mut stmt = tx
-                .prepare("PRAGMA table_info(sessions)")
-                .map_err(|e| BrainError::Storage {
-                    message: format!("Failed to inspect sessions table info: {}", e),
-                    source: Some(Box::new(e)),
-                })?;
+            let mut stmt =
+                tx.prepare("PRAGMA table_info(sessions)")
+                    .map_err(|e| BrainError::Storage {
+                        message: format!("Failed to inspect sessions table info: {}", e),
+                        source: Some(Box::new(e)),
+                    })?;
             let rows = stmt
                 .query_map([], |row| row.get::<_, String>(1))
                 .map_err(|e| BrainError::Storage {

@@ -30,8 +30,7 @@ impl Tool for BashTool {
             Some(c) if !c.trim().is_empty() => c.to_string(),
             _ => {
                 return Err(BrainError::Internal {
-                    message: "bash tool requires a non-empty string 'command' argument"
-                        .to_string(),
+                    message: "bash tool requires a non-empty string 'command' argument".to_string(),
                 })
             }
         };
@@ -173,12 +172,12 @@ mod tests {
         assert_eq!(meta.execution_policy.timeout_ms, 30_000);
         // Inc 7: the advertised schema mirrors execute()'s actual contract —
         // one non-empty string `command`, mandatory.
-        let schema = meta.input_schema.as_ref().expect("bash advertises a schema");
+        let schema = meta
+            .input_schema
+            .as_ref()
+            .expect("bash advertises a schema");
         assert_eq!(schema["type"], "object");
-        assert_eq!(
-            schema["required"],
-            serde_json::json!(["command"])
-        );
+        assert_eq!(schema["required"], serde_json::json!(["command"]));
         assert_eq!(schema["properties"]["command"]["type"], "string");
     }
 }

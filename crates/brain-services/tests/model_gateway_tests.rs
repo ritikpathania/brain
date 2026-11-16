@@ -165,12 +165,17 @@ async fn test_dynamic_provider_registration_mutation() {
 async fn test_thinking_budget_passes_to_provider_execution() {
     use futures::StreamExt;
     let mock_provider = Arc::new(DeterministicMockProvider::new());
-    let gateway = DefaultModelGateway::with_mock_provider(Arc::clone(&mock_provider) as Arc<dyn ModelProvider>);
+    let gateway = DefaultModelGateway::with_mock_provider(
+        Arc::clone(&mock_provider) as Arc<dyn ModelProvider>
+    );
     let cancel_token = CancellationToken::new();
 
     let req = GenerationRequest {
         model: "brain-default".to_string(),
-        messages: vec![ModelChatMessage::text(ChatRole::User, "Hello with thinking")],
+        messages: vec![ModelChatMessage::text(
+            ChatRole::User,
+            "Hello with thinking",
+        )],
         system_prompt: None,
         tools: Vec::new(),
         thinking_budget: Some(4096),

@@ -143,7 +143,10 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
         }),
     )
     .await;
-    println!("APPEND TURN RES: {:?} (status: {})", append_res, status_append);
+    println!(
+        "APPEND TURN RES: {:?} (status: {})",
+        append_res, status_append
+    );
     assert_eq!(status_append, "success");
 
     let (comp_res, status_comp) = rpc(
@@ -169,8 +172,13 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
     .await;
     println!("SEARCH RES: {:?} (status: {})", search_res, status_search);
     assert_eq!(status_search, "success");
-    let matches = search_res["matches"].as_array().expect("search_res should have matches array");
-    assert!(!matches.is_empty(), "Expected search to find turn before deletion");
+    let matches = search_res["matches"]
+        .as_array()
+        .expect("search_res should have matches array");
+    assert!(
+        !matches.is_empty(),
+        "Expected search to find turn before deletion"
+    );
 
     // 4. Verify session load works before deletion
     let (load_res, status_load) = rpc(
@@ -182,7 +190,8 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
     .await;
     println!("LOAD RES: {:?} (status: {})", load_res, status_load);
     assert_eq!(status_load, "success");
-    let msgs = load_res.get("messages")
+    let msgs = load_res
+        .get("messages")
         .or_else(|| load_res.get("session").and_then(|s| s.get("messages")))
         .and_then(|v| v.as_array())
         .expect("load_res should contain messages array");
@@ -208,11 +217,15 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
         serde_json::json!({ "session_id": &sid }),
     )
     .await;
-    let msgs_after = load_after.get("messages")
+    let msgs_after = load_after
+        .get("messages")
         .or_else(|| load_after.get("session").and_then(|s| s.get("messages")))
         .and_then(|v| v.as_array());
     let is_empty = status_load_after == "error" || msgs_after.map(|a| a.is_empty()).unwrap_or(true);
-    assert!(is_empty, "Session turns should no longer exist after deletion");
+    assert!(
+        is_empty,
+        "Session turns should no longer exist after deletion"
+    );
 
     // 7. Verify transcript search returns ZERO matches (purged from FTS5)
     let (search_after, status_search_after) = rpc(
@@ -224,7 +237,11 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
     .await;
     assert_eq!(status_search_after, "success");
     let matches_after = search_after["matches"].as_array().unwrap();
-    assert_eq!(matches_after.len(), 0, "FTS5 search must return 0 matches for deleted session");
+    assert_eq!(
+        matches_after.len(),
+        0,
+        "FTS5 search must return 0 matches for deleted session"
+    );
 
     // Also search title
     let (search_title_res, status_title) = rpc(
@@ -235,7 +252,11 @@ async fn test_session_delete_cascades_persistence_and_search_purging() {
     )
     .await;
     assert_eq!(status_title, "success");
-    assert_eq!(search_title_res["matches"].as_array().unwrap().len(), 0, "FTS5 title must be purged");
+    assert_eq!(
+        search_title_res["matches"].as_array().unwrap().len(),
+        0,
+        "FTS5 title must be purged"
+    );
 }
 
 #[tokio::test]
@@ -258,7 +279,8 @@ async fn test_session_delete_unversioned_route() {
     buf_reader.read_line(&mut line).await.unwrap();
     let start_res: serde_json::Value = serde_json::from_str(&line).unwrap();
     println!("UNVERSIONED START RES: {:?}", start_res);
-    let sid = start_res.get("session_id")
+    let sid = start_res
+        .get("session_id")
         .or_else(|| start_res.get("body").and_then(|b| b.get("session_id")))
         .and_then(|v| v.as_str())
         .expect("session_id should exist in unversioned start response")

@@ -125,7 +125,9 @@ impl DeterministicMockProvider {
         Self {
             supported_models: models,
             scripted_queue: Arc::new(Mutex::new(scripted_queue_from_env_spec(
-                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES").ok().as_deref(),
+                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES")
+                    .ok()
+                    .as_deref(),
             ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
@@ -139,7 +141,9 @@ impl DeterministicMockProvider {
         Self {
             supported_models: models,
             scripted_queue: Arc::new(Mutex::new(scripted_queue_from_env_spec(
-                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES").ok().as_deref(),
+                std::env::var("BRAIN_MOCK_SCRIPTED_RESPONSES")
+                    .ok()
+                    .as_deref(),
             ))),
             default_response: Arc::new(Mutex::new(None)),
             sentinel_counter: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
@@ -182,8 +186,7 @@ fn sentinel_tool_call(
     let (name, input) = match spec.split_once('|') {
         Some((n, j)) => (
             n.trim().to_string(),
-            serde_json::from_str::<serde_json::Value>(j.trim())
-                .unwrap_or(serde_json::json!({})),
+            serde_json::from_str::<serde_json::Value>(j.trim()).unwrap_or(serde_json::json!({})),
         ),
         None => (spec.trim().to_string(), serde_json::json!({})),
     };
@@ -233,8 +236,7 @@ impl ModelProvider for DeterministicMockProvider {
 
         // Inc 7 observe-only recorder: snapshot advertised tool names before
         // anything can move out of `request`. Scripting behavior is unchanged.
-        *self.last_request_tools.lock() =
-            request.tools.iter().map(|t| t.name.clone()).collect();
+        *self.last_request_tools.lock() = request.tools.iter().map(|t| t.name.clone()).collect();
         *self.last_request_thinking_budget.lock() = request.thinking_budget;
 
         let last_user_prompt = request
@@ -272,9 +274,7 @@ impl ModelProvider for DeterministicMockProvider {
         };
 
         let response = scripted.unwrap_or_else(|| ScriptedResponse {
-            thinking: Some(
-                "Analyzing user request in deterministic mock engine...".to_string(),
-            ),
+            thinking: Some("Analyzing user request in deterministic mock engine...".to_string()),
             tokens: vec![format!("Mock response to: {}", last_user_prompt)],
             tool_calls: Vec::new(),
             error: None,
@@ -409,22 +409,22 @@ mod sentinel_tests {
     async fn plain_prompt_emits_no_tool_calls() {
         let provider = DeterministicMockProvider::new();
         let chunks = collect(&provider, "just say hi").await;
-        assert!(
-            chunks
-                .iter()
-                .all(|c| !matches!(c, GenerationChunk::ToolUse { .. }))
-        );
+        assert!(chunks
+            .iter()
+            .all(|c| !matches!(c, GenerationChunk::ToolUse { .. })));
     }
 
     #[tokio::test]
     async fn bare_sentinel_without_json_yields_empty_input() {
         let provider = DeterministicMockProvider::new();
         let chunks = collect(&provider, "use [brain-tool:search] please").await;
-        let found = chunks.iter().any(|c| matches!(
-            c,
-            GenerationChunk::ToolUse { name, input, .. }
-                if name == "search" && *input == serde_json::json!({})
-        ));
+        let found = chunks.iter().any(|c| {
+            matches!(
+                c,
+                GenerationChunk::ToolUse { name, input, .. }
+                    if name == "search" && *input == serde_json::json!({})
+            )
+        });
         assert!(found);
     }
 }

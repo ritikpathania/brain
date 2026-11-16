@@ -45,7 +45,13 @@ fn get_free_port() -> u16 {
         .port()
 }
 
-fn spawn_daemon(test_dir: &PathBuf, socket: &PathBuf, pid: &PathBuf, db: &PathBuf, analytics: &PathBuf) -> Child {
+fn spawn_daemon(
+    test_dir: &PathBuf,
+    socket: &PathBuf,
+    pid: &PathBuf,
+    db: &PathBuf,
+    analytics: &PathBuf,
+) -> Child {
     Command::new(env!("CARGO_BIN_EXE_brain-daemon"))
         .arg("daemon")
         .arg("run")
@@ -67,7 +73,13 @@ async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
     let pid_path = test_dir.join("brain.pid");
     let db_path = test_dir.join("brain.db");
     let analytics_db_path = test_dir.join("analytics.db");
-    let child = spawn_daemon(&test_dir, &socket_path, &pid_path, &db_path, &analytics_db_path);
+    let child = spawn_daemon(
+        &test_dir,
+        &socket_path,
+        &pid_path,
+        &db_path,
+        &analytics_db_path,
+    );
     let mut ready = false;
     for _ in 0..60 {
         if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
@@ -89,7 +101,12 @@ async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
 
 /// One versioned RPC round-trip; returns the parsed response body.
 /// Mirrors the sibling suites' string-or-object `body` handling.
-async fn rpc(socket_path: &PathBuf, id: u64, action: &str, body: serde_json::Value) -> serde_json::Value {
+async fn rpc(
+    socket_path: &PathBuf,
+    id: u64,
+    action: &str,
+    body: serde_json::Value,
+) -> serde_json::Value {
     let stream = UnixStream::connect(socket_path).await.unwrap();
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);

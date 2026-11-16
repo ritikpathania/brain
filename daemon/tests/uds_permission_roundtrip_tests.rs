@@ -76,14 +76,19 @@ async fn start_test_daemon() -> DaemonProcess {
     }
 }
 
-async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T) where T: serde::Serialize {
+async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T)
+where
+    T: serde::Serialize,
+{
     let mut json = serde_json::to_string(frame).unwrap();
     json.push('\n');
     writer.write_all(json.as_bytes()).await.unwrap();
     writer.flush().await.unwrap();
 }
 
-async fn read_line_frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> serde_json::Value {
+async fn read_line_frame(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+) -> serde_json::Value {
     let mut line = String::new();
     reader.read_line(&mut line).await.unwrap();
     serde_json::from_str(line.trim()).unwrap()
@@ -203,12 +208,12 @@ async fn stream_pauses_on_permission_request_and_grant_resumes_without_denial() 
 
     // Stream must be PAUSED: no further frames within 700 ms.
     let mut probe = String::new();
-    let paused = tokio::time::timeout(
-        Duration::from_millis(700),
-        reader_a.read_line(&mut probe),
-    )
-    .await;
-    assert!(paused.is_err(), "stream continued while permission unresolved");
+    let paused =
+        tokio::time::timeout(Duration::from_millis(700), reader_a.read_line(&mut probe)).await;
+    assert!(
+        paused.is_err(),
+        "stream continued while permission unresolved"
+    );
 
     // Resolve on a SECOND connection.
     let resolver = UnixStream::connect(&daemon.socket_path).await.unwrap();

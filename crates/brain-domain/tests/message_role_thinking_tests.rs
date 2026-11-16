@@ -18,5 +18,8 @@ fn thinking_variant_serializes_and_deserializes_as_thinking() {
 
 #[test]
 fn thinking_variant_parses_from_str() {
-    assert_eq!(MessageRole::from_str("thinking").unwrap(), MessageRole::Thinking);
+    assert_eq!(
+        MessageRole::from_str("thinking").unwrap(),
+        MessageRole::Thinking
+    );
 }

@@ -499,22 +499,13 @@ async fn test_orchestrator_storage_backed_retrieval_and_neighbor_expansion() {
         "content".to_string(),
         serde_json::json!("LLVM translates intermediate representation to target assembly."),
     );
-    let neighbor_node = Node::new(
-        neighbor_id,
-        "LLVM Backend".to_string(),
-        NodeKind::Concept,
-    )
-    .with_properties(neighbor_props)
-    .with_updated_at(1_700_000_000);
+    let neighbor_node = Node::new(neighbor_id, "LLVM Backend".to_string(), NodeKind::Concept)
+        .with_properties(neighbor_props)
+        .with_updated_at(1_700_000_000);
     NodeRepository::save(&*storage, &neighbor_node).unwrap();
 
     // 3. Insert edge connecting parent to neighbor
-    let edge = Edge::new(
-        parent_id,
-        neighbor_id,
-        RelationKind::DependsOn,
-        0.9,
-    );
+    let edge = Edge::new(parent_id, neighbor_id, RelationKind::DependsOn, 0.9);
     EdgeRepository::save(&*storage, &edge).unwrap();
 
     // 4. Insert unrelated node
@@ -559,13 +550,25 @@ async fn test_orchestrator_storage_backed_retrieval_and_neighbor_expansion() {
     assert!(!item_ids.contains(&unrelated_id));
 
     // Verify parent has higher score than 1-hop decayed neighbor
-    let parent_item = snapshot.items.iter().find(|it| it.node_id == parent_id).unwrap();
-    let neighbor_item = snapshot.items.iter().find(|it| it.node_id == neighbor_id).unwrap();
+    let parent_item = snapshot
+        .items
+        .iter()
+        .find(|it| it.node_id == parent_id)
+        .unwrap();
+    let neighbor_item = snapshot
+        .items
+        .iter()
+        .find(|it| it.node_id == neighbor_id)
+        .unwrap();
     assert!(parent_item.score > neighbor_item.score);
 
     // Verify formatted serialized context framing
-    assert!(snapshot.serialized_context.contains("<brain_memory_context"));
-    assert!(snapshot.serialized_context.contains("Rust Compiler Architecture"));
+    assert!(snapshot
+        .serialized_context
+        .contains("<brain_memory_context"));
+    assert!(snapshot
+        .serialized_context
+        .contains("Rust Compiler Architecture"));
     assert!(snapshot.serialized_context.contains("LLVM Backend"));
     assert!(!snapshot.serialized_context.contains("Sourdough"));
 

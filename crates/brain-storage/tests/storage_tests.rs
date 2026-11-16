@@ -273,7 +273,10 @@ fn test_sqlite_v17_column_authoritative_hydration() {
         let conn = rusqlite::Connection::open(&db_path).unwrap();
         conn.execute(
             "UPDATE sessions SET system_prompt = ?1 WHERE id = ?2",
-            rusqlite::params!["Authoritative Column Value Overriding JSON", session_id.to_string()],
+            rusqlite::params![
+                "Authoritative Column Value Overriding JSON",
+                session_id.to_string()
+            ],
         )
         .unwrap();
     }

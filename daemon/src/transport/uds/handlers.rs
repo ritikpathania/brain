@@ -396,7 +396,11 @@ pub async fn handle_connection(
             );
             if let Some(ref sp) = start_req.system_prompt {
                 let cleaned = sp.trim().to_string();
-                session.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+                session.system_prompt = if cleaned.is_empty() {
+                    None
+                } else {
+                    Some(cleaned)
+                };
             }
             let _ = storage.save_session(&parsed_sid, &session);
 
@@ -711,7 +715,10 @@ pub async fn handle_connection(
             match rename_req {
                 Ok(p) => {
                     let parsed_sid = parse_session_id_flexible(&p.session_id);
-                    match app.rename_session(&parsed_sid.to_string(), &p.new_title).await {
+                    match app
+                        .rename_session(&parsed_sid.to_string(), &p.new_title)
+                        .await
+                    {
                         Ok(()) => {
                             let response = if is_versioned {
                                 serde_json::json!({
@@ -968,7 +975,9 @@ pub async fn handle_connection(
             }
 
             let sid_str = if let Ok(p) = serde_json::from_str::<ArchivePayload>(payload) {
-                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+                p.session_id
+                    .or(p.id)
+                    .unwrap_or_else(|| payload.trim().to_string())
             } else {
                 payload.trim().to_string()
             };
@@ -1032,7 +1041,9 @@ pub async fn handle_connection(
             }
 
             let sid_str = if let Ok(p) = serde_json::from_str::<RestorePayload>(payload) {
-                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+                p.session_id
+                    .or(p.id)
+                    .unwrap_or_else(|| payload.trim().to_string())
             } else {
                 payload.trim().to_string()
             };
@@ -1096,7 +1107,9 @@ pub async fn handle_connection(
             }
 
             let sid_str = if let Ok(p) = serde_json::from_str::<DeletePayload>(payload) {
-                p.session_id.or(p.id).unwrap_or_else(|| payload.trim().to_string())
+                p.session_id
+                    .or(p.id)
+                    .unwrap_or_else(|| payload.trim().to_string())
             } else {
                 payload.trim().to_string()
             };
@@ -1372,7 +1385,11 @@ pub async fn handle_connection(
             } else {
                 serde_json::from_str(payload).unwrap_or(serde_json::Value::Null)
             };
-            let command = exec_req["command"].as_str().unwrap_or("").trim().to_string();
+            let command = exec_req["command"]
+                .as_str()
+                .unwrap_or("")
+                .trim()
+                .to_string();
             let sid_str = exec_req["session_id"]
                 .as_str()
                 .or_else(|| exec_req["sessionId"].as_str())
@@ -1441,11 +1458,11 @@ pub async fn handle_connection(
             {
                 let registry = get_generation_registry();
                 let reg = registry.read().await;
-                if reg.values().any(|active| active.session_id == parsed_session_id) {
-                    let msg = format!(
-                        "Session '{}' is busy with an active generation",
-                        sid_str
-                    );
+                if reg
+                    .values()
+                    .any(|active| active.session_id == parsed_session_id)
+                {
+                    let msg = format!("Session '{}' is busy with an active generation", sid_str);
                     let response = if is_versioned {
                         serde_json::json!({
                             "version": "1.0", "type": "Error", "id": req_id_val,
@@ -1484,8 +1501,7 @@ pub async fn handle_connection(
             let _ = storage.save_session(&parsed_session_id, &session_aggregate);
 
             use brain_core::extensibility::{
-                ExecutionContext as ToolExecutionContext,
-                ToolRegistry,
+                ExecutionContext as ToolExecutionContext, ToolRegistry,
             };
             let stack = crate::tools::tool_stack();
             let mut args_map: HashMap<String, serde_json::Value> = HashMap::new();
@@ -1511,10 +1527,8 @@ pub async fn handle_connection(
                             let out_text = v["output"].as_str().unwrap_or("").to_string();
                             let is_err = v["is_error"].as_bool().unwrap_or(true);
                             let exit_code = v["exit_code"].as_i64().unwrap_or(-1);
-                            let duration_ms =
-                                tool_exec_started.elapsed().as_millis() as u64;
-                            let call_id =
-                                format!("shell-{}", uuid::Uuid::new_v4().simple());
+                            let duration_ms = tool_exec_started.elapsed().as_millis() as u64;
+                            let call_id = format!("shell-{}", uuid::Uuid::new_v4().simple());
                             let resp_body = serde_json::json!({
                                 "call_id": call_id,
                                 "name": "bash",
@@ -1555,17 +1569,14 @@ pub async fn handle_connection(
                                 "output": truncate_tool_output(&out_text),
                                 "duration_ms": duration_ms,
                             });
-                            let _ = session_aggregate.add_message(
-                                brain_domain::Message::new(
-                                    brain_domain::MessageId::new(),
-                                    brain_domain::MessageRole::Tool,
-                                    envelope.to_string(),
-                                ),
-                            );
-                            if let Err(e) = storage.save_session(
-                                &parsed_session_id,
-                                &session_aggregate,
-                            ) {
+                            let _ = session_aggregate.add_message(brain_domain::Message::new(
+                                brain_domain::MessageId::new(),
+                                brain_domain::MessageRole::Tool,
+                                envelope.to_string(),
+                            ));
+                            if let Err(e) =
+                                storage.save_session(&parsed_session_id, &session_aggregate)
+                            {
                                 tracing::warn!(
                                     error = %e,
                                     "tool event persistence failed; continuing"
@@ -1750,26 +1761,23 @@ pub async fn handle_connection(
                             )
                         });
 
-                        let role = match req.role.to_lowercase().as_str() {
-                            "user" => brain_domain::MessageRole::User,
-                            "assistant" => brain_domain::MessageRole::Assistant,
-                            _ => brain_domain::MessageRole::System,
-                        };
+                    let role = match req.role.to_lowercase().as_str() {
+                        "user" => brain_domain::MessageRole::User,
+                        "assistant" => brain_domain::MessageRole::Assistant,
+                        _ => brain_domain::MessageRole::System,
+                    };
 
-                        if let Some(existing) =
-                            session.messages.iter_mut().find(|m| m.id == parsed_msg_id)
-                        {
-                            existing.content = req.content.clone();
-                            existing.role = role;
-                            existing.timestamp = now_secs;
-                        } else {
-                            let msg = brain_domain::Message::new(
-                                parsed_msg_id,
-                                role,
-                                req.content.clone(),
-                            );
-                            session.messages.push(msg);
-                        }
+                    if let Some(existing) =
+                        session.messages.iter_mut().find(|m| m.id == parsed_msg_id)
+                    {
+                        existing.content = req.content.clone();
+                        existing.role = role;
+                        existing.timestamp = now_secs;
+                    } else {
+                        let msg =
+                            brain_domain::Message::new(parsed_msg_id, role, req.content.clone());
+                        session.messages.push(msg);
+                    }
 
                     session.updated_at = brain_domain::SessionTimestamp(now_secs);
                     session.autotitle();
@@ -1875,20 +1883,20 @@ pub async fn handle_connection(
                             )
                         });
 
-                        if let Some(existing) =
-                            session.messages.iter_mut().find(|m| m.id == parsed_msg_id)
-                        {
-                            existing.content = req.assistant_response.clone();
-                            existing.role = brain_domain::MessageRole::Assistant;
-                            existing.timestamp = now_secs;
-                        } else {
-                            let msg = brain_domain::Message::new(
-                                parsed_msg_id,
-                                brain_domain::MessageRole::Assistant,
-                                req.assistant_response.clone(),
-                            );
-                            session.messages.push(msg);
-                        }
+                    if let Some(existing) =
+                        session.messages.iter_mut().find(|m| m.id == parsed_msg_id)
+                    {
+                        existing.content = req.assistant_response.clone();
+                        existing.role = brain_domain::MessageRole::Assistant;
+                        existing.timestamp = now_secs;
+                    } else {
+                        let msg = brain_domain::Message::new(
+                            parsed_msg_id,
+                            brain_domain::MessageRole::Assistant,
+                            req.assistant_response.clone(),
+                        );
+                        session.messages.push(msg);
+                    }
 
                     session.updated_at = brain_domain::SessionTimestamp(now_secs);
                     total_turns = session.messages.len();
@@ -1982,8 +1990,7 @@ pub async fn handle_connection(
                     let props = node.properties;
                     let excerpt =
                         super::memory_relations::preferred_excerpt(Some(&props), &node.label);
-                    let scope =
-                        super::memory_relations::preferred_scope(Some(&props), "workspace");
+                    let scope = super::memory_relations::preferred_scope(Some(&props), "workspace");
                     let relations = super::memory_relations::materialize_relations(
                         Some(&node.id),
                         Some(&props),
@@ -2579,7 +2586,8 @@ pub async fn handle_connection(
                     let storage = app.runtime().sqlite_storage();
                     use brain_core::repositories::EdgeRepository;
 
-                    let edge_id = brain_domain::EdgeId::new(source_uuid, target_uuid, relation_kind.id());
+                    let edge_id =
+                        brain_domain::EdgeId::new(source_uuid, target_uuid, relation_kind.id());
                     match EdgeRepository::delete(storage.as_ref(), &edge_id) {
                         Ok(()) => {
                             let resp_body = crate::server::protocol::UnlinkMemoryResponseBody {
@@ -2666,7 +2674,11 @@ pub async fn handle_connection(
 
             let active_models_count = app.model_gateway().list_models().len();
             let uptime_seconds = app.runtime().status().uptime.as_secs();
-            let status = if sqlite_healthy { "healthy" } else { "degraded" };
+            let status = if sqlite_healthy {
+                "healthy"
+            } else {
+                "degraded"
+            };
 
             let resp_body = crate::server::protocol::SystemStatusResponseBody {
                 status: status.to_string(),
@@ -2779,11 +2791,10 @@ pub async fn handle_connection(
                                     .collect();
 
                             let total = matches.len();
-                            let resp_body =
-                                crate::server::protocol::TranscriptSearchResponseBody {
-                                    matches,
-                                    total,
-                                };
+                            let resp_body = crate::server::protocol::TranscriptSearchResponseBody {
+                                matches,
+                                total,
+                            };
 
                             let response = if is_versioned {
                                 serde_json::json!({
@@ -2964,13 +2975,11 @@ pub async fn handle_connection(
                             .clone()
                             .unwrap_or_else(|| "modified_file".to_string());
                         let file_path = sanitize_path_containment(&raw_path);
-                        let clean_content = sanitize_security_string(&req.result.summary.unwrap_or_default());
+                        let clean_content =
+                            sanitize_security_string(&req.result.summary.unwrap_or_default());
                         let node_id = brain_domain::NodeId::new();
                         let mut props = std::collections::HashMap::new();
-                        props.insert(
-                            "content".to_string(),
-                            serde_json::json!(clean_content),
-                        );
+                        props.insert("content".to_string(), serde_json::json!(clean_content));
                         props.insert("scope".to_string(), serde_json::json!("workspace"));
                         props.insert("channel".to_string(), serde_json::json!("tool_feedback"));
                         props.insert("source".to_string(), serde_json::json!(req.tool.name));
@@ -3427,7 +3436,11 @@ pub async fn handle_connection(
                     Ok(Some(mut s)) => {
                         if let Some(ref sp) = stream_req.system_prompt {
                             let cleaned = sp.trim().to_string();
-                            s.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+                            s.system_prompt = if cleaned.is_empty() {
+                                None
+                            } else {
+                                Some(cleaned)
+                            };
                         }
                         s
                     }
@@ -3457,7 +3470,11 @@ pub async fn handle_connection(
                 );
                 if let Some(ref sp) = stream_req.system_prompt {
                     let cleaned = sp.trim().to_string();
-                    new_sess.system_prompt = if cleaned.is_empty() { None } else { Some(cleaned) };
+                    new_sess.system_prompt = if cleaned.is_empty() {
+                        None
+                    } else {
+                        Some(cleaned)
+                    };
                 }
                 let _ = storage.save_session(&parsed_session_id, &new_sess);
                 new_sess
@@ -3710,8 +3727,10 @@ pub async fn handle_connection(
 
             let max_rounds =
                 parse_max_rounds(std::env::var("BRAIN_TOOL_MAX_ROUNDS").ok().as_deref());
-            let mut total_usage =
-                brain_core::model::TokenUsage { input_tokens: 0, output_tokens: 0 };
+            let mut total_usage = brain_core::model::TokenUsage {
+                input_tokens: 0,
+                output_tokens: 0,
+            };
             let mut accumulated_response = String::new();
             let mut thinking_text = String::new();
             let mut is_completed_successfully = false;
@@ -3753,554 +3772,551 @@ pub async fn handle_connection(
                 let mut round_completed: Option<(String, brain_core::model::TokenUsage)> = None;
 
                 match stream_result {
-                Ok(ref mut stream) => loop {
-                    tokio::select! {
-                        _ = cancellation_token.cancelled() => {
-                            is_cancelled = true;
-                            break;
-                        }
-                        chunk_opt = stream.next() => {
-                            match chunk_opt {
-                                Some(Ok(chunk)) => {
-                                    seq += 1;
-                                    match chunk {
-                                        brain_core::model::GenerationChunk::ThinkingStart => {
-                                            thinking_started_at = Some(Instant::now());
-                                            thinking_text.clear();
-                                            let packet = serde_json::json!({
-                                                "type": "thinking_start",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "status": "in_progress"
-                                            });
-                                            let mut j = serde_json::to_string(&packet)?;
-                                            j.push('\n');
-                                            writer.write_all(j.as_bytes()).await?;
-                                            writer.flush().await?;
-                                        }
-                                        brain_core::model::GenerationChunk::ThinkingDelta { text } => {
-                                            thinking_text.push_str(&text);
-                                            let packet = serde_json::json!({
-                                                "type": "thinking_delta",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "thinking": text,
-                                                "text": text,
-                                                "status": "in_progress"
-                                            });
-                                            let mut j = serde_json::to_string(&packet)?;
-                                            j.push('\n');
-                                            writer.write_all(j.as_bytes()).await?;
-                                            writer.flush().await?;
-                                        }
-                                        brain_core::model::GenerationChunk::ThinkingEnd => {
-                                            // Daemon-measured thinking duration: the
-                                            // shell renders "Thought for X.Xs" from it.
-                                            let measured_ms = thinking_started_at
-                                                .map(|t| t.elapsed().as_millis() as u64)
-                                                .unwrap_or(0);
-                                            let packet = serde_json::json!({
-                                                "type": "thinking_end",
-                                                "duration_ms": measured_ms,
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "status": "in_progress"
-                                            });
-                                            let mut j = serde_json::to_string(&packet)?;
-                                            j.push('\n');
-                                            writer.write_all(j.as_bytes()).await?;
-                                            writer.flush().await?;
-                                            // Inc 19: persist the completed segment as a
-                                            // transcript message (best-effort, exactly like
-                                            // tool events — persistence never blocks
-                                            // generation).
-                                            if !thinking_text.is_empty() {
-                                                let envelope = serde_json::json!({
-                                                    "type": "thinking_block",
-                                                    "v": 1,
-                                                    "text": thinking_text,
-                                                    "duration_ms": measured_ms
+                    Ok(ref mut stream) => loop {
+                        tokio::select! {
+                            _ = cancellation_token.cancelled() => {
+                                is_cancelled = true;
+                                break;
+                            }
+                            chunk_opt = stream.next() => {
+                                match chunk_opt {
+                                    Some(Ok(chunk)) => {
+                                        seq += 1;
+                                        match chunk {
+                                            brain_core::model::GenerationChunk::ThinkingStart => {
+                                                thinking_started_at = Some(Instant::now());
+                                                thinking_text.clear();
+                                                let packet = serde_json::json!({
+                                                    "type": "thinking_start",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "status": "in_progress"
                                                 });
-                                                let _ = session_aggregate.add_message(
-                                                    brain_domain::Message::new(
-                                                        brain_domain::MessageId::new(),
-                                                        brain_domain::MessageRole::Thinking,
-                                                        envelope.to_string(),
-                                                    ),
-                                                );
-                                                if let Err(e) = storage.save_session(
-                                                    &parsed_session_id,
-                                                    &session_aggregate,
-                                                ) {
-                                                    tracing::warn!(
-                                                        error = %e,
-                                                        "thinking block persistence failed; continuing"
+                                                let mut j = serde_json::to_string(&packet)?;
+                                                j.push('\n');
+                                                writer.write_all(j.as_bytes()).await?;
+                                                writer.flush().await?;
+                                            }
+                                            brain_core::model::GenerationChunk::ThinkingDelta { text } => {
+                                                thinking_text.push_str(&text);
+                                                let packet = serde_json::json!({
+                                                    "type": "thinking_delta",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "thinking": text,
+                                                    "text": text,
+                                                    "status": "in_progress"
+                                                });
+                                                let mut j = serde_json::to_string(&packet)?;
+                                                j.push('\n');
+                                                writer.write_all(j.as_bytes()).await?;
+                                                writer.flush().await?;
+                                            }
+                                            brain_core::model::GenerationChunk::ThinkingEnd => {
+                                                // Daemon-measured thinking duration: the
+                                                // shell renders "Thought for X.Xs" from it.
+                                                let measured_ms = thinking_started_at
+                                                    .map(|t| t.elapsed().as_millis() as u64)
+                                                    .unwrap_or(0);
+                                                let packet = serde_json::json!({
+                                                    "type": "thinking_end",
+                                                    "duration_ms": measured_ms,
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "status": "in_progress"
+                                                });
+                                                let mut j = serde_json::to_string(&packet)?;
+                                                j.push('\n');
+                                                writer.write_all(j.as_bytes()).await?;
+                                                writer.flush().await?;
+                                                // Inc 19: persist the completed segment as a
+                                                // transcript message (best-effort, exactly like
+                                                // tool events — persistence never blocks
+                                                // generation).
+                                                if !thinking_text.is_empty() {
+                                                    let envelope = serde_json::json!({
+                                                        "type": "thinking_block",
+                                                        "v": 1,
+                                                        "text": thinking_text,
+                                                        "duration_ms": measured_ms
+                                                    });
+                                                    let _ = session_aggregate.add_message(
+                                                        brain_domain::Message::new(
+                                                            brain_domain::MessageId::new(),
+                                                            brain_domain::MessageRole::Thinking,
+                                                            envelope.to_string(),
+                                                        ),
                                                     );
-                                                }
-                                                thinking_text = String::new();
-                                            }
-                                        }
-                                        brain_core::model::GenerationChunk::TextDelta { text } => {
-                                            accumulated_response.push_str(&text);
-                                            pass_text.push_str(&text);
-                                            let packet = serde_json::json!({
-                                                "type": "token",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "token": text,
-                                                "text": text,
-                                                "status": "in_progress"
-                                            });
-                                            let mut j = serde_json::to_string(&packet)?;
-                                            j.push('\n');
-                                            writer.write_all(j.as_bytes()).await?;
-                                            writer.flush().await?;
-                                        }
-                                        brain_core::model::GenerationChunk::ToolUse { id, name, input } => {
-                                            let call_id = id.clone();
-                                            let tool_name = name.clone();
-                                            pass_calls.push(PassToolUse {
-                                                call_id: call_id.clone(),
-                                                name: tool_name.clone(),
-                                                input: input.clone(),
-                                            });
-
-                                            // Forward the tool call itself first.
-                                            let packet = serde_json::json!({
-                                                "type": "tool_use",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "toolUse": {
-                                                    "id": id,
-                                                    "name": name,
-                                                    "input": input
-                                                },
-                                                "status": "in_progress"
-                                            });
-                                            let mut j = serde_json::to_string(&packet)?;
-                                            j.push('\n');
-                                            writer.write_all(j.as_bytes()).await?;
-                                            writer.flush().await?;
-
-                                            // Permission gate: publish the request, then park
-                                            // the stream until v1/tool/resolve delivers a verdict
-                                            // (on ANY connection) or the timeout denies by default.
-                                            seq += 1;
-                                            let permission_request_id = format!(
-                                                "perm_{}",
-                                                uuid::Uuid::new_v4().simple()
-                                            );
-                                            let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
-                                            // Register before exposing the request frame so an
-                                            // eager canonical frontend cannot resolve a valid
-                                            // permission before its daemon-side waiter exists.
-                                            get_permission_waiters()
-                                                .write()
-                                                .await
-                                                .insert(
-                                                    permission_request_id.clone(),
-                                                    PendingToolPermission {
-                                                        call_id: call_id.clone(),
-                                                        session_id: session_id_str.clone(),
-                                                        generation_id: generation_id.clone(),
-                                                        tool_name: tool_name.clone(),
-                                                        decision: tx,
-                                                    },
-                                                );
-                                            let perm_packet = serde_json::json!({
-                                                "type": "tool_permission_requested",
-                                                "generation_id": generation_id,
-                                                "session_id": session_id_str,
-                                                "sequence": seq,
-                                                "permission_request_id": permission_request_id,
-                                                "call_id": call_id,
-                                                "tool_name": tool_name,
-                                                "input": packet["toolUse"]["input"],
-                                                "reason": "tool execution requires approval",
-                                                "status": "in_progress"
-                                            });
-                                            let mut pj = serde_json::to_string(&perm_packet)?;
-                                            pj.push('\n');
-                                            let sent = async {
-                                                writer.write_all(pj.as_bytes()).await?;
-                                                writer.flush().await
-                                            }.await;
-                                            if let Err(error) = sent {
-                                                get_permission_waiters().write().await.remove(&permission_request_id);
-                                                return Err(error.into());
-                                            }
-
-                                            let timeout_secs = std::env::var(
-                                                "BRAIN_TOOL_PERMISSION_TIMEOUT_SECS",
-                                            )
-                                            .ok()
-                                            .and_then(|v| v.parse::<u64>().ok())
-                                            .unwrap_or(300);
-                                            let granted = tokio::select! {
-                                                _ = cancellation_token.cancelled() => false,
-                                                verdict = tokio::time::timeout(
-                                                    std::time::Duration::from_secs(timeout_secs),
-                                                    rx,
-                                                ) => verdict.ok().and_then(|r| r.ok()).unwrap_or(false),
-                                            };
-                                            get_permission_waiters()
-                                                .write()
-                                                .await
-                                                .remove(&permission_request_id);
-
-                                            if cancellation_token.is_cancelled() {
-                                                is_cancelled = true;
-                                                break 'rounds;
-                                            }
-
-                                            if granted {
-                                                // Inc 5: the wire verdict is the
-                                                // executor-side authority; execute and
-                                                // report one tool_result frame. Aliased
-                                                // import: brain_application's
-                                                // ExecutionContext is already in scope.
-                                                use brain_core::extensibility::{
-                                                    ExecutionContext as ToolExecutionContext,
-                                                    ToolRegistry,
-                                                };
-                                                let stack = crate::tools::tool_stack();
-                                                let mut args_map: HashMap<String, serde_json::Value> =
-                                                    HashMap::new();
-                                                if let Some(obj) =
-                                                    packet["toolUse"]["input"].as_object()
-                                                {
-                                                    for (k, v) in obj {
-                                                        args_map.insert(k.clone(), v.clone());
+                                                    if let Err(e) = storage.save_session(
+                                                        &parsed_session_id,
+                                                        &session_aggregate,
+                                                    ) {
+                                                        tracing::warn!(
+                                                            error = %e,
+                                                            "thinking block persistence failed; continuing"
+                                                        );
                                                     }
+                                                    thinking_text = String::new();
                                                 }
-                                                let tool_ctx = ToolExecutionContext {
-                                                    session_id: parsed_session_id,
-                                                    working_dir: std::env::current_dir()
-                                                        .unwrap_or_else(|_| {
-                                                            std::path::PathBuf::from(".")
-                                                        }),
-                                                    cancellation: Arc::new(
-                                                        GenerationToolCancellation(
-                                                            cancellation_token.clone(),
-                                                        ),
-                                                    ),
-                                                    deadline: None,
+                                            }
+                                            brain_core::model::GenerationChunk::TextDelta { text } => {
+                                                accumulated_response.push_str(&text);
+                                                pass_text.push_str(&text);
+                                                let packet = serde_json::json!({
+                                                    "type": "token",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "token": text,
+                                                    "text": text,
+                                                    "status": "in_progress"
+                                                });
+                                                let mut j = serde_json::to_string(&packet)?;
+                                                j.push('\n');
+                                                writer.write_all(j.as_bytes()).await?;
+                                                writer.flush().await?;
+                                            }
+                                            brain_core::model::GenerationChunk::ToolUse { id, name, input } => {
+                                                let call_id = id.clone();
+                                                let tool_name = name.clone();
+                                                pass_calls.push(PassToolUse {
+                                                    call_id: call_id.clone(),
+                                                    name: tool_name.clone(),
+                                                    input: input.clone(),
+                                                });
+
+                                                // Forward the tool call itself first.
+                                                let packet = serde_json::json!({
+                                                    "type": "tool_use",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "toolUse": {
+                                                        "id": id,
+                                                        "name": name,
+                                                        "input": input
+                                                    },
+                                                    "status": "in_progress"
+                                                });
+                                                let mut j = serde_json::to_string(&packet)?;
+                                                j.push('\n');
+                                                writer.write_all(j.as_bytes()).await?;
+                                                writer.flush().await?;
+
+                                                // Permission gate: publish the request, then park
+                                                // the stream until v1/tool/resolve delivers a verdict
+                                                // (on ANY connection) or the timeout denies by default.
+                                                seq += 1;
+                                                let permission_request_id = format!(
+                                                    "perm_{}",
+                                                    uuid::Uuid::new_v4().simple()
+                                                );
+                                                let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+                                                // Register before exposing the request frame so an
+                                                // eager canonical frontend cannot resolve a valid
+                                                // permission before its daemon-side waiter exists.
+                                                get_permission_waiters()
+                                                    .write()
+                                                    .await
+                                                    .insert(
+                                                        permission_request_id.clone(),
+                                                        PendingToolPermission {
+                                                            call_id: call_id.clone(),
+                                                            session_id: session_id_str.clone(),
+                                                            generation_id: generation_id.clone(),
+                                                            tool_name: tool_name.clone(),
+                                                            decision: tx,
+                                                        },
+                                                    );
+                                                let perm_packet = serde_json::json!({
+                                                    "type": "tool_permission_requested",
+                                                    "generation_id": generation_id,
+                                                    "session_id": session_id_str,
+                                                    "sequence": seq,
+                                                    "permission_request_id": permission_request_id,
+                                                    "call_id": call_id,
+                                                    "tool_name": tool_name,
+                                                    "input": packet["toolUse"]["input"],
+                                                    "reason": "tool execution requires approval",
+                                                    "status": "in_progress"
+                                                });
+                                                let mut pj = serde_json::to_string(&perm_packet)?;
+                                                pj.push('\n');
+                                                let sent = async {
+                                                    writer.write_all(pj.as_bytes()).await?;
+                                                    writer.flush().await
+                                                }.await;
+                                                if let Err(error) = sent {
+                                                    get_permission_waiters().write().await.remove(&permission_request_id);
+                                                    return Err(error.into());
+                                                }
+
+                                                let timeout_secs = std::env::var(
+                                                    "BRAIN_TOOL_PERMISSION_TIMEOUT_SECS",
+                                                )
+                                                .ok()
+                                                .and_then(|v| v.parse::<u64>().ok())
+                                                .unwrap_or(300);
+                                                let granted = tokio::select! {
+                                                    _ = cancellation_token.cancelled() => false,
+                                                    verdict = tokio::time::timeout(
+                                                        std::time::Duration::from_secs(timeout_secs),
+                                                        rx,
+                                                    ) => verdict.ok().and_then(|r| r.ok()).unwrap_or(false),
                                                 };
-                                                let tool_exec_started = std::time::Instant::now();
-                                                let execution =
-                                                    match stack.registry.get_tool(&tool_name) {
-                                                        Some(tool) => {
-                                                            // Scope permission authorization strictly to this approved invocation.
-                                                            // The shared stack.permissions remains pristine and unmodified.
-                                                            let invocation_permissions = brain_tools::PermissionManager::new();
-                                                            for permission in &tool.metadata().required_permissions {
-                                                                invocation_permissions.grant(*permission);
-                                                            }
-                                                            stack
-                                                                .executor
-                                                                .execute(
-                                                                    tool,
-                                                                    &tool_ctx,
-                                                                    &invocation_permissions,
-                                                                    &args_map,
-                                                                )
-                                                                .await
-                                                        }
-                                                        None => Err(
-                                                            brain_core::errors::BrainError::Internal {
-                                                                message: format!(
-                                                                    "Unknown tool '{tool_name}'"
-                                                                ),
-                                                            },
-                                                        ),
-                                                    };
-                                                let _tool_result_guard =
-                                                    tool_result_gate.lock().await;
+                                                get_permission_waiters()
+                                                    .write()
+                                                    .await
+                                                    .remove(&permission_request_id);
+
                                                 if cancellation_token.is_cancelled() {
                                                     is_cancelled = true;
                                                     break 'rounds;
                                                 }
-                                                // Reserve a wire sequence only when a result
-                                                // will actually be emitted. Cancellation can
-                                                // win while the executor is waiting; burning a
-                                                // result slot there would make the final
-                                                // `finished` frame appear to have a gap.
-                                                seq += 1;
-                                                let (out_text, is_err, exit_code, outcome) = match execution {
-                                                    Ok(result) => {
-                                                        let v = result.value().clone();
-                                                        let is_error = v["is_error"]
-                                                            .as_bool()
-                                                            .unwrap_or(true);
-                                                        (
-                                                            v["output"]
-                                                                .as_str()
-                                                                .unwrap_or("")
-                                                                .to_string(),
-                                                            is_error,
-                                                            v["exit_code"].as_i64().unwrap_or(-1),
-                                                            if is_error { "error" } else { "success" },
-                                                        )
-                                                    }
-                                                    Err(brain_core::errors::BrainError::Timeout {
-                                                        message,
-                                                        ..
-                                                    }) => (message, true, -1, "timed_out"),
-                                                    Err(brain_core::errors::BrainError::Cancelled {
-                                                        message,
-                                                    }) => (message, true, -1, "cancelled"),
-                                                    Err(e) => (format!("{e}"), true, -1, "error"),
-                                                };
-                                                feedback.push(ToolFeedback {
-                                                    call_id: call_id.clone(),
-                                                    name: tool_name.clone(),
-                                                    input: packet["toolUse"]["input"].clone(),
-                                                    output: out_text.clone(),
-                                                    is_error: is_err,
-                                                });
-                                                // Inc 8: persist this outcome into
-                                                // the session transcript. Best-effort:
-                                                // persistence never blocks generation.
-                                                let envelope = serde_json::json!({
-                                                    "type": "tool_event",
-                                                    "v": 1,
-                                                    "call_id": call_id.clone(),
-                                                    "name": tool_name.clone(),
-                                                    "input": packet["toolUse"]["input"].clone(),
-                                                    "outcome": outcome,
-                                                    "is_error": is_err,
-                                                    "exit_code": exit_code,
-                                                    "output": truncate_tool_output(&out_text),
-                                                    "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
-                                                });
-                                                let result_packet = serde_json::json!({
-                                                    "type": "tool_result",
-                                                    "generation_id": generation_id,
-                                                    "session_id": session_id_str,
-                                                    "sequence": seq,
-                                                    "permission_request_id": permission_request_id,
-                                                    "call_id": call_id,
-                                                    "tool_name": tool_name,
-                                                    "output": out_text,
-                                                    "is_error": is_err,
-                                                    "exit_code": exit_code,
-                                                    "outcome": outcome,
-                                                    // Inc 10: same clock as the persisted
-                                                    // envelope, so live and replayed cards
-                                                    // agree on duration.
-                                                    "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
-                                                    "status": "in_progress"
-                                                });
-                                                let mut rj = serde_json::to_string(&result_packet)?;
-                                                rj.push('\n');
-                                                writer.write_all(rj.as_bytes()).await?;
-                                                writer.flush().await?;
-                                                let _ = session_aggregate.add_message(
-                                                    brain_domain::Message::new(
-                                                        brain_domain::MessageId::new(),
-                                                        brain_domain::MessageRole::Tool,
-                                                        envelope.to_string(),
-                                                    ),
-                                                );
-                                                if let Err(e) = storage.save_session(
-                                                    &parsed_session_id,
-                                                    &session_aggregate,
-                                                ) {
-                                                    tracing::warn!(
-                                                        error = %e,
-                                                        "tool event persistence failed; continuing"
-                                                    );
-                                                }
-                                            }
 
-                                        if !granted {
-                                            let _tool_result_guard = tool_result_gate.lock().await;
-                                            if cancellation_token.is_cancelled() {
-                                                is_cancelled = true;
-                                                break 'rounds;
-                                            }
-                                            seq += 1;
-                                                let denied_packet = serde_json::json!({
-                                                    "type": "tool_denied",
-                                                    "generation_id": generation_id,
-                                                    "session_id": session_id_str,
-                                                    "sequence": seq,
-                                                    "permission_request_id": permission_request_id,
-                                                    "call_id": call_id,
-                                                    "tool_name": tool_name,
-                                                    "outcome": "denied",
-                                                    "status": "in_progress"
-                                                });
-                                                let mut dj = serde_json::to_string(&denied_packet)?;
-                                                dj.push('\n');
-                                                writer.write_all(dj.as_bytes()).await?;
-                                                writer.flush().await?;
-                                                feedback.push(ToolFeedback {
-                                                    call_id: call_id.clone(),
-                                                    name: tool_name.clone(),
-                                                    input: packet["toolUse"]["input"].clone(),
-                                                    output: DENIED_FEEDBACK_TEXT.to_string(),
-                                                    is_error: true,
-                                                });
-                                                // Inc 8: refusals are part of the
-                                                // honest transcript too.
-                                                let envelope = serde_json::json!({
-                                                    "type": "tool_event",
-                                                    "v": 1,
-                                                    "call_id": call_id.clone(),
-                                                    "name": tool_name.clone(),
-                                                    "input": packet["toolUse"]["input"].clone(),
-                                                    "outcome": "denied",
-                                                    "is_error": true,
-                                                    "exit_code": -1,
-                                                    "output": DENIED_FEEDBACK_TEXT,
-                                                    "duration_ms": 0,
-                                                });
-                                                let _ = session_aggregate.add_message(
-                                                    brain_domain::Message::new(
-                                                        brain_domain::MessageId::new(),
-                                                        brain_domain::MessageRole::Tool,
-                                                        envelope.to_string(),
-                                                    ),
-                                                );
-                                                if let Err(e) = storage.save_session(
-                                                    &parsed_session_id,
-                                                    &session_aggregate,
-                                                ) {
-                                                    tracing::warn!(
-                                                        error = %e,
-                                                        "tool event persistence failed; continuing"
+                                                if granted {
+                                                    // Inc 5: the wire verdict is the
+                                                    // executor-side authority; execute and
+                                                    // report one tool_result frame. Aliased
+                                                    // import: brain_application's
+                                                    // ExecutionContext is already in scope.
+                                                    use brain_core::extensibility::{
+                                                        ExecutionContext as ToolExecutionContext,
+                                                        ToolRegistry,
+                                                    };
+                                                    let stack = crate::tools::tool_stack();
+                                                    let mut args_map: HashMap<String, serde_json::Value> =
+                                                        HashMap::new();
+                                                    if let Some(obj) =
+                                                        packet["toolUse"]["input"].as_object()
+                                                    {
+                                                        for (k, v) in obj {
+                                                            args_map.insert(k.clone(), v.clone());
+                                                        }
+                                                    }
+                                                    let tool_ctx = ToolExecutionContext {
+                                                        session_id: parsed_session_id,
+                                                        working_dir: std::env::current_dir()
+                                                            .unwrap_or_else(|_| {
+                                                                std::path::PathBuf::from(".")
+                                                            }),
+                                                        cancellation: Arc::new(
+                                                            GenerationToolCancellation(
+                                                                cancellation_token.clone(),
+                                                            ),
+                                                        ),
+                                                        deadline: None,
+                                                    };
+                                                    let tool_exec_started = std::time::Instant::now();
+                                                    let execution =
+                                                        match stack.registry.get_tool(&tool_name) {
+                                                            Some(tool) => {
+                                                                // Scope permission authorization strictly to this approved invocation.
+                                                                // The shared stack.permissions remains pristine and unmodified.
+                                                                let invocation_permissions = brain_tools::PermissionManager::new();
+                                                                for permission in &tool.metadata().required_permissions {
+                                                                    invocation_permissions.grant(*permission);
+                                                                }
+                                                                stack
+                                                                    .executor
+                                                                    .execute(
+                                                                        tool,
+                                                                        &tool_ctx,
+                                                                        &invocation_permissions,
+                                                                        &args_map,
+                                                                    )
+                                                                    .await
+                                                            }
+                                                            None => Err(
+                                                                brain_core::errors::BrainError::Internal {
+                                                                    message: format!(
+                                                                        "Unknown tool '{tool_name}'"
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        };
+                                                    let _tool_result_guard =
+                                                        tool_result_gate.lock().await;
+                                                    if cancellation_token.is_cancelled() {
+                                                        is_cancelled = true;
+                                                        break 'rounds;
+                                                    }
+                                                    // Reserve a wire sequence only when a result
+                                                    // will actually be emitted. Cancellation can
+                                                    // win while the executor is waiting; burning a
+                                                    // result slot there would make the final
+                                                    // `finished` frame appear to have a gap.
+                                                    seq += 1;
+                                                    let (out_text, is_err, exit_code, outcome) = match execution {
+                                                        Ok(result) => {
+                                                            let v = result.value().clone();
+                                                            let is_error = v["is_error"]
+                                                                .as_bool()
+                                                                .unwrap_or(true);
+                                                            (
+                                                                v["output"]
+                                                                    .as_str()
+                                                                    .unwrap_or("")
+                                                                    .to_string(),
+                                                                is_error,
+                                                                v["exit_code"].as_i64().unwrap_or(-1),
+                                                                if is_error { "error" } else { "success" },
+                                                            )
+                                                        }
+                                                        Err(brain_core::errors::BrainError::Timeout {
+                                                            message,
+                                                            ..
+                                                        }) => (message, true, -1, "timed_out"),
+                                                        Err(brain_core::errors::BrainError::Cancelled {
+                                                            message,
+                                                        }) => (message, true, -1, "cancelled"),
+                                                        Err(e) => (format!("{e}"), true, -1, "error"),
+                                                    };
+                                                    feedback.push(ToolFeedback {
+                                                        call_id: call_id.clone(),
+                                                        name: tool_name.clone(),
+                                                        input: packet["toolUse"]["input"].clone(),
+                                                        output: out_text.clone(),
+                                                        is_error: is_err,
+                                                    });
+                                                    // Inc 8: persist this outcome into
+                                                    // the session transcript. Best-effort:
+                                                    // persistence never blocks generation.
+                                                    let envelope = serde_json::json!({
+                                                        "type": "tool_event",
+                                                        "v": 1,
+                                                        "call_id": call_id.clone(),
+                                                        "name": tool_name.clone(),
+                                                        "input": packet["toolUse"]["input"].clone(),
+                                                        "outcome": outcome,
+                                                        "is_error": is_err,
+                                                        "exit_code": exit_code,
+                                                        "output": truncate_tool_output(&out_text),
+                                                        "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
+                                                    });
+                                                    let result_packet = serde_json::json!({
+                                                        "type": "tool_result",
+                                                        "generation_id": generation_id,
+                                                        "session_id": session_id_str,
+                                                        "sequence": seq,
+                                                        "permission_request_id": permission_request_id,
+                                                        "call_id": call_id,
+                                                        "tool_name": tool_name,
+                                                        "output": out_text,
+                                                        "is_error": is_err,
+                                                        "exit_code": exit_code,
+                                                        "outcome": outcome,
+                                                        // Inc 10: same clock as the persisted
+                                                        // envelope, so live and replayed cards
+                                                        // agree on duration.
+                                                        "duration_ms": tool_exec_started.elapsed().as_millis() as u64,
+                                                        "status": "in_progress"
+                                                    });
+                                                    let mut rj = serde_json::to_string(&result_packet)?;
+                                                    rj.push('\n');
+                                                    writer.write_all(rj.as_bytes()).await?;
+                                                    writer.flush().await?;
+                                                    let _ = session_aggregate.add_message(
+                                                        brain_domain::Message::new(
+                                                            brain_domain::MessageId::new(),
+                                                            brain_domain::MessageRole::Tool,
+                                                            envelope.to_string(),
+                                                        ),
                                                     );
+                                                    if let Err(e) = storage.save_session(
+                                                        &parsed_session_id,
+                                                        &session_aggregate,
+                                                    ) {
+                                                        tracing::warn!(
+                                                            error = %e,
+                                                            "tool event persistence failed; continuing"
+                                                        );
+                                                    }
+                                                }
+
+                                            if !granted {
+                                                let _tool_result_guard = tool_result_gate.lock().await;
+                                                if cancellation_token.is_cancelled() {
+                                                    is_cancelled = true;
+                                                    break 'rounds;
+                                                }
+                                                seq += 1;
+                                                    let denied_packet = serde_json::json!({
+                                                        "type": "tool_denied",
+                                                        "generation_id": generation_id,
+                                                        "session_id": session_id_str,
+                                                        "sequence": seq,
+                                                        "permission_request_id": permission_request_id,
+                                                        "call_id": call_id,
+                                                        "tool_name": tool_name,
+                                                        "outcome": "denied",
+                                                        "status": "in_progress"
+                                                    });
+                                                    let mut dj = serde_json::to_string(&denied_packet)?;
+                                                    dj.push('\n');
+                                                    writer.write_all(dj.as_bytes()).await?;
+                                                    writer.flush().await?;
+                                                    feedback.push(ToolFeedback {
+                                                        call_id: call_id.clone(),
+                                                        name: tool_name.clone(),
+                                                        input: packet["toolUse"]["input"].clone(),
+                                                        output: DENIED_FEEDBACK_TEXT.to_string(),
+                                                        is_error: true,
+                                                    });
+                                                    // Inc 8: refusals are part of the
+                                                    // honest transcript too.
+                                                    let envelope = serde_json::json!({
+                                                        "type": "tool_event",
+                                                        "v": 1,
+                                                        "call_id": call_id.clone(),
+                                                        "name": tool_name.clone(),
+                                                        "input": packet["toolUse"]["input"].clone(),
+                                                        "outcome": "denied",
+                                                        "is_error": true,
+                                                        "exit_code": -1,
+                                                        "output": DENIED_FEEDBACK_TEXT,
+                                                        "duration_ms": 0,
+                                                    });
+                                                    let _ = session_aggregate.add_message(
+                                                        brain_domain::Message::new(
+                                                            brain_domain::MessageId::new(),
+                                                            brain_domain::MessageRole::Tool,
+                                                            envelope.to_string(),
+                                                        ),
+                                                    );
+                                                    if let Err(e) = storage.save_session(
+                                                        &parsed_session_id,
+                                                        &session_aggregate,
+                                                    ) {
+                                                        tracing::warn!(
+                                                            error = %e,
+                                                            "tool event persistence failed; continuing"
+                                                        );
+                                                    }
                                                 }
                                             }
-                                        }
-                                        brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {
-                                            // Silent on the wire: the loop decides
-                                            // whether this pass continues or emits
-                                            // stream_end (spec §4.4). Restore the
-                                            // sequence slot the shared chunk-entry
-                                            // increment consumed — a burned slot here
-                                            // would open a wire gap and abort the
-                                            // shell's stream guard.
-                                            seq -= 1;
-                                            round_completed = Some((finish_reason, usage));
-                                            break;
+                                            brain_core::model::GenerationChunk::Completed { finish_reason, usage } => {
+                                                // Silent on the wire: the loop decides
+                                                // whether this pass continues or emits
+                                                // stream_end (spec §4.4). Restore the
+                                                // sequence slot the shared chunk-entry
+                                                // increment consumed — a burned slot here
+                                                // would open a wire gap and abort the
+                                                // shell's stream guard.
+                                                seq -= 1;
+                                                round_completed = Some((finish_reason, usage));
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                                Some(Err(err)) => {
-                                    seq += 1;
-                                    let err_packet = serde_json::json!({
-                                        "type": "error",
-                                        "generation_id": generation_id,
-                                        "session_id": session_id_str,
-                                        "sequence": seq,
-                                        "status": "failed",
-                                        "error": err.to_string()
-                                    });
-                                    let mut err_json = serde_json::to_string(&err_packet)?;
-                                    err_json.push('\n');
-                                    writer.write_all(err_json.as_bytes()).await?;
-                                    writer.flush().await?;
-                                    break 'rounds;
-                                }
-                                None => {
-                                    is_completed_successfully = true;
-                                    break 'rounds;
+                                    Some(Err(err)) => {
+                                        seq += 1;
+                                        let err_packet = serde_json::json!({
+                                            "type": "error",
+                                            "generation_id": generation_id,
+                                            "session_id": session_id_str,
+                                            "sequence": seq,
+                                            "status": "failed",
+                                            "error": err.to_string()
+                                        });
+                                        let mut err_json = serde_json::to_string(&err_packet)?;
+                                        err_json.push('\n');
+                                        writer.write_all(err_json.as_bytes()).await?;
+                                        writer.flush().await?;
+                                        break 'rounds;
+                                    }
+                                    None => {
+                                        is_completed_successfully = true;
+                                        break 'rounds;
+                                    }
                                 }
                             }
                         }
+                    },
+                    Err(err) => {
+                        seq += 1;
+                        let err_packet = serde_json::json!({
+                            "type": "error",
+                            "generation_id": generation_id,
+                            "session_id": session_id_str,
+                            "sequence": seq,
+                            "status": "failed",
+                            "error": err.to_string()
+                        });
+                        let mut err_json = serde_json::to_string(&err_packet)?;
+                        err_json.push('\n');
+                        writer.write_all(err_json.as_bytes()).await?;
+                        writer.flush().await?;
                     }
-                },
-                Err(err) => {
+                }
+
+                if is_cancelled || round_completed.is_none() {
+                    break 'rounds;
+                }
+
+                let (finish_reason, usage) = round_completed.take().unwrap();
+                total_usage.input_tokens += usage.input_tokens;
+                total_usage.output_tokens += usage.output_tokens;
+
+                // Continuation rule (spec §3): keep going only when this pass
+                // resolved at least one tool call AND rounds remain; otherwise
+                // emit the sole terminating stream_end.
+                let terminate_reason: Option<String> = if feedback.is_empty() {
+                    Some(finish_reason)
+                } else if round_index + 1 >= max_rounds {
+                    Some("max_tool_rounds".to_string())
+                } else {
+                    model_messages.extend(feedback_messages(&pass_text, &pass_calls, &feedback));
+                    None
+                };
+
+                if let Some(reason) = terminate_reason {
+                    is_completed_successfully = true;
+                    // Terminal stream_end owns a fresh sequence slot (the legacy
+                    // strict-monotonic contract); mid-loop Completions restored
+                    // theirs above.
                     seq += 1;
-                    let err_packet = serde_json::json!({
-                        "type": "error",
+                    let mut telemetry = serde_json::json!({
+                        "generation_id": generation_id,
+                        "session_id": session_id_str,
+                        "total_duration_ms": gen_start_time.elapsed().as_millis() as u64,
+                        "finish_reason": reason,
+                    });
+                    let mut metadata = serde_json::json!({
+                        "inputTokens": total_usage.input_tokens,
+                        "outputTokens": total_usage.output_tokens,
+                    });
+                    if let Some(snapshot) = &context_snapshot {
+                        telemetry["retrieval_epoch_id"] = serde_json::json!(snapshot.epoch_id);
+                        telemetry["candidates_retrieved"] =
+                            serde_json::json!(snapshot.provenance.count);
+                        telemetry["memories_assembled"] = serde_json::json!(snapshot.items.len());
+                        telemetry["context_tokens_used"] = serde_json::json!(snapshot.token_count);
+                        telemetry["assembly_latency_ms"] = serde_json::json!(assembly_latency_ms);
+                    }
+                    if let Some(context) = &frontend_context_metadata {
+                        metadata["brain_context"] = context.clone();
+                    }
+                    metadata["telemetry"] = telemetry;
+                    let end_packet = serde_json::json!({
+                        "type": "stream_end",
                         "generation_id": generation_id,
                         "session_id": session_id_str,
                         "sequence": seq,
-                        "status": "failed",
-                        "error": err.to_string()
+                        "status": "completed",
+                        "response": accumulated_response,
+                        "finish_reason": reason,
+                        "metadata": metadata,
                     });
-                    let mut err_json = serde_json::to_string(&err_packet)?;
-                    err_json.push('\n');
-                    writer.write_all(err_json.as_bytes()).await?;
+                    let mut end_json = serde_json::to_string(&end_packet)?;
+                    end_json.push('\n');
+                    writer.write_all(end_json.as_bytes()).await?;
                     writer.flush().await?;
+                    break 'rounds;
                 }
-            }
-
-            if is_cancelled || round_completed.is_none() {
-                break 'rounds;
-            }
-
-            let (finish_reason, usage) = round_completed.take().unwrap();
-            total_usage.input_tokens += usage.input_tokens;
-            total_usage.output_tokens += usage.output_tokens;
-
-            // Continuation rule (spec §3): keep going only when this pass
-            // resolved at least one tool call AND rounds remain; otherwise
-            // emit the sole terminating stream_end.
-            let terminate_reason: Option<String> = if feedback.is_empty() {
-                Some(finish_reason)
-            } else if round_index + 1 >= max_rounds {
-                Some("max_tool_rounds".to_string())
-            } else {
-                model_messages.extend(feedback_messages(
-                    &pass_text,
-                    &pass_calls,
-                    &feedback,
-                ));
-                None
-            };
-
-            if let Some(reason) = terminate_reason {
-                is_completed_successfully = true;
-                // Terminal stream_end owns a fresh sequence slot (the legacy
-                // strict-monotonic contract); mid-loop Completions restored
-                // theirs above.
-                seq += 1;
-                let mut telemetry = serde_json::json!({
-                    "generation_id": generation_id,
-                    "session_id": session_id_str,
-                    "total_duration_ms": gen_start_time.elapsed().as_millis() as u64,
-                    "finish_reason": reason,
-                });
-                let mut metadata = serde_json::json!({
-                    "inputTokens": total_usage.input_tokens,
-                    "outputTokens": total_usage.output_tokens,
-                });
-                if let Some(snapshot) = &context_snapshot {
-                    telemetry["retrieval_epoch_id"] = serde_json::json!(snapshot.epoch_id);
-                    telemetry["candidates_retrieved"] = serde_json::json!(snapshot.provenance.count);
-                    telemetry["memories_assembled"] = serde_json::json!(snapshot.items.len());
-                    telemetry["context_tokens_used"] = serde_json::json!(snapshot.token_count);
-                    telemetry["assembly_latency_ms"] = serde_json::json!(assembly_latency_ms);
-                }
-                if let Some(context) = &frontend_context_metadata {
-                    metadata["brain_context"] = context.clone();
-                }
-                metadata["telemetry"] = telemetry;
-                let end_packet = serde_json::json!({
-                    "type": "stream_end",
-                    "generation_id": generation_id,
-                    "session_id": session_id_str,
-                    "sequence": seq,
-                    "status": "completed",
-                    "response": accumulated_response,
-                    "finish_reason": reason,
-                    "metadata": metadata,
-                });
-                let mut end_json = serde_json::to_string(&end_packet)?;
-                end_json.push('\n');
-                writer.write_all(end_json.as_bytes()).await?;
-                writer.flush().await?;
-                break 'rounds;
-            }
             } // 'rounds
 
             // Invariant 4: Persist assistant message ONLY on successful completion
@@ -4944,7 +4960,9 @@ mod generation_loop_tests {
         assert_eq!(msgs[0].role, brain_core::model::ChatRole::Assistant);
         assert_eq!(
             msgs[0].content[0],
-            brain_core::model::MessageContentBlock::Text { text: "Working.".to_string() }
+            brain_core::model::MessageContentBlock::Text {
+                text: "Working.".to_string()
+            }
         );
         assert_eq!(
             msgs[0].content[1],

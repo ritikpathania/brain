@@ -90,7 +90,9 @@ where
     writer.flush().await.unwrap();
 }
 
-async fn read_line_frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> serde_json::Value {
+async fn read_line_frame(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+) -> serde_json::Value {
     let mut line = String::new();
     reader.read_line(&mut line).await.unwrap();
     serde_json::from_str(line.trim()).unwrap()
@@ -178,8 +180,7 @@ async fn cancel_without_active_generations_answers_ok() {
 #[tokio::test]
 async fn second_generation_after_completion_is_not_busy_locked() {
     let proc = start_test_daemon(&[]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "first turn").await;
     // Drain to terminal (finished|error); a leaked GenerationGuard here
     // would make the NEXT stream on this session reject session-busy.

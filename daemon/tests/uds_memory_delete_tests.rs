@@ -220,7 +220,11 @@ async fn test_uds_delete_memory_removes_node_and_incident_edges() {
     )
     .await;
     let memories_after = search_after["memories"].as_array().unwrap();
-    assert_eq!(memories_after.len(), 0, "Deleted concept A appeared in search");
+    assert_eq!(
+        memories_after.len(),
+        0,
+        "Deleted concept A appeared in search"
+    );
 
     // 6. Search for Concept B and verify incident edge to Concept A was cascaded/purged
     let (search_b, _) = rpc(
@@ -234,7 +238,11 @@ async fn test_uds_delete_memory_removes_node_and_incident_edges() {
     assert_eq!(memories_b.len(), 1);
     assert_eq!(memories_b[0]["node_id"], node_b_id);
     let rels = memories_b[0]["relations"].as_array().unwrap();
-    assert_eq!(rels.len(), 0, "Incident edge to deleted node A was not removed");
+    assert_eq!(
+        rels.len(),
+        0,
+        "Incident edge to deleted node A was not removed"
+    );
 }
 
 #[tokio::test]

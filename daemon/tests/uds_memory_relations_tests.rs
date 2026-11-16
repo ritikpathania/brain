@@ -42,7 +42,13 @@ fn get_free_port() -> u16 {
         .port()
 }
 
-fn spawn_daemon(test_dir: &PathBuf, socket: &PathBuf, pid: &PathBuf, db: &PathBuf, analytics: &PathBuf) -> Child {
+fn spawn_daemon(
+    test_dir: &PathBuf,
+    socket: &PathBuf,
+    pid: &PathBuf,
+    db: &PathBuf,
+    analytics: &PathBuf,
+) -> Child {
     Command::new(env!("CARGO_BIN_EXE_brain-daemon"))
         .arg("daemon")
         .arg("run")
@@ -63,7 +69,13 @@ async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
     let pid_path = test_dir.join("brain.pid");
     let db_path = test_dir.join("brain_runtime.db");
     let analytics_db_path = test_dir.join("analytics.db");
-    let child = spawn_daemon(&test_dir, &socket_path, &pid_path, &db_path, &analytics_db_path);
+    let child = spawn_daemon(
+        &test_dir,
+        &socket_path,
+        &pid_path,
+        &db_path,
+        &analytics_db_path,
+    );
     let mut ready = false;
     for _ in 0..60 {
         if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
@@ -84,7 +96,12 @@ async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
 }
 
 /// One versioned RPC round-trip; returns the parsed response BODY.
-async fn rpc(socket_path: &PathBuf, id: u64, action: &str, body: serde_json::Value) -> serde_json::Value {
+async fn rpc(
+    socket_path: &PathBuf,
+    id: u64,
+    action: &str,
+    body: serde_json::Value,
+) -> serde_json::Value {
     let stream = UnixStream::connect(socket_path).await.unwrap();
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -146,7 +163,10 @@ async fn stored_relations_round_trip_through_search() {
     // Excerpt must be the STORED CONTENT, not the echoed label.
     assert_eq!(first["excerpt"], "Cortex excerpt body for the smoke");
     assert_eq!(first["scope"], "workspace");
-    let rels = first["relations"].as_array().expect("relations array").clone();
+    let rels = first["relations"]
+        .as_array()
+        .expect("relations array")
+        .clone();
     assert_eq!(rels.len(), 1, "stored relation must round-trip: {first}");
     assert_eq!(rels[0]["relation"], "supports");
     assert_eq!(rels[0]["target_id"], "beta-1");
@@ -176,7 +196,10 @@ async fn store_without_relations_yields_empty_relation_list() {
     let memories = found["memories"].as_array().expect("memories array");
     assert!(memories.len() >= 1);
     assert_eq!(
-        memories[0]["relations"].as_array().expect("relations key").len(),
+        memories[0]["relations"]
+            .as_array()
+            .expect("relations key")
+            .len(),
         0,
         "absent relations must surface as an empty list"
     );
@@ -297,7 +320,10 @@ async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
         }),
     )
     .await;
-    let node_a_id = res_a["node_id"].as_str().expect("node_id for A").to_string();
+    let node_a_id = res_a["node_id"]
+        .as_str()
+        .expect("node_id for A")
+        .to_string();
 
     let res_b = rpc(
         &d.socket_path,
@@ -310,7 +336,10 @@ async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
         }),
     )
     .await;
-    let node_b_id = res_b["node_id"].as_str().expect("node_id for B").to_string();
+    let node_b_id = res_b["node_id"]
+        .as_str()
+        .expect("node_id for B")
+        .to_string();
 
     // 2. Insert canonical edge into the SQLite edges table directly
     {
@@ -332,7 +361,9 @@ async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
     .await;
     let memories_a = search_a["memories"].as_array().expect("memories array");
     assert!(!memories_a.is_empty());
-    let rels_a = memories_a[0]["relations"].as_array().expect("relations on Alpha");
+    let rels_a = memories_a[0]["relations"]
+        .as_array()
+        .expect("relations on Alpha");
     assert_eq!(rels_a.len(), 1);
     assert_eq!(rels_a[0]["relation"], "uses");
     assert_eq!(rels_a[0]["target_id"], node_b_id);
@@ -348,7 +379,9 @@ async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
     .await;
     let memories_b = search_b["memories"].as_array().expect("memories array");
     assert!(!memories_b.is_empty());
-    let rels_b = memories_b[0]["relations"].as_array().expect("relations on Beta");
+    let rels_b = memories_b[0]["relations"]
+        .as_array()
+        .expect("relations on Beta");
     assert_eq!(rels_b.len(), 1);
     assert_eq!(rels_b[0]["relation"], "uses");
     assert_eq!(rels_b[0]["target_id"], node_a_id);
@@ -363,8 +396,14 @@ async fn canonical_edges_round_trip_through_search_with_resolved_labels() {
     )
     .await;
     let blank_mems = blank["memories"].as_array().expect("blank memories");
-    let alpha_mem = blank_mems.iter().find(|m| m["node_id"] == node_a_id).unwrap();
-    assert_eq!(alpha_mem["relations"][0]["target_label"], "Beta Dispatch Engine");
+    let alpha_mem = blank_mems
+        .iter()
+        .find(|m| m["node_id"] == node_a_id)
+        .unwrap();
+    assert_eq!(
+        alpha_mem["relations"][0]["target_label"],
+        "Beta Dispatch Engine"
+    );
 }
 
 #[tokio::test]
@@ -468,4 +507,3 @@ async fn canonical_edge_takes_precedence_over_property_duplicate_in_uds() {
     assert_eq!(rels[0]["target_id"], node_b_id);
     assert_eq!(rels[0]["target_label"], "Canonical Fresh Beta");
 }
-

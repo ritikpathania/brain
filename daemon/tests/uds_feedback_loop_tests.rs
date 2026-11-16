@@ -80,14 +80,19 @@ async fn start_test_daemon(extra_env: &[(&str, &str)]) -> DaemonProcess {
     }
 }
 
-async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T) where T: serde::Serialize {
+async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T)
+where
+    T: serde::Serialize,
+{
     let mut json = serde_json::to_string(frame).unwrap();
     json.push('\n');
     writer.write_all(json.as_bytes()).await.unwrap();
     writer.flush().await.unwrap();
 }
 
-async fn read_line_frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> serde_json::Value {
+async fn read_line_frame(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+) -> serde_json::Value {
     let mut line = String::new();
     reader.read_line(&mut line).await.unwrap();
     serde_json::from_str(line.trim()).unwrap()
@@ -153,11 +158,7 @@ async fn start_generation_with_prompt(
 /// Resolves any permission request over a SECOND connection (the stream
 /// connection stays parked), asserting the resolver ack. Both halves of the
 /// second connection are kept alive until the verdict has been read.
-async fn resolve_on_second_connection(
-    socket_path: &std::path::Path,
-    call_id: &str,
-    granted: bool,
-) {
+async fn resolve_on_second_connection(socket_path: &std::path::Path, call_id: &str, granted: bool) {
     let resolver = UnixStream::connect(socket_path).await.unwrap();
     let (rreader, mut rwriter) = resolver.into_split();
     let mut rbuf = BufReader::new(rreader);
@@ -210,21 +211,19 @@ const TWO_ROUND_SCRIPT: &str = r#"[{"tokens":["Round one text."],"tool_calls":[[
 #[tokio::test]
 async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", TWO_ROUND_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "run the scripted loop").await;
 
     let frames = run_turn_resolving(&mut reader, &proc.socket_path, true).await;
 
-    let types: Vec<&str> = frames
-        .iter()
-        .filter_map(|f| f["type"].as_str())
-        .collect();
+    let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
     // Strictly consecutive sequences across BOTH passes — every frame,
     // including the terminal stream_end, owns exactly one slot.
     for (i, f) in frames.iter().enumerate() {
         assert_eq!(
-            f["sequence"].as_u64().unwrap_or_else(|| panic!("frame {i} missing sequence")),
+            f["sequence"]
+                .as_u64()
+                .unwrap_or_else(|| panic!("frame {i} missing sequence")),
             i as u64,
             "frame {i} ({}) broke consecutiveness",
             types[i]
@@ -241,7 +240,10 @@ async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
         .iter()
         .position(|f| {
             f["type"] == "token"
-                && f["token"].as_str().unwrap_or("").contains("Round two wraps up.")
+                && f["token"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("Round two wraps up.")
         })
         .unwrap();
     assert!(round_two_idx > result_idx);
@@ -261,7 +263,10 @@ async fn two_round_turn_feeds_result_back_and_finishes_cleanly() {
         .expect("stream_end present");
     let response = end["response"].as_str().unwrap();
     assert!(response.contains("Round one text."), "response: {response}");
-    assert!(response.contains("Round two wraps up."), "response: {response}");
+    assert!(
+        response.contains("Round two wraps up."),
+        "response: {response}"
+    );
     assert_eq!(end["finish_reason"], "end_turn");
     assert_eq!(end["metadata"]["inputTokens"], 30);
     assert_eq!(end["metadata"]["outputTokens"], 34);
@@ -296,20 +301,19 @@ const SINGLE_PASS_SCRIPT: &str =
 #[tokio::test]
 async fn denied_call_feeds_back_and_loop_continues() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", DENY_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "refuse the scripted call").await;
 
     let frames = run_turn_resolving(&mut reader, &proc.socket_path, false).await;
     let types: Vec<&str> = frames.iter().filter_map(|f| f["type"].as_str()).collect();
 
     assert!(types.contains(&"tool_denied"), "types: {types:?}");
-    assert!(!types.contains(&"tool_result"), "denied turns never execute");
+    assert!(
+        !types.contains(&"tool_result"),
+        "denied turns never execute"
+    );
     // Denied frames never carry execution measurements (Inc 8 parity).
-    let denied_frame = frames
-        .iter()
-        .find(|f| f["type"] == "tool_denied")
-        .unwrap();
+    let denied_frame = frames.iter().find(|f| f["type"] == "tool_denied").unwrap();
     assert!(
         denied_frame.get("duration_ms").is_none(),
         "denied frame must not carry duration_ms: {denied_frame}"
@@ -331,8 +335,7 @@ async fn round_cap_stops_the_loop_gracefully() {
         ("BRAIN_TOOL_MAX_ROUNDS", "1"),
     ])
     .await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "cap me").await;
 
     let frames = run_turn_resolving(&mut reader, &proc.socket_path, true).await;
@@ -341,15 +344,17 @@ async fn round_cap_stops_the_loop_gracefully() {
     assert_eq!(types.iter().filter(|t| **t == "tool_result").count(), 1);
     let end = frames.iter().find(|f| f["type"] == "stream_end").unwrap();
     assert_eq!(end["finish_reason"], "max_tool_rounds");
-    assert!(!end["response"].as_str().unwrap().contains("ROUND-TWO-MARKER"));
+    assert!(!end["response"]
+        .as_str()
+        .unwrap()
+        .contains("ROUND-TWO-MARKER"));
     assert_eq!(end["metadata"]["inputTokens"], 15); // exactly one pass ran
 }
 
 #[tokio::test]
 async fn plain_single_pass_wire_shape_is_unchanged() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", SINGLE_PASS_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "just talk").await;
 
     let frames = run_turn(&mut reader).await;
@@ -374,8 +379,7 @@ const THINKING_SCRIPT: &str =
 #[tokio::test]
 async fn thinking_end_frame_carries_measured_duration_ms() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", THINKING_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "think then talk").await;
 
     let frames = run_turn(&mut reader).await;
@@ -428,8 +432,7 @@ async fn load_session_messages(
 #[tokio::test]
 async fn executed_tool_outcome_is_persisted_as_session_tool_message() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", TWO_ROUND_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "persist me").await;
     run_turn_resolving(&mut reader, &proc.socket_path, true).await;
 
@@ -440,8 +443,7 @@ async fn executed_tool_outcome_is_persisted_as_session_tool_message() {
     assert_eq!(messages.last().unwrap()["role"], "assistant");
 
     // Exactly one tool event, shaped per spec §3.1.
-    let tools: Vec<&serde_json::Value> =
-        messages.iter().filter(|m| m["role"] == "tool").collect();
+    let tools: Vec<&serde_json::Value> = messages.iter().filter(|m| m["role"] == "tool").collect();
     assert_eq!(tools.len(), 1, "messages: {messages:?}");
     let env: serde_json::Value =
         serde_json::from_str(tools[0]["content"].as_str().unwrap()).unwrap();
@@ -459,8 +461,7 @@ async fn executed_tool_outcome_is_persisted_as_session_tool_message() {
 #[tokio::test]
 async fn denied_tool_outcome_is_persisted_as_session_tool_message() {
     let proc = start_test_daemon(&[("BRAIN_MOCK_SCRIPTED_RESPONSES", DENY_SCRIPT)]).await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&proc.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&proc.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, "refuse and persist").await;
     run_turn_resolving(&mut reader, &proc.socket_path, false).await;
 
@@ -469,8 +470,7 @@ async fn denied_tool_outcome_is_persisted_as_session_tool_message() {
     assert_eq!(messages.first().unwrap()["role"], "user");
     assert_eq!(messages.last().unwrap()["role"], "assistant");
 
-    let tools: Vec<&serde_json::Value> =
-        messages.iter().filter(|m| m["role"] == "tool").collect();
+    let tools: Vec<&serde_json::Value> = messages.iter().filter(|m| m["role"] == "tool").collect();
     assert_eq!(tools.len(), 1, "messages: {messages:?}");
     let env: serde_json::Value =
         serde_json::from_str(tools[0]["content"].as_str().unwrap()).unwrap();
@@ -591,10 +591,9 @@ async fn shell_exec_rejects_while_a_generation_is_active() {
     start_generation_with_prompt(&mut writer, &session_id, "occupying").await;
     // The generation registers in the active-generation map BEFORE its first
     // wire frame, so one received frame proves the entry exists.
-    let _first =
-        tokio::time::timeout(Duration::from_secs(15), read_line_frame(&mut reader))
-            .await
-            .expect("first stream frame");
+    let _first = tokio::time::timeout(Duration::from_secs(15), read_line_frame(&mut reader))
+        .await
+        .expect("first stream frame");
     let reply = exec_shell_command(&proc.socket_path, &session_id, "echo nope").await;
     assert_eq!(reply["status"], "error");
     // Let the generation finish cleanly so process drop isn't mid-write.

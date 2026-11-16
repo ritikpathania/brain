@@ -5,7 +5,11 @@ use brain_domain::{
 };
 
 fn fresh_session() -> Session {
-    Session::new(SessionId::new(), SessionTitle::default(), SessionTimestamp(0))
+    Session::new(
+        SessionId::new(),
+        SessionTitle::default(),
+        SessionTimestamp(0),
+    )
 }
 
 fn push(session: &mut Session, role: MessageRole, content: &str) {
@@ -92,7 +96,10 @@ fn bang_command_is_a_valid_source() {
     let mut s = fresh_session();
     push(&mut s, MessageRole::User, "! cargo test --workspace");
     s.autotitle();
-    assert_eq!(s.title, SessionTitle("! cargo test --workspace".to_string()));
+    assert_eq!(
+        s.title,
+        SessionTitle("! cargo test --workspace".to_string())
+    );
 }
 
 #[test]

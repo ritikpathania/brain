@@ -41,9 +41,7 @@ pub fn tool_stack() -> &'static Arc<ToolStack> {
 /// Tools without an `input_schema` advertise a permissive
 /// `{"type":"object"}`; `list_tools()` is name-sorted, so advertisement
 /// order is deterministic.
-pub fn definitions_from(
-    registry: &dyn ToolRegistry,
-) -> Vec<brain_core::model::ToolDefinition> {
+pub fn definitions_from(registry: &dyn ToolRegistry) -> Vec<brain_core::model::ToolDefinition> {
     registry
         .list_tools()
         .iter()
@@ -136,7 +134,9 @@ mod definition_tests {
                 Some(serde_json::json!({"type": "string"})),
             )))
             .unwrap();
-        registry.register_tool(Arc::new(fake("alpha", "first", None))).unwrap();
+        registry
+            .register_tool(Arc::new(fake("alpha", "first", None)))
+            .unwrap();
 
         let defs = definitions_from(&registry);
         assert_eq!(

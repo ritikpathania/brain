@@ -80,14 +80,19 @@ async fn start_test_daemon() -> DaemonProcess {
     }
 }
 
-async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T) where T: serde::Serialize {
+async fn send_frame<T>(writer: &mut tokio::net::unix::OwnedWriteHalf, frame: &T)
+where
+    T: serde::Serialize,
+{
     let mut json = serde_json::to_string(frame).unwrap();
     json.push('\n');
     writer.write_all(json.as_bytes()).await.unwrap();
     writer.flush().await.unwrap();
 }
 
-async fn read_line_frame(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> serde_json::Value {
+async fn read_line_frame(
+    reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
+) -> serde_json::Value {
     let mut line = String::new();
     reader.read_line(&mut line).await.unwrap();
     serde_json::from_str(line.trim()).unwrap()
@@ -153,11 +158,7 @@ async fn start_generation_with_prompt(
 /// Resolves any permission request over a SECOND connection (the stream
 /// connection stays parked), asserting the resolver ack. Both halves of the
 /// second connection are kept alive until the verdict has been read.
-async fn resolve_on_second_connection(
-    socket_path: &std::path::Path,
-    call_id: &str,
-    granted: bool,
-) {
+async fn resolve_on_second_connection(socket_path: &std::path::Path, call_id: &str, granted: bool) {
     let resolver = UnixStream::connect(socket_path).await.unwrap();
     let (rreader, mut rwriter) = resolver.into_split();
     let mut rbuf = BufReader::new(rreader);
@@ -202,20 +203,15 @@ async fn run_turn_resolving(
     frames
 }
 
-const GRANT_ECHO_PROMPT: &str =
-    "run [brain-tool:bash|{\"command\":\"echo hello-inc5\"}] please";
-const DENY_PROMPT: &str =
-    "run [brain-tool:bash|{\"command\":\"echo should-not-run\"}] please";
-const UNKNOWN_TOOL_PROMPT: &str =
-    "run [brain-tool:nosuchtool|{\"command\":\"x\"}] please";
-const FAILING_PROMPT: &str =
-    "run [brain-tool:bash|{\"command\":\"exit 3\"}] please";
+const GRANT_ECHO_PROMPT: &str = "run [brain-tool:bash|{\"command\":\"echo hello-inc5\"}] please";
+const DENY_PROMPT: &str = "run [brain-tool:bash|{\"command\":\"echo should-not-run\"}] please";
+const UNKNOWN_TOOL_PROMPT: &str = "run [brain-tool:nosuchtool|{\"command\":\"x\"}] please";
+const FAILING_PROMPT: &str = "run [brain-tool:bash|{\"command\":\"exit 3\"}] please";
 
 #[tokio::test]
 async fn granted_bash_executes_and_emits_tool_result() {
     let daemon = start_test_daemon().await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&daemon.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&daemon.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, GRANT_ECHO_PROMPT).await;
     let frames = run_turn_resolving(&mut reader, &daemon.socket_path, true).await;
 
@@ -256,8 +252,7 @@ async fn granted_bash_executes_and_emits_tool_result() {
 #[tokio::test]
 async fn denied_call_never_emits_tool_result() {
     let daemon = start_test_daemon().await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&daemon.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&daemon.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, DENY_PROMPT).await;
     let frames = run_turn_resolving(&mut reader, &daemon.socket_path, false).await;
 
@@ -274,8 +269,7 @@ async fn denied_call_never_emits_tool_result() {
 #[tokio::test]
 async fn unknown_tool_yields_error_result_without_execution() {
     let daemon = start_test_daemon().await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&daemon.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&daemon.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, UNKNOWN_TOOL_PROMPT).await;
     let frames = run_turn_resolving(&mut reader, &daemon.socket_path, true).await;
 
@@ -290,8 +284,7 @@ async fn unknown_tool_yields_error_result_without_execution() {
 #[tokio::test]
 async fn failing_command_reports_exit_code_as_error_result() {
     let daemon = start_test_daemon().await;
-    let (mut reader, mut writer, session_id) =
-        open_and_create_session(&daemon.socket_path).await;
+    let (mut reader, mut writer, session_id) = open_and_create_session(&daemon.socket_path).await;
     start_generation_with_prompt(&mut writer, &session_id, FAILING_PROMPT).await;
     let frames = run_turn_resolving(&mut reader, &daemon.socket_path, true).await;
 

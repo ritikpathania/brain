@@ -323,9 +323,7 @@ impl BrainApplication {
                     kind: brain_domain::SearchDocumentKind::Retrieval,
                     title: node.label.clone(),
                     body: node.label.clone(),
-                    metadata: brain_domain::SearchMetadata::Retrieval {
-                        score: Some(score),
-                    },
+                    metadata: brain_domain::SearchMetadata::Retrieval { score: Some(score) },
                 });
             }
         }

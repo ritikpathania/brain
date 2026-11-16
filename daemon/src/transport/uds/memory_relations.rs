@@ -29,7 +29,11 @@ where
         if let Ok(connections) = storage.get_connections(nid) {
             for edge in connections {
                 let is_outgoing = edge.source == *nid;
-                let neighbor_id = if is_outgoing { edge.target } else { edge.source };
+                let neighbor_id = if is_outgoing {
+                    edge.target
+                } else {
+                    edge.source
+                };
                 let rel_str = edge.relation.id().as_str().to_string();
                 let target_id_str = neighbor_id.to_string();
 
@@ -76,7 +80,8 @@ where
                 if enriched.get("target_label").is_none() {
                     if let Ok(uuid) = uuid::Uuid::parse_str(&target_id_str) {
                         let target_nid = NodeId(uuid);
-                        if let Ok(Some(neighbor)) = NodeRepository::find_by_id(storage, &target_nid) {
+                        if let Ok(Some(neighbor)) = NodeRepository::find_by_id(storage, &target_nid)
+                        {
                             if !neighbor.label.trim().is_empty() {
                                 enriched["target_label"] = json!(neighbor.label);
                             }
@@ -96,10 +101,7 @@ where
 /// JSON arrays and legacy string-encoded JSON, falling back to the summary
 /// metadata string when the node carries nothing usable. Non-array garbage
 /// falls through; never errors.
-pub fn extract_relations(
-    props: Option<&NodeProps>,
-    metadata_fallback: Option<&str>,
-) -> Vec<Value> {
+pub fn extract_relations(props: Option<&NodeProps>, metadata_fallback: Option<&str>) -> Vec<Value> {
     let decode = |raw: &Value| -> Option<Vec<Value>> {
         match raw {
             Value::Array(items) => Some(items.clone()),
@@ -285,7 +287,11 @@ mod tests {
     #[test]
     fn canonical_edge_takes_precedence_over_property_duplicate() {
         let node_a = Node::new(NodeId::new(), "Alpha".to_string(), NodeKind::Concept);
-        let node_b = Node::new(NodeId::new(), "Beta Fresh Label".to_string(), NodeKind::Concept);
+        let node_b = Node::new(
+            NodeId::new(),
+            "Beta Fresh Label".to_string(),
+            NodeKind::Concept,
+        );
         let edge = Edge::new(node_a.id, node_b.id, RelationKind::Uses, 1.0);
 
         let mut storage = MockStorage::default();
@@ -301,10 +307,17 @@ mod tests {
         }));
 
         let rels = materialize_relations(Some(&node_a.id), Some(&props), None, &storage);
-        assert_eq!(rels.len(), 1, "Duplicate (relation, target_id) must be deduplicated");
+        assert_eq!(
+            rels.len(),
+            1,
+            "Duplicate (relation, target_id) must be deduplicated"
+        );
         assert_eq!(rels[0]["relation"], "uses");
         assert_eq!(rels[0]["target_id"], node_b.id.to_string());
-        assert_eq!(rels[0]["target_label"], "Beta Fresh Label", "Canonical label must win over property stale label");
+        assert_eq!(
+            rels[0]["target_label"], "Beta Fresh Label",
+            "Canonical label must win over property stale label"
+        );
     }
 
     #[test]
@@ -375,13 +388,19 @@ mod tests {
     #[test]
     fn excerpt_prefers_content_over_label_body() {
         let props = map(json!({"content": "real prose body"}));
-        assert_eq!(preferred_excerpt(Some(&props), "Alpha Label"), "real prose body");
+        assert_eq!(
+            preferred_excerpt(Some(&props), "Alpha Label"),
+            "real prose body"
+        );
     }
 
     #[test]
     fn excerpt_blank_content_falls_back() {
         let props = map(json!({"content": "   "}));
-        assert_eq!(preferred_excerpt(Some(&props), "Alpha Label"), "Alpha Label");
+        assert_eq!(
+            preferred_excerpt(Some(&props), "Alpha Label"),
+            "Alpha Label"
+        );
     }
 
     #[test]

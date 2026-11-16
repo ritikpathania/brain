@@ -75,7 +75,12 @@ async fn start_test_daemon() -> DaemonProcess {
     }
 }
 
-async fn rpc(socket_path: &PathBuf, id: u64, action: &str, body: serde_json::Value) -> serde_json::Value {
+async fn rpc(
+    socket_path: &PathBuf,
+    id: u64,
+    action: &str,
+    body: serde_json::Value,
+) -> serde_json::Value {
     let stream = UnixStream::connect(socket_path).await.unwrap();
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -114,7 +119,8 @@ async fn test_uds_memory_search_returns_real_relevance_scores() {
             "content": "Connects core nodes with quantum channels",
             "scope": "workspace"
         }),
-    ).await;
+    )
+    .await;
     assert_eq!(store_res["success"], true);
 
     // 2. Query v1/memory/search with a specific keyword query
@@ -126,16 +132,24 @@ async fn test_uds_memory_search_returns_real_relevance_scores() {
             "query": "Quantum",
             "limit": 10
         }),
-    ).await;
+    )
+    .await;
 
     let memories = search_res["memories"].as_array().expect("memories array");
-    assert!(!memories.is_empty(), "Expected search results for 'Quantum'");
+    assert!(
+        !memories.is_empty(),
+        "Expected search results for 'Quantum'"
+    );
 
     let first = &memories[0];
     assert_eq!(first["label"], "Quantum Neural Bridge");
     let score = first["score"].as_i64().expect("score must be an integer");
     // Token overlap adds 50, plus fuzzy score > 0 -> real score > 50
-    assert!(score >= 50, "Expected computed relevance score >= 50, got {}", score);
+    assert!(
+        score >= 50,
+        "Expected computed relevance score >= 50, got {}",
+        score
+    );
 
     // 3. Query v1/memory/search with empty query -> must retain 100 for blank listing
     let blank_res = rpc(
@@ -146,10 +160,19 @@ async fn test_uds_memory_search_returns_real_relevance_scores() {
             "query": "",
             "limit": 10
         }),
-    ).await;
+    )
+    .await;
 
-    let blank_memories = blank_res["memories"].as_array().expect("blank memories array");
-    assert!(!blank_memories.is_empty(), "Expected stored concept in blank query");
+    let blank_memories = blank_res["memories"]
+        .as_array()
+        .expect("blank memories array");
+    assert!(
+        !blank_memories.is_empty(),
+        "Expected stored concept in blank query"
+    );
     assert_eq!(blank_memories[0]["label"], "Quantum Neural Bridge");
-    assert_eq!(blank_memories[0]["score"], 100, "Blank query must return score 100");
+    assert_eq!(
+        blank_memories[0]["score"], 100,
+        "Blank query must return score 100"
+    );
 }

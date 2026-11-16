@@ -77,7 +77,12 @@ async fn start_test_daemon() -> DaemonProcess {
     }
 }
 
-async fn rpc(socket_path: &PathBuf, id: u64, action: &str, body: serde_json::Value) -> serde_json::Value {
+async fn rpc(
+    socket_path: &PathBuf,
+    id: u64,
+    action: &str,
+    body: serde_json::Value,
+) -> serde_json::Value {
     let stream = UnixStream::connect(socket_path).await.unwrap();
     let (reader, mut writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -112,72 +117,112 @@ async fn test_uds_session_list_returns_real_pinned_and_archived_flags() {
         1,
         "v1/session/start",
         serde_json::json!({ "title": "Alpha Pinned Session" }),
-    ).await;
-    let sid_pinned = res1["session_id"].as_str().expect("session_id string").to_string();
+    )
+    .await;
+    let sid_pinned = res1["session_id"]
+        .as_str()
+        .expect("session_id string")
+        .to_string();
 
     let res2 = rpc(
         &daemon.socket_path,
         2,
         "v1/session/start",
         serde_json::json!({ "title": "Beta Archived Session" }),
-    ).await;
-    let sid_archived = res2["session_id"].as_str().expect("session_id string").to_string();
+    )
+    .await;
+    let sid_archived = res2["session_id"]
+        .as_str()
+        .expect("session_id string")
+        .to_string();
 
     let res3 = rpc(
         &daemon.socket_path,
         3,
         "v1/session/start",
         serde_json::json!({ "title": "Gamma Standard Session" }),
-    ).await;
-    let sid_standard = res3["session_id"].as_str().expect("session_id string").to_string();
+    )
+    .await;
+    let sid_standard = res3["session_id"]
+        .as_str()
+        .expect("session_id string")
+        .to_string();
 
     // 2. Mutate storage to set pinned=true on sid_pinned and archived=true on sid_archived
     {
         let conn = rusqlite::Connection::open(&daemon.db_path).unwrap();
 
         // Update sid_pinned
-        let history_pinned: String = conn.query_row(
-            "SELECT history FROM sessions WHERE id = ?1",
-            [&sid_pinned],
-            |r| r.get(0),
-        ).unwrap();
+        let history_pinned: String = conn
+            .query_row(
+                "SELECT history FROM sessions WHERE id = ?1",
+                [&sid_pinned],
+                |r| r.get(0),
+            )
+            .unwrap();
         let mut s_pinned_val: serde_json::Value = serde_json::from_str(&history_pinned).unwrap();
         s_pinned_val["pinned"] = serde_json::json!(true);
         conn.execute(
             "UPDATE sessions SET history = ?1 WHERE id = ?2",
-            [serde_json::to_string(&s_pinned_val).unwrap(), sid_pinned.clone()],
-        ).unwrap();
+            [
+                serde_json::to_string(&s_pinned_val).unwrap(),
+                sid_pinned.clone(),
+            ],
+        )
+        .unwrap();
 
         // Update sid_archived
-        let history_archived: String = conn.query_row(
-            "SELECT history FROM sessions WHERE id = ?1",
-            [&sid_archived],
-            |r| r.get(0),
-        ).unwrap();
-        let mut s_archived_val: serde_json::Value = serde_json::from_str(&history_archived).unwrap();
+        let history_archived: String = conn
+            .query_row(
+                "SELECT history FROM sessions WHERE id = ?1",
+                [&sid_archived],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let mut s_archived_val: serde_json::Value =
+            serde_json::from_str(&history_archived).unwrap();
         s_archived_val["archived"] = serde_json::json!(true);
         conn.execute(
             "UPDATE sessions SET history = ?1 WHERE id = ?2",
-            [serde_json::to_string(&s_archived_val).unwrap(), sid_archived.clone()],
-        ).unwrap();
+            [
+                serde_json::to_string(&s_archived_val).unwrap(),
+                sid_archived.clone(),
+            ],
+        )
+        .unwrap();
     }
 
     // 3. Query v1/session/list over UDS
-    let body = rpc(&daemon.socket_path, 4, "v1/session/list", serde_json::json!({})).await;
+    let body = rpc(
+        &daemon.socket_path,
+        4,
+        "v1/session/list",
+        serde_json::json!({}),
+    )
+    .await;
     let sessions = body["sessions"].as_array().expect("sessions array");
     assert_eq!(sessions.len(), 3);
 
-    let pinned_sess = sessions.iter().find(|s| s["sessionId"] == sid_pinned).unwrap();
+    let pinned_sess = sessions
+        .iter()
+        .find(|s| s["sessionId"] == sid_pinned)
+        .unwrap();
     assert_eq!(pinned_sess["title"], "Alpha Pinned Session");
     assert_eq!(pinned_sess["pinned"], true);
     assert_eq!(pinned_sess["archived"], false);
 
-    let archived_sess = sessions.iter().find(|s| s["sessionId"] == sid_archived).unwrap();
+    let archived_sess = sessions
+        .iter()
+        .find(|s| s["sessionId"] == sid_archived)
+        .unwrap();
     assert_eq!(archived_sess["title"], "Beta Archived Session");
     assert_eq!(archived_sess["pinned"], false);
     assert_eq!(archived_sess["archived"], true);
 
-    let standard_sess = sessions.iter().find(|s| s["sessionId"] == sid_standard).unwrap();
+    let standard_sess = sessions
+        .iter()
+        .find(|s| s["sessionId"] == sid_standard)
+        .unwrap();
     assert_eq!(standard_sess["title"], "Gamma Standard Session");
     assert_eq!(standard_sess["pinned"], false);
     assert_eq!(standard_sess["archived"], false);
