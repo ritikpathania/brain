@@ -65,7 +65,8 @@ An invalid override or unavailable repository package is an actionable nonzero l
 - Canonical CI verifies the owned in-repo package; it does not fetch external/private source.
 - Packaged artifact resolution and full product delivery are implemented and verified via closed manifests and clean-extraction PTY smoke proof (see `docs/guides/product-distribution.md`).
 - The frontend does not execute Brain tools locally. Brain owns tool identity, permission resolution, process lifecycle, and results.
-- Retrieval metadata is a minimal `brain_context` contract, not raw storage records, ranking diagnostics, or prompt contents.
+- Live generation uses lexical search, bounded graph expansion, and vector recall when a configured provider and stored embeddings are available. Visible pinned constraints take priority within the item and token budgets.
+- Retrieval metadata uses the allowlisted `brain_context` contract. If context assembly fails, the daemon logs the failure and continues generation with the field absent. The adapter clears a prior summary only after an explicit successful snapshot with zero results.
 
 ## Verification
 
