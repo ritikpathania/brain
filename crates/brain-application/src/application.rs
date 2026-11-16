@@ -115,6 +115,14 @@ impl BrainApplication {
 
     /// Create a new BrainApplication wrapping the services composition root runtime.
     pub fn new(runtime: Arc<BrainRuntime>) -> Self {
+        Self::with_context_query_embeddings(runtime, None)
+    }
+
+    /// Creates the facade using the runtime's configured query embedding service.
+    pub fn with_context_query_embeddings(
+        runtime: Arc<BrainRuntime>,
+        query_embeddings: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
+    ) -> Self {
         let max_seq = if let Ok(conn) = runtime.sqlite_storage().pool().get() {
             conn.query_row("SELECT MAX(sequence) FROM system_event_log", [], |row| {
                 row.get::<_, Option<i64>>(0)
@@ -143,12 +151,19 @@ impl BrainApplication {
         let model_gateway =
             Arc::new(brain_services::model::DefaultModelGateway::with_mock_provider(mock_provider));
         let storage = runtime.sqlite_storage();
-        let context_orchestrator = Arc::new(
+        let mut context_orchestrator =
             brain_services::context::DefaultContextOrchestrator::with_storage(
-                Arc::clone(&storage) as Arc<dyn brain_core::repositories::NodeRepository>,
-                Arc::clone(&storage) as Arc<dyn brain_core::repositories::EdgeRepository>,
-            ),
-        );
+                storage.clone(),
+                storage.clone(),
+            );
+        if let Some(query_embeddings) = query_embeddings {
+            let source = brain_services::retrieval::source::SemanticMemorySource::new(
+                storage,
+                query_embeddings,
+            );
+            context_orchestrator = context_orchestrator.with_semantic_source(Arc::new(source));
+        }
+        let context_orchestrator = Arc::new(context_orchestrator);
 
         Self {
             runtime,

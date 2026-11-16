@@ -241,6 +241,233 @@ async fn test_orchestrator_deleted_entity_exclusion() {
 }
 
 #[tokio::test]
+async fn test_orchestrator_prioritizes_only_visible_context_constraints() {
+    use brain_core::repositories::NodeRepository;
+    use brain_domain::{Node, NodeKind};
+    use brain_storage::SqliteStorage;
+    use std::sync::Arc;
+
+    let storage = Arc::new(SqliteStorage::new(":memory:", 1, false).unwrap());
+    let reference_time = 1_700_000_000;
+    let session_id = SessionId::new();
+    let other_session = format!("session:{}", SessionId::new());
+    let save = |label: &str, flag: &str, value: serde_json::Value, scope: &str, updated_at| {
+        let id = NodeId::new();
+        let node = Node::new(id, label.to_string(), NodeKind::Concept)
+            .with_properties(HashMap::from([
+                (flag.to_string(), value),
+                ("scope".to_string(), serde_json::json!(scope)),
+            ]))
+            .with_updated_at(updated_at);
+        NodeRepository::save(storage.as_ref(), &node).unwrap();
+        id
+    };
+    let visible = save("Gluten restriction", "pinned", true.into(), "global", 1);
+    save(
+        "Private account",
+        "pinned",
+        true.into(),
+        &other_session,
+        reference_time,
+    );
+    save(
+        "Workspace account",
+        "pinned",
+        true.into(),
+        "workspace:private",
+        reference_time,
+    );
+    save(
+        "String flag",
+        "pinned",
+        "true".into(),
+        "global",
+        reference_time,
+    );
+    save(
+        "Compiler options",
+        "pinned",
+        false.into(),
+        "global",
+        reference_time,
+    );
+    let deleted = save(
+        "Timezone restriction",
+        "constraint_subgraph",
+        true.into(),
+        "global",
+        reference_time,
+    );
+
+    let orchestrator = DefaultContextOrchestrator::with_storage(storage.clone(), storage);
+    orchestrator.mark_node_deleted(deleted).await;
+    let request = ContextAssemblyRequest {
+        prompt: "Compiler options".to_string(),
+        session_id,
+        workspace_id: None,
+        max_tokens: 500,
+        max_items: 1,
+        reference_time: Some(reference_time),
+    };
+    let snapshot = orchestrator.assemble_context(request).await.unwrap();
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.items[0].node_id, visible);
+}
+
+#[tokio::test]
+async fn test_orchestrator_recalls_semantic_matches_within_scope_before_cutoff() {
+    use brain_core::errors::BrainError;
+    use brain_core::repositories::{EmbeddingRepository, NodeRepository};
+    use brain_core::retrieval::QueryEmbeddingService;
+    use brain_domain::{Embedding, Node, NodeKind};
+    use brain_services::retrieval::source::SemanticMemorySource;
+    use brain_storage::SqliteStorage;
+    use std::sync::Arc;
+
+    struct TestEmbeddings;
+    impl QueryEmbeddingService for TestEmbeddings {
+        fn embed_query(&self, _query: &str) -> Result<Vec<f32>, BrainError> {
+            Ok(vec![1.0, 0.0])
+        }
+    }
+
+    let storage = Arc::new(SqliteStorage::new(":memory:", 1, false).unwrap());
+    let visible = NodeId::new();
+    let reference_time = 1_700_000_000;
+    for (id, scope, vector) in [
+        (NodeId::new(), "workspace:private", vec![1.0, 0.0]),
+        (NodeId::new(), "workspace:private", vec![1.0, 0.0]),
+        (visible, "global", vec![0.75, 0.25]),
+    ] {
+        let node = Node::new(id, "Cargo manifests".to_string(), NodeKind::Concept)
+            .with_properties(HashMap::from([("scope".to_string(), scope.into())]))
+            .with_updated_at(reference_time);
+        NodeRepository::save(storage.as_ref(), &node).unwrap();
+        EmbeddingRepository::save(storage.as_ref(), &Embedding::new(id, vector)).unwrap();
+    }
+    let semantic_source = Arc::new(SemanticMemorySource::new(
+        storage.clone(),
+        Arc::new(TestEmbeddings),
+    ));
+    let orchestrator = DefaultContextOrchestrator::with_storage(storage.clone(), storage)
+        .with_semantic_source(semantic_source);
+    let snapshot = orchestrator
+        .assemble_context(ContextAssemblyRequest {
+            prompt: "dependency declarations".to_string(),
+            session_id: SessionId::new(),
+            workspace_id: None,
+            max_tokens: 500,
+            max_items: 1,
+            reference_time: Some(reference_time),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.items[0].node_id, visible);
+    assert_eq!(snapshot.items[0].channel, RetrievalChannel::Semantic);
+}
+
+#[tokio::test]
+async fn test_assembler_skips_oversized_constraint_without_spending_an_item_slot() {
+    let fit = NodeId::new();
+    let large = NodeId::new();
+    let time = 1_700_000_000;
+    let make_candidate = |node_id, content, metadata| RetrievalCandidate {
+        node_id,
+        label: "Context".into(),
+        content,
+        channel: RetrievalChannel::Graph,
+        raw_score: 1.0,
+        timestamp: time,
+        scope: MemoryScope::Global,
+        metadata,
+    };
+    let ranked = DefaultMemoryRanker::new().rank_and_deduplicate(
+        vec![
+            make_candidate(
+                large,
+                "Oversized ".repeat(1_000),
+                HashMap::from([("always_on_constraint".into(), "true".into())]),
+            ),
+            make_candidate(fit, "Small context".into(), HashMap::new()),
+        ],
+        time,
+    );
+    assert_eq!(ranked[0].node_id, large);
+
+    let snapshot = DefaultContextAssembler::new().assemble(&ranked, 125, 1, "e1");
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.items[0].node_id, fit);
+    assert!(snapshot.token_count <= 125);
+}
+
+#[tokio::test]
+async fn test_orchestrator_can_use_lexical_results_after_semantic_error() {
+    use brain_core::errors::BrainError;
+    use brain_core::repositories::{EmbeddingRepository, NodeRepository};
+    use brain_core::retrieval::QueryEmbeddingService;
+    use brain_domain::{Embedding, Node, NodeKind};
+    use brain_services::retrieval::source::SemanticMemorySource;
+    use brain_storage::SqliteStorage;
+    use std::sync::Arc;
+
+    struct UnavailableEmbeddings;
+    impl QueryEmbeddingService for UnavailableEmbeddings {
+        fn embed_query(&self, _query: &str) -> Result<Vec<f32>, BrainError> {
+            Err(BrainError::Internal {
+                message: "provider unavailable".into(),
+            })
+        }
+    }
+
+    let storage = Arc::new(SqliteStorage::new(":memory:", 1, false).unwrap());
+    let visible = NodeId::new();
+    let reference_time = 1_700_000_000;
+    for (id, scope) in [
+        (visible, serde_json::json!("old-label")),
+        (NodeId::new(), serde_json::json!("session:invalid")),
+        (NodeId::new(), serde_json::json!(true)),
+    ] {
+        let node = Node::new(id, "Compiler inputs".into(), NodeKind::Concept)
+            .with_properties(HashMap::from([("scope".into(), scope)]))
+            .with_updated_at(reference_time);
+        NodeRepository::save(storage.as_ref(), &node).unwrap();
+        EmbeddingRepository::save(storage.as_ref(), &Embedding::new(id, vec![1.0, 0.0])).unwrap();
+    }
+    let source = Arc::new(SemanticMemorySource::new(
+        storage.clone(),
+        Arc::new(UnavailableEmbeddings),
+    ));
+    let orchestrator = DefaultContextOrchestrator::with_storage(storage.clone(), storage)
+        .with_semantic_source(source);
+    let request = ContextAssemblyRequest {
+        prompt: "Compiler".into(),
+        session_id: SessionId::new(),
+        workspace_id: None,
+        max_tokens: 500,
+        max_items: 3,
+        reference_time: Some(reference_time),
+    };
+    let snapshot = orchestrator
+        .assemble_context(request.clone())
+        .await
+        .unwrap();
+    assert_eq!(snapshot.items.len(), 1);
+    assert_eq!(snapshot.items[0].node_id, visible);
+    assert_eq!(snapshot.items[0].channel, RetrievalChannel::Lexical);
+
+    let failure = orchestrator
+        .assemble_context(ContextAssemblyRequest {
+            prompt: "nonexistent".into(),
+            ..request
+        })
+        .await
+        .unwrap_err();
+    assert!(failure.to_string().contains("provider unavailable"));
+}
+
+#[tokio::test]
 async fn test_orchestrator_storage_backed_retrieval_and_neighbor_expansion() {
     use brain_core::repositories::{EdgeRepository, NodeRepository};
     use brain_domain::{Edge, Node, NodeKind, RelationKind};

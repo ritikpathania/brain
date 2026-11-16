@@ -369,26 +369,22 @@ impl SemanticMemorySource {
             cosine_computations: std::sync::atomic::AtomicUsize::new(0),
         }
     }
-}
-
-impl MemorySource for SemanticMemorySource {
-    fn retrieve(&self, request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
+    /// Ranks vector matches and applies scope before the result limit.
+    pub(crate) fn retrieve_scored(
+        &self,
+        request: &RetrievalRequest,
+        visible: impl Fn(&brain_domain::Node) -> bool,
+    ) -> Result<Vec<(brain_domain::Node, f32)>, BrainError> {
         let start_vector = std::time::Instant::now();
-        // 1. Check early for empty query
-        if request.query.trim().is_empty() {
-            return Ok(MemorySourceResult {
-                nodes: vec![],
-                metadata: SourceMetadata {
-                    source_name: "SemanticMemorySource",
-                },
-            });
+        if request.query.trim().is_empty() || request.limit == 0 {
+            return Ok(Vec::new());
         }
 
-        // 2. Generate embedding for query
-        let query_vector = self.query_embedding_service.embed_query(&request.query)?;
-
-        // 3. Fetch all embeddings to determine search strategy
         let all_embeddings = self.repos.embeddings().list_all_embeddings()?;
+        if all_embeddings.is_empty() {
+            return Ok(Vec::new());
+        }
+        let query_vector = self.query_embedding_service.embed_query(&request.query)?;
         let total_count = all_embeddings.len();
 
         let comps_this_query;
@@ -458,14 +454,16 @@ impl MemorySource for SemanticMemorySource {
         }
 
         // 5. Sort candidates by score descending and limit results
-        node_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        let limited_candidates: Vec<_> = node_scores.into_iter().take(request.limit * 2).collect();
-
-        // 6. Load matching nodes from database
-        let mut nodes = Vec::with_capacity(limited_candidates.len());
-        for (node_id, _) in limited_candidates {
-            if let Some(node) = self.repos.nodes().find_by_id(&node_id)? {
-                nodes.push(node);
+        node_scores.sort_by(|(id_a, score_a), (id_b, score_b)| {
+            score_b.total_cmp(score_a).then_with(|| id_a.0.cmp(&id_b.0))
+        });
+        let mut nodes = Vec::new();
+        for (node_id, score) in node_scores {
+            if let Some(node) = self.repos.nodes().find_by_id(&node_id)?.filter(&visible) {
+                nodes.push((node, score));
+                if nodes.len() == request.limit.saturating_mul(2) {
+                    break;
+                }
             }
         }
 
@@ -479,6 +477,17 @@ impl MemorySource for SemanticMemorySource {
             "Retrieval stage completed: vector"
         );
 
+        Ok(nodes)
+    }
+}
+
+impl MemorySource for SemanticMemorySource {
+    fn retrieve(&self, request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
+        let nodes = self
+            .retrieve_scored(request, |_| true)?
+            .into_iter()
+            .map(|(node, _)| node)
+            .collect();
         Ok(MemorySourceResult {
             nodes,
             metadata: SourceMetadata {

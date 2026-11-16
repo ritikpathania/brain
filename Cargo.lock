@@ -521,6 +521,7 @@ dependencies = [
  "futures",
  "fuzzy-matcher",
  "parking_lot",
+ "reqwest 0.12.28",
  "rusqlite",
  "serde",
  "serde_json",

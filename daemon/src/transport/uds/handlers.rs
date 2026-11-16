@@ -3593,12 +3593,16 @@ pub async fn handle_connection(
                 reference_time: None,
             };
             let t_assemble_start = Instant::now();
-            let context_snapshot = match app.assemble_context(context_req).await {
-                Ok(snapshot) => Some(snapshot),
-                Err(error) => {
-                    tracing::warn!(%error, "Memory context assembly failed; continuing generation");
-                    None
-                }
+            let context_snapshot = tokio::select! {
+                biased;
+                _ = cancellation_token.cancelled() => None,
+                result = app.assemble_context(context_req) => match result {
+                    Ok(snapshot) => Some(snapshot),
+                    Err(error) => {
+                        tracing::warn!(%error, "Memory context assembly failed; continuing generation");
+                        None
+                    }
+                },
             };
             let assembly_latency_ms = t_assemble_start.elapsed().as_millis() as u64;
 

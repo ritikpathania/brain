@@ -6,11 +6,14 @@ use brain_core::context::{
 };
 use brain_core::errors::BrainError;
 use brain_core::repositories::{EdgeRepository, NodeRepository};
+use brain_core::retrieval::RetrievalRequest;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::context::assembler::DefaultContextAssembler;
 use crate::context::ranker::DefaultMemoryRanker;
+use crate::context::ALWAYS_ON_CONSTRAINT;
+use crate::retrieval::source::SemanticMemorySource;
 
 /// Default implementation of `ContextOrchestrator`.
 #[derive(Clone)]
@@ -19,6 +22,7 @@ pub struct DefaultContextOrchestrator {
     assembler: Arc<dyn ContextAssembler>,
     node_repo: Option<Arc<dyn NodeRepository>>,
     edge_repo: Option<Arc<dyn EdgeRepository>>,
+    semantic_source: Option<Arc<SemanticMemorySource>>,
     candidates: Arc<RwLock<Vec<RetrievalCandidate>>>,
     deleted_nodes: Arc<RwLock<std::collections::HashSet<brain_domain::NodeId>>>,
 }
@@ -37,6 +41,7 @@ impl DefaultContextOrchestrator {
             assembler: Arc::new(DefaultContextAssembler::new()),
             node_repo: None,
             edge_repo: None,
+            semantic_source: None,
             candidates: Arc::new(RwLock::new(Vec::new())),
             deleted_nodes: Arc::new(RwLock::new(std::collections::HashSet::new())),
         }
@@ -50,10 +55,7 @@ impl DefaultContextOrchestrator {
         Self {
             ranker,
             assembler,
-            node_repo: None,
-            edge_repo: None,
-            candidates: Arc::new(RwLock::new(Vec::new())),
-            deleted_nodes: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            ..Self::new()
         }
     }
 
@@ -63,12 +65,9 @@ impl DefaultContextOrchestrator {
         edge_repo: Arc<dyn EdgeRepository>,
     ) -> Self {
         Self {
-            ranker: Arc::new(DefaultMemoryRanker::new()),
-            assembler: Arc::new(DefaultContextAssembler::new()),
             node_repo: Some(node_repo),
             edge_repo: Some(edge_repo),
-            candidates: Arc::new(RwLock::new(Vec::new())),
-            deleted_nodes: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            ..Self::new()
         }
     }
 
@@ -84,9 +83,14 @@ impl DefaultContextOrchestrator {
             assembler,
             node_repo,
             edge_repo,
-            candidates: Arc::new(RwLock::new(Vec::new())),
-            deleted_nodes: Arc::new(RwLock::new(std::collections::HashSet::new())),
+            ..Self::new()
         }
+    }
+
+    /// Enables semantic recall using the configured vector source.
+    pub fn with_semantic_source(mut self, source: Arc<SemanticMemorySource>) -> Self {
+        self.semantic_source = Some(source);
+        self
     }
 
     /// Normalizes raw SQLite FTS5 BM25 score to a monotonic float in [0.0, 1.0).
@@ -136,22 +140,76 @@ impl DefaultContextOrchestrator {
         }
     }
 
-    /// Helper to extract MemoryScope from node properties.
-    fn extract_node_scope(node: &brain_domain::Node) -> MemoryScope {
-        if let Some(scope_val) = node.properties.get("scope") {
-            if let Some(s) = scope_val.as_str() {
-                if let Some(sess_str) = s.strip_prefix("session:") {
-                    if let Ok(sid) = sess_str.parse::<brain_domain::SessionId>() {
-                        return MemoryScope::Session(sid);
-                    }
-                } else if let Some(ws_str) = s.strip_prefix("workspace:") {
-                    return MemoryScope::Workspace(ws_str.to_string());
-                } else if s == "global" {
-                    return MemoryScope::Global;
+    fn visible_node_scope(
+        node: &brain_domain::Node,
+        request: &ContextAssemblyRequest,
+    ) -> Option<MemoryScope> {
+        let scope = match node.properties.get("scope") {
+            None => MemoryScope::Global,
+            Some(value) => match value.as_str()? {
+                value if value.starts_with("session:") => {
+                    MemoryScope::Session(value.strip_prefix("session:")?.parse().ok()?)
                 }
-            }
-        }
-        MemoryScope::Global
+                value if value.starts_with("workspace:") => {
+                    MemoryScope::Workspace(value.strip_prefix("workspace:")?.to_owned())
+                }
+                value if value.contains(':') => return None,
+                // Legacy unqualified labels carry no workspace or session identity.
+                _ => MemoryScope::Global,
+            },
+        };
+        Self::is_in_scope(&scope, request).then_some(scope)
+    }
+
+    async fn fetch_semantic_candidates(
+        &self,
+        request: &ContextAssemblyRequest,
+    ) -> Result<Vec<RetrievalCandidate>, BrainError> {
+        let Some(source) = self.semantic_source.clone() else {
+            return Ok(Vec::new());
+        };
+        let retrieval = RetrievalRequest {
+            session_id: request.session_id,
+            query: request.prompt.clone(),
+            limit: if request.max_items == 0 {
+                10
+            } else {
+                request.max_items
+            },
+            exclude_ids: self.deleted_nodes.read().await.clone(),
+            deadline: None,
+            explain: false,
+            graph_depth: Some(0),
+            expand_relations: false,
+            reference_time: request.reference_time,
+        };
+        let request = request.clone();
+        tokio::task::spawn_blocking(move || {
+            let nodes = source.retrieve_scored(&retrieval, |node| {
+                Self::visible_node_scope(node, &request).is_some()
+            })?;
+            Ok(nodes
+                .into_iter()
+                .filter_map(|(node, score)| {
+                    let scope = Self::visible_node_scope(&node, &request)?;
+                    let content = Self::extract_node_content(&node);
+                    Some(RetrievalCandidate {
+                        node_id: node.id,
+                        label: node.label,
+                        content,
+                        channel: brain_core::context::RetrievalChannel::Semantic,
+                        raw_score: f64::from(score),
+                        timestamp: node.updated_at,
+                        scope,
+                        metadata: Default::default(),
+                    })
+                })
+                .collect())
+        })
+        .await
+        .map_err(|error| BrainError::Internal {
+            message: format!("Semantic context worker failed: {error}"),
+        })?
     }
 
     /// Helper to extract content text from node properties.
@@ -175,8 +233,12 @@ impl DefaultContextOrchestrator {
         &self,
         request: &ContextAssemblyRequest,
     ) -> Result<Vec<RetrievalCandidate>, BrainError> {
+        let (mut matched, semantic_error) = match self.fetch_semantic_candidates(request).await {
+            Ok(candidates) => (candidates, None),
+            Err(error) => (Vec::new(), Some(error)),
+        };
         let deleted = self.deleted_nodes.read().await;
-        let mut matched = Vec::new();
+        matched.retain(|candidate| !deleted.contains(&candidate.node_id));
         let mut seen_nodes = std::collections::HashSet::new();
 
         // 1. Storage-backed retrieval via FTS
@@ -185,16 +247,15 @@ impl DefaultContextOrchestrator {
 
             // Collect top parent candidates for bounded graph expansion
             let mut top_parents: Vec<(brain_domain::Node, f64)> = Vec::new();
-            let max_expansion_parents = request.max_items.min(5).max(1);
+            let max_expansion_parents = request.max_items.clamp(1, 5);
 
             for (node, bm25_score) in fts_results {
                 if deleted.contains(&node.id) {
                     continue;
                 }
-                let scope = Self::extract_node_scope(&node);
-                if !Self::is_in_scope(&scope, request) {
+                let Some(scope) = Self::visible_node_scope(&node, request) else {
                     continue;
-                }
+                };
 
                 let raw_score = Self::normalize_bm25_score(bm25_score);
                 if raw_score <= 0.0 {
@@ -243,10 +304,11 @@ impl DefaultContextOrchestrator {
                         }
 
                         if let Some(target_node) = node_repo.find_by_id(&target_id)? {
-                            let target_scope = Self::extract_node_scope(&target_node);
-                            if !Self::is_in_scope(&target_scope, request) {
+                            let Some(target_scope) =
+                                Self::visible_node_scope(&target_node, request)
+                            else {
                                 continue;
-                            }
+                            };
 
                             // Decay weight: parent_raw_score * 0.5 * clamped_weight
                             let decayed_score =
@@ -274,9 +336,40 @@ impl DefaultContextOrchestrator {
                     }
                 }
             }
+
+            let mut constraints = std::collections::HashMap::new();
+            for node in node_repo.list_context_constraints()? {
+                if deleted.contains(&node.id) {
+                    continue;
+                }
+                let Some(scope) = Self::visible_node_scope(&node, request) else {
+                    continue;
+                };
+                let content = Self::extract_node_content(&node);
+                seen_nodes.insert(node.id);
+                constraints.insert(
+                    node.id,
+                    RetrievalCandidate {
+                        node_id: node.id,
+                        label: node.label,
+                        content,
+                        channel: brain_core::context::RetrievalChannel::Graph,
+                        raw_score: 1.0,
+                        timestamp: node.updated_at,
+                        scope,
+                        metadata: std::collections::HashMap::from([(
+                            ALWAYS_ON_CONSTRAINT.to_string(),
+                            "true".to_string(),
+                        )]),
+                    },
+                );
+            }
+            matched.retain(|candidate| !constraints.contains_key(&candidate.node_id));
+            matched.extend(constraints.into_values());
         }
 
         // 3. Merge in-memory registered candidates (e.g. from tests or dynamic runtime)
+        seen_nodes.extend(matched.iter().map(|candidate| candidate.node_id));
         let memory_candidates = self.candidates.read().await;
         if !memory_candidates.is_empty() {
             let query_lower = request.prompt.to_lowercase();
@@ -312,6 +405,12 @@ impl DefaultContextOrchestrator {
             }
         }
 
+        if let Some(error) = semantic_error {
+            if matched.is_empty() {
+                return Err(error);
+            }
+            tracing::warn!(%error, "Semantic context unavailable; using other retrieval channels");
+        }
         Ok(matched)
     }
 }

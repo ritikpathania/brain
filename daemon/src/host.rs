@@ -201,16 +201,27 @@ impl DaemonHost {
         };
 
         let defaults_src = brain_config::loader::DefaultsSource;
-        let config = brain_config::loader::resolve(&[Box::new(defaults_src)])?;
+        let env_src = brain_config::loader::EnvironmentSource;
+        let config = brain_config::loader::resolve(&[Box::new(defaults_src), Box::new(env_src)])?;
+        let query_embeddings = brain_services::providers::embeddings::configured_provider(
+            config.models(),
+        )
+        .map(|provider| {
+            Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
+                provider,
+            )) as Arc<dyn brain_core::retrieval::QueryEmbeddingService>
+        });
         let working_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-        let app_runtime = Arc::new(
-            ApplicationRuntime::builder()
-                .with_config(config)
-                .with_working_dir(working_dir)
-                .with_brain_runtime(Arc::clone(&brain_runtime))
-                .build()?,
-        );
+        let mut runtime_builder = ApplicationRuntime::builder()
+            .with_config(config)
+            .with_working_dir(working_dir)
+            .with_brain_runtime(Arc::clone(&brain_runtime));
+        if let Some(query_embeddings) = &query_embeddings {
+            runtime_builder =
+                runtime_builder.with_query_embedding_service(Arc::clone(query_embeddings));
+        }
+        let app_runtime = Arc::new(runtime_builder.build()?);
 
         app_runtime.start()?;
 
@@ -220,9 +231,12 @@ impl DaemonHost {
             "ApplicationRuntime and BrainRuntime initialized via RuntimeBuilder"
         );
 
-        let brain_app = Arc::new(brain_application::BrainApplication::new(Arc::clone(
-            &brain_runtime,
-        )));
+        let brain_app = Arc::new(
+            brain_application::BrainApplication::with_context_query_embeddings(
+                Arc::clone(&brain_runtime),
+                query_embeddings,
+            ),
+        );
         let request_dispatcher = Arc::new(brain_application::dispatcher::RequestDispatcher::new(
             Arc::clone(&brain_app),
         ));

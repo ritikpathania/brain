@@ -1270,12 +1270,27 @@ fn delete_node_conn(db: &ActiveConnection<'_>, id: &NodeId) -> Result<(), BrainE
 }
 
 fn list_all_nodes_conn(db: &ActiveConnection<'_>) -> Result<Vec<Node>, BrainError> {
-    let mut stmt = db
-        .prepare("SELECT id, label, node_type, properties, updated_at FROM nodes")
-        .map_err(|e| BrainError::Storage {
-            message: format!("Failed to prepare statement: {}", e),
-            source: Some(Box::new(e)),
-        })?;
+    list_nodes_conn(
+        db,
+        "SELECT id, label, node_type, properties, updated_at FROM nodes",
+    )
+}
+
+fn list_context_constraints_conn(db: &ActiveConnection<'_>) -> Result<Vec<Node>, BrainError> {
+    list_nodes_conn(
+        db,
+        "SELECT id, label, node_type, properties, updated_at FROM nodes \
+         WHERE CASE WHEN json_valid(properties) THEN \
+           json_type(properties, '$.pinned') = 'true' OR \
+           json_type(properties, '$.constraint_subgraph') = 'true' END",
+    )
+}
+
+fn list_nodes_conn(db: &ActiveConnection<'_>, query: &str) -> Result<Vec<Node>, BrainError> {
+    let mut stmt = db.prepare(query).map_err(|e| BrainError::Storage {
+        message: format!("Failed to prepare statement: {}", e),
+        source: Some(Box::new(e)),
+    })?;
 
     let node_iter = stmt
         .query_map([], |row| {
@@ -1558,6 +1573,14 @@ impl NodeRepository for SqliteStorage {
         find_nodes_by_tokens_conn(&active, tokens)
     }
 
+    fn list_context_constraints(&self) -> Result<Vec<Node>, BrainError> {
+        let conn = self.pool.get().map_err(|e| BrainError::Storage {
+            message: format!("Failed to get connection: {}", e),
+            source: Some(Box::new(e)),
+        })?;
+        list_context_constraints_conn(&ActiveConnection::new(&conn))
+    }
+
     fn find_by_fts(&self, query: &str) -> Result<Vec<(Node, f64)>, BrainError> {
         let conn = self.pool.get().map_err(|e| BrainError::Storage {
             message: format!("Failed to get connection: {}", e),
@@ -1587,6 +1610,10 @@ impl<'a> NodeRepository for ActiveConnection<'a> {
 
     fn list_all(&self) -> Result<Vec<Node>, BrainError> {
         list_all_nodes_conn(self)
+    }
+
+    fn list_context_constraints(&self) -> Result<Vec<Node>, BrainError> {
+        list_context_constraints_conn(self)
     }
 
     fn find_by_tokens(&self, tokens: &[String]) -> Result<Vec<Node>, BrainError> {

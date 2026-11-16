@@ -211,6 +211,73 @@ async fn test_generation_stream_retrieves_stored_memory_into_context() {
 }
 
 #[tokio::test]
+async fn test_generation_stream_includes_pinned_memory_without_lexical_overlap() {
+    let daemon = start_test_daemon().await;
+    let stored = rpc(
+        &daemon.socket_path,
+        1,
+        "v1/memory/store",
+        serde_json::json!({"label": "Gluten restriction", "content": "Avoid wheat", "scope": "global"}),
+    )
+    .await;
+    let node_id = stored["node_id"].as_str().unwrap();
+    {
+        let db = rusqlite::Connection::open(daemon.test_dir.join("brain_runtime.db")).unwrap();
+        let updated = db.execute(
+            "UPDATE nodes SET properties = json_set(properties, '$.pinned', json('true')) WHERE id = ?1",
+            [node_id],
+        ).unwrap();
+        assert_eq!(updated, 1);
+    }
+    let start = rpc(
+        &daemon.socket_path,
+        2,
+        "v1/session/start",
+        serde_json::json!({}),
+    )
+    .await;
+    let session_id = start["session_id"].as_str().unwrap();
+
+    let frames = stream_generation(&daemon.socket_path, session_id, "Suggest dinner recipes").await;
+    let started = frames
+        .iter()
+        .find(|frame| frame["type"] == "stream_start")
+        .unwrap();
+    assert_eq!(
+        started["metadata"]["brain_context"]["source_refs"],
+        serde_json::json!([node_id])
+    );
+    assert!(frames.iter().any(|frame| frame["type"] == "finished"));
+}
+
+#[tokio::test]
+async fn test_generation_does_not_publish_empty_context_on_retrieval_failure() {
+    let daemon = start_test_daemon().await;
+    let start = rpc(
+        &daemon.socket_path,
+        1,
+        "v1/session/start",
+        serde_json::json!({"title": "Retrieval failure test"}),
+    )
+    .await;
+    let session_id = start["session_id"].as_str().unwrap();
+    {
+        let db = rusqlite::Connection::open(daemon.test_dir.join("brain_runtime.db")).unwrap();
+        db.execute_batch("DROP TABLE node_search;").unwrap();
+    }
+
+    let frames = stream_generation(&daemon.socket_path, session_id, "test retrieval").await;
+    for name in ["stream_start", "stream_end"] {
+        let frame = frames.iter().find(|frame| frame["type"] == name).unwrap();
+        assert!(
+            frame["metadata"].get("brain_context").is_none(),
+            "{name}: {frame}"
+        );
+    }
+    assert!(frames.iter().any(|frame| frame["type"] == "finished"));
+}
+
+#[tokio::test]
 async fn test_generation_stream_irrelevant_query_leaves_context_empty() {
     let daemon = start_test_daemon().await;
 

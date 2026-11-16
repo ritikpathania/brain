@@ -113,36 +113,37 @@ impl ContextAssembler for DefaultContextAssembler {
         let mut min_score = f64::MAX;
         let mut max_score = f64::MIN;
 
-        for item in ranked.iter().take(max_items) {
-            let item_str = Self::format_item(item);
-            let item_tokens = Self::estimate_tokens(&item_str);
-
-            if item_tokens <= available_tokens {
-                available_tokens -= item_tokens;
-                formatted_body.push_str(&item_str);
-
-                distinct_sources.insert(item.node_id.to_string());
-                distinct_channels.insert(item.channel);
-                if item.final_score < min_score {
-                    min_score = item.final_score;
-                }
-                if item.final_score > max_score {
-                    max_score = item.final_score;
-                }
-
-                selected_items.push(AssembledMemory {
-                    node_id: item.node_id,
-                    label: item.label.clone(),
-                    content: item.content.clone(),
-                    channel: item.channel,
-                    score: item.final_score,
-                    timestamp: item.timestamp,
-                    scope: item.scope.clone(),
-                });
-            } else {
-                // Whole-item preservation: do not truncate item mid-sentence; stop accumulation.
+        for item in ranked {
+            if selected_items.len() == max_items {
                 break;
             }
+            let item_str = Self::format_item(item);
+            let item_tokens = Self::estimate_tokens(&item_str);
+            if item_tokens > available_tokens {
+                continue;
+            }
+
+            available_tokens -= item_tokens;
+            formatted_body.push_str(&item_str);
+
+            distinct_sources.insert(item.node_id.to_string());
+            distinct_channels.insert(item.channel);
+            if item.final_score < min_score {
+                min_score = item.final_score;
+            }
+            if item.final_score > max_score {
+                max_score = item.final_score;
+            }
+
+            selected_items.push(AssembledMemory {
+                node_id: item.node_id,
+                label: item.label.clone(),
+                content: item.content.clone(),
+                channel: item.channel,
+                score: item.final_score,
+                timestamp: item.timestamp,
+                scope: item.scope.clone(),
+            });
         }
 
         if selected_items.is_empty() {

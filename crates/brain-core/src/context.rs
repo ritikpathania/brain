@@ -37,7 +37,7 @@ pub enum RetrievalChannel {
     Lexical,
     /// Vector cosine / IVF semantic similarity channel.
     Semantic,
-    /// Multi-hop graph expansion channel.
+    /// Graph expansion and always-on constraint subgraph channel.
     Graph,
     /// Hybrid multi-channel fusion.
     Hybrid,

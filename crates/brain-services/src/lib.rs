@@ -147,3 +147,6 @@ pub use policies::*;
 /// Stable Application Interface DTO contracts and Handshake Negotiator (Phase H).
 pub mod protocol;
 pub use protocol::*;
+
+/// Native memory embedding providers.
+pub mod providers;

@@ -4,6 +4,8 @@ use brain_core::context::{MemoryRanker, RankedMemory, RetrievalCandidate, Retrie
 use brain_domain::NodeId;
 use std::collections::HashMap;
 
+use super::ALWAYS_ON_CONSTRAINT;
+
 /// Default implementation of `MemoryRanker`.
 #[derive(Debug, Clone, Default)]
 pub struct DefaultMemoryRanker {
@@ -99,12 +101,13 @@ impl MemoryRanker for DefaultMemoryRanker {
         }
 
         // 2. Deterministic sorting contract:
-        //    1) final_score DESC (using total_cmp for strict IEEE 754 ordering)
-        //    2) timestamp DESC
-        //    3) node_id ASC
+        // Always-on constraints precede query-dependent memories, then use
+        // score, timestamp, and node ID for deterministic ordering.
         ranked_items.sort_by(|a, b| {
-            b.final_score
-                .total_cmp(&a.final_score)
+            b.metadata
+                .contains_key(ALWAYS_ON_CONSTRAINT)
+                .cmp(&a.metadata.contains_key(ALWAYS_ON_CONSTRAINT))
+                .then_with(|| b.final_score.total_cmp(&a.final_score))
                 .then_with(|| b.timestamp.cmp(&a.timestamp))
                 .then_with(|| a.node_id.to_string().cmp(&b.node_id.to_string()))
         });

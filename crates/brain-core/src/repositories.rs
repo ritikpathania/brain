@@ -20,6 +20,18 @@ pub trait NodeRepository: Send + Sync {
     fn delete(&self, id: &NodeId) -> Result<(), BrainError>;
     /// Lists all nodes currently in the database.
     fn list_all(&self) -> Result<Vec<Node>, BrainError>;
+    /// Lists nodes explicitly marked as always-on context constraints.
+    fn list_context_constraints(&self) -> Result<Vec<Node>, BrainError> {
+        Ok(self
+            .list_all()?
+            .into_iter()
+            .filter(|node| {
+                ["pinned", "constraint_subgraph"].iter().any(|key| {
+                    node.properties.get(*key).and_then(|value| value.as_bool()) == Some(true)
+                })
+            })
+            .collect())
+    }
     /// Finds candidate nodes matching any of the specified tokens in their label or properties.
     ///
     /// This is a low-latency candidate generation/filtering API intended to narrow the search space,
