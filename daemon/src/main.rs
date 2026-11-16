@@ -150,8 +150,13 @@ fn print_help() {
     println!("  version     Print engine build version");
 }
 
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    daemon_bridge::python_runtime::configure_packaged_python_runtime()?;
+    run()
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() > 1 {
         let cmd = args[1].as_str();
