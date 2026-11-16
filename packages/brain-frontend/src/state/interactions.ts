@@ -623,7 +623,9 @@ function historyTool(content: string, id: string): BrainToolPresentation | undef
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
     const record = value as Record<string, unknown>;
     if (record.type !== 'tool_event' || record.v !== 1 || typeof record.name !== 'string') return undefined;
-    const outcome = record.outcome;
+    const outcome = record.outcome === 'executed'
+      ? (record.is_error === false ? 'success' : 'error')
+      : record.outcome;
     if (typeof outcome !== 'string' || !['success', 'error', 'cancelled', 'timed_out', 'denied'].includes(outcome)) return undefined;
     return Object.freeze({ kind: 'tool', id, label: safeToolText(record.name, 80, 1),
       status: outcome === 'success' ? 'succeeded' : outcome === 'cancelled' ? 'cancelled' : outcome === 'timed_out' ? 'timed_out' : 'failed',

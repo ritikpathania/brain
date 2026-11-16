@@ -459,6 +459,22 @@ describe('terminal interaction controller', () => {
     expect(controller.snapshot().transcript[1]).toEqual({ kind: 'tool', id: 'history-1', label: 'Stored tool outcome', status: 'interrupted', summary: 'Outcome unavailable' });
   });
 
+  test('hydrates tool outcomes stored before the typed terminal statuses', async () => {
+    const runtime = runtimeWithFrames([], {
+      load: async id => session(id, [false, true].map(isError => ({
+        role: 'tool',
+        content: JSON.stringify({ type: 'tool_event', v: 1, name: 'bash', outcome: 'executed', is_error: isError, output: 'stored output' }),
+      }))),
+    });
+    const controller = new BrainFrontendController(runtime);
+    await controller.start();
+    await controller.selectSession(sessionId);
+    expect(controller.snapshot().transcript).toMatchObject([
+      { kind: 'tool', status: 'succeeded', detail: 'stored output' },
+      { kind: 'tool', status: 'failed', detail: undefined },
+    ]);
+  });
+
   test('releases context state at terminal settlement and interrupted recovery', async () => {
     const contexts = new BrainContextState();
     const runtime = runtimeWithFrames([frame(0, 'stream_start'), frame(1, 'finished')]);

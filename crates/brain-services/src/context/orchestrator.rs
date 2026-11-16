@@ -185,7 +185,7 @@ impl DefaultContextOrchestrator {
         };
         let request = request.clone();
         tokio::task::spawn_blocking(move || {
-            let nodes = source.retrieve_scored(&retrieval, |node| {
+            let nodes = source.retrieve_scored(&retrieval, false, |node| {
                 Self::visible_node_scope(node, &request).is_some()
             })?;
             Ok(nodes

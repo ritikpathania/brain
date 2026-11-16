@@ -451,7 +451,7 @@ async fn executed_tool_outcome_is_persisted_as_session_tool_message() {
     assert_eq!(env["v"], 1);
     assert_eq!(env["name"], "bash");
     assert_eq!(env["input"]["command"], "echo feedback-round-one");
-    assert_eq!(env["outcome"], "executed");
+    assert_eq!(env["outcome"], "success");
     assert_eq!(env["is_error"], false);
     assert_eq!(env["exit_code"], 0);
     assert_eq!(env["output"], "feedback-round-one\n");
@@ -479,11 +479,13 @@ async fn denied_tool_outcome_is_persisted_as_session_tool_message() {
     assert_eq!(env["name"], "bash");
     assert_eq!(env["input"]["command"], "echo feedback-round-one");
     assert_eq!(env["outcome"], "denied");
-    // Nothing ran: no execution fields exist on denied envelopes.
-    assert!(env.get("is_error").is_none());
-    assert!(env.get("exit_code").is_none());
-    assert!(env.get("output").is_none());
-    assert!(env.get("duration_ms").is_none());
+    // A denied request persists a typed outcome without claiming execution.
+    assert_eq!(env["is_error"], true);
+    assert_eq!(env["exit_code"], -1);
+    assert!(env["output"]
+        .as_str()
+        .is_some_and(|output| output.contains("denied")));
+    assert_eq!(env["duration_ms"], 0);
 }
 
 /// Inc 11: sends one `v1/shell/exec` request on its own short-lived

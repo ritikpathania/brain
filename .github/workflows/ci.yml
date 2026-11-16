@@ -208,6 +208,7 @@ jobs:
       - name: Run owned protocol, state, interaction, and rendering tests
         working-directory: packages/brain-frontend
         env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
           HOME: ${{ runner.temp }}/brain-frontend-home
           XDG_CONFIG_HOME: ${{ runner.temp }}/brain-frontend-home/config
         run: |

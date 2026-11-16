@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '../../../..');
-const python = resolve(root, 'daemon/.venv/bin/python');
+const python = process.env.PYO3_PYTHON ?? resolve(root, 'daemon/.venv/bin/python');
 test('frontend artifact shell validates schema/hash/diagnostic and propagates failure', async () => {
   const run = Bun.spawn([python, '-m', 'unittest', 'discover', '-s', 'scripts/release', '-p', 'test_artifact_manifest.py'],
     { cwd: root, stdout: 'pipe', stderr: 'pipe' });

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '../../../..');
-const python = resolve(root, 'daemon/.venv/bin/python');
+const python = process.env.PYO3_PYTHON ?? resolve(root, 'daemon/.venv/bin/python');
 
 test('product smoke unit tests pass with python verifier', async () => {
   const runSmoke = Bun.spawn(

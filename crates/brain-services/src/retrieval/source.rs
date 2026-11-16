@@ -373,6 +373,7 @@ impl SemanticMemorySource {
     pub(crate) fn retrieve_scored(
         &self,
         request: &RetrievalRequest,
+        embed_without_indexed_nodes: bool,
         visible: impl Fn(&brain_domain::Node) -> bool,
     ) -> Result<Vec<(brain_domain::Node, f32)>, BrainError> {
         let start_vector = std::time::Instant::now();
@@ -381,7 +382,7 @@ impl SemanticMemorySource {
         }
 
         let all_embeddings = self.repos.embeddings().list_all_embeddings()?;
-        if all_embeddings.is_empty() {
+        if all_embeddings.is_empty() && !embed_without_indexed_nodes {
             return Ok(Vec::new());
         }
         let query_vector = self.query_embedding_service.embed_query(&request.query)?;
@@ -484,7 +485,7 @@ impl SemanticMemorySource {
 impl MemorySource for SemanticMemorySource {
     fn retrieve(&self, request: &RetrievalRequest) -> Result<MemorySourceResult, BrainError> {
         let nodes = self
-            .retrieve_scored(request, |_| true)?
+            .retrieve_scored(request, true, |_| true)?
             .into_iter()
             .map(|(node, _)| node)
             .collect();
