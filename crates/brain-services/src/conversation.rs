@@ -541,31 +541,20 @@ impl PromotionPolicy for SemanticImportancePolicy {
             .iter()
             .map(|stm| self.scorer.score(&stm.node))
             .collect();
-        let promote;
-        let confidence;
-
-        if self.use_average {
+        let score = if self.use_average {
             let sum: f32 = scores.iter().sum();
-            let avg = sum / scores.len() as f32;
-            promote = avg >= self.min_importance;
-            confidence = if self.min_importance > 0.0 {
-                (avg / self.min_importance).clamp(0.0, 1.0)
-            } else if promote {
-                1.0
-            } else {
-                0.0
-            };
+            sum / scores.len() as f32
         } else {
-            let max_score = scores.iter().copied().fold(0.0f32, f32::max);
-            promote = max_score >= self.min_importance;
-            confidence = if self.min_importance > 0.0 {
-                (max_score / self.min_importance).clamp(0.0, 1.0)
-            } else if promote {
-                1.0
-            } else {
-                0.0
-            };
-        }
+            scores.iter().copied().fold(0.0f32, f32::max)
+        };
+        let promote = score >= self.min_importance;
+        let confidence = if self.min_importance > 0.0 {
+            (score / self.min_importance).clamp(0.0, 1.0)
+        } else if promote {
+            1.0
+        } else {
+            0.0
+        };
 
         let reasons = if promote {
             vec![PromotionReason::HighImportance]

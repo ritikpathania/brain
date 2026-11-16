@@ -12,7 +12,7 @@ fn thinking_message_survives_session_round_trip() {
 
     let sid = SessionId::new();
     let mut session = Session::new(
-        sid.clone(),
+        sid,
         SessionTitle("Inc 19".to_string()),
         SessionTimestamp(1_756_200_000),
     );
