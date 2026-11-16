@@ -1507,7 +1507,7 @@ pub async fn handle_connection(
             let mut args_map: HashMap<String, serde_json::Value> = HashMap::new();
             args_map.insert("command".to_string(), serde_json::json!(command));
             let tool_ctx = ToolExecutionContext {
-                session_id: parsed_session_id.clone(),
+                session_id: parsed_session_id,
                 working_dir: std::env::current_dir()
                     .unwrap_or_else(|_| std::path::PathBuf::from(".")),
                 cancellation: Arc::new(brain_tools::CancellationTokenImpl::default()),
@@ -1844,7 +1844,6 @@ pub async fn handle_connection(
                         .timestamp_ms
                         .unwrap_or_else(|| chrono::Utc::now().timestamp_millis());
                     let now_secs = (now / 1000) as u64;
-                    let mut total_turns = 1;
                     let storage = app.runtime().sqlite_storage();
                     use brain_core::repositories::SessionRepository;
 
@@ -1899,7 +1898,7 @@ pub async fn handle_connection(
                     }
 
                     session.updated_at = brain_domain::SessionTimestamp(now_secs);
-                    total_turns = session.messages.len();
+                    let total_turns = session.messages.len();
                     let _ = storage.save_session(&parsed_sid, &session);
 
                     let resp_body = crate::server::protocol::CompleteTurnResponseBody {
@@ -2443,12 +2442,8 @@ pub async fn handle_connection(
                         .unwrap_or(brain_domain::RelationKind::AssociatedWith);
                     let weight = req.weight.unwrap_or(1.0).clamp(0.0, 1.0);
 
-                    let edge = brain_domain::Edge::new(
-                        source_uuid,
-                        target_uuid,
-                        relation_kind.clone(),
-                        weight,
-                    );
+                    let edge =
+                        brain_domain::Edge::new(source_uuid, target_uuid, relation_kind, weight);
 
                     match EdgeRepository::save(storage.as_ref(), &edge) {
                         Ok(()) => {
@@ -4077,8 +4072,6 @@ pub async fn handle_connection(
                                                     };
                                                     feedback.push(ToolFeedback {
                                                         call_id: call_id.clone(),
-                                                        name: tool_name.clone(),
-                                                        input: packet["toolUse"]["input"].clone(),
                                                         output: out_text.clone(),
                                                         is_error: is_err,
                                                     });
@@ -4161,8 +4154,6 @@ pub async fn handle_connection(
                                                     writer.flush().await?;
                                                     feedback.push(ToolFeedback {
                                                         call_id: call_id.clone(),
-                                                        name: tool_name.clone(),
-                                                        input: packet["toolUse"]["input"].clone(),
                                                         output: DENIED_FEEDBACK_TEXT.to_string(),
                                                         is_error: true,
                                                     });
@@ -4834,8 +4825,6 @@ struct PassToolUse {
 /// denial — destined for the next pass's feedback messages.
 struct ToolFeedback {
     call_id: String,
-    name: String,
-    input: serde_json::Value,
     output: String,
     is_error: bool,
 }
@@ -4932,8 +4921,6 @@ mod generation_loop_tests {
     fn executed(id: &str) -> ToolFeedback {
         ToolFeedback {
             call_id: id.to_string(),
-            name: "bash".to_string(),
-            input: serde_json::json!({"command": "echo hi"}),
             output: "hi\n".to_string(),
             is_error: false,
         }
@@ -5026,8 +5013,6 @@ mod generation_loop_tests {
     fn denial_feedback_shape_round_trips_through_helper() {
         let denial = ToolFeedback {
             call_id: "c9".to_string(),
-            name: "bash".to_string(),
-            input: serde_json::json!({}),
             output: DENIED_FEEDBACK_TEXT.to_string(),
             is_error: true,
         };

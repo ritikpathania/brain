@@ -74,7 +74,7 @@ where
             }
 
             let key = (rel_str.clone(), target_id_str.clone());
-            if !relation_map.contains_key(&key) {
+            if let std::collections::btree_map::Entry::Vacant(entry) = relation_map.entry(key) {
                 let mut enriched = raw.clone();
                 // If target_label is missing, attempt dynamic resolution if target_id is a valid UUID
                 if enriched.get("target_label").is_none() {
@@ -88,7 +88,7 @@ where
                         }
                     }
                 }
-                relation_map.insert(key, (enriched, false));
+                entry.insert((enriched, false));
             }
         }
     }
