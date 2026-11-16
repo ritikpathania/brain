@@ -226,9 +226,9 @@ fn test_plugin_registration_and_lifecycle() {
     assert_eq!(manager.list()[0].state, PluginState::Active);
 
     // Event dispatch
-    let host = DummyHost;
+    let host = Arc::new(DummyHost);
     let context = PluginContext {
-        host: &host,
+        host,
         session_id: None,
     };
     let event = PluginEvent {
@@ -280,9 +280,9 @@ fn test_plugin_dispatch_errors() {
     manager.initialize(&id).unwrap();
     manager.activate(&id).unwrap();
 
-    let host = DummyHost;
+    let host = Arc::new(DummyHost);
     let context = PluginContext {
-        host: &host,
+        host,
         session_id: None,
     };
     let event = PluginEvent {
@@ -378,7 +378,7 @@ fn test_plugin_manager_concurrency_stress() {
         let h = host.clone();
         threads.push(thread::spawn(move || {
             let context = PluginContext {
-                host: &*h,
+                host: h,
                 session_id: None,
             };
             let event = PluginEvent {
@@ -562,9 +562,9 @@ fn test_reload_rcu_dispatch_routing() {
     manager.activate(&id).unwrap();
 
     // Dispatch before reload
-    let host = DummyHost;
+    let host = Arc::new(DummyHost);
     let context = PluginContext {
-        host: &host,
+        host,
         session_id: None,
     };
     let event = PluginEvent {
@@ -677,9 +677,9 @@ fn test_event_dispatch_isolation() {
         manager.activate(id).unwrap();
     }
 
-    let host = DummyHost;
+    let host = Arc::new(DummyHost);
     let context = PluginContext {
-        host: &host,
+        host,
         session_id: None,
     };
     let event = PluginEvent {

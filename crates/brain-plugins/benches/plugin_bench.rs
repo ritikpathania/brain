@@ -174,9 +174,9 @@ required_permissions = []
     });
 
     // 6. Dispatch benchmark
-    let host = DummyHost;
+    let host = Arc::new(DummyHost);
     let context = PluginContext {
-        host: &host,
+        host,
         session_id: None,
     };
     let event = PluginEvent {

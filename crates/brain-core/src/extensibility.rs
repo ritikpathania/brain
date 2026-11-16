@@ -146,9 +146,9 @@ pub trait HostContext: Send + Sync {
 }
 
 /// Ambient context passed to plugins during event dispatch or tool execution.
-pub struct PluginContext<'a> {
-    /// Reference to host capabilities bridge.
-    pub host: &'a dyn HostContext,
+pub struct PluginContext {
+    /// Owned bridge that a runtime may retain beyond the dispatch callback.
+    pub host: Arc<dyn HostContext>,
     /// Optional session context.
     pub session_id: Option<SessionId>,
 }
@@ -171,7 +171,7 @@ pub struct PluginEvent<'a> {
     /// The event category classification.
     pub kind: PluginEventKind,
     /// Ambient execution details.
-    pub context: &'a PluginContext<'a>,
+    pub context: &'a PluginContext,
 }
 
 /// Categorized agent capability wrappers exported by plugins.
