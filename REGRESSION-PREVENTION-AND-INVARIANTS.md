@@ -48,3 +48,10 @@
 - **Root cause** — Two evaluation tests wrote generated Markdown directly into their checked-in evidence directory.
 - **Invariant** — Tests render reports into test-owned temporary directories. Historical evaluation reports remain stable release inputs.
 - **Regression test** — Run the cross-validation and LambdaMART suites and compare `git diff -- crates/brain-services/tests/evaluation` before and after.
+
+### 8. Native Workflow Created the Product Output Too Early
+
+- **Symptom** — Native Linux verified both binaries and the standalone frontend, then stopped before creating the archive.
+- **Root cause** — The workflow created the exact directory that the product assembler requires to be absent when it starts.
+- **Invariant** — The workflow creates a unique parent, gives the assembler an unused child named `brain-dist`, and passes that same layout to relocation verification and archiving.
+- **Regression test** — The release workflow integration test executes the assembly, relocation, and archive shell steps with an assembler fixture that rejects an existing output directory.

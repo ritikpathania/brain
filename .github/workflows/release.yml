@@ -163,28 +163,33 @@ jobs:
             --target "${{ matrix.target }}"
 
       - name: Assemble complete product
+        id: assemble
         env:
           PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
         run: |
-          mkdir -p "${{ runner.temp }}/product-stage"
+          product_parent="$(mktemp -d "$RUNNER_TEMP/brain-product.XXXXXX")"
+          product_stage="$product_parent/brain-dist"
           ./scripts/package-brain-product.sh \
             --cli "target/${{ matrix.target }}/release/brain" \
             --daemon "target/${{ matrix.target }}/release/brain-daemon" \
             --frontend "packages/brain-frontend/dist/brain-frontend" \
-            --output "${{ runner.temp }}/product-stage" \
+            --output "$product_stage" \
             --target "${{ matrix.target }}"
+          printf 'product-stage=%s\n' "$product_stage" >> "$GITHUB_OUTPUT"
 
       - name: Verify daemon runtime relocation in product
+        env:
+          BRAIN_PRODUCT_STAGE: ${{ steps.assemble.outputs.product-stage }}
         run: |
           ./scripts/verify-daemon-runtime.sh \
-            --artifact "${{ runner.temp }}/product-stage" \
+            --artifact "$BRAIN_PRODUCT_STAGE" \
             --repeat 1
 
       - name: Archive product delivery
+        env:
+          BRAIN_PRODUCT_STAGE: ${{ steps.assemble.outputs.product-stage }}
         run: |
-          mkdir -p "${{ runner.temp }}/archive-stage/brain-dist"
-          cp -R "${{ runner.temp }}/product-stage/"* "${{ runner.temp }}/archive-stage/brain-dist/"
-          tar -czf "${{ matrix.artifact_name }}.tar.gz" -C "${{ runner.temp }}/archive-stage" brain-dist
+          tar -czf "${{ matrix.artifact_name }}.tar.gz" -C "$(dirname "$BRAIN_PRODUCT_STAGE")" brain-dist
           shasum -a 256 "${{ matrix.artifact_name }}.tar.gz" > "${{ matrix.artifact_name }}.tar.gz.sha256"
 
       - name: Verify clean extraction and PTY smoke proof

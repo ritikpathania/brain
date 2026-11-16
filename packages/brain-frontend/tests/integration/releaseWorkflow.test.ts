@@ -175,3 +175,57 @@ exit 83
     expect(encodedFlags).toContain(`--remap-path-prefix=${root}=.`);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('native workflow passes an unused product path to the assembler and archives that layout', async () => {
+  const { steps } = (await loadWorkflow()).jobs['build-binaries'];
+  const assemble = steps.find(step => step.name === 'Assemble complete product');
+  const relocate = steps.find(step => step.name === 'Verify daemon runtime relocation in product');
+  const archive = steps.find(step => step.name === 'Archive product delivery');
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'bfp native stage ')));
+  const runnerTemp = join(root, 'runner temp');
+  const stepOutputs = join(root, 'outputs');
+  try {
+    mkdirSync(runnerTemp);
+    mkdirSync(join(root, 'scripts'));
+    writeFileSync(join(root, 'scripts/package-brain-product.sh'), [
+      '#!/bin/bash',
+      'set -eu',
+      'while [[ "$1" != --output ]]; do shift 2; done',
+      '[[ ! -e "$2" ]] || exit 83',
+      'mkdir "$2"',
+      'touch "$2/product-manifest.json"',
+    ].join('\n'), { mode: 0o755 });
+    writeFileSync(join(root, 'scripts/verify-daemon-runtime.sh'), [
+      '#!/bin/bash',
+      'set -eu',
+      '[[ "$1" == --artifact ]]',
+      '[[ -f "$2/product-manifest.json" ]]',
+    ].join('\n'), { mode: 0o755 });
+
+    const render = (step: WorkflowStep | undefined) => {
+      expect(step?.run).toBeDefined();
+      return step!.run!
+        .replaceAll('${{ runner.temp }}', runnerTemp)
+        .replaceAll('${{ matrix.target }}', 'x86_64-unknown-linux-gnu')
+        .replaceAll('${{ matrix.artifact_name }}', 'brain-linux-x86_64');
+    };
+    const env = { ...process.env, RUNNER_TEMP: runnerTemp, GITHUB_OUTPUT: stepOutputs };
+    const assembled = Bun.spawnSync(['bash', '-e', '-c', render(assemble)], { cwd: root, env });
+    expect({ exit: assembled.exitCode, stderr: assembled.stderr.toString() }).toEqual({ exit: 0, stderr: '' });
+
+    const output = readFileSync(stepOutputs, 'utf8').trim();
+    expect(output).toStartWith('product-stage=');
+    const productStage = output.slice('product-stage='.length);
+    const stagedEnv = { ...env, BRAIN_PRODUCT_STAGE: productStage };
+    for (const step of [relocate, archive]) {
+      expect(step?.env?.BRAIN_PRODUCT_STAGE).toBe('${{ steps.assemble.outputs.product-stage }}');
+      const result = Bun.spawnSync(['bash', '-e', '-c', render(step)], { cwd: root, env: stagedEnv });
+      expect({ exit: result.exitCode, stderr: result.stderr.toString() }).toEqual({ exit: 0, stderr: '' });
+    }
+    const contents = Bun.spawnSync(['tar', '-tzf', 'brain-linux-x86_64.tar.gz'], { cwd: root });
+    expect(contents.exitCode).toBe(0);
+    expect(contents.stdout.toString()).toContain('brain-dist/product-manifest.json');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
