@@ -241,6 +241,7 @@ fn test_validation_semantic_rules() {
             temporal_ranking: None,
         }),
         reflection: None,
+        consolidation: None,
     };
 
     let settings = BrainSettings::try_from(bad_db).unwrap();
@@ -272,6 +273,7 @@ fn test_validation_semantic_rules() {
             temporal_ranking: None,
         }),
         reflection: None,
+        consolidation: None,
     };
 
     let settings = BrainSettings::try_from(bad_ttl).unwrap();
