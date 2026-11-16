@@ -29,8 +29,8 @@ export class BrainContextState {
     const active = this.active.get(key);
     if (active === undefined) return;
     this.active.delete(key);
-    if (terminal !== 'completed') return;
-    if (active.context === undefined || active.context.retrievalCount === 0) {
+    if (terminal !== 'completed' || active.context === undefined) return;
+    if (active.context.retrievalCount === 0) {
       this.latestCompleted.delete(sessionId);
       return;
     }

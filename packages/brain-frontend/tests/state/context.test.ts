@@ -44,6 +44,19 @@ describe('bounded Brain context state', () => {
     expect(state.counts()).toEqual({ active: 0, latestCompleted: 0 });
   });
 
+  test('preserves the last observed retrieval summary when a completed turn has no context snapshot', () => {
+    const state = new BrainContextState();
+    state.begin('session-a', 'generation-1');
+    state.record('session-a', 'generation-1', context);
+    state.settle('session-a', 'generation-1', 'completed');
+
+    state.begin('session-a', 'generation-2');
+    state.settle('session-a', 'generation-2', 'completed');
+
+    expect(state.latestForSession('session-a')).toEqual(context);
+    expect(state.counts()).toEqual({ active: 0, latestCompleted: 1 });
+  });
+
   test('does not replace the prior successful context when a turn fails or is cancelled', () => {
     const state = new BrainContextState();
     state.begin('session-a', 'generation-1');
