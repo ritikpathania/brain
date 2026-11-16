@@ -10,7 +10,6 @@ struct DaemonProcess {
     child: Child,
     test_dir: PathBuf,
     socket_path: PathBuf,
-    db_path: PathBuf,
 }
 
 impl Drop for DaemonProcess {
@@ -73,7 +72,6 @@ async fn start_test_daemon() -> DaemonProcess {
         child,
         test_dir,
         socket_path,
-        db_path,
     }
 }
 

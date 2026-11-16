@@ -244,7 +244,7 @@ async fn granted_bash_executes_and_emits_tool_result() {
     );
     // Turn still completes normally afterwards.
     assert!(
-        types.iter().any(|t| *t == "finished"),
+        types.contains(&"finished"),
         "turn completes after the result"
     );
 }

@@ -13,9 +13,7 @@ struct DaemonProcess {
     child: Child,
     test_dir: PathBuf,
     socket_path: PathBuf,
-    pid_path: PathBuf,
     db_path: PathBuf,
-    analytics_db_path: PathBuf,
 }
 
 impl Drop for DaemonProcess {
@@ -89,9 +87,7 @@ async fn start_daemon_at(test_dir: PathBuf) -> DaemonProcess {
         child,
         test_dir,
         socket_path,
-        pid_path,
         db_path,
-        analytics_db_path,
     }
 }
 
@@ -157,7 +153,10 @@ async fn stored_relations_round_trip_through_search() {
         .as_array()
         .expect("memories array in response body")
         .clone();
-    assert!(memories.len() >= 1, "seeded node must be returned: {found}");
+    assert!(
+        !memories.is_empty(),
+        "seeded node must be returned: {found}"
+    );
     let first = &memories[0];
     assert_eq!(first["label"], "Alpha Cortex Node");
     // Excerpt must be the STORED CONTENT, not the echoed label.
@@ -194,7 +193,7 @@ async fn store_without_relations_yields_empty_relation_list() {
     )
     .await;
     let memories = found["memories"].as_array().expect("memories array");
-    assert!(memories.len() >= 1);
+    assert!(!memories.is_empty());
     assert_eq!(
         memories[0]["relations"]
             .as_array()
