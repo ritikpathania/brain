@@ -79,7 +79,7 @@ pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String
     CACHED
         .get_or_init(|| {
             // 1. Sibling of current_exe()
-            if let Ok(exe_path) = std::env::current_exe() {
+            if let Ok(exe_path) = std::env::current_exe().and_then(|path| path.canonicalize()) {
                 if let Some(parent) = exe_path.parent() {
                     let sibling = parent.join("brain-daemon");
                     if sibling.exists() && sibling.is_file() {
