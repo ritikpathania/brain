@@ -20,3 +20,10 @@
 - **Root cause** — The daemon fabricated a fallback snapshot and the frontend conflated absent and empty snapshots.
 - **Invariant** — Context metadata is present only when assembly produced a snapshot. An explicit successful empty snapshot clears the previous summary. Cancellation settles without waiting for semantic lookup.
 - **Regression test** — The UDS retrieval suite exercises a broken retrieval backing store. Frontend context state tests cover absent and empty snapshots.
+
+### 4. Shell Acknowledgement Raced Transcript Persistence
+
+- **Symptom** — A client loading a session immediately after standalone shell execution could observe only the submitted command.
+- **Root cause** — The daemon flushed the completion response before persisting the tool outcome.
+- **Invariant** — The transcript update is attempted before sending the completion acknowledgement. The frontend projects both historical `executed` envelopes and current typed outcomes.
+- **Regression test** — Run `cargo test --locked -p brain-daemon --test uds_feedback_loop_tests` and `bun test tests/state/interactions.test.ts`.

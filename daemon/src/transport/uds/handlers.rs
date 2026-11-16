@@ -1539,22 +1539,6 @@ pub async fn handle_connection(
                                 "exit_code": exit_code,
                                 "duration_ms": duration_ms,
                             });
-                            let response = if is_versioned {
-                                serde_json::json!({
-                                    "version": "1.0", "type": "Response",
-                                    "id": req_id_val, "status": "success",
-                                    "body": resp_body
-                                })
-                            } else {
-                                serde_json::json!({ "status": "ok", "body": resp_body })
-                            };
-                            let mut rj = serde_json::to_string(&response)?;
-                            rj.push('\n');
-                            let mut w = writer.lock().await;
-                            w.write_all(rj.as_bytes()).await?;
-                            w.flush().await?;
-                            drop(w);
-
                             // Persist the standard executed-case envelope
                             // (byte-identical schema to the agentic site).
                             let envelope = serde_json::json!({
@@ -1582,6 +1566,22 @@ pub async fn handle_connection(
                                     "tool event persistence failed; continuing"
                                 );
                             }
+
+                            // Clients can load the result as soon as the acknowledgement arrives.
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0", "type": "Response",
+                                    "id": req_id_val, "status": "success",
+                                    "body": resp_body
+                                })
+                            } else {
+                                serde_json::json!({ "status": "ok", "body": resp_body })
+                            };
+                            let mut rj = serde_json::to_string(&response)?;
+                            rj.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(rj.as_bytes()).await?;
+                            w.flush().await?;
                         }
                         Err(e) => {
                             let msg = format!("shell exec failed: {}", e);
