@@ -82,7 +82,7 @@ The orchestrator verifies standalone identity and host paths, assembles the clos
 
 ### Native workflow
 
-[Release Packaging](../../.github/workflows/release.yml) runs the native macOS arm64 and Linux x86_64 matrix for a `v*` tag push, a push to a `release-verify/**` branch, or manual dispatch. Each native job runs the real-daemon E2E gate, standalone and daemon verification, and clean-extraction product smoke against the archive it uploads. macOS requires three extractions and Linux requires one. A version-matching tag and successful quality and native matrix jobs are required for publication. Verification-only branch and manual runs upload GitHub Actions artifacts.
+[Release Packaging](../../.github/workflows/release.yml) runs the native macOS arm64 and Linux x86_64 matrix for a `v*` tag push, a push to a `release-verify/**` branch, or manual dispatch. Each native job uses uv to resolve the pinned standalone CPython from `daemon/.python-version` for compilation and bundling. It runs the real-daemon E2E gate, standalone and daemon verification, and clean-extraction product smoke against the archive it uploads. macOS requires three extractions and Linux requires one. Both platform jobs run to completion independently. A version-matching tag and successful quality and native matrix jobs are required for publication. Verification-only branch and manual runs upload GitHub Actions artifacts.
 
 ## 4. Platform Verification Status
 

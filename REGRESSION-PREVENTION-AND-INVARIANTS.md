@@ -55,3 +55,10 @@
 - **Root cause** — The workflow created the exact directory that the product assembler requires to be absent when it starts.
 - **Invariant** — The workflow creates a unique parent, gives the assembler an unused child named `brain-dist`, and passes that same layout to relocation verification and archiving.
 - **Regression test** — The release workflow integration test executes the assembly, relocation, and archive shell steps with an assembler fixture that rejects an existing output directory.
+
+### 9. Hosted CPython Contained Build-Host Paths
+
+- **Symptom** — Linux assembly rejected the staged daemon runtime for containing a developer-home path. The parallel macOS job was cancelled before assembly.
+- **Root cause** — The hosted CPython distribution shipped its source checkout path in ELF debug metadata and generated sysconfig. Its copy of the IDLE test suite also contained sample home paths.
+- **Invariant** — Both native jobs compile and package against the same uv-managed standalone CPython pinned by the daemon project. Only the pre-package E2E step gets the build interpreter's loader path. Native archive checks stay blocking, and matrix jobs finish independently so each target has its own result.
+- **Regression test** — Release workflow tests verify the pinned interpreter selection, the native build and package consumers, and the matrix policy. The full native workflow runs host-path and relocation checks on the assembled archive.

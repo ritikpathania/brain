@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 const repositoryRoot = resolve(import.meta.dir, '../../../..');
 
 type WorkflowStep = {
+  id?: string;
   name?: string;
   run?: string;
   if?: unknown;
@@ -22,6 +23,7 @@ type WorkflowJob = {
   needs?: string | string[];
   runs_on?: string;
   strategy?: {
+    'fail-fast'?: boolean;
     matrix?: {
       include?: Array<{
         os: string;
@@ -66,14 +68,11 @@ test('release workflow defines unified product matrix, blocking quality, and pro
   const targets = matrix!.map((m) => m.target).sort();
   expect(targets).toEqual(['aarch64-apple-darwin', 'x86_64-unknown-linux-gnu']);
 
-  // Ensure Bun 1.4.4 and Python 3.15.2 are configured
+  // Ensure the native jobs remain independent and Bun is pinned.
+  expect(buildJob.strategy?.['fail-fast']).toBe(false);
   const bunStep = buildJob.steps.find((s) => s.uses?.startsWith('oven-sh/setup-bun'));
   expect(bunStep).toBeDefined();
   expect(bunStep?.with?.['bun-version']).toBe('1.4.4');
-
-  const pyStep = buildJob.steps.find((s) => s.uses?.startsWith('actions/setup-python'));
-  expect(pyStep).toBeDefined();
-  expect(pyStep?.with?.['python-version']).toBe('3.15.2');
 
   // Verify product packaging and clean extraction smoke
   const packageStep = buildJob.steps.find((s) => s.run?.includes('package-brain-product.sh'));
@@ -112,6 +111,29 @@ test('release quality selects pinned CPython before each all-features Rust gate'
     expect(steps.indexOf(gate)).toBeGreaterThan(setupPython);
     expect(gate.env?.PYO3_PYTHON).toBe('${{ steps.python.outputs.python-path }}');
   }
+});
+
+test('native builds and package verification share the project-pinned standalone CPython', async () => {
+  const { steps } = (await loadWorkflow()).jobs['build-binaries'];
+  const uv = steps.findIndex(step => step.uses?.startsWith('astral-sh/setup-uv'));
+  const python = steps.findIndex(step => step.id === 'python');
+  expect(uv).toBeGreaterThanOrEqual(0);
+  expect(steps[uv]?.with?.version).toBe('0.13.8');
+  expect(python).toBeGreaterThan(uv);
+  expect(steps.some(step => step.uses?.startsWith('actions/setup-python'))).toBe(false);
+  expect(steps[python]?.run).toContain('$(cat .python-version)');
+  expect(steps[python]?.run).toContain('uv sync --frozen --no-install-project --managed-python');
+  expect(steps[python]?.run).toContain('.venv/bin/python');
+
+  for (const command of ['cargo build --release', 'package-brain-product.sh', 'verify-brain-product.sh']) {
+    const consumer = steps.findIndex(step => step.run?.includes(command));
+    expect(consumer).toBeGreaterThan(python);
+    expect(steps[consumer]?.env?.PYO3_PYTHON).toBe('${{ steps.python.outputs.python-path }}');
+  }
+  const e2e = steps.find(step => step.run?.includes('verify-frontend-e2e.sh'));
+  const libraryDir = '${{ steps.python.outputs.python-lib-dir }}';
+  expect(e2e?.env?.LD_LIBRARY_PATH).toBe(libraryDir);
+  expect(e2e?.env?.DYLD_FALLBACK_LIBRARY_PATH).toBe(libraryDir);
 });
 
 test('each release matrix target requires native frontend E2E before standalone compilation', async () => {
