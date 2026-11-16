@@ -25,3 +25,7 @@ pub use loader::*;
 pub use migration::*;
 pub use schema::*;
 pub use validation::*;
+
+/// Shared CLI and daemon runtime paths.
+pub mod runtime_paths;
+pub use runtime_paths::*;

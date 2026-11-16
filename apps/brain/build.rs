@@ -2,6 +2,10 @@
 use std::path::Path;
 
 fn main() {
+    println!(
+        "cargo:rustc-env=BRAIN_BUILD_TARGET={}",
+        std::env::var("TARGET").expect("Cargo target")
+    );
     #[cfg(target_os = "macos")]
     {
         let candidate_framework_dirs = [

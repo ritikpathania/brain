@@ -1,5 +1,85 @@
 use serde::{Deserialize, Serialize};
 
+/// Request sent by a canonical frontend before it uses Brain-backed features.
+///
+/// This is a transport DTO, not a projection of Rust domain state. It keeps the
+/// frontend compatibility contract stable while allowing the daemon to evolve
+/// independently of TypeScript implementation details.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FrontendHandshakeRequest {
+    /// Protocol family requested by the frontend.
+    pub protocol: String,
+    /// Lowest frontend protocol version the frontend can use.
+    pub minimum_protocol_version: u32,
+    /// Highest frontend protocol version the frontend can use.
+    pub maximum_protocol_version: u32,
+    /// Human-readable frontend implementation name.
+    pub frontend_name: String,
+    /// Frontend implementation version.
+    pub frontend_version: String,
+    /// Optional build identifier for diagnostics.
+    #[serde(default)]
+    pub frontend_build_id: Option<String>,
+    /// Capabilities that must be available for this frontend mode.
+    #[serde(default)]
+    pub required_capabilities: Vec<String>,
+    /// Capabilities the frontend can use when available but does not require.
+    #[serde(default)]
+    pub optional_capabilities: Vec<String>,
+}
+
+/// Successful compatibility result for a canonical frontend handshake.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendHandshakeResponse {
+    /// Protocol version selected from the overlapping frontend/backend range.
+    pub selected_protocol_version: u32,
+    /// Stable backend implementation name.
+    pub backend_name: String,
+    /// Backend build metadata supplied by the running daemon package.
+    pub backend_version: String,
+    /// Current daemon readiness state for this connection.
+    pub daemon_state: String,
+    /// Every capability truthfully supported by this daemon frontend facade.
+    pub supported_capabilities: Vec<String>,
+    /// Optional capabilities accepted for this frontend invocation.
+    pub accepted_optional_capabilities: Vec<String>,
+}
+
+/// Stable machine-readable classification for frontend handshake failures.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FrontendHandshakeErrorCode {
+    /// The frontend payload could not be decoded or validated.
+    MalformedHandshakeRequest,
+    /// The requested protocol family is not supported by this daemon facade.
+    UnsupportedFrontendMode,
+    /// The frontend and backend protocol version ranges do not overlap.
+    UnsupportedProtocolVersion,
+    /// A required frontend capability is not implemented by the daemon facade.
+    MissingRequiredCapability,
+}
+
+/// Typed frontend handshake error payload carried by a versioned UDS error frame.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontendHandshakeFailure {
+    /// Stable error code for programmatic diagnosis.
+    pub code: FrontendHandshakeErrorCode,
+    /// Human-readable actionable diagnostic.
+    pub message: String,
+    /// Lowest backend protocol version, when a range mismatch is reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_minimum_protocol_version: Option<u32>,
+    /// Highest backend protocol version, when a range mismatch is reported.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_maximum_protocol_version: Option<u32>,
+    /// Required capability keys unavailable from the daemon facade.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub missing_required_capabilities: Vec<String>,
+}
+
 /// Version 1 DTO for runtime status.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Status {

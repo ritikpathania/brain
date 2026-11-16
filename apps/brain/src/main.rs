@@ -1,3 +1,4 @@
+mod frontend_artifact;
 mod host;
 
 use clap::{Parser, Subcommand};
@@ -115,14 +116,7 @@ pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String
 }
 
 fn socket_is_alive() -> bool {
-    let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
-        PathBuf::from(path)
-    } else {
-        dirs::home_dir()
-            .map(|h| h.join(".brain").join("daemon.sock"))
-            .unwrap_or_else(|| PathBuf::from("daemon.sock"))
-    };
-    UnixStream::connect(socket_path).is_ok()
+    UnixStream::connect(CLIHost::resolve_socket_path()).is_ok()
 }
 
 fn try_start_daemon() -> bool {
@@ -203,8 +197,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Some(Commands::Ui) | Some(Commands::Tui) | None => {
-            if check_daemon_before_ui().await {
-                CLIHost::run_tui().await?;
+            let frontend = CLIHost::resolve_canonical_frontend()?;
+            if !check_daemon_before_ui().await {
+                return Err(std::io::Error::other(
+                    "Brain daemon is unavailable; the canonical frontend was not launched.",
+                )
+                .into());
+            }
+
+            let status = CLIHost::run_tui(frontend)?;
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
             }
         }
         Some(Commands::Daemon { action }) => match action {

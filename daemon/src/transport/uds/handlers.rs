@@ -4,14 +4,18 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::unix::OwnedWriteHalf;
 use tokio::net::UnixStream;
 use tokio_util::sync::CancellationToken;
 
 use brain_application::context::ExecutionContext;
 use brain_application::dispatcher::{ApplicationRequest, ApplicationResponse, RequestDispatcher};
+use brain_core::extensibility::CancellationToken as CoreCancellationToken;
 
 use crate::server::protocol::{ClientRequest, LegacyResponse, ServerResponse, VersionedEvent};
+use crate::transport::uds::frontend_handshake;
 use crate::transport::uds::router::ProtocolRouter;
+use crate::transport::uds::session_id::{parse_canonical_session_id, CanonicalSessionIdError};
 use crate::{DaemonMetrics, REQUEST_COUNTER};
 
 /// Active generation state tracked in the daemon runtime.
@@ -20,6 +24,22 @@ pub struct ActiveGeneration {
     pub session_id: brain_domain::SessionId,
     /// Cooperative cancellation token.
     pub cancellation_token: CancellationToken,
+    /// Arbitrates a terminal tool result against cancellation acknowledgement.
+    /// The side which acquires this gate first defines the externally visible
+    /// outcome for a just-completed tool invocation.
+    pub tool_result_gate: Arc<tokio::sync::Mutex<()>>,
+}
+
+/// Adapts a generation's owned Tokio cancellation token to the core tool
+/// contract. The adapter owns the token handle, so a running tool never
+/// observes a borrowed connection or request lifetime.
+#[derive(Clone)]
+struct GenerationToolCancellation(CancellationToken);
+
+impl CoreCancellationToken for GenerationToolCancellation {
+    fn is_cancelled(&self) -> bool {
+        self.0.is_cancelled()
+    }
 }
 
 static GENERATION_REGISTRY: std::sync::OnceLock<
@@ -29,17 +49,25 @@ static GENERATION_REGISTRY: std::sync::OnceLock<
 static FEEDBACK_REGISTRY: std::sync::OnceLock<Arc<tokio::sync::RwLock<HashMap<String, String>>>> =
     std::sync::OnceLock::new();
 
+struct PendingToolPermission {
+    call_id: String,
+    session_id: String,
+    generation_id: String,
+    tool_name: String,
+    decision: tokio::sync::oneshot::Sender<bool>,
+}
+
 static PERMISSION_WAITERS: std::sync::OnceLock<
-    Arc<tokio::sync::RwLock<HashMap<String, tokio::sync::oneshot::Sender<bool>>>>,
+    Arc<tokio::sync::RwLock<HashMap<String, PendingToolPermission>>>,
 > = std::sync::OnceLock::new();
 
-/// Pending tool-permission decisions keyed by tool-use call ID. The stream
-/// task parks a oneshot sender here; any connection may deliver the verdict
-/// via v1/tool/resolve (resolution intentionally rides a second connection —
-/// the stream occupies its own connection's read loop).
-fn get_permission_waiters()
--> &'static Arc<tokio::sync::RwLock<HashMap<String, tokio::sync::oneshot::Sender<bool>>>>
-{
+/// Pending tool-permission decisions keyed by their daemon-issued request ID.
+/// A stream can have more than one tool invocation, so both the request ID and
+/// the tool-call ID are required for canonical clients to settle a request.
+/// Resolution intentionally rides a second connection because the stream owns
+/// its connection's read loop.
+fn get_permission_waiters(
+) -> &'static Arc<tokio::sync::RwLock<HashMap<String, PendingToolPermission>>> {
     PERMISSION_WAITERS.get_or_init(|| Arc::new(tokio::sync::RwLock::new(HashMap::new())))
 }
 
@@ -141,6 +169,37 @@ impl Drop for GenerationGuard {
     }
 }
 
+async fn write_session_id_error(
+    writer: &Arc<tokio::sync::Mutex<OwnedWriteHalf>>,
+    is_versioned: bool,
+    request_id: &serde_json::Value,
+    error: CanonicalSessionIdError,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let response = if is_versioned {
+        serde_json::json!({
+            "version": "1.0",
+            "type": "Error",
+            "id": request_id,
+            "status": "error",
+            "code": error.code(),
+            "body": error.message(),
+        })
+    } else {
+        serde_json::json!({
+            "type": "error",
+            "status": "error",
+            "code": error.code(),
+            "message": error.message(),
+        })
+    };
+    let mut response_json = serde_json::to_string(&response)?;
+    response_json.push('\n');
+    let mut output = writer.lock().await;
+    output.write_all(response_json.as_bytes()).await?;
+    output.flush().await?;
+    Ok(())
+}
+
 /// Handles an active UDS client connection, decoding, routing, and executing requests.
 pub async fn handle_connection(
     stream: UnixStream,
@@ -153,6 +212,18 @@ pub async fn handle_connection(
     let writer = Arc::new(tokio::sync::Mutex::new(writer));
     let mut buf_reader = BufReader::new(reader);
     let mut line = String::new();
+
+    macro_rules! require_canonical_session_id {
+        ($raw:expr, $is_versioned:expr, $request_id:expr) => {{
+            match parse_canonical_session_id($raw) {
+                Ok(session_id) => session_id,
+                Err(error) => {
+                    write_session_id_error(&writer, $is_versioned, &$request_id, error).await?;
+                    continue;
+                }
+            }
+        }};
+    }
 
     while buf_reader.read_line(&mut line).await? > 0 {
         let request_str = line.trim();
@@ -284,6 +355,17 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "v1/frontend/handshake" {
+            frontend_handshake::write_response(
+                &writer,
+                &req_id_val,
+                payload,
+                env!("CARGO_PKG_VERSION"),
+            )
+            .await?;
+            continue;
+        }
+
         if action == "session/start" || action == "v1/session/start" {
             let start_req: crate::server::protocol::StartSessionPayload = serde_json::from_str(
                 payload,
@@ -411,7 +493,8 @@ pub async fn handle_connection(
                 Ok(req) => {
                     let storage = app.runtime().sqlite_storage();
                     use brain_core::repositories::SessionRepository;
-                    let parsed_sid = parse_session_id_flexible(&req.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&req.session_id, is_versioned, req_id_val);
                     let maybe_session = storage.load_session(&parsed_sid).ok().flatten();
 
                     match maybe_session {
@@ -480,11 +563,13 @@ pub async fn handle_connection(
                                     "type": "Error",
                                     "id": req_id_val,
                                     "status": "error",
+                                    "code": "session_not_found",
                                     "body": err_msg
                                 })
                             } else {
                                 serde_json::json!({
                                     "status": "error",
+                                    "code": "session_not_found",
                                     "message": err_msg
                                 })
                             };
@@ -3080,28 +3165,34 @@ pub async fn handle_connection(
                 });
 
             let registry = get_generation_registry();
-            let mut reg = registry.write().await;
+            let active_generations: Vec<ActiveGeneration> = {
+                let mut reg = registry.write().await;
 
-            if let Some(ref gen_id) = cancel_req.generation_id {
-                if let Some(active) = reg.remove(gen_id) {
-                    active.cancellation_token.cancel();
+                if let Some(ref gen_id) = cancel_req.generation_id {
+                    reg.remove(gen_id).into_iter().collect()
+                } else if let Some(ref s_id) = cancel_req.session_id {
+                    let parsed_sid = require_canonical_session_id!(s_id, is_versioned, req_id_val);
+                    let to_cancel: Vec<String> = reg
+                        .iter()
+                        .filter(|(_, active)| active.session_id == parsed_sid)
+                        .map(|(k, _)| k.clone())
+                        .collect();
+                    to_cancel
+                        .into_iter()
+                        .filter_map(|generation_id| reg.remove(&generation_id))
+                        .collect()
+                } else {
+                    reg.drain().map(|(_, active)| active).collect()
                 }
-            } else if let Some(ref s_id) = cancel_req.session_id {
-                let parsed_sid = parse_session_id_flexible(s_id);
-                let to_cancel: Vec<String> = reg
-                    .iter()
-                    .filter(|(_, active)| active.session_id == parsed_sid)
-                    .map(|(k, _)| k.clone())
-                    .collect();
-                for k in to_cancel {
-                    if let Some(active) = reg.remove(&k) {
-                        active.cancellation_token.cancel();
-                    }
-                }
-            } else {
-                for (_, active) in reg.drain() {
-                    active.cancellation_token.cancel();
-                }
+            };
+
+            // Serialize cancellation acknowledgement against tool-result
+            // publication. If a result already holds the gate, it wins and is
+            // emitted before this cancellation response; otherwise cancellation
+            // wins and no later result can be published for that invocation.
+            for active in active_generations {
+                let _tool_result_guard = active.tool_result_gate.lock().await;
+                active.cancellation_token.cancel();
             }
 
             let response = serde_json::json!({
@@ -3121,6 +3212,18 @@ pub async fn handle_connection(
             struct ResolvePayload {
                 #[serde(rename = "callId", alias = "call_id", default)]
                 call_id: Option<String>,
+                #[serde(
+                    rename = "permissionRequestId",
+                    alias = "permission_request_id",
+                    default
+                )]
+                permission_request_id: Option<String>,
+                #[serde(rename = "sessionId", alias = "session_id", default)]
+                session_id: Option<String>,
+                #[serde(rename = "generationId", alias = "generation_id", default)]
+                generation_id: Option<String>,
+                #[serde(rename = "toolName", alias = "tool_name", default)]
+                tool_name: Option<String>,
                 #[serde(default)]
                 granted: bool,
             }
@@ -3128,17 +3231,80 @@ pub async fn handle_connection(
             let resolve_req: ResolvePayload =
                 serde_json::from_str(payload).unwrap_or(ResolvePayload {
                     call_id: None,
+                    permission_request_id: None,
+                    session_id: None,
+                    generation_id: None,
+                    tool_name: None,
                     granted: false,
                 });
 
-            let outcome = match resolve_req.call_id.clone() {
-                Some(call_id) => {
-                    let waiter = get_permission_waiters().write().await.remove(&call_id);
-                    match waiter {
-                        Some(tx) => tx.send(resolve_req.granted).is_ok(),
-                        None => false,
+            // A canonical resolution includes the exact Brain-issued session
+            // ID. Validate it before inspecting or settling any waiter so an
+            // invalid external string cannot bypass permission correlation.
+            if let Some(session_id) = resolve_req.session_id.as_deref() {
+                let _ = require_canonical_session_id!(session_id, is_versioned, req_id_val);
+            }
+
+            let pending_permission = {
+                let mut waiters = get_permission_waiters().write().await;
+                match (
+                    resolve_req.permission_request_id.as_deref(),
+                    resolve_req.call_id.as_deref(),
+                    resolve_req.session_id.as_deref(),
+                    resolve_req.generation_id.as_deref(),
+                ) {
+                    // Canonical clients must bind the decision to the exact
+                    // daemon-issued permission request, tool call, session,
+                    // and generation. An opaque request ID alone is not a
+                    // substitute for stream correlation.
+                    (
+                        Some(permission_request_id),
+                        Some(call_id),
+                        Some(session_id),
+                        Some(generation_id),
+                    ) => match waiters.get(permission_request_id) {
+                        Some(pending)
+                            if pending.call_id == call_id
+                                && pending.session_id == session_id
+                                && pending.generation_id == generation_id
+                                && resolve_req
+                                    .tool_name
+                                    .as_deref()
+                                    .map(|tn| pending.tool_name == tn)
+                                    .unwrap_or(true) =>
+                        {
+                            waiters.remove(permission_request_id)
+                        }
+                        _ => None,
+                    },
+                    // Preserve the legacy call-only resolver for the old shell
+                    // while making ambiguity fail closed. Canonical frontend
+                    // clients always use the branch above.
+                    (None, Some(call_id), None, None) => {
+                        let matching_ids: Vec<String> = waiters
+                            .iter()
+                            .filter(|(_, pending)| {
+                                pending.call_id == call_id
+                                    && resolve_req
+                                        .tool_name
+                                        .as_deref()
+                                        .map(|tn| pending.tool_name == tn)
+                                        .unwrap_or(true)
+                            })
+                            .map(|(permission_request_id, _)| permission_request_id.clone())
+                            .collect();
+                        if matching_ids.len() == 1 {
+                            waiters.remove(&matching_ids[0])
+                        } else {
+                            None
+                        }
                     }
+                    _ => None,
                 }
+            };
+
+            let outcome = match pending_permission {
+                Some(pending) => pending.decision.send(resolve_req.granted).is_ok(),
                 None => false,
             };
 
@@ -3149,8 +3315,11 @@ pub async fn handle_connection(
                     "type": "Error",
                     "status": "error",
                     "body": format!(
-                        "Unknown or already-resolved tool call '{}'",
-                        resolve_req.call_id.unwrap_or_default()
+                        "Unknown, mismatched, or already-resolved tool permission request '{}'",
+                        resolve_req
+                            .permission_request_id
+                            .or(resolve_req.call_id)
+                            .unwrap_or_default()
                     )
                 })
             };
@@ -3366,6 +3535,7 @@ pub async fn handle_connection(
 
             // Register ActiveGeneration with CancellationToken child token
             let cancellation_token = conn_token.child_token();
+            let tool_result_gate = Arc::new(tokio::sync::Mutex::new(()));
             {
                 let mut reg = registry.write().await;
                 reg.insert(
@@ -3373,6 +3543,7 @@ pub async fn handle_connection(
                     ActiveGeneration {
                         session_id: parsed_session_id,
                         cancellation_token: cancellation_token.clone(),
+                        tool_result_gate: tool_result_gate.clone(),
                     },
                 );
             }
@@ -3422,23 +3593,45 @@ pub async fn handle_connection(
                 reference_time: None,
             };
             let t_assemble_start = Instant::now();
-            let context_snapshot = app.assemble_context(context_req).await.unwrap_or_else(|_| {
-                brain_core::context::ContextSnapshot {
-                    epoch_id: "epoch-fallback".to_string(),
-                    items: Vec::new(),
-                    token_count: 0,
-                    provenance: brain_core::context::MemoryProvenance::default(),
-                    serialized_context: String::new(),
+            let context_snapshot = match app.assemble_context(context_req).await {
+                Ok(snapshot) => Some(snapshot),
+                Err(error) => {
+                    tracing::warn!(%error, "Memory context assembly failed; continuing generation");
+                    None
                 }
-            });
+            };
             let assembly_latency_ms = t_assemble_start.elapsed().as_millis() as u64;
 
-            let combined_system_prompt = if !context_snapshot.serialized_context.is_empty() {
+            // This is the only context/retrieval shape intended for a frontend
+            // generation view model. It deliberately omits assembled content,
+            // labels, ranking scores, and storage properties. `source_refs` are
+            // opaque Brain references, not user-facing memory records.
+            //
+            // `retrieval_count` reports the opaque source references actually
+            // included in this generation's context, rather than upstream
+            // candidate count. It is independent of provider input-token
+            // accounting below and must never be added to it.
+            let frontend_context_metadata = context_snapshot.as_ref().map(|snapshot| {
+                serde_json::json!({
+                    "version": 1,
+                    "retrieval_epoch_id": snapshot.epoch_id,
+                    "retrieval_count": snapshot.provenance.count,
+                    "retrieval_channels": snapshot.provenance.channels.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>(),
+                    "context_token_count": snapshot.token_count,
+                    "source_refs": snapshot.provenance.sources,
+                })
+            });
+
+            let serialized_context = context_snapshot
+                .as_ref()
+                .map(|snapshot| snapshot.serialized_context.as_str())
+                .filter(|context| !context.is_empty());
+            let combined_system_prompt = if let Some(context) = serialized_context {
                 match stream_req.system_prompt {
-                    Some(sp) if !sp.trim().is_empty() => {
-                        Some(format!("{}\n\n{}", context_snapshot.serialized_context, sp))
-                    }
-                    _ => Some(context_snapshot.serialized_context.clone()),
+                    Some(sp) if !sp.trim().is_empty() => Some(format!("{context}\n\n{sp}")),
+                    _ => Some(context.to_owned()),
                 }
             } else {
                 stream_req.system_prompt
@@ -3477,45 +3670,34 @@ pub async fn handle_connection(
                 None => None,
             };
 
-            let (thinking_supported, effective_thinking_budget) = if resolved_model_desc.supports_thinking {
-                let clamped = requested_thinking_budget.map(|b| b.min(resolved_model_desc.max_output_tokens));
-                (true, clamped)
-            } else {
-                (false, None)
-            };
+            let (thinking_supported, effective_thinking_budget) =
+                if resolved_model_desc.supports_thinking {
+                    let clamped = requested_thinking_budget
+                        .map(|b| b.min(resolved_model_desc.max_output_tokens));
+                    (true, clamped)
+                } else {
+                    (false, None)
+                };
 
-            // Frame 0: stream_start with memory provenance & telemetry metadata
+            // Frame 0: only the approved frontend context metadata contract.
+            let mut start_metadata = serde_json::json!({
+                "model": resolved_model_desc.id,
+                "model_name": resolved_model_desc.name,
+                "provider": resolved_model_desc.provider,
+                "thinking_supported": thinking_supported,
+                "effective_thinking_budget": effective_thinking_budget,
+                "thinking_budget": effective_thinking_budget,
+            });
+            if let Some(context) = &frontend_context_metadata {
+                start_metadata["brain_context"] = context.clone();
+            }
             let start_packet = serde_json::json!({
                 "type": "stream_start",
                 "generation_id": generation_id,
                 "session_id": session_id_str,
                 "sequence": seq,
                 "status": "in_progress",
-                "metadata": {
-                    "model": resolved_model_desc.id,
-                    "model_name": resolved_model_desc.name,
-                    "provider": resolved_model_desc.provider,
-                    "thinking_supported": thinking_supported,
-                    "effective_thinking_budget": effective_thinking_budget,
-                    "thinking_budget": effective_thinking_budget,
-                    "memory_provenance": {
-                        "count": context_snapshot.provenance.count,
-                        "sources": context_snapshot.provenance.sources,
-                        "channels": context_snapshot.provenance.channels.iter().map(|c| format!("{:?}", c).to_lowercase()).collect::<Vec<_>>(),
-                        "min_score": context_snapshot.provenance.min_score,
-                        "max_score": context_snapshot.provenance.max_score,
-                        "epoch_id": context_snapshot.provenance.epoch_id,
-                    },
-                    "telemetry": {
-                        "generation_id": generation_id,
-                        "session_id": session_id_str,
-                        "retrieval_epoch_id": context_snapshot.epoch_id,
-                        "candidates_retrieved": context_snapshot.provenance.count,
-                        "memories_assembled": context_snapshot.items.len(),
-                        "context_tokens_used": context_snapshot.token_count,
-                        "assembly_latency_ms": assembly_latency_ms,
-                    }
-                }
+                "metadata": start_metadata,
             });
             let mut start_json = serde_json::to_string(&start_packet)?;
             start_json.push('\n');
@@ -3705,11 +3887,33 @@ pub async fn handle_connection(
                                             // the stream until v1/tool/resolve delivers a verdict
                                             // (on ANY connection) or the timeout denies by default.
                                             seq += 1;
+                                            let permission_request_id = format!(
+                                                "perm_{}",
+                                                uuid::Uuid::new_v4().simple()
+                                            );
+                                            let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
+                                            // Register before exposing the request frame so an
+                                            // eager canonical frontend cannot resolve a valid
+                                            // permission before its daemon-side waiter exists.
+                                            get_permission_waiters()
+                                                .write()
+                                                .await
+                                                .insert(
+                                                    permission_request_id.clone(),
+                                                    PendingToolPermission {
+                                                        call_id: call_id.clone(),
+                                                        session_id: session_id_str.clone(),
+                                                        generation_id: generation_id.clone(),
+                                                        tool_name: tool_name.clone(),
+                                                        decision: tx,
+                                                    },
+                                                );
                                             let perm_packet = serde_json::json!({
                                                 "type": "tool_permission_requested",
                                                 "generation_id": generation_id,
                                                 "session_id": session_id_str,
                                                 "sequence": seq,
+                                                "permission_request_id": permission_request_id,
                                                 "call_id": call_id,
                                                 "tool_name": tool_name,
                                                 "input": packet["toolUse"]["input"],
@@ -3718,32 +3922,37 @@ pub async fn handle_connection(
                                             });
                                             let mut pj = serde_json::to_string(&perm_packet)?;
                                             pj.push('\n');
-                                            writer.write_all(pj.as_bytes()).await?;
-                                            writer.flush().await?;
+                                            let sent = async {
+                                                writer.write_all(pj.as_bytes()).await?;
+                                                writer.flush().await
+                                            }.await;
+                                            if let Err(error) = sent {
+                                                get_permission_waiters().write().await.remove(&permission_request_id);
+                                                return Err(error.into());
+                                            }
 
-                                            let (tx, rx) = tokio::sync::oneshot::channel::<bool>();
-                                            get_permission_waiters()
-                                                .write()
-                                                .await
-                                                .insert(call_id.clone(), tx);
                                             let timeout_secs = std::env::var(
                                                 "BRAIN_TOOL_PERMISSION_TIMEOUT_SECS",
                                             )
                                             .ok()
                                             .and_then(|v| v.parse::<u64>().ok())
                                             .unwrap_or(300);
-                                            let granted = tokio::time::timeout(
-                                                std::time::Duration::from_secs(timeout_secs),
-                                                rx,
-                                            )
-                                            .await
-                                            .ok()
-                                            .and_then(|r| r.ok())
-                                            .unwrap_or(false);
+                                            let granted = tokio::select! {
+                                                _ = cancellation_token.cancelled() => false,
+                                                verdict = tokio::time::timeout(
+                                                    std::time::Duration::from_secs(timeout_secs),
+                                                    rx,
+                                                ) => verdict.ok().and_then(|r| r.ok()).unwrap_or(false),
+                                            };
                                             get_permission_waiters()
                                                 .write()
                                                 .await
-                                                .remove(&call_id);
+                                                .remove(&permission_request_id);
+
+                                            if cancellation_token.is_cancelled() {
+                                                is_cancelled = true;
+                                                break 'rounds;
+                                            }
 
                                             if granted {
                                                 // Inc 5: the wire verdict is the
@@ -3756,9 +3965,6 @@ pub async fn handle_connection(
                                                     ToolRegistry,
                                                 };
                                                 let stack = crate::tools::tool_stack();
-                                                stack
-                                                    .permissions
-                                                    .grant(brain_core::extensibility::Permission::Shell);
                                                 let mut args_map: HashMap<String, serde_json::Value> =
                                                     HashMap::new();
                                                 if let Some(obj) =
@@ -3775,23 +3981,32 @@ pub async fn handle_connection(
                                                             std::path::PathBuf::from(".")
                                                         }),
                                                     cancellation: Arc::new(
-                                                        brain_tools::CancellationTokenImpl::default(),
+                                                        GenerationToolCancellation(
+                                                            cancellation_token.clone(),
+                                                        ),
                                                     ),
                                                     deadline: None,
                                                 };
                                                 let tool_exec_started = std::time::Instant::now();
-                                                seq += 1;
                                                 let execution =
                                                     match stack.registry.get_tool(&tool_name) {
-                                                        Some(tool) => stack
-                                                            .executor
-                                                            .execute(
-                                                                tool,
-                                                                &tool_ctx,
-                                                                &stack.permissions,
-                                                                &args_map,
-                                                            )
-                                                            .await,
+                                                        Some(tool) => {
+                                                            // Scope permission authorization strictly to this approved invocation.
+                                                            // The shared stack.permissions remains pristine and unmodified.
+                                                            let invocation_permissions = brain_tools::PermissionManager::new();
+                                                            for permission in &tool.metadata().required_permissions {
+                                                                invocation_permissions.grant(*permission);
+                                                            }
+                                                            stack
+                                                                .executor
+                                                                .execute(
+                                                                    tool,
+                                                                    &tool_ctx,
+                                                                    &invocation_permissions,
+                                                                    &args_map,
+                                                                )
+                                                                .await
+                                                        }
                                                         None => Err(
                                                             brain_core::errors::BrainError::Internal {
                                                                 message: format!(
@@ -3800,19 +4015,42 @@ pub async fn handle_connection(
                                                             },
                                                         ),
                                                     };
-                                                let (out_text, is_err, exit_code) = match execution {
+                                                let _tool_result_guard =
+                                                    tool_result_gate.lock().await;
+                                                if cancellation_token.is_cancelled() {
+                                                    is_cancelled = true;
+                                                    break 'rounds;
+                                                }
+                                                // Reserve a wire sequence only when a result
+                                                // will actually be emitted. Cancellation can
+                                                // win while the executor is waiting; burning a
+                                                // result slot there would make the final
+                                                // `finished` frame appear to have a gap.
+                                                seq += 1;
+                                                let (out_text, is_err, exit_code, outcome) = match execution {
                                                     Ok(result) => {
                                                         let v = result.value().clone();
+                                                        let is_error = v["is_error"]
+                                                            .as_bool()
+                                                            .unwrap_or(true);
                                                         (
                                                             v["output"]
                                                                 .as_str()
                                                                 .unwrap_or("")
                                                                 .to_string(),
-                                                            v["is_error"].as_bool().unwrap_or(true),
+                                                            is_error,
                                                             v["exit_code"].as_i64().unwrap_or(-1),
+                                                            if is_error { "error" } else { "success" },
                                                         )
                                                     }
-                                                    Err(e) => (format!("{e}"), true, -1),
+                                                    Err(brain_core::errors::BrainError::Timeout {
+                                                        message,
+                                                        ..
+                                                    }) => (message, true, -1, "timed_out"),
+                                                    Err(brain_core::errors::BrainError::Cancelled {
+                                                        message,
+                                                    }) => (message, true, -1, "cancelled"),
+                                                    Err(e) => (format!("{e}"), true, -1, "error"),
                                                 };
                                                 feedback.push(ToolFeedback {
                                                     call_id: call_id.clone(),
@@ -3830,7 +4068,7 @@ pub async fn handle_connection(
                                                     "call_id": call_id.clone(),
                                                     "name": tool_name.clone(),
                                                     "input": packet["toolUse"]["input"].clone(),
-                                                    "outcome": "executed",
+                                                    "outcome": outcome,
                                                     "is_error": is_err,
                                                     "exit_code": exit_code,
                                                     "output": truncate_tool_output(&out_text),
@@ -3841,11 +4079,13 @@ pub async fn handle_connection(
                                                     "generation_id": generation_id,
                                                     "session_id": session_id_str,
                                                     "sequence": seq,
+                                                    "permission_request_id": permission_request_id,
                                                     "call_id": call_id,
                                                     "tool_name": tool_name,
                                                     "output": out_text,
                                                     "is_error": is_err,
                                                     "exit_code": exit_code,
+                                                    "outcome": outcome,
                                                     // Inc 10: same clock as the persisted
                                                     // envelope, so live and replayed cards
                                                     // agree on duration.
@@ -3874,15 +4114,22 @@ pub async fn handle_connection(
                                                 }
                                             }
 
-                                            if !granted {
-                                                seq += 1;
+                                        if !granted {
+                                            let _tool_result_guard = tool_result_gate.lock().await;
+                                            if cancellation_token.is_cancelled() {
+                                                is_cancelled = true;
+                                                break 'rounds;
+                                            }
+                                            seq += 1;
                                                 let denied_packet = serde_json::json!({
                                                     "type": "tool_denied",
                                                     "generation_id": generation_id,
                                                     "session_id": session_id_str,
                                                     "sequence": seq,
+                                                    "permission_request_id": permission_request_id,
                                                     "call_id": call_id,
                                                     "tool_name": tool_name,
+                                                    "outcome": "denied",
                                                     "status": "in_progress"
                                                 });
                                                 let mut dj = serde_json::to_string(&denied_packet)?;
@@ -3905,6 +4152,10 @@ pub async fn handle_connection(
                                                     "name": tool_name.clone(),
                                                     "input": packet["toolUse"]["input"].clone(),
                                                     "outcome": "denied",
+                                                    "is_error": true,
+                                                    "exit_code": -1,
+                                                    "output": DENIED_FEEDBACK_TEXT,
+                                                    "duration_ms": 0,
                                                 });
                                                 let _ = session_aggregate.add_message(
                                                     brain_domain::Message::new(
@@ -4009,7 +4260,27 @@ pub async fn handle_connection(
                 // strict-monotonic contract); mid-loop Completions restored
                 // theirs above.
                 seq += 1;
-                let total_duration_ms = gen_start_time.elapsed().as_millis() as u64;
+                let mut telemetry = serde_json::json!({
+                    "generation_id": generation_id,
+                    "session_id": session_id_str,
+                    "total_duration_ms": gen_start_time.elapsed().as_millis() as u64,
+                    "finish_reason": reason,
+                });
+                let mut metadata = serde_json::json!({
+                    "inputTokens": total_usage.input_tokens,
+                    "outputTokens": total_usage.output_tokens,
+                });
+                if let Some(snapshot) = &context_snapshot {
+                    telemetry["retrieval_epoch_id"] = serde_json::json!(snapshot.epoch_id);
+                    telemetry["candidates_retrieved"] = serde_json::json!(snapshot.provenance.count);
+                    telemetry["memories_assembled"] = serde_json::json!(snapshot.items.len());
+                    telemetry["context_tokens_used"] = serde_json::json!(snapshot.token_count);
+                    telemetry["assembly_latency_ms"] = serde_json::json!(assembly_latency_ms);
+                }
+                if let Some(context) = &frontend_context_metadata {
+                    metadata["brain_context"] = context.clone();
+                }
+                metadata["telemetry"] = telemetry;
                 let end_packet = serde_json::json!({
                     "type": "stream_end",
                     "generation_id": generation_id,
@@ -4018,21 +4289,7 @@ pub async fn handle_connection(
                     "status": "completed",
                     "response": accumulated_response,
                     "finish_reason": reason,
-                    "metadata": {
-                        "inputTokens": total_usage.input_tokens,
-                        "outputTokens": total_usage.output_tokens,
-                        "telemetry": {
-                            "generation_id": generation_id,
-                            "session_id": session_id_str,
-                            "retrieval_epoch_id": context_snapshot.epoch_id,
-                            "candidates_retrieved": context_snapshot.provenance.count,
-                            "memories_assembled": context_snapshot.items.len(),
-                            "context_tokens_used": context_snapshot.token_count,
-                            "assembly_latency_ms": assembly_latency_ms,
-                            "total_duration_ms": total_duration_ms,
-                            "finish_reason": reason,
-                        }
-                    }
+                    "metadata": metadata,
                 });
                 let mut end_json = serde_json::to_string(&end_packet)?;
                 end_json.push('\n');
