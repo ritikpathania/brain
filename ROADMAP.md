@@ -36,7 +36,8 @@ This document outlines the high-level roadmap and architectural direction for th
 - [x] **Canonical launch**. `brain ui` resolves the first-party `packages/brain-frontend` from a development checkout or validates the standalone executable in an installed product bundle.
 - [x] **Daemon integration**. The frontend uses the versioned handshake, session, generation, tool, and permission contracts over UDS.
 - [x] **Phase 5 platform release verification**. The candidate passed native archive verification on macOS arm64 and Linux x86_64. Each subsequent release candidate requires verification of its own archives. [Distribution guide](docs/guides/product-distribution.md#4-platform-verification-status)
-- [ ] **Legacy retirement (Phase 6, on hold)**. Retain `packages/brain-shell` and reference assets until the required product verification and final caller inventory support a separate retirement decision.
+- [x] **Phase 6 caller inventory**. The product and release workflows use the first-party frontend. Manual PTY scripts, local launch and oracle tooling, and frozen assets still depend on the legacy tree. [Caller inventory](docs/designs/2026-11-17_DRIFT_REPORT.md)
+- [ ] **Legacy retirement (Phase 6, on hold)**. Preserve the local-only oracle and resolve the remaining manual verification callers before preparing a removal candidate.
 
 ---
 
