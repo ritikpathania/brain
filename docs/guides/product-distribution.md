@@ -86,9 +86,13 @@ The orchestrator verifies standalone identity and host paths, assembles the clos
 
 ## 4. Platform Verification Status
 
-| Target | Recorded evidence |
-| --- | --- |
-| macOS arm64 (`aarch64-apple-darwin`) | **PASS** on 2026-11-17 for clean source commit `6cd25406d1e2818267f527fc405cc267464554ae`. The 12-case frontend E2E gate, CPython relocation and compiled-extension probe, and all three clean-extraction product smokes passed. Archive SHA-256 `30c507c7c16a95c6cd40e2283c705bfda9e7dc7c611c419859e1409670a9f02c`. |
-| Linux x86_64 (`x86_64-unknown-linux-gnu`) | Native archive verification remains pending in the checked-in record. The matrix configuration is in place. |
+Both platform jobs passed on 2026-11-17 for source commit `f706d8eda57164661a8dbbeea9b0148bbb428868`. Each passed 119 frontend unit and integration tests, 12 real-daemon E2E tests with zero skips, and the CPython relocation and compiled-extension probes. The release publication job was skipped for the verification branch. [Release Packaging run](https://github.com/ritikpathania/brain/actions/runs/44020955003)
 
-Record the exact source commit, native target, completed test result, and archive SHA-256 for each candidate. Use the [Phase 5 implementation plan](../superpowers/plans/2026-10-01-brain-frontend-phase-5.md#november-2026-verification-record) for the historical macOS evidence.
+| Target | Clean-extraction PTY smoke | Archive SHA-256 |
+| --- | --- | --- |
+| macOS arm64 (`aarch64-apple-darwin`) | [3 of 3 passed](https://github.com/ritikpathania/brain/actions/runs/44020955003/job/133832910636) | `4a90244d949f88df98eaf872df5c12a26b7f8e639950f95ead54fa690c3e0cab` |
+| Linux x86_64 (`x86_64-unknown-linux-gnu`) | [1 of 1 passed](https://github.com/ritikpathania/brain/actions/runs/44020955003/job/133832910589) | `c618a56e0a054cd7b668468ee0c2ed719b1352813a4147e08f09593bc64ddcf9` |
+
+The local macOS run for source commit `6cd25406d1e2818267f527fc405cc267464554ae` also passed all three extractions. Its `brain-darwin-arm64.tar.gz` SHA-256 was `30c507c7c16a95c6cd40e2283c705bfda9e7dc7c611c419859e1409670a9f02c`. The [Phase 5 implementation plan](../superpowers/plans/2026-10-01-brain-frontend-phase-5.md#november-2026-verification-record) preserves earlier macOS evidence.
+
+Record the exact source commit, native target, completed test result, and archive SHA-256 for each candidate.

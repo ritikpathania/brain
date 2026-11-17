@@ -152,7 +152,7 @@ runtime/configuration inputs and caller terminal capabilities.
 
 Compose the verified daemon runtime layout with the CLI and frontend; do not
 redesign CPython acquisition, initialization, library relocation, or service
-behavior. The frozen CPython pin is **3.15.2**. On macOS the runtime manifest records the relocated `@rpath/libpython3.15.dylib` dependency.
+behavior. The frozen CPython pin is **3.15.2**. The native release jobs use the same uv-managed standalone CPython source as local packaging. On macOS the runtime manifest records the relocated `@rpath/libpython3.15.dylib` dependency.
 
 The clean-extraction compiled-extension probe resolves the library from the daemon manifest's `python.library` field. Validate containment and prove that a real `lib-dynload` module imports from the extracted runtime.
 
