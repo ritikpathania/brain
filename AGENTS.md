@@ -37,29 +37,9 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
 
-## CLI TUI Design System
+## First-party terminal frontend verification
 
-When writing or modifying Terminal User Interface (TUI) components in the `packages/brain-shell/` directory, always adhere to the design system specified in `packages/brain-shell/src/state/themeStore.ts`, `themeContext.tsx`, and `src/contracts/theme.ts`:
-
-1. **Use Theme Tokens Everywhere**:
-   - Never use hardcoded raw RGB, hex, or plain ANSI colors directly in layout components. Use semantic colors defined in `ThemeTokens` (`primary`, `secondary`, `dim`, `accent`, `error`, `warning`, `success`, `info`, `border`, `bg`, etc.).
-
-2. **Precomputed Theme Maps**:
-   - Access theme properties via the active React theme context (`useTheme()`) to ensure live updates without requiring process restarts.
-
-3. **Standard Layout and Primitives**:
-   - Favor themed layout containers (`ModalFrame`, `PromptInput`, `PaletteView`) over raw text or box primitives. This ensures semantic style encapsulation.
-   - Design layouts to dynamically resize (`SIGWINCH`) using flexbox properties (`flexGrow`, `flexShrink`) and percentage widths instead of hardcoded column widths.
-   - Handle compact terminal widths (< 80 columns) gracefully by simplifying or wrapping headers.
-4. **Panel Borders**:
-   - Standard interactive panels, popups, and transient modals use rounded borders (`╭`, `─`, `╮`, `│`, `╯`, `╰`) and semantic header/footer dividers. ASCII fallbacks (`+`, `-`, `|`) are preserved for compatibility.
-
-## CLI TUI Testing & Verification
-
-When modifying or adding components to the TUI client:
-
-1. **Verify Using Integration Tests**: Run `bun test` in `packages/brain-shell` to check state projections, cell geometry, and keyboard interaction invariants.
-2. **Run Performance Profiling**: Measure frame draw latency and memory footprint to check for regressions.
+Run `bun run typecheck` and `bun run test` in `packages/brain-frontend` for changes to the first-party TUI. Run `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries to verify the real-daemon workflow, including keyboard interaction and native launch. Measure frame draw latency and memory footprint when changing terminal presentation. The [historical shell verification guide](docs/development/BRAIN_SHELL_VERIFICATION_GATES.md) identifies the retired oracle and reproduction inputs.
 
 ## UDS Streaming Protocol & Reactive State Projection
 

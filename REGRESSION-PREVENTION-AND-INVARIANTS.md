@@ -69,3 +69,10 @@
 - **Root cause** — `otool -L` prints the inspected filename as a header. The scan treated the header as a dependency.
 - **Invariant** — Inspect only the dependency lines for embedded host paths. Continue to enforce the packaged Python install name and the artifact-relative rpath.
 - **Regression test** — The runtime manifest suite runs the verifier with an `otool` fixture that places a home path in the header and separately in a dependency.
+
+### 11. Retired Shell Cannot Re-enter the Product Checkout
+
+- **Symptom** — The first-party launch and packaging path was independent of the legacy shell, but historical launch scripts and the package still appeared as available entry points.
+- **Root cause** — The old package and manual harnesses remained tracked after first-party launch became authoritative.
+- **Invariant** — Current product checkouts omit the retired shell and increment PTY launch scripts. The no-fallback launcher contract stays enforced and historical files remain recoverable at the pre-retirement commit.
+- **Regression test** — The canonical frontend CI test checks tracked paths for the retired package and entry points. Real-daemon E2E exercises actual `brain ui` with the first-party frontend.

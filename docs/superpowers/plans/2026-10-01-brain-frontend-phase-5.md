@@ -359,3 +359,5 @@ The native workflow and `package.sh` invoke `scripts/verify-frontend-e2e.sh` wit
 On 2026-11-17, the verification branch passed the quality gate and both native archive jobs from source commit `f706d8eda57164661a8dbbeea9b0148bbb428868`. Both jobs passed the real-daemon E2E gate and the relocated CPython compiled-extension probe. Linux passed one clean extraction and macOS passed three. The distribution guide records the result and both archive digests. [Native archive evidence](../../guides/product-distribution.md#4-platform-verification-status)
 
 The Phase 6 caller inventory found legacy-only manual verification and local frozen oracle dependencies. Retirement remains on hold while those callers and assets are retained. [Phase 6 caller inventory](../../designs/2026-11-17_DRIFT_REPORT.md)
+
+The separate Phase 6 increment superseded that hold after preserving the local oracle and defining historical reproduction. [Phase 6 design and acceptance plan](../../designs/phase-6-legacy-frontend-retirement.md)

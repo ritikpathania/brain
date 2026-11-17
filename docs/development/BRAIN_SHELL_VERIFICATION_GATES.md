@@ -1,74 +1,16 @@
 # Brain Shell Verification Gates
 
-Canonical verification commands and machine-specific requirements for
-`packages/brain-shell` and the Rust daemon. Established across Increments 0–4
-(2026-08-23 → 2026-08-24); keep this document current when a gate changes.
+The first-party terminal frontend uses `bun run typecheck` and `bun run test` from `packages/brain-frontend`. The shared E2E gate runs actual CLI, daemon, and PTY tests with zero required skips. [Current product verification](../guides/product-distribution.md#3-build--packaging-verification)
 
-## Bundle gate (canonical)
+## Historical shell reproduction
 
-There is **no** `build` script in `packages/brain-shell/package.json`. The
-bundle gate is the direct bundler call:
+The legacy package, its 36 manual PTY scripts, and 35 tracked increment PTY snapshots are preserved at commit `3d2cbf9924c18ccdad1be85f7c55ba43cdfa5d7f`. Recover that revision into a separate worktree from the candidate repository.
 
 ```bash
-cd packages/brain-shell && bun build src/main.tsx --outdir dist --target bun >/dev/null 2>&1 && echo BUILD_OK
+git worktree add --detach ../brain-legacy-reference 3d2cbf9924c18ccdad1be85f7c55ba43cdfa5d7f
+git show 3d2cbf9924c18ccdad1be85f7c55ba43cdfa5d7f:docs/development/BRAIN_SHELL_VERIFICATION_GATES.md
 ```
 
-Do not write `bun run build` in plans or CI — it fails with "Script not found".
+Many historical PTY scripts use the original machine's absolute checkout path and overwrite captures when run. Use a disposable reproduction tree and adapt those paths before attempting a replay. The tracked symlink and gitlink preserve their reference identities. The private preservation receipt covers the local oracle, legacy working files, and the separate synthetic-fixture Git bundle. [Preservation scope](../designs/phase-6-legacy-frontend-retirement.md)
 
-## Rust test toolchain requirement (this Mac)
-
-Every `cargo` invocation must carry the rpath link-arg or test binaries abort
-before `main` with a dyld error about `@rpath/Python3.framework`:
-
-```bash
-RUSTFLAGS="-C link-arg=-Wl,-rpath,/Library/Developer/CommandLineTools/Library/Frameworks" cargo test ...
-```
-
-Why: daemon test binaries link pyo3's
-`@rpath/Python3.framework/Versions/3.9/Python3` transitively
-(services → brain-python → pyo3) and ship no LC_RPATH. `DYLD_*` environment
-variables are ignored for `@rpath` loads with an empty rpath list, and
-`/Library/Frameworks` holds `Python.framework` without the `3`. The real
-`Python3.framework` lives under the Command Line Tools directory above.
-
-## PTY smoke harness rules
-
-The Python PTY smokes (`scripts/ptySmokeInc*.py`) must:
-
-1. Set a window size via `TIOCSWINSZ` before exec — ink computes layout from
-   it; a 0×0 pty collapses every row to one character per line.
-2. Write each keystroke as its own chunk and pump ≥0.3 s between distinct
-   keys — ink parses one stdin chunk as ONE keypress.
-3. Strip ANSI escapes before matching rendered text.
-
-**Stale-render trap (Inc 4):** the screen buffer accumulates everything ever
-rendered. A substring expect for UI that appears more than once matches the
-EARLIER occurrence instantly, so follow-up keystrokes race async setup (the
-deny key landed in the still-active composer instead of dialog #2). For any
-repeated UI element, wait on an occurrence count instead:
-`clean(buf).count(needle) >= N`.
-
-**Fixture snapshots mutate on every run:** the committed
-`src/test/fixtures/pty/<inc>/*.txt` files are snapshots of one successful run;
-spinner glyph rotation and cursor timing make reruns byte-different, so a gate
-run leaves those tracked files modified. Restore them afterwards
-(`git checkout -- <fixture dir>`); making FIXTURE_DIR env-overridable is the
-proper future fix.
-
-## Suite baselines
-
-Full-suite runs are compared against documented baselines, not blind green:
-
-- Shell (`bun test`, packages/brain-shell): five known pre-existing failures —
-  visualCellParity ×2, sessionSemanticIntegration,
-  brainMemoryIntegration, brainTurnTransformer (MemoryContextTransformer API
-  drift from the salvage baseline).
-- Daemon: `uds_generation_tests` and `uds_permission_roundtrip_tests`
-  expected fully green as of e2b5af7 (session-contract fix).
-
-Vendor/provenance scans grep only ADDED lines of the shell diff:
-
-```bash
-git diff <base>..HEAD -- packages/brain-shell/src/ | grep '^+' | grep -icE 'claude|anthropic|vendor'   # expect 0
-git diff <base>..HEAD -- packages/brain-shell/src/ ':!packages/brain-shell/src/test' | grep '^+' | grep -icE 'claude|anthropic|vendor'   # expect 0
-```
+The two historical comparator tests still refer to `oracle_parity_engine`. Recover `scripts/oracle_parity_engine.py` from `cc6f5acbdaa5ebfeeaf0c9ea834d5f7b1b7f5e5b` into a disposable module directory and put that directory on `PYTHONPATH` to rerun them with `pyte`. Those synthetic tests cover comparator behavior. The historic parity result file is available at `095b4a885bf9d59d9c40b3ffc27dd058179895d7:packages/brain-shell/src/test/product_parity_gate_results.json`.

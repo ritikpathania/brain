@@ -6,6 +6,16 @@ import { join, resolve } from 'node:path';
 type WorkflowStep = { run?: string; if?: unknown; 'continue-on-error'?: unknown; uses?: string; with?: { repository?: unknown; ref?: unknown; 'bun-version'?: string } };
 type Workflow = { jobs: { 'canonical-frontend': { if?: unknown; steps: WorkflowStep[] } } };
 
+test('the product checkout excludes the retired shell and its manual PTY entry points', () => {
+  const repository = resolve(import.meta.dir, '../../../..');
+  const tracked = Bun.spawnSync([
+    'git', '-c', 'core.fsmonitor=false', 'ls-files', '--',
+    'packages/brain-shell', ':(glob)scripts/ptySmokeInc*.py',
+  ], { cwd: repository });
+  expect(tracked.exitCode).toBe(0);
+  expect(tracked.stdout.toString()).toBe('');
+});
+
 test('canonical CI runs the owned package without external-source conditions or failure suppression', async () => {
   const workflow = Bun.YAML.parse(await Bun.file(resolve(import.meta.dir, '../../../../.github/workflows/ci.yml')).text()) as Workflow;
   const job = workflow.jobs['canonical-frontend'];

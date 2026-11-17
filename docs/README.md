@@ -27,4 +27,4 @@
 * [Knowledge Quality Corpus guidelines](benchmark/DATASET_GUIDELINES.md) and [dataset contributions](benchmark/CONTRIBUTING_DATASETS.md)
 * [Evidence-based release acceptance proposal](process/evidence_based_release_acceptance.md)
 * [First-party frontend Phase 5 design](superpowers/specs/2026-10-01-brain-frontend-phase-5-design.md) and [implementation plan and evidence](superpowers/plans/2026-10-01-brain-frontend-phase-5.md)
-* [Phase 6 legacy frontend caller inventory](designs/2026-11-17_DRIFT_REPORT.md)
+* [Phase 6 legacy frontend retirement](designs/phase-6-legacy-frontend-retirement.md), [caller inventory](designs/2026-11-17_DRIFT_REPORT.md), and [historical reproduction](development/BRAIN_SHELL_VERIFICATION_GATES.md)
