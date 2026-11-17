@@ -96,3 +96,5 @@ Both platform jobs passed on 2026-11-17 for source commit `f706d8eda57164661a8db
 The local macOS run for source commit `6cd25406d1e2818267f527fc405cc267464554ae` also passed all three extractions. Its `brain-darwin-arm64.tar.gz` SHA-256 was `30c507c7c16a95c6cd40e2283c705bfda9e7dc7c611c419859e1409670a9f02c`. The [Phase 5 implementation plan](../superpowers/plans/2026-10-01-brain-frontend-phase-5.md#november-2026-verification-record) preserves earlier macOS evidence.
 
 Record the exact source commit, native target, completed test result, and archive SHA-256 for each candidate.
+
+The Phase 6 retirement candidate has its own verified local macOS archive. [Phase 6 acceptance record](../designs/phase-6-legacy-frontend-retirement.md#acceptance-record)
