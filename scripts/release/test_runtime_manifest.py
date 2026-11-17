@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -99,6 +100,51 @@ class RuntimeManifestTests(unittest.TestCase):
         resolved = resolve_python_library(self.root)
         self.assertEqual(resolved, expected_lib.resolve())
 
+    def test_macho_scan_distinguishes_the_staging_header_from_a_dependency(self):
+        self.create_artifact("3.15.2", "lib/libpython3.15.dylib")
+        tools = self.root.parent / "tools"
+        tools.mkdir()
+        commands = {
+            "uname": "printf '%s\\n' Darwin",
+            "cc": "exit 77",
+            "otool": (
+                'case "$1" in\n'
+                '  -L) printf "%s\\n\\t%s (compatibility version 3.15.0)\\n" '
+                '"/Users/fixture/stage/bin/brain-daemon:" "$TEST_MACHO_DEPENDENCY" ;;\n'
+                '  -l) printf "%s\\n" "cmd LC_RPATH" "cmdsize 56" '
+                '"path @loader_path/../runtime/python/lib (offset 12)" ;;\n'
+                "esac"
+            ),
+        }
+        for name, body in commands.items():
+            executable = tools / name
+            executable.write_text(f"#!/bin/sh\n{body}\n")
+            executable.chmod(0o755)
+
+        verifier = Path(__file__).resolve().parents[1] / "verify-daemon-runtime.sh"
+        for dependency, expected in [
+            ("@rpath/libpython3.15.dylib", 77),
+            ("/Users/fixture/build/libpython3.15.dylib", 1),
+        ]:
+            with self.subTest(dependency=dependency):
+                result = subprocess.run(
+                    [str(verifier), "--artifact", str(self.root)],
+                    env={
+                        **os.environ,
+                        "PATH": f"{tools}{os.pathsep}{os.environ['PATH']}",
+                        "TEST_MACHO_DEPENDENCY": dependency,
+                    },
+                    capture_output=True,
+                    text=True,
+                    timeout=20,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                if expected == 1:
+                    self.assertIn(
+                        "Mach-O load commands retain a build-host path", result.stderr
+                    )
+
     def test_linux_library_path_resolves_for_both_versions(self):
         if resolve_python_library is None:
             self.fail("runtime_manifest module not yet implemented")
@@ -126,7 +172,10 @@ class RuntimeManifestTests(unittest.TestCase):
         self.create_artifact("3.12.13", "lib/libpython3.12.dylib")
         script = Path(__file__).resolve().parent.parent / "verify-daemon-runtime.sh"
         res = subprocess.run(
-            [str(script), "--artifact", str(self.root)], capture_output=True, text=True
+            [str(script), "--artifact", str(self.root)],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         self.assertNotEqual(res.returncode, 0)
         self.assertTrue(
@@ -141,6 +190,7 @@ class RuntimeManifestTests(unittest.TestCase):
             [sys.executable, str(cli), "--artifact", str(self.root)],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(res.stdout.strip(), str(expected_lib.resolve()))
@@ -151,6 +201,7 @@ class RuntimeManifestTests(unittest.TestCase):
             [sys.executable, str(cli), "--artifact", str(self.root / "nonexistent")],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("error:", res.stderr)

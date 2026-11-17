@@ -62,3 +62,10 @@
 - **Root cause** — The hosted CPython distribution shipped its source checkout path in ELF debug metadata and generated sysconfig. Its copy of the IDLE test suite also contained sample home paths.
 - **Invariant** — Both native jobs compile and package against the same uv-managed standalone CPython pinned by the daemon project. Only the pre-package E2E step gets the build interpreter's loader path. Native archive checks stay blocking, and matrix jobs finish independently so each target has its own result.
 - **Regression test** — Release workflow tests verify the pinned interpreter selection, the native build and package consumers, and the matrix policy. The full native workflow runs host-path and relocation checks on the assembled archive.
+
+### 10. Mach-O Scanner Rejected Its Own Staging Path
+
+- **Symptom** — The hosted macOS runtime verifier rejected a staged daemon under `/Users/runner` despite its relocated dependency list.
+- **Root cause** — `otool -L` prints the inspected filename as a header. The scan treated the header as a dependency.
+- **Invariant** — Inspect only the dependency lines for embedded host paths. Continue to enforce the packaged Python install name and the artifact-relative rpath.
+- **Regression test** — The runtime manifest suite runs the verifier with an `otool` fixture that places a home path in the header and separately in a dependency.

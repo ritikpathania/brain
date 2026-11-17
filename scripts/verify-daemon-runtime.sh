@@ -160,11 +160,13 @@ fi
 
 case "$(uname -s)" in
     Darwin)
-        if otool -L "$daemon" | grep -Eq '/Users/|/home/|'"$repository_root"; then
+        # otool prints the inspected filename before the dependency list.
+        dependencies="$(otool -L "$daemon" | sed '1d')"
+        if grep -Fq -e '/Users/' -e '/home/' -e "$repository_root" <<< "$dependencies"; then
             echo "error: daemon Mach-O load commands retain a build-host path" >&2
             exit 1
         fi
-        if ! otool -L "$daemon" | grep -Fq "@rpath/$python_library_name"; then
+        if ! grep -Fq "@rpath/$python_library_name" <<< "$dependencies"; then
             echo "error: daemon does not load libpython through the packaged rpath (@rpath/$python_library_name)" >&2
             exit 1
         fi
