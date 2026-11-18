@@ -46,3 +46,11 @@ This document outlines the high-level roadmap and architectural direction for th
 - [ ] **Distributed Consensus (Raft)**: Active-active multi-node replication across remote daemon instances.
 - [ ] **Dynamic Plugin Sandbox**: WASM-based plugin runtime for safe, sandboxed custom graph reflection passes.
 - [ ] **Self-Optimizing Indexing**: Machine-learning driven automated pruning and re-ranking based on retrieval telemetry.
+
+## Phase 6 release follow-through
+
+- [x] Verify the synchronized ordinary CI consumer with executable archive fixtures.
+- [ ] Complete the native Linux and macOS archive matrix for the final Phase 6 release candidate, with exact source and artifact evidence.
+- [ ] Synchronize the accepted verification branch while preserving unrelated original working files.
+
+The maintainer's local Rust 1.99.1 toolchain path currently resolves through a symlink to stable Rust 1.100.0. The [distribution guide](docs/guides/product-distribution.md) distinguishes this local provenance from the CI pin.

@@ -76,3 +76,31 @@
 - **Root cause** — The old package and manual harnesses remained tracked after first-party launch became authoritative.
 - **Invariant** — Current product checkouts omit the retired shell and increment PTY launch scripts. The no-fallback launcher contract stays enforced and historical files remain recoverable at the pre-retirement commit.
 - **Regression test** — The canonical frontend CI test checks tracked paths for the retired package and entry points. Real-daemon E2E exercises actual `brain ui` with the first-party frontend.
+
+### 12. Ordinary CI Consumed the Retired Flat Archive Layout
+
+- **Symptom** — The SDK packaging job omitted Bun and attempted to launch extracted binaries outside the new `brain-dist/bin` tree.
+- **Root cause** — That consumer retained the daemon-only archive assumptions after the complete product layout became authoritative. Its early-exit inventory pipelines could also reject large valid archives under `pipefail`.
+- **Invariant** — The job provisions pinned build prerequisites, assembles with the managed standalone Python, validates all required product paths without a broken writer pipe, and executes binaries from an owned extraction directory. Failures propagate and temporary extraction is cleaned up.
+- **Regression test** — The frontend CI suite executes the workflow's packaging step under `bash -e -o pipefail` with real large and incomplete fixture archives and failing package/binary commands.
+
+### 13. Release Acceptance Checklist Described Unsupported Frontend Actions
+
+- **Symptom** — An active release checklist required obsolete sidebar behavior and then included session/Fleet controls absent from the first-party frontend.
+- **Root cause** — Acceptance requirements were copied from older frontend and backend capabilities without checking the maintained adapter and key router.
+- **Invariant** — The checklist follows the current create/list/load session contract, Ctrl+O picker, focus-specific Escape behavior, bounded count-only context panel and no-replay recovery. Toolchain provenance distinguishes the selected local toolchain alias from actual compiler versions.
+- **Regression test** — Independently inspect the checklist against `keyRouter.ts`, `sessions.ts`, `interactions.ts`, current context rendering and the existing frontend suites. Run `cargo xtask docs all` for links and document metadata.
+
+### 14. Ordinary CI Invoked an Undeclared Maturin Build
+
+- **Symptom** — The parent workspace gate and SDK job attempted `uv run maturin develop`, which failed before the packaging consumer could run.
+- **Root cause** — The daemon's frozen environment declares no Maturin dependency or Python extension build project. The SDK uses the pure Python `brain_sdk` package, and Rust/PyO3 verification belongs to Cargo.
+- **Invariant** — Ordinary CI syncs the declared environment and retains the Cargo/PyO3 workspace gate and Python SDK tests without invoking an unavailable extension builder.
+- **Regression test** — The focused workflow test rejects Maturin invocation in the parent gate while requiring `cargo xtask verify`. Run the SDK suite with local UDS binds enabled.
+
+### 15. Pre-Package Linux Frontend E2E Lacked the Build Interpreter Loader Path
+
+- **Symptom** — Ordinary Linux packaging selected the standalone Python, then launched the unrelocated daemon before its Python library could be resolved.
+- **Root cause** — The local orchestrator supplied a macOS framework path only. The native release workflow already supplied Python library search paths for its pre-package E2E stage, and Linux rpath relocation happens later during assembly.
+- **Invariant** — Only the pre-package E2E command receives the managed interpreter library directory in `LD_LIBRARY_PATH` and `DYLD_FALLBACK_LIBRARY_PATH`, retaining inherited entries. Product assembly and extraction verification receive no newly injected library search override.
+- **Regression test** — Execute the package orchestrator with controlled build stages and verify child environments at the E2E, runtime-verification and product-extraction boundaries.

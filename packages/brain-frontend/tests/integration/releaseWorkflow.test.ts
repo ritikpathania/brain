@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -195,6 +195,83 @@ exit 83
     const encodedFlags = readFileSync(flags, 'utf8').split('\x1f');
     expect(encodedFlags.slice(0, 2)).toEqual(['--cfg', 'brain_test']);
     expect(encodedFlags).toContain(`--remap-path-prefix=${root}=.`);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('local packaging supplies standalone Python loader paths only to pre-package frontend E2E', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'bfp loader paths ')));
+  try {
+    for (const prior of [
+      { ld: '', dyld: '' },
+      { ld: '/prior/linux/first:/prior/linux/second', dyld: '/prior/darwin/first:/prior/darwin/second' },
+    ]) {
+      const runRoot = mkdtempSync(join(root, 'run '));
+      const trace = join(runRoot, 'trace');
+      const libraryDir = join(runRoot, 'standalone python/lib');
+      const bashEnv = join(runRoot, 'bash-env');
+      for (const path of ['daemon/.venv/bin', 'packages/brain-frontend', 'scripts', 'standalone python/lib']) {
+        mkdirSync(join(runRoot, path), { recursive: true });
+      }
+      copyFileSync(join(repositoryRoot, 'package.sh'), join(runRoot, 'package.sh'));
+      writeFileSync(join(runRoot, 'daemon/.venv/bin/python'), '#!/bin/bash\nprintf "%s\\n" "$RELEASE_LIBRARY"\n', { mode: 0o755 });
+      writeFileSync(bashEnv, `
+rustc() { printf 'host: x86_64-unknown-linux-gnu\\n'; }
+cargo() { :; }
+bun() { :; }
+mktemp() { command mktemp -d "$RELEASE_ROOT/staging.XXXXXX"; }
+if [[ -n "$RELEASE_PRIOR_LD" ]]; then
+  export LD_LIBRARY_PATH="$RELEASE_PRIOR_LD"
+else
+  unset LD_LIBRARY_PATH
+fi
+if [[ -n "$RELEASE_PRIOR_DYLD" ]]; then
+  export DYLD_FALLBACK_LIBRARY_PATH="$RELEASE_PRIOR_DYLD"
+else
+  unset DYLD_FALLBACK_LIBRARY_PATH
+fi
+`);
+      // Bun fixtures observe the actual child environment without macOS's
+      // protected system-shell loader-variable filtering hiding the boundary.
+      const stageFixture = `#!${process.execPath}
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+const stage = basename(process.argv[1]).slice(0, -3);
+const args = process.argv.slice(2);
+appendFileSync(process.env.RELEASE_TRACE, JSON.stringify({ stage,
+  ld: process.env.LD_LIBRARY_PATH ?? null,
+  dyld: process.env.DYLD_FALLBACK_LIBRARY_PATH ?? null }) + '\\n');
+if (stage === 'package-brain-product.sh') {
+  const output = args[args.indexOf('--output') + 1];
+  mkdirSync(output);
+  writeFileSync(join(output, 'product-manifest.json'), '{}\\n');
+}
+if (stage === 'verify-daemon-runtime.sh') {
+  if (!existsSync(join(args[args.indexOf('--artifact') + 1], 'product-manifest.json'))) process.exit(81);
+}
+if (stage === 'verify-brain-product.sh') {
+  if (!existsSync(args[args.indexOf('--archive') + 1])) process.exit(82);
+}
+`;
+      for (const script of ['verify-frontend-e2e.sh', 'verify-frontend-artifact.sh',
+        'package-brain-product.sh', 'verify-daemon-runtime.sh', 'verify-brain-product.sh']) {
+        writeFileSync(join(runRoot, 'scripts', `${script}.js`), stageFixture, { mode: 0o755 });
+        symlinkSync(`${script}.js`, join(runRoot, 'scripts', script));
+      }
+      const run = Bun.spawnSync(['bash', join(runRoot, 'package.sh')], {
+        env: { ...process.env, BASH_ENV: bashEnv, RELEASE_ROOT: runRoot,
+          RELEASE_TRACE: trace, RELEASE_LIBRARY: libraryDir,
+          RELEASE_PRIOR_LD: prior.ld, RELEASE_PRIOR_DYLD: prior.dyld,
+          CARGO_ENCODED_RUSTFLAGS: '', RUSTFLAGS: '' },
+      });
+      expect({ exit: run.exitCode, stderr: run.stderr.toString() }).toEqual({ exit: 0, stderr: '' });
+      const stages = readFileSync(trace, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+      expect(stages).toEqual([
+        { stage: 'verify-frontend-e2e.sh', ld: prior.ld ? `${libraryDir}:${prior.ld}` : libraryDir,
+          dyld: prior.dyld ? `${libraryDir}:${prior.dyld}` : libraryDir },
+        ...['verify-frontend-artifact.sh', 'package-brain-product.sh', 'verify-daemon-runtime.sh',
+          'verify-brain-product.sh'].map(stage => ({ stage, ld: prior.ld || null, dyld: prior.dyld || null })),
+      ]);
+    }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

@@ -82,11 +82,6 @@ jobs:
           cd daemon
           uv sync --no-install-project
 
-      - name: Build PyO3 Bridge (Maturin)
-        run: |
-          cd daemon
-          uv run maturin develop
-
       - name: Run xtask verify Quality Gate
         run: |
           PYO3_PYTHON=python3 cargo xtask verify
@@ -109,48 +104,65 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y patchelf build-essential
+
+      - name: Set up the locked frontend Bun version
+        uses: oven-sh/setup-bun@v2
         with:
-          python-version: '3.15.2'
+          bun-version: "1.4.4"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
+          version: '0.13.8'
           enable-cache: true
 
-      - name: Sync Dependencies & Build Maturin Bridge
+      - name: Sync Daemon Dependencies
+        id: python
+        working-directory: daemon
         run: |
-          cd daemon
-          uv sync --no-install-project
-          uv run maturin develop
+          uv sync --frozen --no-install-project --managed-python --python "$(cat .python-version)"
+          python_path="$PWD/.venv/bin/python"
+          printf 'python-path=%s\n' "$python_path" >> "$GITHUB_OUTPUT"
 
       - name: Run Python SDK Test Suite
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
         run: |
           cd daemon
-          PYTHONPATH=../sdks/python uv run pytest ../sdks/python/tests/ -v
+          PYTHONPATH=../sdks/python uv run --no-sync pytest ../sdks/python/tests/ -v
 
       - name: Verify Release Packaging Script (package.sh)
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
+        shell: bash
         run: |
           bash package.sh
-          TAR_FILE=$(ls brain-*.tar.gz | head -n 1)
+          archives=(brain-*.tar.gz)
+          [[ ${#archives[@]} -eq 1 && -f "${archives[0]}" ]] || { echo "ERROR: expected exactly one generated package"; exit 1; }
+          TAR_FILE="${archives[0]}"
           echo "Found generated package: ${TAR_FILE}"
-          
+
           # Inspect tarball contents
-          MANIFEST=$(tar -tzf ${TAR_FILE})
+          MANIFEST=$(tar -tzf "${TAR_FILE}")
           echo "${MANIFEST}"
-          
-          # Assert both brain and brain-daemon binaries exist in archive
-          echo "${MANIFEST}" | grep -q "brain$" || (echo "ERROR: brain binary missing from package" && exit 1)
-          echo "${MANIFEST}" | grep -q "brain-daemon$" || (echo "ERROR: brain-daemon binary missing from package" && exit 1)
-          
-          # Unpack and verify binary execution
-          mkdir -p /tmp/pkg_verify
-          tar -xzf ${TAR_FILE} -C /tmp/pkg_verify
-          /tmp/pkg_verify/brain-daemon --version
-          
+
+          # Assert closed product layout binaries and manifests exist in archive
+          grep -Fxq 'brain-dist/bin/brain' <<< "$MANIFEST" || { echo "ERROR: brain-dist/bin/brain missing from package"; exit 1; }
+          grep -Fxq 'brain-dist/bin/brain-daemon' <<< "$MANIFEST" || { echo "ERROR: brain-dist/bin/brain-daemon missing from package"; exit 1; }
+          grep -Fxq 'brain-dist/frontend/brain-frontend/brain-frontend' <<< "$MANIFEST" || { echo "ERROR: standalone frontend missing from package"; exit 1; }
+          grep -Fxq 'brain-dist/product-manifest.json' <<< "$MANIFEST" || { echo "ERROR: product-manifest.json missing from package"; exit 1; }
+
+          # Unpack and verify binary execution from canonical brain-dist/bin/ paths
+          verify_dir="$(mktemp -d "$RUNNER_TEMP/brain-package-check.XXXXXX")"
+          trap 'rm -rf "$verify_dir"' EXIT
+          tar -xzf "${TAR_FILE}" -C "$verify_dir"
+          "$verify_dir/brain-dist/bin/brain-daemon" --version
+
           # Test exit code semantics (brain health when daemon unreachable should exit 1)
-          /tmp/pkg_verify/brain health || [ $? -eq 1 ]
+          "$verify_dir/brain-dist/bin/brain" health || [ $? -eq 1 ]
 
   docs-validation:
     name: Documentation validation

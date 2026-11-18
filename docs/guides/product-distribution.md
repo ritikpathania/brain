@@ -3,19 +3,19 @@ status: active
 owner: release
 canonical: true
 review_cycle: quarterly
-last_reviewed: 2026-11-17
+last_reviewed: 2026-11-18
 applies_to: v1.1+
 ---
 
 # Brain Product Distribution Guide
 
-This document describes the structure, packaging, verification, and installation of the official Brain product distribution archives.
+This document describes the structure, packaging, verification, toolchain provenance, and installation of the official Brain product distribution archives.
 
 ## 1. Product Distribution Architecture
 
-The product archive contains the CLI, daemon, standalone frontend, and their bundled runtime dependencies. The standalone frontend includes Bun. The extracted product still uses operating-system libraries.
+The product archive contains the CLI, daemon, standalone frontend, and their bundled runtime dependencies. The standalone frontend includes Bun (`1.4.4`). The extracted product still uses operating-system libraries.
 
-```
+```text
 brain-dist/
 ├── bin/
 │   ├── brain                 # Native CLI launcher
@@ -39,9 +39,9 @@ brain-dist/
 
 ### 1.1 Closed Content Inventory & Acyclic Hash Graph
 
-The product verifier checks the acyclic manifest chain before executing an extracted product.
+The product verifier checks the acyclic manifest chain before executing an extracted product:
 1. **Frontend**: Standalone executable SHA-256 is recorded in `frontend/brain-frontend/manifest.json`.
-2. **Daemon & Python**: The `brain-daemon` binary and `libpython3.15` dylib are recorded in `runtime-manifest.json`.
+2. **Daemon & Python**: The `brain-daemon` binary and `libpython3.15` dylib/shared library are recorded in `runtime-manifest.json`.
 3. **Python Files**: All standard library files are inventoried in `runtime/python-files.json`.
 4. **Product Manifest**: `product-manifest.json` directly hashes the CLI, frontend manifest, daemon manifest, python files manifest, and all notice files, forming a closed content inventory.
 
@@ -49,27 +49,34 @@ The product verifier checks the acyclic manifest chain before executing an extra
 
 ### 2.1 Verify and extract the archive
 
-The tagged workflow uses `brain-macos-arm64.tar.gz` on macOS arm64 and `brain-linux-x86_64.tar.gz` on Linux x86_64. Download the archive and matching `.sha256` file into the same directory. For macOS arm64, run the following.
+The tagged workflow uses `brain-macos-arm64.tar.gz` on macOS arm64 and `brain-linux-x86_64.tar.gz` on Linux x86_64. Download the archive and matching `.sha256` file into the same directory. For macOS arm64, run the following:
 
 ```bash
 shasum -a 256 -c brain-macos-arm64.tar.gz.sha256 && tar -xzf brain-macos-arm64.tar.gz
 ```
 
 ### 2.2 Execution
+
 Add the `bin/` directory to your `PATH` or invoke `bin/brain` directly:
+
 ```bash
 export PATH="/path/to/brain-dist/bin:$PATH"
 brain ui
 ```
 
 > [!IMPORTANT]
-> Keep `brain-dist/` together. The CLI resolves its sibling `brain-daemon` and the standalone frontend relative to its canonical executable path. You can put a symlink to `bin/brain` on your PATH.
+> Keep `brain-dist/` together. The CLI resolves its sibling `brain-daemon` and the standalone frontend relative to its canonical executable path. You can put a symlink to `bin/brain` on your `PATH`.
 
-## 3. Build & Packaging Verification
+## 3. Build, Toolchain Provenance & Packaging Verification
 
-### Local verification
+### 3.1 Toolchain Baseline & Provenance Reconciliation
 
-Use Rust 1.99.1, Bun 1.4.4, and the frozen daemon environment with CPython 3.15.2. Run the orchestrator from the repository root.
+- **MSRV & CI Pin (`1.99.1`)**: `Cargo.toml` (`rust-version = "1.99.1"`), `rust-toolchain.toml` (`channel = "1.99.1"`), and GitHub Actions workflows (`.github/workflows/ci.yml` and `.github/workflows/release.yml` via `dtolnay/rust-toolchain@1.99.1`) enforce Rust `1.99.1` as the minimum supported Rust version and CI baseline alongside Bun `1.4.4` and CPython `3.15.2`.
+- **Local Maintainer Host Provenance (`1.100.0`)**: On the maintainer macOS arm64 workstation, `~/.rustup/toolchains/1.99.1-aarch64-apple-darwin` is a symlink to `stable-aarch64-apple-darwin`, which updated to `rustc 1.100.0 (0ef1bc386 2026-11-09)` and `cargo 1.100.0 (3acc79c0c 2026-11-05)`. Because `scripts/package-brain-product.sh` records the output of `rustc --version` and `cargo --version` at assembly time into `product-manifest.json`, local macOS archives built on that host record `rustc 1.100.0` / `cargo 1.100.0`, whereas GitHub Actions native matrix archives record `rustc 1.99.1` / `cargo 1.99.1`.
+
+### 3.2 Local Verification (`./package.sh`)
+
+Run the orchestrator from the repository root:
 
 ```bash
 (cd daemon && uv sync --frozen --no-install-project)
@@ -78,23 +85,24 @@ Use Rust 1.99.1, Bun 1.4.4, and the frozen daemon environment with CPython 3.15.
 
 The orchestrator runs workspace and documentation quality gates, installs frozen frontend dependencies, and runs frontend typecheck and unit tests. It builds the native CLI and daemon with the locked Cargo dependencies. The shared `scripts/verify-frontend-e2e.sh` gate uses those explicit binaries and requires a passing real-daemon E2E suite with zero skipped or todo tests before standalone frontend compilation.
 
-The orchestrator verifies standalone identity and host paths, assembles the closed product, and proves daemon relocation with an extracted compiled Python extension. It then runs three fresh extractions and interactive PTY smokes against the complete archive and writes the SHA-256 checksum after success. Those smokes exercise launch from an unrelated working directory, bundled frontend and daemon resolution, generation and saved history, and cleanup. The local macOS orchestrator names its archive `brain-darwin-arm64.tar.gz`.
+The orchestrator verifies standalone identity and host paths, assembles the closed product, and proves daemon relocation with an extracted compiled Python extension. It then runs three fresh extractions and interactive PTY smokes against the complete archive and writes the SHA-256 checksum after success. The local macOS orchestrator names its archive `brain-darwin-arm64.tar.gz`.
 
-### Native workflow
+### 3.3 Ordinary CI & Native Release Workflows
 
-[Release Packaging](../../.github/workflows/release.yml) runs the native macOS arm64 and Linux x86_64 matrix for a `v*` tag push, a push to a `release-verify/**` branch, or manual dispatch. Each native job uses uv to resolve the pinned standalone CPython from `daemon/.python-version` for compilation and bundling. It runs the real-daemon E2E gate, standalone and daemon verification, and clean-extraction product smoke against the archive it uploads. macOS requires three extractions and Linux requires one. Both platform jobs run to completion independently. A version-matching tag and successful quality and native matrix jobs are required for publication. Verification-only branch and manual runs upload GitHub Actions artifacts.
+- **Ordinary CI (`.github/workflows/ci.yml`)**: The `sdk-and-packaging` job provisions Rust `1.99.1`, Python `3.15.2`, `uv`, and Bun `1.4.4`, runs `bash package.sh`, verifies the closed archive paths (`brain-dist/bin/brain`, `brain-dist/bin/brain-daemon`, `brain-dist/frontend/brain-frontend/brain-frontend`, and `brain-dist/product-manifest.json`), extracts into a unique runner-temporary directory, executes `brain-dist/bin/brain-daemon --version` and `brain-dist/bin/brain health` there, and removes that extraction on exit. It uses the pinned uv-managed standalone CPython for compilation and packaging.
+- **Native Release Matrix (`.github/workflows/release.yml`)**: Runs the native macOS arm64 (`aarch64-apple-darwin`) and Linux x86_64 (`x86_64-unknown-linux-gnu`) matrix for a `v*` tag push, a push to a `release-verify/**` branch, or manual dispatch. Each native job uses `uv` to resolve the pinned standalone CPython from `daemon/.python-version` for compilation and bundling, runs `scripts/verify-frontend-e2e.sh`, builds and verifies the standalone frontend and daemon runtime relocation, and runs clean-extraction PTY smokes (3 on macOS, 1 on Linux).
 
 ## 4. Platform Verification Status
 
-Both platform jobs passed on 2026-11-17 for source commit `f706d8eda57164661a8dbbeea9b0148bbb428868`. Each passed 119 frontend unit and integration tests, 12 real-daemon E2E tests with zero skips, and the CPython relocation and compiled-extension probes. The release publication job was skipped for the verification branch. [Release Packaging run](https://github.com/ritikpathania/brain/actions/runs/44020955003)
+### 4.1 Phase 5 Native Matrix Verification (`f706d8ed`)
+
+Both platform jobs passed on 2026-11-17 for source commit `f706d8eda57164661a8dbbeea9b0148bbb428868` in [GitHub Actions run `44020955003`](https://github.com/ritikpathania/brain/actions/runs/44020955003). Each passed 119 frontend unit and integration tests, 12 real-daemon E2E tests with zero skips, and the CPython relocation and compiled-extension probes.
 
 | Target | Clean-extraction PTY smoke | Archive SHA-256 |
 | --- | --- | --- |
 | macOS arm64 (`aarch64-apple-darwin`) | [3 of 3 passed](https://github.com/ritikpathania/brain/actions/runs/44020955003/job/133832910636) | `4a90244d949f88df98eaf872df5c12a26b7f8e639950f95ead54fa690c3e0cab` |
 | Linux x86_64 (`x86_64-unknown-linux-gnu`) | [1 of 1 passed](https://github.com/ritikpathania/brain/actions/runs/44020955003/job/133832910589) | `c618a56e0a054cd7b668468ee0c2ed719b1352813a4147e08f09593bc64ddcf9` |
 
-The local macOS run for source commit `6cd25406d1e2818267f527fc405cc267464554ae` also passed all three extractions. Its `brain-darwin-arm64.tar.gz` SHA-256 was `30c507c7c16a95c6cd40e2283c705bfda9e7dc7c611c419859e1409670a9f02c`. The [Phase 5 implementation plan](../superpowers/plans/2026-10-01-brain-frontend-phase-5.md#november-2026-verification-record) preserves earlier macOS evidence.
+### 4.2 Phase 6 Retirement Verification (`c81ece66`)
 
-Record the exact source commit, native target, completed test result, and archive SHA-256 for each candidate.
-
-The Phase 6 retirement candidate has its own verified local macOS archive. [Phase 6 acceptance record](../designs/phase-6-legacy-frontend-retirement.md#acceptance-record)
+The Phase 6 legacy frontend retirement candidate (`c81ece666bd63a8345ddedad19ef004ec162b27c`) passed its local macOS arm64 `./package.sh` verification (1,196 Rust nextest cases, frontend typecheck, 120 frontend tests, 12 real-daemon E2E tests with zero skips, and 3/3 clean-extraction PTY smokes) with archive SHA-256 `b3677f24952b98aaf6f8d6d7d3828f6e20ea3cb405ae006d65898c58b1c48c89`. Native Linux (`x86_64-unknown-linux-gnu`) verification for the Phase 6 commit remains a required release gate via `.github/workflows/release.yml` before tag publication; see the [Phase 6 acceptance record](../designs/phase-6-legacy-frontend-retirement.md#acceptance-record).

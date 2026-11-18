@@ -64,7 +64,10 @@ echo "Step 3: Compiling release binaries with remapped prefixes..."
 CARGO_ENCODED_RUSTFLAGS="$release_rustflags" cargo build --release --package brain --package brain-daemon --locked
 
 echo "Step 4: Running required frontend E2E and building the standalone artifact..."
-BRAIN_CLI_BIN="$release_cli" BRAIN_DAEMON_BIN="$release_daemon" ./scripts/verify-frontend-e2e.sh
+BRAIN_CLI_BIN="$release_cli" BRAIN_DAEMON_BIN="$release_daemon" \
+    LD_LIBRARY_PATH="$python_library_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    DYLD_FALLBACK_LIBRARY_PATH="$python_library_directory${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" \
+    ./scripts/verify-frontend-e2e.sh
 (
     cd packages/brain-frontend
     bun run build
