@@ -1,3 +1,4 @@
+#[cfg(all(unix, target_os = "macos"))]
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -17,6 +18,7 @@ extern "C" {
     fn sandbox_free_error(errorbuf: *mut libc::c_char);
 }
 
+#[cfg(target_os = "macos")]
 static SEATBELT_USABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 fn check_seatbelt_usable() -> bool {
@@ -433,14 +435,11 @@ impl SandboxDriver for SeatbeltSandboxDriver {
             });
         }
 
-        // 3. Generate policy profile
-        let profile_str = self.generate_profile(policy);
-
         #[cfg(all(unix, target_os = "macos"))]
         {
             use std::os::unix::process::CommandExt;
 
-            let profile_c = match CString::new(profile_str) {
+            let profile_c = match CString::new(self.generate_profile(policy)) {
                 Ok(c) => c,
                 Err(e) => {
                     return Err(BrainError::Authorization {

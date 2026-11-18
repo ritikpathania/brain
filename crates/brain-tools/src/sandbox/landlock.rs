@@ -249,7 +249,7 @@ impl SandboxDriver for LandlockSandboxDriver {
 
             unsafe {
                 cmd.pre_exec(move || {
-                    let max_fd = libc::sysconf(libc::_SC_OPEN_MAX).max(256).min(65536) as i32;
+                    let max_fd = libc::sysconf(libc::_SC_OPEN_MAX).clamp(256, 65536) as i32;
                     for fd in 3..max_fd {
                         libc::close(fd);
                     }

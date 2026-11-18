@@ -7,12 +7,8 @@ fn main() {
     println!("cargo:rerun-if-env-changed=LIBRARY_PATH");
     println!("cargo:rerun-if-changed=build.rs");
 
-    if std::env::var_os("CARGO_FEATURE_PYTHON_PLUGINS").is_none() {
-        return;
-    }
-
     #[cfg(target_os = "macos")]
-    {
+    if std::env::var_os("CARGO_FEATURE_PYTHON_PLUGINS").is_some() {
         let candidate_framework_dirs = [
             "/Library/Developer/CommandLineTools/Library/Frameworks",
             "/Applications/Xcode.app/Contents/Developer/Library/Frameworks",

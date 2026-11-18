@@ -257,3 +257,10 @@
 - **Root cause**: Both lines of work introduced the same runtime-path and strict session-ID helpers. The newer repository traits also permit transaction-borrowed views without thread-safety supertraits.
 - **Invariant**: Each runtime and session-routing helper has one definition. The asynchronously shared context service requires `Send + Sync` on the repository objects it owns while the repository traits still support transaction-borrowed views. The packaged daemon initializes its selected Python runtime before starting Tokio.
 - **Regression test**: `cargo check --locked --workspace --all-targets`, the context and frontend session contract suites, and portable runtime tests in `cargo xtask verify`.
+
+### 38. Linux Lint Compiled macOS-Only Declarations
+
+- **Symptom**: Linux CI rejected the integrated branch with unused Seatbelt declarations, an unnecessary return in the Python plugin build script, and a manual clamp in Landlock.
+- **Root cause**: Some declarations and the plugin feature guard were compiled outside the platform blocks that used them. Landlock expressed the descriptor limit through chained bounds.
+- **Invariant**: Seatbelt state and profile generation compile only where they are used. The Python framework search runs only for macOS plugin builds. Landlock keeps the established descriptor bounds with `clamp`.
+- **Regression test**: Linux `cargo clippy --workspace --all-targets -- -D warnings` and `cargo xtask verify` in ordinary CI.
