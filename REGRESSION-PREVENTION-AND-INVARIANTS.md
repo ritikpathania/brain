@@ -264,3 +264,10 @@
 - **Root cause**: Some declarations and the plugin feature guard were compiled outside the platform blocks that used them. Landlock expressed the descriptor limit through chained bounds.
 - **Invariant**: Seatbelt state and profile generation compile only where they are used. The Python framework search runs only for macOS plugin builds. Landlock keeps the established descriptor bounds with `clamp`.
 - **Regression test**: Linux `cargo clippy --workspace --all-targets -- -D warnings` and `cargo xtask verify` in ordinary CI.
+
+### 39. Output Limit Fixtures Needed a Device Blocked by Linux Landlock
+
+- **Symptom**: Three shell output limit tests reached the end without a truncation marker on Linux.
+- **Root cause**: The fixtures read `/dev/zero`, which the default policy does not grant. The commands reached an access error before producing oversized or sustained output.
+- **Invariant**: The truncation fixtures generate bounded and sustained output with Bash built-ins, so they cover both streams without granting new filesystem permissions.
+- **Regression test**: Run the `truncated` daemon unit tests inside the existing Linux sandbox and retain the full offline workspace gate.

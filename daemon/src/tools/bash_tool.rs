@@ -643,18 +643,18 @@ mod tests {
 
     #[test]
     fn oversized_output_is_truncated_with_marker() {
-        let result = BashTool
-            .execute(&ctx(), &args("head -c 40000 /dev/zero | tr '\\0' 'a'"))
-            .unwrap();
+        // Generate output inside Bash so this fixture needs no device access.
+        let command = format!("printf '%0{}d' 0", OUTPUT_LIMIT_BYTES + 1024);
+        let result = BashTool.execute(&ctx(), &args(&command)).unwrap();
         let out = result.value()["output"].as_str().unwrap();
         assert!(out.len() <= OUTPUT_LIMIT_BYTES + 16);
         assert!(out.ends_with("…[truncated]"));
     }
 
     #[test]
-    fn runaway_output_cat_dev_zero_is_bounded_and_truncated() {
+    fn runaway_stdout_output_is_bounded_and_truncated() {
         let started = std::time::Instant::now();
-        let result = BashTool.execute(&ctx(), &args("cat /dev/zero | tr '\\0' 'b'"));
+        let result = BashTool.execute(&ctx(), &args("while :; do printf '%04096d' 0; done"));
         assert!(
             started.elapsed() < Duration::from_secs(5),
             "execution took too long: {:?}",
@@ -670,7 +670,7 @@ mod tests {
     #[test]
     fn runaway_stderr_output_is_bounded_and_truncated() {
         let started = std::time::Instant::now();
-        let result = BashTool.execute(&ctx(), &args("cat /dev/zero 1>&2"));
+        let result = BashTool.execute(&ctx(), &args("while :; do printf '%04096d' 0 >&2; done"));
         assert!(
             started.elapsed() < Duration::from_secs(5),
             "execution took too long: {:?}",
