@@ -18,10 +18,8 @@ canonical_specs:
   - docs/architecture/overview.md
   - docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md
 adrs:
-  - ADR-015
   - ADR-025
 rfcs:
-  - RFC-005
   - RFC-011
 ---
 
@@ -81,6 +79,12 @@ The Retrieval Engine executes multi-channel candidate retrieval (BM25 lexical se
 ## 7. Owning Crates
 - [`crates/brain-services`](../../crates/brain-services/README.md): Candidate generators, RRF fusion engine, temporal scorers.
 
+## Ranking and model contracts
+
+Use validated domain value objects for weights, scores and tree parameters. Feature normalization, scoring, and offline evaluation use immutable inputs. Replacement of active weights uses a whole snapshot so requests see one version. The serialized tree definition stays separate from the compiled inference layout.
+
+Sticky experiment routing uses 64-bit FNV-1a over a stable key. Missing keys select the active baseline. Regression checks cover normalization bounds, independent feature effects, monotonic ranking metrics and deterministic cohort assignment.
+
 ## 8. Implementation Notes
 - Uses Reciprocal Rank Fusion constant $k = 60$.
 - Uses SIMD-accelerated dot-product calculations for BLOB vector embedding distance computation.
@@ -88,18 +92,16 @@ The Retrieval Engine executes multi-channel candidate retrieval (BM25 lexical se
 ## 9. Canonical References
 - [`docs/architecture/overview.md`](../architecture/overview.md): Search and retrieval architecture overview.
 - [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md): Canonical hybrid retrieval architecture specification.
-- [`docs/reference/benchmarking.md`](../reference/benchmarking.md): Retrieval performance harness.
+- [Benchmark guide](../benchmarks/README.md) and [retrieval baselines](../reference/retrieval-baselines/README.md).
 
 ## 10. Related ADRs
-- [`ADR-015: Strategy Interfaces`](../architecture/adr/ADR-015-strategy-interfaces.md)
 - [`ADR-025: Hybrid Retrieval Architecture`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md)
 
 ## 11. Related RFCs
-- [`RFC-005: Hybrid Search`](../architecture/rfc/RFC-005.md)
 - [`RFC-011: Temporal Ranking`](../architecture/rfc/RFC-011-temporal-ranking.md)
 
 ## 12. Operations
-- Query latency target: $< 50\text{ ms}$ for combined RRF retrieval.
+- Query latency target: under 50 ms for combined RRF retrieval. Record corpus size, hardware and cache state when measuring it.
 
 ## 13. Testing
 - Criterion benchmarks in `crates/brain-services/benches/` measure scoring throughput.

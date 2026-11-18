@@ -16,10 +16,9 @@ used_by:
   - daemon
 canonical_specs:
   - docs/subsystems/compiler.md
-  - docs/architecture/CONSTITUTION.md
+  - ARCHITECTURE.md
 adrs:
   - ADR-001
-  - ADR-017
 rfcs:
   - RFC-012
 ---
@@ -31,7 +30,7 @@ rfcs:
 ---
 
 ## 1. Purpose
-The Knowledge Compiler is the central state-mutation authority for Brain. It enforces Axiom 2 of the [Constitution](../architecture/CONSTITUTION.md): no subsystem or background process may directly mutate graph topology or fact version states; all mutations must pass through deterministic compilation passes.
+The Knowledge Compiler is the central state-mutation authority for Brain. Canonical graph updates follow the compiler and reflection command boundaries in [Architecture](../../ARCHITECTURE.md#runtime-invariants).
 
 ## 2. Responsibilities
 - Receives raw facts, observations, and entity updates.
@@ -93,25 +92,22 @@ The Knowledge Compiler is the central state-mutation authority for Brain. It enf
 - Passes register with `PassRegistry` and resolve topological execution ordering at runtime.
 
 ## 9. Canonical References
-- [`docs/architecture/CONSTITUTION.md`](../architecture/CONSTITUTION.md): Axiom 2 — Single Mutation Entry via KnowledgeCompiler.
+- [Architecture invariants](../../ARCHITECTURE.md#runtime-invariants).
 - [`ADR-001`](../architecture/adr/ADR-001-knowledge-runtime-evolution-model.md): Pure domain compiler evaluation invariants.
 
-## 10. Related ADRs
-- [`ADR-017: Model Compilation`](../architecture/adr/ADR-017-model-compilation.md)
-
-## 11. Related RFCs
+## 10. Related RFCs
 - [`RFC-012: Reflection Engine`](../architecture/rfc/RFC-012-reflection-engine.md)
 
-## 12. Operations
+## 11. Operations
 - Background compilation runs automatically during idle reflection passes or post-ingestion triggers.
 
-## 13. Testing
-- Fitness tests in `crates/brain-fitness-tests/` and unit tests in `crates/brain-services/tests/` assert pass idempotency.
+## 12. Testing
+- Compiler and reflection tests in `crates/brain-services/tests/` cover graph mutation and pass idempotency. The [test matrix](../../TEST_INFRA.md) identifies the separate dependency checks.
 
-## 14. Extension Points
+## 13. Extension Points
 - Implement `CompilerPass` trait to register new domain reconciliation rules.
 
-## 15. Subsystem Dependencies
+## 14. Subsystem Dependencies
 ```text
 Knowledge Compiler Subsystem
 ├── Depends on: Domain (brain-domain)

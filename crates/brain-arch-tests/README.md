@@ -18,7 +18,7 @@ AST-based architectural rule validation and static analysis test suite.
 * Static structural boundary enforcement.
 
 ## Canonical References
-* Specification: `../../docs/architecture/CONSTITUTION.md`
+* Specification: [Runtime invariants](../../ARCHITECTURE.md#runtime-invariants)
 
 ## Testing & Verification
 * `cargo test -p brain-arch-tests`

@@ -56,9 +56,8 @@ flowchart TD
 * **Embedding MCP/REST directly into daemon server**: Rejected as it pollutes the core codebase with HTTP/JSON-RPC/Websocket protocol parsing and networking logic.
 * **Direct Subsystem Access**: Allowing adapters to depend directly on internal service classes. Rejected as this exposes deep internal details and makes updating core services high-risk.
 
-## Related ADRs
-* [ADR-010 (Domain Boundaries)](ADR-010-domain-boundaries.md)
-* [ADR-015 (Strategy Interfaces)](ADR-015-strategy-interfaces.md)
-
 ## Expected Stability
 Long-term.
+
+
+See the [runtime invariants](../../../ARCHITECTURE.md#runtime-invariants) and [ranking and model contracts](../../subsystems/retrieval.md#ranking-and-model-contracts).

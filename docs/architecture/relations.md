@@ -81,7 +81,6 @@ Treat the registry data file and relation enum definitions with the same version
 
 ## 10. Related Specifications & Reference Documents
 * [GRAPH_SPEC.md](GRAPH_SPEC.md): Graph model specifications.
-* [STABILITY.md](STABILITY.md): System stability invariants.
 
 ## 11. Registry Consultation Invariant
 The registry is consulted at architectural boundaries to produce validated semantic objects. Internal algorithms operate on those semantic objects rather than repeatedly consulting the registry.
@@ -104,6 +103,3 @@ To maintain structural and semantic purity, the system enforces the following ma
   * `SuppressionEngine` only removes edges (filtering generic fallback relationships).
 * **Provenance Monotonicity**: The `InferenceEngine` may *only* emit edges with `ProvenanceSource::Inferred`. It must never copy, carry over, or alter the provenance of source edges. `SuppressionEngine` never rewrites provenance; it simply filters the resulting graph.
 * **Analytics Determinism**: Given the same validated graph, every analytical computation must produce identical results regardless of traversal order or internal hash iteration.
-
-
-

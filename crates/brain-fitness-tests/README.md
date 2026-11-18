@@ -16,10 +16,10 @@ Automated architectural fitness checks and compile-time boundary enforcement.
 * CI fitness test suite.
 
 ## Invariants Protected
-* Automated enforcement of the 12 Frozen Release Invariants (Invariant 5).
+* Checks pure domain dependencies, storage isolation at host boundaries, PyO3 ownership and toolchain pins.
 
 ## Canonical References
-* Specification: `../../docs/architecture/FITNESS_TESTS.md`
+* Specification: [Test matrix](../../TEST_INFRA.md)
 
 ## Testing & Verification
 * `cargo test -p brain-fitness-tests`

@@ -20,12 +20,11 @@ canonical_specs:
 adrs:
   - ADR-023
 rfcs:
-  - RFC-002
 ---
 
 # Plugin Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical plugin trait details live in [`docs/reference/plugin-api.md`](../reference/plugin-api.md) and extension stability policies live in [`docs/architecture/STABILITY.md`](../architecture/STABILITY.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical plugin trait details live in [`docs/reference/plugin-api.md`](../reference/plugin-api.md) and extension stability policies live in [Engineering guidelines](../../GUIDELINES.md).
 
 ---
 
@@ -76,24 +75,21 @@ The Plugin subsystem allows developers to extend Brain's memory engine with cust
 
 ## 9. Canonical References
 - [`docs/reference/plugin-api.md`](../reference/plugin-api.md): Canonical Python plugin API specification.
-- [`docs/architecture/STABILITY.md`](../architecture/STABILITY.md): Stability and extensibility commitments.
+- [Engineering guidelines](../../GUIDELINES.md): Stability and extensibility commitments.
 
 ## 10. Related ADRs
 - [`ADR-023: Shared Adapter Infrastructure`](../architecture/adr/ADR-023-shared-adapter-infrastructure.md)
 
-## 11. Related RFCs
-- [`RFC-002: PyO3 FFI Boundary & Dynamic Python Extraction Plugins`](../architecture/rfc/RFC-002.md)
-
-## 12. Operations
+## 11. Operations
 - Plugin directory: `~/.brain/plugins/`.
 
-## 13. Testing
+## 12. Testing
 - Integration tests in `crates/brain-python/tests/` verify Python plugin loading and GIL safety.
 
-## 14. Extension Points
+## 13. Extension Points
 - Implement `LlmProvider` or `StorageBackend` in Python or Rust.
 
-## 15. Subsystem Dependencies
+## 14. Subsystem Dependencies
 ```text
 Plugin Subsystem
 ├── Depends on: Rust Traits (brain-plugins) & FFI Bridge (brain-python)

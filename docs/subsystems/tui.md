@@ -15,7 +15,7 @@ used_by:
   - cli
 canonical_specs:
   - docs/reference/protocol.md
-  - docs/architecture/principles.md
+  - ARCHITECTURE.md
 adrs: []
 rfcs: []
 ---
@@ -79,5 +79,5 @@ The launcher and daemon protocol suites verify discovery, handshake, sessions/hi
 ## References
 
 - [UDS protocol reference](../reference/protocol.md)
-- [Architecture principles](../architecture/principles.md)
+- [Architecture constraints](../../ARCHITECTURE.md#runtime-invariants)
 - [Product distribution guide](../guides/product-distribution.md)

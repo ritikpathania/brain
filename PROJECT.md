@@ -10,3 +10,7 @@ Use the [architecture overview](docs/architecture/overview.md) for workspace bou
 | Product delivery | Native packages verify their own CLI, daemon, standalone frontend and relocated Python runtime. | The [release checklist](docs/guides/release-checklist.md) requires exact-source archive verification. |
 
 Record fixes and their maintained checks in the [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md).
+
+## Phase ownership
+
+Before starting a phase, record its dependencies, acceptance checks, reviewer, and exclusive file ownership here. The [roadmap](ROADMAP.md) tracks the work sequence and the [test matrix](TEST_INFRA.md) maps checks to the contracts above.

@@ -1,6 +1,6 @@
 # Brain: System Architecture & Data-Flow Specification
 
-This document is the root architectural blueprint for **Brain: Relational Memory Engine**, summarizing the 24-member workspace topology, runtime composition, 6-phase (18-pass) Knowledge Compiler, hybrid RRF retrieval pipeline, UDS wire protocol, and performance budgets. For detailed subsystem specifications, see [`docs/architecture/overview.md`](docs/architecture/overview.md) and [`docs/architecture/CONSTITUTION.md`](docs/architecture/CONSTITUTION.md).
+This document covers Brain's runtime composition, workspace boundaries, compiler, retrieval, protocol and performance budgets. The [architecture references](docs/architecture/README.md) describe individual contracts and request flows.
 
 ---
 
@@ -80,3 +80,11 @@ No background worker or transport handler may directly mutate canonical graph st
 | **Typewriter Frame Drain** | `< 0.05 ms` | Decoupled client chunk buffer and sequential frame drain |
 | **Daemon Memory Footprint** | `< 30 MB` RSS | Native services and bounded runtime state |
 | **Tool Cancellation Settlement** | `< 50 ms` | Owned Unix process-group `SIGTERM` -> `SIGKILL` escalation and child reaping |
+
+## Runtime invariants
+
+- Domain entities own business validation and emit pure domain events. Services translate events to persistence envelopes and stream frames. Preserve event compatibility through additive or versioned changes.
+- `BrainRuntime` composes the engine. `ApplicationRuntime` wires and starts application services through its builder. Hosts own process lifecycle and sockets. Adapters consume application interfaces and repository-backed read models.
+- Route canonical graph writes through the compiler and reflection mutation boundaries. Read projections hold no write handles. Preserve deterministic pass ordering, provenance, and idempotent identity handling for repeated inputs.
+- Keep public DTOs, SQLite migrations, stream ordering, and versioned frontend negotiation compatible. Use extension points for ranking, memory policies and providers. Record an ADR for changes to architectural invariants or frozen contracts.
+- Keep shared state outside user-facing adapters and retain request-scoped visibility and context budgets. See the [test matrix](TEST_INFRA.md) for checks that enforce these boundaries.

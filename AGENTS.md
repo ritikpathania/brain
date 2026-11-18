@@ -1,118 +1,24 @@
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
+# Brain engineering instructions
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+Brain uses the Full Production layout from the workspace engineering playbook. The pinned stack is Rust 1.99.1, Bun 1.4.4, and uv-managed CPython 3.15.2. [Engineering guidelines](GUIDELINES.md) record the package-specific TypeScript pins and implementation rules.
 
-### When to use graph tools FIRST
+| Rule | Where to verify |
+| --- | --- |
+| Wire features through the live runtime composition. Keep `Dummy*` and `Noop*` fixtures out of production paths. Keep domain entities free of database, async, logging and FFI dependencies. Route storage through repository interfaces. | [Architecture](ARCHITECTURE.md) and [test matrix](TEST_INFRA.md) |
+| Domain events represent facts. Translate them to persistence envelopes and UI stream frames at the application/service boundary. Preserve versioned DTOs and the frontend's authoritative session, monotonic streams, exact-once settlement, no-replay recovery and allowlisted context metadata. | [Protocol](docs/reference/protocol.md) and [frontend](docs/subsystems/tui.md) |
+| Keep Fleet registration, liveness and preferences in the daemon. Use stable IDs and requester-relative snapshots. Keep foreground registrations and background jobs distinct from durable conversations. | [Frontend handbook](docs/subsystems/tui.md) |
+| Preserve frozen presentation and reference fixtures unless a change is specifically authorized. Verify a zero diff or recorded hash for affected baselines. Keep private oracles and vendor references out of source and distribution. | [Guidelines](GUIDELINES.md) and [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md) |
+| Start with existing models and interfaces. Add foundational abstractions only when reuse is insufficient, at least two features share the need, and the abstraction supports future capabilities. | [Architecture](ARCHITECTURE.md) |
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
+## Phase workflow
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+1. Start with the feature and interface inventory in [PROJECT.md](PROJECT.md) and acceptance criteria in [ROADMAP.md](ROADMAP.md). For a multi-step phase, use the Superpowers planning and EGM draft skills to write `docs/designs/phase-N-<topic>.md` with files, contracts, transitions, failure cases, and acceptance checks. Have a separate reviewer run EGM review before implementation.
+2. Record milestone dependencies and exclusive file ownership in PROJECT.md before dispatching subagents. Use Superpowers test-driven development and subagent-driven development for scoped implementation. Map each changed capability to the applicable tiers in [TEST_INFRA.md](TEST_INFRA.md) and record readiness and gaps in [TEST_READY.md](TEST_READY.md).
+3. Cross-check the implementation independently against the phase spec and frozen boundaries. Run the relevant build, lint, and offline tests. Record drift in a dated report under `docs/designs/` and link it from the docs index while it informs active work. Keep completed reports in Git history once their lasting decisions have a canonical home.
+4. Update the current docs when a command, contract or milestone changes. Keep user work and preservation evidence intact. Refresh the code graph, clean phase scratch output, and commit the scoped result.
 
-### Key Tools
+## Diagnosis and verification
 
-| Tool | Use when |
-|------|----------|
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
-
-### Workflow
-
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
-
-## First-party terminal frontend verification
-
-Run `bun run typecheck` and `bun run test` in `packages/brain-frontend` for changes to the first-party TUI. Run `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries to verify the real-daemon workflow, including keyboard interaction and native launch. Measure frame draw latency and memory footprint when changing terminal presentation. See the [frontend integration handbook](docs/subsystems/tui.md).
-
-## Frontend and backend boundaries
-
-Keep first-party presentation above the versioned TypeScript adapter and view models. Preserve authorized presentation contracts, focus, key handling, layout, and resize and stream timing. Use existing theme tokens and verify changes with focused render, state, and PTY tests. The retired shell and its private oracle are historical references. Keep preservation archives, vendor trees and research inputs outside the product source and distribution.
-
-Fleet registration, liveness and preferences belong to the daemon. Identify registrations and preferences with stable IDs. Derive the requesting client's identity from the snapshot request. Keep foreground registrations, background jobs, durable conversations and historical transcripts distinct. Fleet uses requested snapshots. The current first-party launcher and UI acceptance follow the documented session and interaction paths. See the [frontend handbook](docs/subsystems/tui.md) and [protocol subsystem](docs/subsystems/protocol.md).
-
-## UDS Streaming Protocol & Reactive State Projection
-
-When working with queries or communication between the Rust Daemon and the TUI Client:
-
-Keep frame sequences monotonic within a stream. Correlate events to the active generation and settle its transcript state once. Reconnect through the versioned handshake and authoritative session state. Preserve the adapter's no-replay contract for turns, tools and permission decisions. Publish only allowlisted context metadata from successful assembly.
-
-## Domain-Driven Design (DDD) Invariants
-
-When modifying or adding models, specifications, or operations to the `crates/brain-domain/` directory:
-
-1. **Zero External Subsystem Dependencies**:
-   - `brain-domain` must stay at the bottom of the dependency tree. It cannot depend on any async runtimes, logger setups, database engines, or FFI modules.
-
-2. **Invariants Protected by Entities and Aggregates**:
-   - Encapsulate validation rules and business logic directly within entities (e.g., `Edge::strengthen`, `Conversation::archive`) and aggregate roots (e.g., `KnowledgeGraph`, `Session`) rather than orchestrating workflows inside application services.
-
-3. **Pure Domain Events**:
-   - State-changing mutations on domain models must return pure, side-effect-free events (e.g. `RelationshipStrengthened`, `MemoryMerged`, `ConversationArchived`) instead of calling event publishers directly. Let calling services intercept and publish them.
-
-4. **Pure Evaluation Specifications**:
-   - Specifications (`Specification` implementations) must only handle in-memory domain validations (e.g., checking if a node is pinned or if an edge is expired) and must not be used for database query building or indexing.
-
-### Architectural Scaling Guidelines
-
-As the relational memory engine grows, maintain the following design disciplines:
-
-1. **Strict Event Separation**:
-   - **DomainEvent**: Captures immutable business facts.
-   - **EventEnvelope**: Serves as the metadata/transport wrapper.
-   - **StreamEvent**: Expresses TUI/UI/streaming concerns.
-   - *Translation Boundary*: The service layer must act as the sole translation boundary between these layers.
-
-2. **Collection-Free Aggregates**:
-   - Do not let aggregates (like `KnowledgeGraph` or `Session`) grow indefinitely. For massive graphs, transition to referencing entity identifiers/repositories rather than materializing full collection records in memory.
-
-3. **Internal Event Recording Pattern**:
-   - For complex, multi-event mutations, shift from returning single events to internal event recording:
-     ```rust
-     entity.archive();
-     let events = entity.take_events();
-     ```
-
-4. **Domain Event Versioning**:
-   - Treat `DomainEvent` variants as append-only or explicitly versioned to ensure forward-compatibility with plugins and downstream consumers.
-
-5. **Future Architectural Fitness Testing (Roadmap)**:
-   - *Note: Treat these additions as optional roadmap items to introduce incrementally if/when complexity increases, not as mandatory milestones.*
-   - **AST-Based Enforcement**: As text-processing code grows complex, transition the fitness test suite to parse Rust code semantically using AST tools like `syn` or `ra_ap_syntax` rather than simple line-by-line text/regex scans.
-   - **Positive Assertions**: Incorporate structural validation checks verifying that required standards (e.g. traits derived, expected placement directories) are successfully satisfied.
-   - **Dependency DAG Verification**: Assert full workspace dependency layout invariants (e.g. verifying that `brain-domain` lacks outgoing dependencies and `brain-services` handles facade orchestrations) using `cargo_metadata` or cargo tree analysis.
-
-## Framework Evolution Guardrails
-
-To prevent the framework from growing faster than the product, adhere to this core project rule:
-
-> **Framework code exists only to enable capabilities. Capabilities should not require framework evolution by default.**
-
-Before proposing or introducing any new foundational framework abstraction, enforce the following checklist:
-1. **Reuse**: Can this capability be implemented cleanly using the existing aggregate, event, projection, and query models?
-2. **Duplication Proof**: Is this the second or third separate feature showing a clear need for the proposed abstraction?
-3. **Generalizability**: Will the new abstraction simplify multiple future capabilities, rather than just the immediate task at hand?
-
-Unless the answer to all three is a clear "yes", implement the capability strictly on top of the existing architecture instead of extending it.
-
-## Regression prevention and mandatory verification
-
-Read the [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md) before modifying a Rust crate, SQLite query, UDS handler or TypeScript adapter. Record each fixed regression with its symptom, root cause, enforced invariant and test.
-
-Run `cargo xtask verify` before concluding implementation or refactoring. It runs formatting, strict Clippy, offline Rust tests, contract checks, architecture checks and documentation validation. Follow the [engineering guidelines](GUIDELINES.md) for first-party frontend verification and exact-source native archive acceptance.
+- Start code exploration with `code-review-graph` when available. Query changes, callers, affected flows, and tests, then check exact files. Refresh with `CRG_PARSE_EXECUTOR=thread code-review-graph update`.
+- Before fixing a defect, read [DEAD_ENDS.md](DEAD_ENDS.md) and the [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md). Extract timing deltas from the failing run and trace the exact platform, startup mode and execution path. Record the symptom, root cause, enforced invariant and maintained check for each fix. Record abandoned attempts in DEAD_ENDS.md.
+- Run `cargo xtask verify` for implementation changes. For first-party frontend changes, run typecheck, the owned suite and `scripts/verify-frontend-e2e.sh` with explicit binaries. Measure draw latency and memory for presentation changes. Run `cargo xtask docs all` for documentation-only work. Follow the [release checklist](docs/guides/release-checklist.md) for native archive acceptance.

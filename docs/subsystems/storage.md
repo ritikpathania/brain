@@ -18,7 +18,6 @@ canonical_specs:
 adrs:
   - ADR-024
 rfcs:
-  - RFC-001
 ---
 
 # Storage Subsystem Mini-Handbook
@@ -80,20 +79,17 @@ The Storage subsystem manages persistent disk storage, SQLite database migration
 ## 10. Related ADRs
 - [`ADR-024: IVF Vector Indexing`](../architecture/adr/ADR-024-ivf-vector-indexing.md)
 
-## 11. Related RFCs
-- [`RFC-001: Storage Layer Transactional Memory`](../architecture/rfc/RFC-001.md)
-
-## 12. Operations
+## 11. Operations
 - **Data Location**: `~/.brain/brain.db` (Database) and `~/.brain/brain.db-wal` (Write-Ahead Log).
 - **Maintenance Guide**: See [`docs/guides/maintenance.md`](../guides/maintenance.md).
 
-## 13. Testing
+## 12. Testing
 - Integration tests in `crates/brain-storage/tests/` verify schema migrations, FTS5 sync, and transaction rollbacks.
 
-## 14. Extension Points
+## 13. Extension Points
 - Implement custom query projections via `brain-storage::projections` traits.
 
-## 15. Subsystem Dependencies
+## 14. Subsystem Dependencies
 ```text
 Storage Subsystem
 ├── Depends on: Domain (brain-domain)

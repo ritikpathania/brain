@@ -16,8 +16,10 @@ We treat observability as an architectural concern by explicitly surfacing telem
 * **Implicit Logging**: Standard standard-out text logs. Rejected because structured diagnostic structures are required for automated dashboards.
 
 ## Related ADRs
-* [ADR-011 (Immutable Snapshots)](ADR-011-immutable-snapshots.md)
 * [ADR-018 (Reproducible ML Lifecycle)](ADR-018-reproducible-ml-lifecycle.md)
 
 ## Expected Stability
 Long-term.
+
+
+[Ranking and model contracts](../../subsystems/retrieval.md#ranking-and-model-contracts) describe active weight snapshots.

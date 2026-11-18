@@ -2,7 +2,7 @@
 
 ## Toolchains and provenance
 
-CI and `rust-toolchain.toml` select Rust 1.99.1. The maintainer host currently maps its `1.99.1-aarch64-apple-darwin` toolchain directory to `stable-aarch64-apple-darwin`, which reports Rust and Cargo 1.100.0. Treat the requested toolchain name and actual command versions as separate facts. Product manifests record the actual assembly commands. Preserve those versions and exact source/artifact identities in verification evidence. Use Bun 1.4.4, TypeScript 5.9.3 and the uv-managed CPython 3.15.2 selected by the frozen daemon project.
+CI and `rust-toolchain.toml` select Rust 1.99.1. Use Bun 1.4.4 and the uv-managed CPython 3.15.2 selected by the frozen daemon project. The frontend pins TypeScript 5.9.3 and the TypeScript SDK pins 7.0.2. Check the actual tool versions during release verification and record them with the exact source and artifact identities.
 
 ## Runtime and dependency boundaries
 
@@ -13,6 +13,10 @@ CI and `rust-toolchain.toml` select Rust 1.99.1. The maintainer host currently m
 | **Error Handling** | Return typed `Result<T, BrainError>` / `ApplicationError` (`thiserror`) and propagate startup/scheduler errors with `?`. | Discard startup errors with `let _ = ...`, `.unwrap()` in library crates, or return silent `[0.0; 384]` dummy vectors on provider failure. |
 | **Cargo Dependencies** | Keep `test-utils` features in dev dependencies. Declare embedded Python support through the feature that enables it and honor the package build contract. | Leak `features = ["test-utils"]` into runtime dependencies or silently change the packaged Python runtime contract. |
 | **Process & Tool Execution** | Spawn owned Unix process groups, drain pipes, escalate `SIGTERM` -> `SIGKILL` on timeout/cancel, and reap before settling. | Use fire-and-forget `spawn_blocking(Command::output())` that leaves orphaned background processes on cancellation. |
+
+Document the safety contract at each `unsafe` block. Keep hot-path tunables in the owning configuration and include their effective values in cache invalidation when they change results. Carry runtime dependencies through constructors or explicit configuration.
+
+Keep CPython and PyO3 types within the Python bridge. Run blocking plugin calls off async executors, release the GIL before blocking on Rust work, and keep callback contexts valid for the duration of each call.
 
 ## Frontend boundaries
 

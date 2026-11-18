@@ -19,7 +19,7 @@ Pure Domain-Driven Design (DDD) domain models, value objects, and pure domain ev
 * Zero external infrastructure dependencies, pure in-memory business logic.
 
 ## Canonical References
-* Specification: `../../docs/architecture/CONSTITUTION.md`
+* Specification: [Runtime invariants](../../ARCHITECTURE.md#runtime-invariants)
 
 ## Testing & Verification
 * `cargo test -p brain-domain`

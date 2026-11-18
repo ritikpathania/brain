@@ -15,15 +15,12 @@ This guide details the code generation process for exporting application interfa
 
 ## 1. Directory Structure
 
-All generated contract files are exported to the workspace root under a unified layout:
-```text
-generated/
-    typescript/
-        types.ts      # Committed client SDK type definitions
-```
+The generator writes the same TypeScript definitions to two tracked files:
 
-* **Committed Files**: Output client types (like `generated/typescript/types.ts`) are checked into Git so client SDK consumers can import them natively without running the Rust compile chain.
-* **Ignored Files**: Temporary intermediate structures or draft validation outputs generated during builds are added to `.gitignore`.
+- `generated/typescript/types.ts` for workspace consumers.
+- `sdks/typescript/src/generated/types.ts` for the SDK.
+
+Commit both copies with the Rust DTO change. The generator uses `temp_generated/` for staging.
 
 ---
 
@@ -47,14 +44,15 @@ When modifying or adding Application DTOs inside `crates/brain-integrations/src/
    ```bash
    cargo xtask generate-contracts
    ```
-4. **Run Verification Tests**: Execute local verification checks to assert serialization consistency against golden snapshots:
+4. **Run DTO tests**: Execute local verification checks to assert serialization consistency against golden snapshots:
    ```bash
    cargo test -p brain-integrations
    ```
 5. **Inspect Changes**: Review the contract changes in Git:
    ```bash
-   git diff generated/typescript/types.ts
+   git diff generated/typescript/types.ts sdks/typescript/src/generated/types.ts
    ```
+6. **Verify the artifacts**: Stage both intentional generated changes and run `cargo xtask verify-contracts`. The command expects no unstaged generated-file drift.
 
 ---
 
@@ -62,6 +60,6 @@ When modifying or adding Application DTOs inside `crates/brain-integrations/src/
 
 The contract generation pipeline enforces several safety properties:
 
-* **Atomic Overwrites**: The `xtask` runner writes generated files to a temporary directory (`temp_generated/`) first and validates syntax completeness before atomically moving them to `generated/typescript/`. This prevents corrupting generated files if generation fails halfway through.
-* **Zero Manual Edits**: Developers must never modify the generated TypeScript files manually. CI builds will verify freshness by regenerating files and asserting that `git diff --exit-code` remains clean.
+* **Staging**: The generator verifies that the staged output is nonempty and includes the required envelope before copying it into the two tracked paths.
+* **Generation and freshness**: Use the generator for all edits. Verification generates twice in memory to check determinism, compares both tracked copies to that output, and checks for unstaged generated-file drift.
 * **Golden Snapshots**: Predefined test payloads are serialized and compared byte-for-byte against static snapshots in `crates/brain-integrations/tests/golden/`. Any change in field order, spelling, or value structures will fail the build until snapshots are intentionally updated.

@@ -79,6 +79,7 @@ cli/bin/brain_tui
 .code-review-graph/
 .junie/
 .superpowers/
+.build_*/
 # Ignore temporary agent UUID workspaces
 [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/
 
@@ -89,6 +90,7 @@ cli/tests/rigorous_test_results.json
 /qa/reports/telemetry.json
 /qa/reports/usability_report.md
 /qa/reports/validation_report.md
+/docs/benchmarks/graph_bench_telemetry.json
 
 # Generated contract artifacts
 docs-*.json

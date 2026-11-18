@@ -104,17 +104,8 @@ change in future, the left-hand side still reads correctly.
 
 ---
 
-## 🏛️ RFC & ADR Process
+## Design review
 
-For significant architectural changes, we use a two-stage design alignment process:
+Follow the [phase workflow](AGENTS.md#phase-workflow) for substantial changes. Record durable decisions affecting architecture or published contracts in [ADRs](docs/architecture/adr) and update the canonical documentation.
 
-### 1. Request for Comments (RFC)
-For proposing new major features, APIs, protocol changes, or core designs:
-- Create a new markdown file under **[rfc/](docs/architecture/rfc)** following the template structure in **[RFC_TEMPLATE.md](docs/architecture/rfc/RFC_TEMPLATE.md)**.
-- Share the RFC with the team/maintainers for collaborative feedback.
-
-### 2. Architectural Decision Records (ADR)
-Once a design is finalized, or when recording foundational architectural decisions (e.g., adopting SQLite BLOB storage for vectors):
-- Author an ADR under **[adr/](docs/architecture/adr)**.
-- Name the file sequentially using the pattern `ADR-XXX.md` (e.g., `ADR-009.md`).
-- Document the context, choices, alternatives considered, and consequences.
+An ADR records the decision, alternatives, trade-offs, and the evidence supporting it. [Use the RFC template](docs/architecture/rfc/RFC_TEMPLATE.md) when discussion needs a standalone proposal.

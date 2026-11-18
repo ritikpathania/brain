@@ -15,7 +15,7 @@ Hierarchical configuration loading, environment overrides, and schema validation
 * `BrainConfig`, `StorageConfig`, `UdsConfig`, `TuiConfig`.
 
 ## Invariants Protected
-* Deterministic immutable configuration snapshotting (ADR-011).
+* Deterministic immutable configuration snapshots.
 
 ## Canonical References
 * Specification: `../../docs/architecture/overview.md`

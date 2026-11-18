@@ -3,7 +3,7 @@
 **Author:** Antigravity AI  
 **Date:** 2026-07-21  
 **Status:** Proposed  
-**Reference RFCs:** [RFC-001](RFC-001.md) / [RFC-008](RFC-008.md) / [RFC-010](RFC-010.md)
+**Reference RFCs:** [Architecture](../../../ARCHITECTURE.md) / [RFC-008](RFC-008.md) / [RFC-010](RFC-010.md)
 
 ---
 
@@ -144,7 +144,7 @@ $$f(\Delta t) = \begin{cases}
 
 ## 5. Determinism & Reproducibility
 
-To ensure temporal ranking adheres to **ADR-013 (Behavioral Invariants)** and **ADR-014 (Deterministic Execution)**, the following rules are enforced:
+The proposal follows the [ranking and model contracts](../../subsystems/retrieval.md#ranking-and-model-contracts) and defines these checks:
 
 1. **Request-Scoped Reference Time**: `RetrievalRequest` is extended with an optional `reference_time` (seconds since Unix epoch). The pipeline must use this value as $T$. If `reference_time` is `None`, the service layer resolves it using `SystemTime::now()` *once* at the entry point of the pipeline and propagates it. This ensures that downstream rerankers, evaluations, and replays use a frozen, static reference time.
 2. **Strict Monotonicity**: Time differences must be non-negative. If $t_c > T$ due to minor clock skew, the difference is clamped: $\Delta t = \max(0, T - t_c)$.

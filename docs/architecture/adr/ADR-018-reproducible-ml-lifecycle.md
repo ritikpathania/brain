@@ -21,13 +21,12 @@ Feedback ──► Calibration ──► Offline Evaluation ──► Publicatio
 ## Alternatives Considered
 * **Ad-Hoc Promotion**: Direct deployment of calibrated weights without metric checks. Rejected due to severe regression risks in production.
 
-## Related ADRs
-* [ADR-011 (Immutable Snapshots)](ADR-011-immutable-snapshots.md)
-* [ADR-014 (Deterministic Execution)](ADR-014-deterministic-execution.md)
-
 ## Consequences
 * **Regression Safety**: Models cannot be promoted without satisfying metric thresholds.
 * **Auditability**: Complete audit trails are preserved from raw feedback to final variant promotions.
 
 ## Expected Stability
 Long-term.
+
+
+[Ranking and model contracts](../../subsystems/retrieval.md#ranking-and-model-contracts) describe the snapshot and routing boundaries.

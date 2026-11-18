@@ -26,8 +26,7 @@ This document outlines the high-level roadmap and architectural direction for th
 - [ ] **Expanded Vector Indexing**: Support HNSW vector indexing and evaluate write-time projection caching for sub-millisecond similarity queries over more than one million embeddings.
 - [ ] **Multi-Session Isolation**: Fine-grained session namespace partitioning for concurrent workspace agents.
 - [ ] **SDK Package Distribution**:
-  - Publish `@brain-engine/sdk` to npm.
-  - Publish `brain-engine` to PyPI.
+  - Publish the TypeScript SDK to npm and the Python SDK to PyPI after confirming the public package names.
   - Publish `brain-sdk-rs` to crates.io.
 - [ ] **MCP adapter enhancement**. Add tool-call streaming and resource subscriptions, and verify deployed-peer interoperability.
 
@@ -49,3 +48,13 @@ This document outlines the high-level roadmap and architectural direction for th
 - [ ] **Dynamic Plugin Sandbox**: WASM-based plugin runtime for safe, sandboxed custom graph reflection passes.
 - [ ] **Self-optimizing indexing**. Evaluate learned pruning and re-ranking from retrieval telemetry.
 - [ ] **Retrieval of failed actions**. Evaluate using failed tool outcomes and reverted edits to reduce repeated actions across turns.
+
+
+## Acceptance for planned work
+
+| Milestone | Acceptance evidence |
+| --- | --- |
+| Retrieval indexing and ranking | Compare against the maintained ranking baselines. Record corpus size, query and write latency, and equivalent retrieval quality at the stated scale before promoting an index or model. |
+| Session isolation and frontend capabilities | Show replay-safe, requester-scoped behavior in daemon integration and frontend state/PTY tests. Exercise keyboard navigation, session changes and restart recovery where applicable. |
+| SDK distribution and adapter interoperability | Install each artifact into a clean consumer, run version/contract checks, and exercise the supported adapter handshake and operations against the same daemon version. |
+| Distributed execution and plugin isolation | Review the phase design and exercise failure, restart and concurrency scenarios before advertising the capability. |

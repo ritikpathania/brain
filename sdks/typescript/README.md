@@ -44,7 +44,7 @@ The client SDK aligns with the application interface lifecycle guarantees:
 SDK MAJOR VERSION === Application Interface MAJOR VERSION
 ```
 
-Backward-compatibility constraints and deprecation schemas are governed by the stable application interface policies (refer to `STABILITY.md`).
+Backward-compatibility constraints and deprecation schemas are governed by the stable application interface policies ([compatibility policy](../../docs/architecture/compatibility_policy.md)).
 
 ---
 

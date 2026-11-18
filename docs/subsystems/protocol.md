@@ -22,8 +22,6 @@ adrs:
   - ADR-021
   - ADR-022
 rfcs:
-  - RFC-003
-  - RFC-007
 ---
 
 # IPC & Wire Protocol Subsystem Mini-Handbook
@@ -87,26 +85,23 @@ The daemon also exposes Fleet registration, requested snapshots and preferences 
 ## 9. Canonical References
 - [`docs/reference/protocol.md`](../reference/protocol.md): Canonical wire protocol and endpoint specification.
 - [`docs/reference/generation_workflow.md`](../reference/generation_workflow.md): Specta contract generation workflow.
-- [`docs/architecture/contract-lifecycle.md`](../architecture/contract-lifecycle.md): DTO lifecycle and deprecation policy.
 
 ## 10. Related ADRs
 - [`ADR-020: Protocol Independence & Adapter Architecture`](../architecture/adr/ADR-020-protocol-independence.md)
 - [`ADR-021: Stable Application Interface`](../architecture/adr/ADR-021-stable-application-interface.md)
 - [`ADR-022: Contract Ownership & DTO Generation Strategy`](../architecture/adr/ADR-022-contract-ownership-strategy.md)
 
-## 11. Related RFCs
-- [`RFC-003: IPC UDS Frame Codecs & Streaming Events Protocol`](../architecture/rfc/RFC-003.md)
 
-## 12. Operations
+## 11. Operations
 - Prometheus metrics are served at `http://127.0.0.1:8080/metrics` by default. `BRAIN_HEALTH_PORT` overrides the port.
 
-## 13. Testing
+## 12. Testing
 - Integration tests in `daemon/tests/` verify UDS request-response frames and HTTP endpoints.
 
-## 14. Extension Points
+## 13. Extension Points
 - Add new request payloads to `crates/brain-integrations/src/lib.rs` and run `cargo xtask generate-contracts`.
 
-## 15. Subsystem Dependencies
+## 14. Subsystem Dependencies
 ```text
 Protocol Subsystem
 ├── Depends on: Integration DTOs (brain-integrations)

@@ -1,0 +1,14 @@
+**/target/**
+**/node_modules/**
+**/dist/**
+**/.venv/**
+**/.build_*/**
+**/vendor/**
+**/__pycache__/**
+.superpowers/**
+.code-review-graph/**
+packages/brain-shell/**
+scripts/oracle/**
+claude-ui-research/**
+docs/reference/retrieval-baselines/**
+baselines/**

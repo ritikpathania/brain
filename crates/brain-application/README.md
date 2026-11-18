@@ -18,7 +18,7 @@ Runtime composition facade and ApplicationRuntime lifecycle builder.
 * Single runtime composition facade, lifecycle orchestration purity.
 
 ## Canonical References
-* Specification: `../../docs/architecture/ARCHITECTURE_INVARIANTS.md`
+* [Runtime invariants](../../ARCHITECTURE.md#runtime-invariants)
 
 ## Testing & Verification
 * `cargo test -p brain-application`

@@ -92,11 +92,11 @@ When relocating or replacing high-traffic root documents (such as `DESIGN.md` or
 ### Architectural Decision Records (ADRs)
 - Active ADRs reside under `docs/architecture/adr/`.
 - Remove superseded ADRs from the current handbook after updating inbound links and preserving any rules still enforced in the code or tests. The previous text is available in Git history.
-- ADRs use strict sequential numbering: `ADR-010-domain-boundaries.md`.
+- ADRs use strict sequential numbering: `ADR-NNN-topic.md`.
 
 ### Requests for Comments (RFCs)
 - Active RFCs reside under `docs/architecture/rfc/`.
-- RFC filenames maintain 3-digit identifiers (e.g. `RFC-001.md` .. `RFC-012-reflection-engine.md`).
+- RFC filenames maintain 3-digit identifiers (e.g. `RFC-NNN-topic.md`).
 - Document headers carry full descriptive titles (`# RFC-001 — Storage Layer`).
 
 ---
@@ -119,6 +119,5 @@ All active documentation in the repository must meet these automated quality tar
 | **Frontmatter Violations** | **0** | Normative specs under `architecture/`, `reference/`, `guides/`, `governance/` |
 | **Subsystem Violations** | **0** | Required mini-handbooks under `docs/subsystems/` |
 | **Invalid Code Snippets** | **0** | JSON code blocks in reference specifications |
-| **Duplicate Canonical Ownership** | **0** | Unique `canonical: true` claims across normative docs |
-| **Missing Crate READMEs** | **0** | All 25 Cargo workspace member crates & Python SDK |
+| **Missing Crate READMEs** | **0** | Cargo workspace members and the Python SDK |
 | **Active Orphan Documents** | **0** | Current handbook |

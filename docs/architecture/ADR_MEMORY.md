@@ -94,13 +94,11 @@ Regardless of entry point (search hit, memory item, context node, or graph link)
 
 ## 6. Architectural Invariant Traceability
 
-This proposal applies the [architecture invariants](ARCHITECTURE_INVARIANTS.md) to memory inspection:
+This proposal applies the [architecture invariants](../../ARCHITECTURE.md#runtime-invariants) to memory inspection:
 
-- **Invariant 1 (DDD Layering)**: `brain-domain` owns memory models (`MemoryId`, `Observation`) with zero UI dependencies.
-- **Invariant 4 (Presentation ViewModel Separation)**: Memory inspection views use immutable projections (`MemoryViewModel`).
-- **Invariant 6 (One Command = One Deterministic Capability)**: `/memory` maps to a dedicated memory service.
-- **Invariant 7 (Capability-Oriented Interfaces)**: Exposes `ExecutionClient::inspect_memory(...)` instead of storage-specific queries.
-- **Invariant 8 (Domain Before Presentation)**: Zero UI formatting inside domain memory entities.
+- `brain-domain` owns memory models such as `MemoryId` and `Observation` and carries no UI dependencies or formatting.
+- Memory inspection views use immutable projections such as `MemoryViewModel`.
+- `/memory` maps to a dedicated service exposed through an application capability.
 
 ---
 
