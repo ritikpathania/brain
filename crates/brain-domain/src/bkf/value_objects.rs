@@ -25,8 +25,7 @@ impl Confidence {
             Ok(Self(value))
         } else {
             Err(format!(
-                "Confidence value {} must be between 0.0 and 1.0",
-                value
+                "Confidence value {value} must be between 0.0 and 1.0"
             ))
         }
     }

@@ -5,7 +5,8 @@ use brain_core::{
     repositories::Storage,
 };
 use brain_domain::{EpochId, KnowledgeGraph, NodeType};
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 /// Concrete projector executing over persisted database records.
 pub struct SqliteProjector {

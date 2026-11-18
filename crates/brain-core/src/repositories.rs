@@ -9,7 +9,7 @@ use brain_domain::{Edge, EdgeId, Embedding, Node, NodeId, Session, SessionId};
 /// - **Provenance Preservation**: Provenance is intrinsic and immutable. Save operations must never modify the existing provenance record on conflict.
 /// - **Deterministic Merge**: Conflict resolution (e.g. merging properties) must be completely deterministic.
 /// - **Idempotency**: Duplicate writes must be idempotent and perform no additional side effects.
-pub trait NodeRepository: Send + Sync {
+pub trait NodeRepository {
     /// Saves a single node to the database (insert or update).
     fn save(&self, node: &Node) -> Result<(), BrainError>;
     /// Saves a collection of nodes in a single transaction.
@@ -49,7 +49,7 @@ pub trait NodeRepository: Send + Sync {
 /// - **No Silent Deletions**: Repository methods must never silently delete metadata or properties.
 /// - **Provenance Preservation**: Edge provenance is intrinsic and immutable. Save operations must never modify existing provenance.
 /// - **Idempotency**: Duplicate writes must be idempotent.
-pub trait EdgeRepository: Send + Sync {
+pub trait EdgeRepository {
     /// Saves a single edge to the database (insert or update).
     fn save(&self, edge: &Edge) -> Result<(), BrainError>;
     /// Saves a collection of edges in a single transaction.
@@ -65,7 +65,7 @@ pub trait EdgeRepository: Send + Sync {
 }
 
 /// Trait defining CRUD operations for high-dimensional Node Embeddings.
-pub trait EmbeddingRepository: Send + Sync {
+pub trait EmbeddingRepository {
     /// Saves a node's vector embedding.
     fn save(&self, embedding: &Embedding) -> Result<(), BrainError>;
     /// Retrieves the vector embedding associated with a node.
@@ -79,7 +79,7 @@ pub trait EmbeddingRepository: Send + Sync {
 }
 
 /// Trait defining CRUD operations for active and historical sessions.
-pub trait SessionRepository: Send + Sync {
+pub trait SessionRepository {
     /// Saves session aggregate.
     fn save_session(&self, id: &SessionId, session: &Session) -> Result<(), BrainError>;
     /// Loads session aggregate by its identifier.
@@ -89,7 +89,7 @@ pub trait SessionRepository: Send + Sync {
 }
 
 /// Trait defining key-value settings storage operations.
-pub trait ConfigRepository: Send + Sync {
+pub trait ConfigRepository {
     /// Saves a string config value associated with a key.
     fn save_key(&self, key: &str, val: &str) -> Result<(), BrainError>;
     /// Retrieves the config value associated with a key.
@@ -97,7 +97,11 @@ pub trait ConfigRepository: Send + Sync {
 }
 
 /// A collection of domain repositories.
-pub trait RepositorySet: Send + Sync {
+///
+/// Repository views may be borrowed from a transaction-bound connection and therefore must not
+/// be assumed to be transferable or shareable across threads. The owning [`Storage`] engine
+/// remains `Send + Sync` and is the boundary for concurrent callers.
+pub trait RepositorySet {
     /// Returns the Node repository.
     fn nodes(&self) -> &dyn NodeRepository;
     /// Returns the Edge repository.
@@ -111,7 +115,10 @@ pub trait RepositorySet: Send + Sync {
 }
 
 /// A Unit of Work transaction interface.
-pub trait StorageTransaction: Send + Sync {
+///
+/// Implementations may borrow a connection for the duration of the transaction callback. The
+/// transaction view is intentionally not required to be `Send` or `Sync`.
+pub trait StorageTransaction {
     /// Returns the repositories bound to this transaction.
     fn repositories(&self) -> &dyn RepositorySet;
 }

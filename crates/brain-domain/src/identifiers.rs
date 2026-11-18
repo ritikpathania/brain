@@ -645,3 +645,5 @@ impl fmt::Display for EpochId {
         write!(f, "{}", self.0)
     }
 }
+
+pub use crate::subagent::SubagentId;

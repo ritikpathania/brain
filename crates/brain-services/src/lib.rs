@@ -61,6 +61,10 @@ pub use consolidation::MemoryConsolidationService;
 pub mod jobs;
 pub use jobs::*;
 
+/// Fleet registry and durable preferences management service.
+pub mod fleet;
+pub use fleet::*;
+
 /// Query services and DTO layer.
 pub mod query;
 
@@ -148,5 +152,21 @@ pub use policies::*;
 pub mod protocol;
 pub use protocol::*;
 
-/// Native memory embedding providers.
+/// Git worktree isolation service and safety validation.
+pub mod worktree;
+pub use worktree::*;
+
+/// Subagent execution engine, bounded concurrency, and lifecycle coordination.
+pub mod subagent;
+pub use subagent::*;
+
+/// Knowledge graph heuristic and LLM entity and relation extraction.
+pub mod extraction;
+pub use extraction::{HeuristicExtractor, LlmMemoryExtractor};
+
+/// Native LLM and embedding providers for Ollama, OpenAI, and Anthropic.
 pub mod providers;
+pub use providers::embeddings::{
+    OllamaEmbeddingProvider, OpenAiCompatibleEmbeddingProvider, OpenAiEmbeddingProvider,
+};
+pub use providers::llm::{AnthropicLlmProvider, OllamaLlmProvider, OpenAiLlmProvider};

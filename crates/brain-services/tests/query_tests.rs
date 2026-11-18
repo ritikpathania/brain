@@ -108,7 +108,7 @@ fn test_session_query_service() {
     let proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool));
 
     // Core session repository interface is implemented by SqliteStorage
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let service = SqliteSessionQueryService::new(proj_repo.clone(), session_repo.clone());
 
     let session_id1 = SessionId::new();
@@ -233,7 +233,7 @@ fn test_cross_projection_consistency() {
     runner.register(Arc::new(session_reducer)).unwrap();
     runner.register(Arc::new(search_reducer)).unwrap();
 
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let session_query_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
     let search_query_service = SqliteSearchQueryService::new(search_repo);
 

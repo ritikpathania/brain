@@ -191,7 +191,7 @@ impl Planner {
                             });
                         }
                     }
-                    rationales.push(format!("Merge duplicate nodes: {:?}", nodes));
+                    rationales.push(format!("Merge duplicate nodes: {nodes:?}"));
                 }
                 FindingItem::WeakConnection {
                     source,
@@ -204,8 +204,7 @@ impl Planner {
                         amount: 0.1_f32,
                     });
                     rationales.push(format!(
-                        "Weaken weak edge {}->{} (weight={})",
-                        source, target, weight
+                        "Weaken weak edge {source}->{target} (weight={weight})"
                     ));
                 }
                 FindingItem::InvalidRelation {
@@ -215,12 +214,11 @@ impl Planner {
                     reason,
                 } => {
                     rationales.push(format!(
-                        "Invalid relation {}->{} ({}): {}",
-                        source, target, relation, reason
+                        "Invalid relation {source}->{target} ({relation}): {reason}"
                     ));
                 }
                 FindingItem::MissingContext { node_id, key } => {
-                    rationales.push(format!("Node {} is missing attribute {}", node_id, key));
+                    rationales.push(format!("Node {node_id} is missing attribute {key}"));
                 }
             }
         }

@@ -22,10 +22,16 @@ impl Drop for DaemonProcess {
 
 fn get_temp_dir() -> PathBuf {
     let uuid_str = uuid::Uuid::new_v4().to_string();
-    let path = PathBuf::from(format!("/tmp/bd-search-{}", &uuid_str[0..8]));
-    let _ = fs::remove_dir_all(&path);
-    fs::create_dir_all(&path).unwrap();
-    path
+    let sub = format!("bd-search-{}", &uuid_str[0..8]);
+    let tmp_path = std::env::temp_dir().join(&sub);
+    if let Ok(()) = fs::create_dir_all(&tmp_path) {
+        return tmp_path;
+    }
+    let alt_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../target/tmp")
+        .join(&sub);
+    fs::create_dir_all(&alt_path).unwrap();
+    alt_path
 }
 
 fn get_free_port() -> u16 {

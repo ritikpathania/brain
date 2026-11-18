@@ -22,10 +22,16 @@ impl Drop for DaemonProcess {
 
 fn get_temp_dir() -> PathBuf {
     let uuid_str = uuid::Uuid::new_v4().to_string();
-    let path = PathBuf::from(format!("/tmp/bd-perm-{}", &uuid_str[0..8]));
-    let _ = fs::remove_dir_all(&path);
-    fs::create_dir_all(&path).unwrap();
-    path
+    let sub = format!("bd-perm-{}", &uuid_str[0..8]);
+    let tmp_path = std::env::temp_dir().join(&sub);
+    if let Ok(()) = fs::create_dir_all(&tmp_path) {
+        return tmp_path;
+    }
+    let alt_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../target/tmp")
+        .join(&sub);
+    fs::create_dir_all(&alt_path).unwrap();
+    alt_path
 }
 
 fn get_free_port() -> u16 {
@@ -44,8 +50,8 @@ async fn start_test_daemon() -> DaemonProcess {
     let db_path = test_dir.join("brain.db");
     let analytics_db_path = test_dir.join("analytics.db");
 
-    let child = Command::new(bin_path)
-        .arg("daemon")
+    let mut cmd = Command::new(bin_path);
+    cmd.arg("daemon")
         .arg("run")
         .env("BRAIN_SOCKET_PATH", &socket_path)
         .env("BRAIN_PID_PATH", &pid_path)
@@ -55,19 +61,68 @@ async fn start_test_daemon() -> DaemonProcess {
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .env("BRAIN_MOCK_CHUNK_DELAY_MS", "50")
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("Failed to start daemon process");
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(dyld) = std::env::var("DYLD_FALLBACK_FRAMEWORK_PATH") {
+            cmd.env("DYLD_FALLBACK_FRAMEWORK_PATH", dyld);
+        } else {
+            cmd.env(
+                "DYLD_FALLBACK_FRAMEWORK_PATH",
+                "/Library/Developer/CommandLineTools/Library/Frameworks",
+            );
+        }
+    }
+
+    let mut child = cmd.spawn().expect("Failed to start daemon process");
 
     let mut ready = false;
+    let mut last_conn_err: Option<String> = None;
     for _ in 0..60 {
-        if socket_path.exists() && UnixStream::connect(&socket_path).await.is_ok() {
-            ready = true;
-            break;
+        if let Ok(Some(status)) = child.try_wait() {
+            let mut err = String::new();
+            if let Some(mut s) = child.stderr.take() {
+                use std::io::Read;
+                let _ = s.read_to_string(&mut err);
+            }
+            panic!(
+                "Daemon process exited prematurely with status {:?}. Stderr: {}",
+                status, err
+            );
+        }
+        if socket_path.exists() {
+            match UnixStream::connect(&socket_path).await {
+                Ok(_) => {
+                    ready = true;
+                    break;
+                }
+                Err(e) => {
+                    last_conn_err = Some(e.to_string());
+                }
+            }
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    assert!(ready, "Daemon did not bind socket in time");
+    if !ready {
+        let _ = child.kill();
+        let mut err = String::new();
+        if let Some(mut s) = child.stderr.take() {
+            use std::io::Read;
+            let _ = s.read_to_string(&mut err);
+        }
+        let mut out = String::new();
+        if let Some(mut s) = child.stdout.take() {
+            use std::io::Read;
+            let _ = s.read_to_string(&mut out);
+        }
+        let _ = child.wait();
+        let _ = fs::remove_dir_all(&test_dir);
+        panic!(
+            "Daemon did not bind socket in time at {:?}. Last connect err: {:?}\nChild stderr: {}\nChild stdout: {}",
+            socket_path, last_conn_err, err, out
+        );
+    }
 
     DaemonProcess {
         child,
@@ -90,8 +145,11 @@ async fn read_line_frame(
     reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>,
 ) -> serde_json::Value {
     let mut line = String::new();
-    reader.read_line(&mut line).await.unwrap();
-    serde_json::from_str(line.trim()).unwrap()
+    match tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await {
+        Ok(Ok(_)) => serde_json::from_str(line.trim()).unwrap_or_default(),
+        Ok(Err(e)) => panic!("read_line failed: {}", e),
+        Err(_) => panic!("read_line timed out after 5 seconds waiting for daemon response"),
+    }
 }
 
 #[tokio::test]
@@ -119,6 +177,37 @@ async fn resolve_unknown_call_is_rejected_as_error() {
         "error should echo the unknown call id, got: {}",
         body
     );
+}
+
+#[tokio::test]
+async fn malformed_canonical_session_id_is_rejected_before_permission_resolution() {
+    let daemon = start_test_daemon().await;
+    let stream = UnixStream::connect(&daemon.socket_path).await.unwrap();
+    let (reader, mut writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+
+    // The canonical resolver must validate its session identity before it
+    // consults the pending-permission map. In particular, an arbitrary string
+    // must not become a deterministic alias for a different Brain session.
+    send_frame(
+        &mut writer,
+        &serde_json::json!({
+            "id": "req-resolve-invalid-session",
+            "action": "v1/tool/resolve",
+            "payload": {
+                "permission_request_id": "permission-1",
+                "call_id": "call-1",
+                "session_id": "../../not-a-brain-session",
+                "generation_id": "generation-1",
+                "granted": true
+            }
+        }),
+    )
+    .await;
+
+    let reply = read_line_frame(&mut buf_reader).await;
+    assert_eq!(reply["status"], "error");
+    assert_eq!(reply["code"], "invalid_session_id");
 }
 
 /// Opens a connection, creates a session, consumes the create reply, and
@@ -295,4 +384,149 @@ async fn denial_emits_tool_denied_then_completes() {
         }
     }
     assert!(denied_seen, "deny must emit tool_denied");
+}
+
+#[tokio::test]
+async fn resolve_rejects_a_mismatched_session_id_without_settling_the_call() {
+    let daemon = start_test_daemon().await;
+    let (mut reader_a, mut writer_a, session_id) =
+        open_and_create_session(&daemon.socket_path).await;
+
+    start_generation_with_sentinel(&mut writer_a, &session_id).await;
+
+    let mut call_id = String::new();
+    let mut permission_request_id = String::new();
+    let mut generation_id = String::new();
+    for expected_seq in 0u64..3 {
+        let frame = read_line_frame(&mut reader_a).await;
+        assert_eq!(frame["sequence"].as_u64().unwrap(), expected_seq);
+        if frame["type"] == "tool_permission_requested" {
+            call_id = frame["call_id"].as_str().unwrap().to_string();
+            permission_request_id = frame["permission_request_id"].as_str().unwrap().to_string();
+            generation_id = frame["generation_id"].as_str().unwrap().to_string();
+        }
+    }
+
+    let resolver = UnixStream::connect(&daemon.socket_path).await.unwrap();
+    let (rreader, mut rwriter) = resolver.into_split();
+    let mut rbuf = BufReader::new(rreader);
+    send_frame(
+        &mut rwriter,
+        &serde_json::json!({
+            "id": "req-resolve-wrong-permission",
+            "action": "v1/tool/resolve",
+            "payload": {
+                "call_id": call_id,
+                "permission_request_id": permission_request_id,
+                "session_id": "wrong-session",
+                "generation_id": generation_id,
+                "granted": true
+            }
+        }),
+    )
+    .await;
+    assert_eq!(read_line_frame(&mut rbuf).await["status"], "error");
+
+    // A rejected resolution must leave the invocation pending. The matching
+    // stream and request correlation can still settle it once on the same
+    // resolver connection.
+    send_frame(
+        &mut rwriter,
+        &serde_json::json!({
+            "id": "req-resolve-correct-permission",
+            "action": "v1/tool/resolve",
+            "payload": {
+                "call_id": call_id,
+                "permission_request_id": permission_request_id,
+                "session_id": session_id,
+                "generation_id": generation_id,
+                "granted": false
+            }
+        }),
+    )
+    .await;
+    assert_eq!(read_line_frame(&mut rbuf).await["status"], "ok");
+
+    loop {
+        let frame = read_line_frame(&mut reader_a).await;
+        if frame["type"] == "finished" {
+            assert_eq!(frame["status"], "completed");
+            break;
+        }
+    }
+}
+
+#[tokio::test]
+async fn duplicate_canonical_resolution_is_rejected_and_executes_at_most_once() {
+    let daemon = start_test_daemon().await;
+    let (mut stream_reader, mut stream_writer, session_id) =
+        open_and_create_session(&daemon.socket_path).await;
+    start_generation_with_sentinel(&mut stream_writer, &session_id).await;
+
+    let mut call_id = String::new();
+    let mut permission_request_id = String::new();
+    let mut generation_id = String::new();
+    for expected_seq in 0u64..3 {
+        let frame = read_line_frame(&mut stream_reader).await;
+        assert_eq!(frame["sequence"].as_u64().unwrap(), expected_seq);
+        if frame["type"] == "tool_permission_requested" {
+            call_id = frame["call_id"].as_str().unwrap().to_string();
+            permission_request_id = frame["permission_request_id"].as_str().unwrap().to_string();
+            generation_id = frame["generation_id"].as_str().unwrap().to_string();
+        }
+    }
+
+    let resolver = UnixStream::connect(&daemon.socket_path).await.unwrap();
+    let (resolver_reader, mut resolver_writer) = resolver.into_split();
+    let mut resolver_reader = BufReader::new(resolver_reader);
+    let canonical_payload = serde_json::json!({
+        "call_id": call_id,
+        "permission_request_id": permission_request_id,
+        "session_id": session_id,
+        "generation_id": generation_id,
+        "granted": true,
+    });
+    send_frame(
+        &mut resolver_writer,
+        &serde_json::json!({
+            "id": "resolve-once",
+            "action": "v1/tool/resolve",
+            "payload": canonical_payload,
+        }),
+    )
+    .await;
+    assert_eq!(read_line_frame(&mut resolver_reader).await["status"], "ok");
+
+    // The waiter was removed atomically before the first verdict was
+    // delivered. A retry cannot revive or duplicate the invocation.
+    send_frame(
+        &mut resolver_writer,
+        &serde_json::json!({
+            "id": "resolve-duplicate",
+            "action": "v1/tool/resolve",
+            "payload": canonical_payload,
+        }),
+    )
+    .await;
+    assert_eq!(
+        read_line_frame(&mut resolver_reader).await["status"],
+        "error"
+    );
+
+    let mut tool_results = 0;
+    loop {
+        let frame = read_line_frame(&mut stream_reader).await;
+        if frame["type"] == "tool_result" {
+            tool_results += 1;
+            assert_eq!(frame["call_id"], call_id);
+        }
+        if frame["type"] == "finished" {
+            assert_eq!(frame["status"], "completed");
+            break;
+        }
+    }
+    assert_eq!(
+        tool_results, 1,
+        "one permission verdict executes at most once"
+    );
 }

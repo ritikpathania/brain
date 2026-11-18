@@ -27,7 +27,7 @@ impl GraphSimilarityScore {
     pub fn new(val: f32) -> Result<Self, DomainError> {
         if !(0.0..=1.0).contains(&val) {
             return Err(DomainError::ValidationError {
-                message: format!("Similarity score must be between 0.0 and 1.0, got {}", val),
+                message: format!("Similarity score must be between 0.0 and 1.0, got {val}"),
                 rule_id: Some("VAL-SIM-001".to_string()),
             });
         }

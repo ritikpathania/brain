@@ -73,6 +73,7 @@ pub struct BrainApplication {
     evolution_planner: Arc<brain_services::evolution::KnowledgeEvolutionPlanner>,
     evolution_audit_history: Arc<parking_lot::Mutex<Vec<v1::EvolutionAuditRecordDto>>>,
     automation_scheduler: Arc<brain_services::automation::AutomationScheduler>,
+    knowledge_compiler: Arc<brain_services::compiler::KnowledgeCompiler>,
     knowledge_runtime: Arc<brain_services::runtime::KnowledgeRuntime>,
     maintenance_runtime: Arc<brain_services::reflection::KnowledgeMaintenanceRuntime>,
     active_maintenance_lock: Arc<tokio::sync::Mutex<()>>,
@@ -115,12 +116,44 @@ impl BrainApplication {
 
     /// Create a new BrainApplication wrapping the services composition root runtime.
     pub fn new(runtime: Arc<BrainRuntime>) -> Self {
-        Self::with_context_query_embeddings(runtime, None)
+        Self::with_chat_agent(runtime, None)
     }
 
-    /// Creates the facade using the runtime's configured query embedding service.
+    /// Creates the facade with the supplied retrieval embedding service.
     pub fn with_context_query_embeddings(
         runtime: Arc<BrainRuntime>,
+        query_embeddings: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
+    ) -> Self {
+        Self::with_runtime_providers(runtime, None, query_embeddings)
+    }
+
+    /// Create a new BrainApplication with an optional pre-wired native `ChatAgent` provider.
+    pub fn with_chat_agent(
+        runtime: Arc<BrainRuntime>,
+        chat_agent: Option<Arc<dyn brain_core::agents::ChatAgent>>,
+    ) -> Self {
+        Self::with_model_providers(runtime, chat_agent, None)
+    }
+
+    /// Creates the facade with generation and context providers from the runtime.
+    pub fn with_model_providers(
+        runtime: Arc<BrainRuntime>,
+        chat_agent: Option<Arc<dyn brain_core::agents::ChatAgent>>,
+        embedding_provider: Option<Arc<dyn brain_core::retrieval::EmbeddingProvider>>,
+    ) -> Self {
+        let query_embeddings = embedding_provider
+            .filter(|provider| provider.name() != "noop")
+            .map(|provider| {
+                Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
+                    provider,
+                )) as Arc<dyn brain_core::retrieval::QueryEmbeddingService>
+            });
+        Self::with_runtime_providers(runtime, chat_agent, query_embeddings)
+    }
+
+    fn with_runtime_providers(
+        runtime: Arc<BrainRuntime>,
+        chat_agent: Option<Arc<dyn brain_core::agents::ChatAgent>>,
         query_embeddings: Option<Arc<dyn brain_core::retrieval::QueryEmbeddingService>>,
     ) -> Self {
         let max_seq = if let Ok(conn) = runtime.sqlite_storage().pool().get() {
@@ -144,12 +177,48 @@ impl BrainApplication {
         });
         let planner = brain_services::evolution::KnowledgeEvolutionPlanner::new();
         let scheduler = brain_services::automation::AutomationScheduler::new(planner.clone());
+        let knowledge_compiler = Arc::new(brain_services::compiler::KnowledgeCompiler::new());
         let knowledge_runtime = brain_services::runtime::KnowledgeRuntimeBuilder::new().build();
         let maintenance_runtime =
             brain_services::reflection::KnowledgeMaintenanceRuntime::default();
+
         let mock_provider = Arc::new(brain_services::model::DeterministicMockProvider::new());
-        let model_gateway =
-            Arc::new(brain_services::model::DefaultModelGateway::with_mock_provider(mock_provider));
+        let gateway = brain_services::model::DefaultModelGateway::with_mock_provider(mock_provider);
+        let native_chat_agent: Option<(Arc<dyn brain_core::agents::ChatAgent>, &'static str)> =
+            if let Some(agent) = chat_agent {
+                if agent.name() != "DummyChatAgent" {
+                    Some((agent, "native"))
+                } else {
+                    None
+                }
+            } else {
+                match runtime.config().models().active_llm_provider() {
+                    brain_config::schema::LlmProvider::Ollama => Some((
+                        Arc::new(brain_services::providers::llm::OllamaLlmProvider::default()),
+                        "ollama",
+                    )),
+                    brain_config::schema::LlmProvider::Openai => Some((
+                        Arc::new(brain_services::providers::llm::OpenAiLlmProvider::default()),
+                        "openai",
+                    )),
+                    brain_config::schema::LlmProvider::Anthropic => Some((
+                        Arc::new(brain_services::providers::llm::AnthropicLlmProvider::default()),
+                        "anthropic",
+                    )),
+                    brain_config::schema::LlmProvider::Gemini
+                    | brain_config::schema::LlmProvider::Custom(_) => None,
+                }
+            };
+        if let Some((agent, label)) = native_chat_agent {
+            let agent_id = agent.name().to_string();
+            let native_provider = Arc::new(brain_services::model::ChatAgentModelProvider::new(
+                agent, label, false,
+            ));
+            gateway.register_provider(native_provider);
+            gateway.register_alias(label, agent_id);
+        }
+        let model_gateway = Arc::new(gateway);
+
         let storage = runtime.sqlite_storage();
         let mut context_orchestrator =
             brain_services::context::DefaultContextOrchestrator::with_storage(
@@ -175,6 +244,7 @@ impl BrainApplication {
             evolution_planner: Arc::new(planner),
             evolution_audit_history: Arc::new(parking_lot::Mutex::new(Vec::new())),
             automation_scheduler: Arc::new(scheduler),
+            knowledge_compiler,
             knowledge_runtime: Arc::new(knowledge_runtime),
             maintenance_runtime: Arc::new(maintenance_runtime),
             active_maintenance_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -874,15 +944,92 @@ impl BrainApplication {
         Ok(findings.iter().map(Self::map_finding_to_dto).collect())
     }
 
+    /// Hydrates a `KnowledgeIR` snapshot from persisted nodes and edges in `SqliteStorage`.
+    fn hydrate_knowledge_ir(
+        &self,
+    ) -> Result<brain_services::compiler::KnowledgeIR, ApplicationError> {
+        let mut ir = brain_services::compiler::KnowledgeIR::new();
+        let nodes = self.runtime.list_nodes().map_err(|e| {
+            ApplicationError::Internal(format!("Failed to load nodes for KnowledgeIR: {:?}", e))
+        })?;
+
+        let storage = self.runtime.sqlite_storage();
+        use brain_core::repositories::EdgeRepository;
+        let mut seen_edges = std::collections::HashSet::new();
+
+        for node in nodes {
+            let entity_id = brain_services::compiler::EntityId(node.id.to_string());
+            let prov = brain_services::compiler::ProvenanceIR {
+                source_origin: "sqlite_storage".to_string(),
+                evidence_ids: vec![node.id.to_string()],
+                confidence: 0.90,
+                timestamp_ms: 1700000000000,
+            };
+            let mut entity = brain_services::compiler::EntityIR::new(
+                entity_id.clone(),
+                node.label.clone(),
+                node.node_type.to_string(),
+                0.90,
+                prov.clone(),
+            );
+            for (k, v) in &node.properties {
+                let val_str = v
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| v.to_string());
+                entity.properties.insert(k.clone(), val_str.clone());
+                let fact_id = brain_services::compiler::FactId(format!("{}:{}", node.id, k));
+                let fact = brain_services::compiler::FactIR::new(
+                    fact_id,
+                    entity_id.clone(),
+                    k.clone(),
+                    val_str,
+                    0.90,
+                    prov.clone(),
+                );
+                ir.insert_fact(fact);
+            }
+            ir.insert_entity(entity);
+
+            if let Ok(edges) = storage.get_connections(&node.id) {
+                for edge in edges {
+                    let edge_key = (
+                        edge.source.to_string(),
+                        edge.target.to_string(),
+                        edge.relation.to_string(),
+                    );
+                    if seen_edges.insert(edge_key) {
+                        ir.add_relation(brain_services::compiler::RelationIR {
+                            source_id: brain_services::compiler::EntityId(edge.source.to_string()),
+                            target_id: brain_services::compiler::EntityId(edge.target.to_string()),
+                            relation_kind: edge.relation.to_string(),
+                            weight: edge.weight,
+                            provenance: prov.clone(),
+                            provenance_chain: vec![prov.clone()],
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(ir)
+    }
+
     /// Compiles raw observations into canonical Knowledge IR and returns a KnowledgeCompilationReport.
     pub async fn compile_knowledge(
         &self,
     ) -> Result<v1::KnowledgeCompilationReport, ApplicationError> {
+        let current_version = self
+            .knowledge_compiler
+            .runtime_state()
+            .live_snapshot()
+            .graph_version
+            .saturating_add(1);
         let compilation_id = uuid::Uuid::new_v4();
         let context = brain_services::compiler::CompilerContext {
             compilation_id,
             session_id: brain_domain::SessionId(ulid::Ulid::new()),
-            graph_version: 1,
+            graph_version: current_version,
             dirty_set: None,
             min_confidence_threshold: 0.50,
             time_budget_ms: 30000,
@@ -890,17 +1037,14 @@ impl BrainApplication {
             config: brain_services::compiler::CompilerOptimizationConfig::default(),
         };
 
-        let compiler = brain_services::compiler::KnowledgeCompiler::new();
-        let mut ir = brain_services::compiler::KnowledgeIR::new();
-
-        let (_compiled_ir, report) = compiler.compile(&context, &mut ir);
+        let mut ir = self.hydrate_knowledge_ir()?;
+        let (_compiled_ir, report) = self.knowledge_compiler.compile(&context, &mut ir);
         Ok(report)
     }
 
     /// Returns compiler operational status and telemetry report derived from an atomic CompilerSnapshot.
     pub async fn compile_status(&self) -> Result<v1::CompilerStatusReport, ApplicationError> {
-        let compiler = brain_services::compiler::KnowledgeCompiler::new();
-        let snap = compiler.runtime_state().live_snapshot();
+        let snap = self.knowledge_compiler.runtime_state().live_snapshot();
 
         let pass_metrics = snap
             .pass_metrics
@@ -936,8 +1080,7 @@ impl BrainApplication {
     pub async fn last_compilation_report(
         &self,
     ) -> Result<Option<v1::KnowledgeCompilationReport>, ApplicationError> {
-        let compiler = brain_services::compiler::KnowledgeCompiler::new();
-        Ok(compiler.runtime_state().latest_report())
+        Ok(self.knowledge_compiler.runtime_state().latest_report())
     }
 
     /// Executes a declarative `KnowledgeQuery` end-to-end through the KnowledgeRuntime façade.
@@ -945,7 +1088,7 @@ impl BrainApplication {
         &self,
         query: brain_services::query::KnowledgeQuery,
     ) -> Result<v1::QueryResultDto, ApplicationError> {
-        let ir = brain_services::compiler::KnowledgeIR::new();
+        let ir = self.hydrate_knowledge_ir()?;
         let ctx = brain_services::query::InMemoryQueryContext::new(&ir);
         let req = brain_services::runtime::RuntimeRequest::new(&query, &ctx);
 
@@ -971,7 +1114,7 @@ impl BrainApplication {
         &self,
         query: brain_services::query::KnowledgeQuery,
     ) -> Result<v1::KnowledgeResponseDto, ApplicationError> {
-        let ir = brain_services::compiler::KnowledgeIR::new();
+        let ir = self.hydrate_knowledge_ir()?;
         let ctx = brain_services::query::InMemoryQueryContext::new(&ir);
         let req = brain_services::runtime::RuntimeRequest::new(&query, &ctx);
 
@@ -1636,11 +1779,79 @@ pub enum ReflectionProposalCommand {
 }
 
 impl BrainApplication {
-    /// Returns the catalog of reviewable reflection proposals (populating default mock set if empty).
+    /// Returns the catalog of reviewable reflection proposals (populating from live reflection findings first).
     pub async fn list_reflection_proposals(
         &self,
     ) -> Result<Vec<v1::ReflectionProposalDto>, ApplicationError> {
         let mut proposals_map = self.reflection_proposals.lock();
+        if proposals_map.is_empty() {
+            let context = brain_services::reflection::ReflectionContext {
+                execution_id: uuid::Uuid::new_v4(),
+                session_id: brain_domain::SessionId(ulid::Ulid::new()),
+                cutoff_epoch: u64::MAX,
+                max_nodes: 1000,
+                time_budget_ms: 5000,
+                cancellation_token: tokio_util::sync::CancellationToken::new(),
+            };
+            if let Ok(findings) = self.runtime.reflection_engine().reflect(&context) {
+                for (idx, finding) in findings.iter().enumerate() {
+                    let (proposal_id, source_id, target_id, action_type, summary) = match finding {
+                        brain_domain::ReflectionFinding::DuplicateFound {
+                            node_a,
+                            node_b,
+                            evidence,
+                        } => (
+                            format!("prop_dup_{}_{}", node_a, node_b),
+                            node_a.to_string(),
+                            Some(node_b.to_string()),
+                            v1::ReflectionActionType::MergeEntities,
+                            evidence.details.clone(),
+                        ),
+                        brain_domain::ReflectionFinding::ContradictionFound {
+                            node_id,
+                            property_key,
+                            evidence,
+                            ..
+                        } => (
+                            format!("prop_contra_{}_{}", node_id, property_key),
+                            node_id.to_string(),
+                            None,
+                            v1::ReflectionActionType::PruneFact,
+                            evidence.details.clone(),
+                        ),
+                        brain_domain::ReflectionFinding::LinkSuggested {
+                            source_id,
+                            target_id,
+                            evidence,
+                            ..
+                        } => (
+                            format!("prop_link_{}_{}", source_id, target_id),
+                            source_id.to_string(),
+                            Some(target_id.to_string()),
+                            v1::ReflectionActionType::StrengthenEdge,
+                            evidence.details.clone(),
+                        ),
+                    };
+                    proposals_map.insert(
+                        proposal_id.clone(),
+                        v1::ReflectionProposalDto {
+                            proposal_id,
+                            finding_kind: finding.kind().to_string(),
+                            source_concept_id: source_id,
+                            target_concept_id: target_id,
+                            confidence: finding.confidence(),
+                            action_type,
+                            explanation_summary: summary,
+                            status: v1::ReflectionProposalStatus::Pending,
+                            created_at_ms: 1700000000000 + (idx as u64 * 1000),
+                            resolved_at_ms: None,
+                            resolved_graph_version: None,
+                        },
+                    );
+                }
+            }
+        }
+
         if proposals_map.is_empty() {
             let p1 = v1::ReflectionProposalDto {
                 proposal_id: "prop_94a2b18c".to_string(),
@@ -2144,6 +2355,18 @@ impl BrainApplication {
         let session_id = session_id_str
             .parse::<brain_domain::SessionId>()
             .map_err(|e| ApplicationError::Validation(format!("Invalid session_id: {}", e)))?;
+
+        // Guard: active foreground sessions cannot be deleted (P0-C / FLEET-02 / RUST-09)
+        if self
+            .runtime
+            .fleet_registry()
+            .is_active_foreground_session(session_id_str)
+        {
+            return Err(ApplicationError::Validation(format!(
+                "Cannot delete session '{}': session is currently active in a foreground terminal",
+                session_id_str
+            )));
+        }
 
         let storage = self.runtime.sqlite_storage();
         use brain_core::repositories::SessionRepository;

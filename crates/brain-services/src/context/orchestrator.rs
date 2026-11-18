@@ -20,8 +20,8 @@ use crate::retrieval::source::SemanticMemorySource;
 pub struct DefaultContextOrchestrator {
     ranker: Arc<dyn MemoryRanker>,
     assembler: Arc<dyn ContextAssembler>,
-    node_repo: Option<Arc<dyn NodeRepository>>,
-    edge_repo: Option<Arc<dyn EdgeRepository>>,
+    node_repo: Option<Arc<dyn NodeRepository + Send + Sync>>,
+    edge_repo: Option<Arc<dyn EdgeRepository + Send + Sync>>,
     semantic_source: Option<Arc<SemanticMemorySource>>,
     candidates: Arc<RwLock<Vec<RetrievalCandidate>>>,
     deleted_nodes: Arc<RwLock<std::collections::HashSet<brain_domain::NodeId>>>,
@@ -61,8 +61,8 @@ impl DefaultContextOrchestrator {
 
     /// Creates an orchestrator backed by production storage repositories.
     pub fn with_storage(
-        node_repo: Arc<dyn NodeRepository>,
-        edge_repo: Arc<dyn EdgeRepository>,
+        node_repo: Arc<dyn NodeRepository + Send + Sync>,
+        edge_repo: Arc<dyn EdgeRepository + Send + Sync>,
     ) -> Self {
         Self {
             node_repo: Some(node_repo),
@@ -73,8 +73,8 @@ impl DefaultContextOrchestrator {
 
     /// Creates an orchestrator with full control over storage and ranking components.
     pub fn with_all(
-        node_repo: Option<Arc<dyn NodeRepository>>,
-        edge_repo: Option<Arc<dyn EdgeRepository>>,
+        node_repo: Option<Arc<dyn NodeRepository + Send + Sync>>,
+        edge_repo: Option<Arc<dyn EdgeRepository + Send + Sync>>,
         ranker: Arc<dyn MemoryRanker>,
         assembler: Arc<dyn ContextAssembler>,
     ) -> Self {

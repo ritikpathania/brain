@@ -10,25 +10,37 @@ pub struct SqliteConnectionCustomizer {
 }
 
 impl r2d2::CustomizeConnection<Connection, rusqlite::Error> for SqliteConnectionCustomizer {
-    fn on_acquire(&self, conn: &mut Connection) -> Result<(), rusqlite::Error> {
-        conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;")?;
-        if self.enable_wal {
-            conn.execute_batch("PRAGMA journal_mode = WAL;")?;
-        }
-        if std::env::var("BRAIN_SQLITE_SYNCHRONOUS_NORMAL").is_ok() {
-            conn.execute_batch("PRAGMA synchronous = NORMAL;")?;
-        }
-        if std::env::var("BRAIN_SQLITE_TEMP_STORE_MEMORY").is_ok() {
-            conn.execute_batch("PRAGMA temp_store = MEMORY;")?;
-        }
+    fn on_acquire(&self, _conn: &mut Connection) -> Result<(), rusqlite::Error> {
         Ok(())
     }
 }
 
-/// Simple thread-safe connection manager for rusqlite.
+/// # SQLite WAL & Synchronization Durability Policy
+///
+/// SQLite connections configured via `SqliteConnectionManager` operate under
+/// **Write-Ahead Logging (WAL)** mode with `PRAGMA synchronous = NORMAL`.
+///
+/// ## Durability Invariant & Rationale
+///
+/// 1. **Application & OS Crash Safety**:
+///    Under WAL mode with `synchronous = NORMAL`, SQLite syncs the WAL file during
+///    WAL checkpoints rather than issuing a full disk `fsync` on every individual transaction.
+///    In the event of an application crash (`SIGSEGV`, panic, `SIGKILL`) or OS crash,
+///    the SQLite database and WAL log remain completely consistent and corruption-free.
+///
+/// 2. **Power-Loss Tradeoff**:
+///    The only scenario where recently committed transactions could be lost is sudden
+///    uncontrolled hardware power-loss between checkpoints. For a local AI companion and
+///    session memory daemon, this durability guarantee satisfies production requirements
+///    while eliminating 5-20ms disk fsync stalls on high-frequency streaming turns.
+///
+/// 3. **Connection Lifecycle Invariant**:
+///    PRAGMA configuration is executed once upon connection creation in `ManageConnection::connect`,
+///    ensuring connection acquisition from the pool is zero-cost.
 #[derive(Debug)]
 pub struct SqliteConnectionManager {
     path: std::path::PathBuf,
+    enable_wal: bool,
 }
 
 impl SqliteConnectionManager {
@@ -36,6 +48,15 @@ impl SqliteConnectionManager {
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Self {
         Self {
             path: path.as_ref().to_path_buf(),
+            enable_wal: true,
+        }
+    }
+
+    /// Creates a new connection manager with explicit WAL configuration.
+    pub fn with_wal<P: AsRef<std::path::Path>>(path: P, enable_wal: bool) -> Self {
+        Self {
+            path: path.as_ref().to_path_buf(),
+            enable_wal,
         }
     }
 }
@@ -45,11 +66,24 @@ impl ManageConnection for SqliteConnectionManager {
     type Error = rusqlite::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        if self.path.to_str() == Some(":memory:") {
-            Connection::open_in_memory()
+        let conn = if self.path.to_str() == Some(":memory:") {
+            Connection::open_in_memory()?
         } else {
-            Connection::open(&self.path)
+            Connection::open(&self.path)?
+        };
+
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;\
+             PRAGMA busy_timeout = 5000;\
+             PRAGMA synchronous = NORMAL;\
+             PRAGMA temp_store = MEMORY;",
+        )?;
+
+        if self.enable_wal {
+            conn.execute_batch("PRAGMA journal_mode = WAL;")?;
         }
+
+        Ok(conn)
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
@@ -67,7 +101,7 @@ pub fn init_pool(
     pool_size: u32,
     enable_wal: bool,
 ) -> Result<r2d2::Pool<SqliteConnectionManager>, BrainError> {
-    let manager = SqliteConnectionManager::new(path);
+    let manager = SqliteConnectionManager::with_wal(path, enable_wal);
 
     let timeout_ms = std::env::var("BRAIN_DATABASE_TIMEOUT_MS")
         .ok()

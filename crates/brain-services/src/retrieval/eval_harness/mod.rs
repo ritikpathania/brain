@@ -353,3 +353,12 @@ pub use production_corpus::{
     HashingEmbeddingProvider, HashingQueryEmbeddingService, ProductionCorpus,
     ProductionCorpusBuilder,
 };
+
+/// PersonalizationV4 and multi-fact composition evaluation adapter.
+pub mod personalization_v4;
+pub use personalization_v4::{
+    compute_all_facts_recall_at_k, compute_complementarity, deterministic_pv4_node_id,
+    evaluate_pv4_multi_fact, run_pv4_comparative_suite, ConceptualBridgeEmbeddingProvider,
+    ConstraintAugmentedRetriever, MultiFactComplementarityReport, MultiFactEvalReport,
+    MultiFactQueryMetrics, Pv4CorpusBuilder, Pv4HarnessAdapter, Pv4Record, Pv4SplitLoader,
+};

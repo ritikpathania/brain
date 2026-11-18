@@ -186,7 +186,7 @@ impl V2ReflectionPass for V2ContradictionPass {
 }
 
 fn lazy_static_deps() -> &'static [PassId] {
-    use std::sync::OnceLock;
-    static DEPS: OnceLock<Vec<PassId>> = OnceLock::new();
-    DEPS.get_or_init(|| vec![PassId::new("canonicalization")])
+    static DEPS: std::sync::LazyLock<Vec<PassId>> =
+        std::sync::LazyLock::new(|| vec![PassId::new("canonicalization")]);
+    &DEPS
 }

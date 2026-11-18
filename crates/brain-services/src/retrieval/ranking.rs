@@ -306,12 +306,12 @@ impl<'a> GraphScorer<'a> {
 
 /// Graph connectivity ranking strategy based on edge weight centrality.
 pub struct GraphRanking {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
 }
 
 impl GraphRanking {
     /// Creates a new GraphRanking strategy.
-    pub fn new(repos: Arc<dyn RepositorySet>) -> Self {
+    pub fn new(repos: Arc<dyn RepositorySet + Send + Sync>) -> Self {
         Self { repos }
     }
 }

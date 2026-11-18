@@ -1,5 +1,7 @@
 # Performance & Resource Validation Baseline Report
 
+> **Historical baseline.** The native-TUI measurements in this report are not current canonical-frontend performance gates and must not be used as release evidence.
+
 **Schema Version:** `1.1`  
 **Recorded Date:** `2026-08-07`  
 **Profile:** `release`  

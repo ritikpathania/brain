@@ -1,6 +1,6 @@
 # Brain v2.0 Cold-User Usability & UX Evaluation Report
 
-> Historical QA run. Screenshot paths record the original filenames. The image files are absent from this checkout.
+> Historical QA run. Screenshot paths record the original filenames. The screenshot named below is recoverable from Git commit `879b9f2e5a04fe0376d507666126e1a32d230236`.
 
 **Date**: 2026-08-11 18:43:30
 **Mode**: Usability (Cold-User Adaptive Evaluation)

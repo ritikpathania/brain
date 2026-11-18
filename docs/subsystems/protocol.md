@@ -12,7 +12,7 @@ owns:
 depends_on:
   - application
 used_by:
-  - tui
+  - frontend
   - sdk
 canonical_specs:
   - docs/reference/protocol.md
@@ -33,7 +33,9 @@ rfcs:
 ---
 
 ## 1. Purpose
-The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs) and the background daemon, as well as HTTP telemetry and health endpoints.
+The Protocol subsystem governs IPC communication between clients (first-party
+frontend, CLI, SDKs) and the background daemon, as well as HTTP telemetry and
+health endpoints.
 
 ## 2. Responsibilities
 - Defines Data Transfer Object (DTO) contracts and Specta type generation targets.
@@ -41,14 +43,16 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 - Serves HTTP Prometheus metrics (`GET /metrics`) and JSON health endpoints (`GET /status`).
 - Enforces request versioning (`VersionedRequest`) and workspace context propagation.
 
+The daemon also exposes Fleet registration, requested snapshots and preferences through `v1/fleet/*`. The registry derives requester-relative foreground identity and includes subagent job summaries in snapshots. Pin order and groups persist against stable IDs when the preference store is configured. The maintained frontend's release gate covers its versioned session, generation and interaction contract. [First-party frontend handbook](tui.md)
+
 ## 3. Out of Scope
 - Domain aggregate logic or entity validations (owned by **Compiler**).
-- Terminal viewport display or widget drawing (owned by **TUI**).
+- Terminal rendering, focus, and widgets (owned by the first-party frontend).
 - Database migrations or table DDL (owned by **Storage**).
 
 ## 4. Architecture Overview
 ```text
-  Clients (TUI / CLI / Python SDK / TS SDK)
+  Clients (first-party frontend / CLI / Python SDK / TS SDK)
                     │
                     ▼
      Unix Domain Socket (daemon.sock)
@@ -108,6 +112,6 @@ The Protocol subsystem governs IPC communication between clients (TUI, CLI, SDKs
 Protocol Subsystem
 ├── Depends on: Integration DTOs (brain-integrations)
 ├── Hosted by: Daemon (daemon)
-├── Receives requests from: TUI, CLI, Python/TS SDKs
+├── Receives requests from: first-party frontend, CLI, Python/TS SDKs
 └── Forwards commands to: Application Services (brain-application)
 ```

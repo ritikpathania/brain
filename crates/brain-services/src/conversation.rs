@@ -903,7 +903,7 @@ impl CheckpointStore for SqliteCheckpointStore {
 
 /// Concrete implementation of `ConversationManager`.
 pub struct ConversationManagerImpl {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     storage: Arc<SqliteStorage>,
     cache_manager: Arc<SessionCacheManager>,
     token_counter: Arc<dyn TokenCounter>,
@@ -921,7 +921,7 @@ impl ConversationManagerImpl {
     /// Creates a new `ConversationManagerImpl`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         storage: Arc<SqliteStorage>,
         cache_manager: Arc<SessionCacheManager>,
         token_counter: Arc<dyn TokenCounter>,

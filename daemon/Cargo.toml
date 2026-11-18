@@ -28,7 +28,7 @@ brain-domain = { path = "../crates/brain-domain" }
 brain-integrations = { path = "../crates/brain-integrations" }
 brain-core = { path = "../crates/brain-core" }
 brain-config = { path = "../crates/brain-config" }
-brain-services = { path = "../crates/brain-services" }
+brain-services = { path = "../crates/brain-services", features = ["python-plugins"] }
 brain-application = { path = "../crates/brain-application" }
 brain-tools = { path = "../crates/brain-tools" }
 futures = "0.3"
@@ -39,6 +39,5 @@ proptest = "1.5"
 criterion = { version = "0.5", features = ["html_reports"] }
 jsonschema = "0.17"
 rusqlite.workspace = true
-
 
 

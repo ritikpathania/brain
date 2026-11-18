@@ -1,13 +1,9 @@
-.PHONY: setup build-bridge build-daemon run-daemon lint format type-check
+.PHONY: setup build-daemon run-daemon lint format type-check
 
 # Setup all dependencies and environments
 setup:
 	@echo "Syncing daemon virtual environment..."
 	cd daemon && uv sync
-
-# Compile the PyO3 Rust extension module for Python
-build-bridge:
-	cd daemon && uv run maturin develop
 
 # Compile the Rust daemon binary and copy to root
 build-daemon:
@@ -53,5 +49,4 @@ test-ipc:
 
 # Full dev workflow: build daemon, restart daemon, and run tests
 dev: build-daemon restart-daemon test-ipc
-
 

@@ -8,7 +8,7 @@ fn get_schema_validator() -> jsonschema::JSONSchema {
     let schema_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../protocol/brain_events.schema.json");
     let schema_content = std::fs::read_to_string(&schema_path)
-        .unwrap_or_else(|e| panic!("Failed to read schema file at {:?}: {}", schema_path, e));
+        .unwrap_or_else(|e| panic!("Failed to read schema file at {schema_path:?}: {e}"));
     let schema_json: serde_json::Value =
         serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
     jsonschema::JSONSchema::compile(&schema_json).expect("Failed to compile schema")

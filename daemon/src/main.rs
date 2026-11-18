@@ -2,7 +2,7 @@ use daemon_bridge::config;
 use daemon_bridge::host::DaemonHost;
 
 async fn query_http_endpoint(path: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let port = std::env::var("BRAIN_HEALTH_PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = config::resolve_paths().health_port;
     let url = format!("http://127.0.0.1:{}{}", port, path);
     let mut last_err = None;
     for i in 0..5 {
@@ -23,21 +23,31 @@ async fn query_http_endpoint(path: &str) -> Result<String, Box<dyn std::error::E
 }
 
 async fn check_health() -> Result<(), Box<dyn std::error::Error>> {
-    match query_http_endpoint("/health").await {
+    match query_http_endpoint("/status").await {
         Ok(body) => {
-            if body.contains("ok") {
+            let health = serde_json::from_str::<serde_json::Value>(&body)
+                .ok()
+                .and_then(|value| {
+                    value
+                        .get("health")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned)
+                });
+            if health.as_deref() == Some("healthy") {
                 println!("Daemon health status: OK");
+                Ok(())
             } else {
-                println!("Daemon health status: UNHEALTHY ({})", body);
+                Err(
+                    std::io::Error::other(format!("Daemon health status: UNHEALTHY ({body})"))
+                        .into(),
+                )
             }
         }
-        Err(e) => {
-            println!("Daemon health status: UNREACHABLE ({})", e);
-            println!("\nHint: The background daemon is not running.");
-            println!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
-        }
+        Err(error) => Err(std::io::Error::other(format!(
+            "Daemon health status: UNREACHABLE ({error}). Start it with: brain-daemon daemon start"
+        ))
+        .into()),
     }
-    Ok(())
 }
 
 async fn run_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
@@ -66,12 +76,11 @@ fn print_config() -> Result<(), Box<dyn std::error::Error>> {
     let paths = config::resolve_paths();
     println!("=== brain Configurations ===");
     println!("data_dir = \"{}\"", paths.config_dir.display());
-    println!(
-        "sqlite_runtime_db = \"{}\"",
-        paths.config_dir.join("brain_runtime.db").display()
-    );
+    println!("sqlite_runtime_db = \"{}\"", paths.database_path.display());
     println!("socket_path = \"{}\"", paths.socket_path.display());
-    println!("http_port = 8080");
+    println!("pid_path = \"{}\"", paths.pid_path.display());
+    println!("log_path = \"{}\"", paths.log_path.display());
+    println!("http_port = {}", paths.health_port);
     println!("uds_timeout_ms = 30000");
     Ok(())
 }
@@ -196,7 +205,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(status.code().unwrap_or(0));
             }
             "version" | "--version" | "-V" => {
-                println!("brain-daemon version 1.1.0");
+                println!("brain-daemon version {}", env!("CARGO_PKG_VERSION"));
             }
             "health" => {
                 check_health().await?;

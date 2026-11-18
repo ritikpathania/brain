@@ -34,9 +34,10 @@ pub struct DefaultConfigProvider;
 
 impl ConfigProvider for DefaultConfigProvider {
     fn socket_path(&self) -> String {
-        std::env::var("BRAIN_SOCKET_PATH")
-            .or_else(|_| std::env::var("HOME").map(|h| format!("{}/.brain/daemon.sock", h)))
-            .unwrap_or_else(|_| "daemon.sock".to_string())
+        brain_config::resolve_runtime_paths()
+            .socket_path
+            .display()
+            .to_string()
     }
 }
 

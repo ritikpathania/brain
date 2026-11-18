@@ -64,7 +64,7 @@ export class UdsTransport implements Transport {
                 socket.write(data);
             });
 
-            socket.on('data', (chunk) => {
+            socket.on('data', (chunk: Buffer) => {
                 responseBuffer = Buffer.concat([responseBuffer, chunk]);
             });
 
@@ -73,7 +73,7 @@ export class UdsTransport implements Transport {
                 resolve(new Uint8Array(responseBuffer));
             });
 
-            socket.on('error', (err) => {
+            socket.on('error', (err: Error) => {
                 socket.destroy();
                 reject(new TransportError(`UDS connection error: ${err.message}`, err));
             });
@@ -89,11 +89,13 @@ export class UdsTransport implements Transport {
                 let error: Error | null = null;
                 let done = false;
                 let pendingResolve: ((value: IteratorResult<Uint8Array>) => void) | null = null;
+                let pendingReject: ((err: Error) => void) | null = null;
 
                 const push = (chunk: Uint8Array) => {
                     if (pendingResolve) {
                         const resolve = pendingResolve;
                         pendingResolve = null;
+                        pendingReject = null;
                         resolve({ value: chunk, done: false });
                     } else {
                         queue.push(chunk);
@@ -105,16 +107,18 @@ export class UdsTransport implements Transport {
                     if (pendingResolve) {
                         const resolve = pendingResolve;
                         pendingResolve = null;
-                        resolve({ value: undefined as any, done: true });
+                        pendingReject = null;
+                        resolve({ value: undefined as unknown as Uint8Array, done: true });
                     }
                 };
 
                 const fail = (err: Error) => {
                     error = new TransportError(`UDS stream error: ${err.message}`, err);
-                    if (pendingResolve) {
-                        const resolve = pendingResolve;
+                    if (pendingReject) {
+                        const reject = pendingReject;
                         pendingResolve = null;
-                        resolve(Promise.reject(error));
+                        pendingReject = null;
+                        reject(error);
                     }
                 };
 
@@ -123,14 +127,14 @@ export class UdsTransport implements Transport {
                     socket.on('connect', () => {
                         socket!.write(data);
                     });
-                    socket.on('data', (chunk) => {
+                    socket.on('data', (chunk: Buffer) => {
                         push(new Uint8Array(chunk));
                     });
                     socket.on('end', () => {
                         socket!.destroy();
                         finish();
                     });
-                    socket.on('error', (err) => {
+                    socket.on('error', (err: Error) => {
                         socket!.destroy();
                         fail(err);
                     });
@@ -147,10 +151,11 @@ export class UdsTransport implements Transport {
                             return { value: queue.shift()!, done: false };
                         }
                         if (done) {
-                            return { value: undefined as any, done: true };
+                            return { value: undefined as unknown as Uint8Array, done: true };
                         }
-                        return new Promise((resolve) => {
+                        return new Promise((resolve, reject) => {
                             pendingResolve = resolve;
+                            pendingReject = reject;
                         });
                     },
                     async return(): Promise<IteratorResult<Uint8Array>> {
@@ -158,7 +163,7 @@ export class UdsTransport implements Transport {
                             socket.destroy();
                         }
                         done = true;
-                        return { value: undefined as any, done: true };
+                        return { value: undefined as unknown as Uint8Array, done: true };
                     }
                 };
             }

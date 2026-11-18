@@ -17,7 +17,7 @@ We enforce a strict boundary between the core domain layer (`crates/brain-domain
 * **Layered Architecture**: Allowing domain packages to call services/repositories directly. Rejected because it introduces circular dependencies and complicates isolated testing.
 
 ## Related ADRs
-* [ADR-004 (DDD Core Invariants)](../../archive/historical-adrs/ADR-004.md)
+* The former ADR-004 record was not retained; its DDD invariants are represented by the current [architectural principles](../principles.md).
 * [ADR-012 (Value Objects)](ADR-012-value-objects.md)
 * [ADR-016 (Pure Transformation Pipelines)](ADR-016-pure-transformation-pipelines.md)
 

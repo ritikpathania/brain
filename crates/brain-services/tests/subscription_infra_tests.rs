@@ -111,7 +111,7 @@ async fn test_coalesced_invalidation_and_deduplication() {
     runner.register(Arc::new(reducer)).unwrap();
 
     // Create counting wrapper
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
     let execution_counter = Arc::new(AtomicUsize::new(0));
     let counting_service = Arc::new(CountingSessionQueryService::new(
@@ -180,7 +180,7 @@ async fn test_graceful_shutdown_and_restart_recovery() {
     let notification_bus = Arc::new(ProjectionNotificationBus::new());
 
     let session_proj_repo = Arc::new(SqliteSessionReadModelRepository::new(pool.clone()));
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let session_service = Arc::new(SqliteSessionQueryService::new(
         session_proj_repo,
         session_repo,

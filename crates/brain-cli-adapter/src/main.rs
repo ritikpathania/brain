@@ -233,7 +233,7 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
@@ -244,7 +244,7 @@ async fn main() {
                     std::process::exit(0);
                 }
                 Err(e) => {
-                    eprintln!("Ping failed: {}", e);
+                    eprintln!("Ping failed: {e}");
                     client.shutdown().await;
                     std::process::exit(1);
                 }
@@ -259,18 +259,18 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
             match client.status().await {
                 Ok(dto) => println!("{}", serde_json::to_string_pretty(&dto).unwrap()),
-                Err(e) => eprintln!("Error: {:?}", e),
+                Err(e) => eprintln!("Error: {e:?}"),
             }
             client.shutdown().await;
         }
@@ -278,12 +278,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -297,12 +297,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -316,12 +316,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -335,12 +335,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -359,12 +359,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -380,11 +380,11 @@ async fn main() {
                         if !report.executed_commands.is_empty() {
                             println!("\n[Executed Commands]");
                             for cmd in &report.executed_commands {
-                                println!("  - {}", cmd);
+                                println!("  - {cmd}");
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error: {:?}", e),
+                    Err(e) => eprintln!("Error: {e:?}"),
                 },
                 ReflectCommands::Status => match client.reflect_status().await {
                     Ok(status) => {
@@ -409,14 +409,14 @@ async fn main() {
                             status.last_reflection_duration_ms.unwrap_or(0)
                         );
                     }
-                    Err(e) => eprintln!("Error retrieving reflection status: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving reflection status: {e:?}"),
                 },
                 ReflectCommands::Report => match client.last_reflection_report().await {
                     Ok(Some(report)) => {
                         println!("{}", serde_json::to_string_pretty(&report).unwrap());
                     }
                     Ok(None) => println!("No previous reflection report found."),
-                    Err(e) => eprintln!("Error retrieving reflection report: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving reflection report: {e:?}"),
                 },
                 ReflectCommands::Findings => match client.active_reflection_findings().await {
                     Ok(findings) => {
@@ -436,26 +436,26 @@ async fn main() {
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error retrieving active findings: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving active findings: {e:?}"),
                 },
             }
             client.shutdown().await;
         }
         Commands::Query { text } => {
             println!("=== Knowledge Query Engine (AST Intent) ===");
-            println!("Text Pattern: \"{}\"", text);
+            println!("Text Pattern: \"{text}\"");
             println!("Status: AST compiled and ready for pipeline execution.");
         }
         Commands::Compile { subcommand } => {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -482,7 +482,7 @@ async fn main() {
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error executing knowledge compiler: {:?}", e),
+                    Err(e) => eprintln!("Error executing knowledge compiler: {e:?}"),
                 },
                 CompileCommands::Status => match client.compile_status().await {
                     Ok(status) => {
@@ -515,14 +515,14 @@ async fn main() {
                             status.last_compilation_mode.as_deref().unwrap_or("none")
                         );
                     }
-                    Err(e) => eprintln!("Error retrieving compiler status: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving compiler status: {e:?}"),
                 },
                 CompileCommands::Report => match client.last_compilation_report().await {
                     Ok(Some(report)) => {
                         println!("{}", serde_json::to_string_pretty(&report).unwrap());
                     }
                     Ok(None) => println!("No previous compilation report found."),
-                    Err(e) => eprintln!("Error retrieving compilation report: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving compilation report: {e:?}"),
                 },
                 CompileCommands::Diagnostics => match client.compile_diagnostics().await {
                     Ok(diagnostics) => {
@@ -545,7 +545,7 @@ async fn main() {
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error retrieving diagnostics: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving diagnostics: {e:?}"),
                 },
                 CompileCommands::Stats => match client.compile_stats().await {
                     Ok(stats) => {
@@ -562,7 +562,7 @@ async fn main() {
                             );
                         }
                     }
-                    Err(e) => eprintln!("Error retrieving compiler stats: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving compiler stats: {e:?}"),
                 },
                 CompileCommands::Ir => match client.compile_ir_summary().await {
                     Ok(ir) => {
@@ -579,7 +579,7 @@ async fn main() {
                             }
                         }
                     }
-                    Err(e) => eprintln!("Error retrieving IR summary: {:?}", e),
+                    Err(e) => eprintln!("Error retrieving IR summary: {e:?}"),
                 },
             }
             client.shutdown().await;
@@ -588,7 +588,7 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
@@ -598,7 +598,7 @@ async fn main() {
                     let pending = client.get_unacknowledged_events().await;
                     let replay_res = client.request_replay(after).await;
 
-                    println!("Last Sequence: {}", last_seq);
+                    println!("Last Sequence: {last_seq}");
                     println!("Pending Events: {}", pending.len());
                     match replay_res {
                         Ok(events) => {
@@ -613,12 +613,12 @@ async fn main() {
                             }
                         }
                         Err(e) => {
-                            println!("Replay Result: Failed to retrieve ({:?})", e);
+                            println!("Replay Result: Failed to retrieve ({e:?})");
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Error connecting: {}", e);
+                    eprintln!("Error connecting: {e}");
                     client.shutdown().await;
                     std::process::exit(1);
                 }
@@ -629,12 +629,12 @@ async fn main() {
             let client = match BrainClient::connect(config).await {
                 Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Failed to connect client: {:?}", e);
+                    eprintln!("Failed to connect client: {e:?}");
                     std::process::exit(1);
                 }
             };
             if let Err(e) = wait_for_ready(&client, Duration::from_secs(2)).await {
-                eprintln!("Error connecting to daemon: {}", e);
+                eprintln!("Error connecting to daemon: {e}");
                 client.shutdown().await;
                 std::process::exit(1);
             }
@@ -733,7 +733,7 @@ async fn main() {
                     println!("Event ID: {}", ack.event_id);
                 }
                 Err(e) => {
-                    eprintln!("Failed to send event: {:?}", e);
+                    eprintln!("Failed to send event: {e:?}");
                     client.shutdown().await;
                     std::process::exit(1);
                 }

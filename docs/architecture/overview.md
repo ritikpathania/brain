@@ -3,8 +3,8 @@ status: active
 owner: architecture
 canonical: true
 review_cycle: quarterly
-last_reviewed: 2026-07-30
-applies_to: v0.8+
+last_reviewed: 2026-09-30
+applies_to: v1.1+
 ---
 
 # Architecture Overview
@@ -25,7 +25,7 @@ The platform operates as a decoupled client-server system communicating over a l
                    │ Unix Domain Socket (UDS) JSON-IPC
                    ▼
   ┌─────────────────────────────────┐
-  │        Transport Daemon         │ (Stateless socket listener)
+  │        Transport Daemon         │ (Socket listener)
   └────────────────┬────────────────┘
                    │
                    │ In-Memory Rust Calls
@@ -49,12 +49,16 @@ The platform operates as a decoupled client-server system communicating over a l
 
 ## 2. Core Components
 
-### BrainRuntime
-`BrainRuntime` is the authoritative composition root and lifecycle owner of the relational memory engine. It exposes clean boundaries:
+### BrainRuntime, ApplicationRuntime & BrainApplication
+`BrainRuntime` is the authoritative engine composition root and lifecycle owner of the relational memory engine, paired with `ApplicationRuntime` (which executes startup phases including `ServicesReadyPhase` to wire native Rust LLM, embedding, and extraction providers from `BrainSettings`) and wrapped by the capability-oriented `BrainApplication` facade (`crates/brain-application`). Together they expose clean boundaries:
 - `ingest(obs)`: Authoritative write pathway. Coordinates validation, canonicalization, and relationship reflection transactionally.
 - `query_projection(projector, query, correlation_id)`: Authoritative read pathway. Generates materializations of the knowledge graph on-demand.
 - `subscribe()`: Allows external observers to listen to the runtime event stream.
 - `shutdown()`: Flushes event queues, terminates background threads, and closes database connections.
+
+### Native Extraction & Model Providers (`crates/brain-services`)
+- `HeuristicExtractor` (`crates/brain-services/src/extraction/heuristics.rs`): Deterministic native Rust entity and relation extractor (33-entry synonym map, 61 stop words, type precedence, proper-noun splitting, active/passive sentence rules, and referential-integrity edge pruning).
+- `LlmMemoryExtractor` (`crates/brain-services/src/extraction/llm.rs`) & Native Providers (`crates/brain-services/src/providers/`): Native chat providers for Ollama, OpenAI and Anthropic, and embedding providers for Ollama and OpenAI-compatible endpoints. Provider failures propagate as typed errors. The Python plugin bridge is a separate runtime capability.
 
 ### SqliteStorage
 Located in the `brain-storage` crate, `SqliteStorage` manages the durable transaction engine. It exposes transaction boundaries using a pool of connections and ensures ACID compliance.
@@ -94,7 +98,7 @@ sequenceDiagram
     Canonicalizer->>Dispatcher: Publish Ingested Events
     activate Dispatcher
     Dispatcher->>Reflection: Propagate event to ReflectionEngine
-    Reflection->>Storage: Run ontology reflection & write inferred edges
+    Reflection->>Storage: Read a bounded reflection snapshot
     deactivate Dispatcher
     deactivate Canonicalizer
     RT-->>Daemon: Return IngestionResult (epoch, affected nodes)
@@ -136,8 +140,8 @@ Brain utilizes a strict layered hierarchy enforced by build-time architectural b
 ```mermaid
 flowchart TD
     %% Crates
-    subgraph UI_Adapters [Adapters & UI]
-        TUI["crates/brain-tui"]
+    subgraph UI_Adapters [Adapters and UI]
+        TUI["packages/brain-frontend (versioned UDS client)"]
         Daemon["daemon"]
         MCP["crates/brain-mcp-adapter"]
     end
@@ -164,9 +168,9 @@ flowchart TD
     end
 
     %% Dependencies
-    TUI --> App
+    TUI --> Daemon
     Daemon --> App
-    MCP --> App
+    MCP --> Daemon
     
     App --> Services
     App --> Core

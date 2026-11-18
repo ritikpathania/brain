@@ -334,8 +334,7 @@ impl ValidationPass for ExplanationValidationPass {
                         severity: DiagnosticSeverity::Error,
                         category: DiagnosticCategory::ExplanationCompleteness,
                         message: format!(
-                            "Inferred edge '{}' is missing a derivation record",
-                            edge_id
+                            "Inferred edge '{edge_id}' is missing a derivation record"
                         ),
                         affected: vec![AffectedElement::Edge(edge_id.clone())],
                     });
@@ -350,8 +349,7 @@ impl ValidationPass for ExplanationValidationPass {
                             severity: DiagnosticSeverity::Error,
                             category: DiagnosticCategory::ExplanationCompleteness,
                             message: format!(
-                                "Inferred edge '{}' references non-existent supporting edge '{}'",
-                                edge_id, sup_id
+                                "Inferred edge '{edge_id}' references non-existent supporting edge '{sup_id}'"
                             ),
                             affected: vec![
                                 AffectedElement::Edge(edge_id.clone()),
@@ -422,10 +420,7 @@ fn check_cycles(
             code: "VAL-009".to_string(),
             severity: DiagnosticSeverity::Error,
             category: DiagnosticCategory::ExplanationAcyclicity,
-            message: format!(
-                "Circular reasoning cycle detected in derivation chain: {}",
-                cycle_str
-            ),
+            message: format!("Circular reasoning cycle detected in derivation chain: {cycle_str}"),
             affected: cycle_path.into_iter().map(AffectedElement::Edge).collect(),
         });
         return;

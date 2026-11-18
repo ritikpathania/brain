@@ -187,7 +187,7 @@ async fn batch_strategy_size_threshold() {
             assert!(!batch.should_flush(), "Should not flush at count {}", i + 1);
         }
     }
-    assert!(batch.should_flush(), "Should flush at count {}", max_size);
+    assert!(batch.should_flush(), "Should flush at count {max_size}");
 }
 
 /// should_flush triggers when cumulative bytes exceed threshold.
@@ -280,7 +280,7 @@ fn runtime_state_valid_transitions() {
             (Replaying, Ready) => {}
             (Replaying, Disconnected) => {}
             (Ready, Disconnected) => {}
-            _ => panic!("Unexpected legal transition: {:?} -> {:?}", from, to),
+            _ => panic!("Unexpected legal transition: {from:?} -> {to:?}"),
         }
     }
 }
@@ -298,7 +298,7 @@ fn runtime_state_is_debug_clone() {
 
     for s in &states {
         let cloned = *s;
-        let debug = format!("{:?}", cloned);
+        let debug = format!("{cloned:?}");
         assert!(!debug.is_empty());
     }
 }

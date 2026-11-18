@@ -97,6 +97,23 @@ fn get_last_debounce_sweep() -> &'static std::sync::atomic::AtomicU64 {
     LAST_DEBOUNCE_SWEEP.get_or_init(|| std::sync::atomic::AtomicU64::new(0))
 }
 
+static SUBAGENT_SERVICE: std::sync::OnceLock<Arc<brain_services::subagent::SubagentService>> =
+    std::sync::OnceLock::new();
+
+/// Returns the daemon-wide SubagentService instance.
+pub fn get_subagent_service() -> &'static Arc<brain_services::subagent::SubagentService> {
+    SUBAGENT_SERVICE.get_or_init(|| {
+        let repo_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+        let wt_service = brain_services::worktree::WorktreeService::new(repo_root)
+            .ok()
+            .map(Arc::new);
+        Arc::new(brain_services::subagent::SubagentService::new(
+            brain_services::subagent::DEFAULT_MAX_CONCURRENT_SUBAGENTS,
+            wt_service,
+        ))
+    })
+}
+
 pub(crate) fn sanitize_security_string(input: &str) -> String {
     input
         .chars()
@@ -111,24 +128,35 @@ pub(crate) fn sanitize_path_containment(path: &str) -> String {
     clean.replace("../", "").replace("..\\", "")
 }
 
-pub(crate) fn parse_session_id_flexible(s: &str) -> brain_domain::SessionId {
-    if let Ok(id) = s.parse::<brain_domain::SessionId>() {
-        id
+async fn write_session_id_error(
+    writer: &Arc<tokio::sync::Mutex<OwnedWriteHalf>>,
+    is_versioned: bool,
+    request_id: &serde_json::Value,
+    error: CanonicalSessionIdError,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let response = if is_versioned {
+        serde_json::json!({
+            "version": "1.0",
+            "type": "Error",
+            "id": request_id,
+            "status": "error",
+            "code": error.code(),
+            "body": error.message(),
+        })
     } else {
-        use std::hash::{Hash, Hasher};
-        let mut hasher1 = std::collections::hash_map::DefaultHasher::new();
-        s.hash(&mut hasher1);
-        let h1 = hasher1.finish();
-
-        let mut hasher2 = std::collections::hash_map::DefaultHasher::new();
-        (s, "session_salt").hash(&mut hasher2);
-        let h2 = hasher2.finish();
-
-        let mut bytes = [0u8; 16];
-        bytes[0..8].copy_from_slice(&h1.to_be_bytes());
-        bytes[8..16].copy_from_slice(&h2.to_be_bytes());
-        brain_domain::SessionId(ulid::Ulid::from_bytes(bytes))
-    }
+        serde_json::json!({
+            "type": "error",
+            "status": "error",
+            "code": error.code(),
+            "message": error.message(),
+        })
+    };
+    let mut response_json = serde_json::to_string(&response)?;
+    response_json.push('\n');
+    let mut output = writer.lock().await;
+    output.write_all(response_json.as_bytes()).await?;
+    output.flush().await?;
+    Ok(())
 }
 
 struct GenerationGuard {
@@ -169,37 +197,6 @@ impl Drop for GenerationGuard {
     }
 }
 
-async fn write_session_id_error(
-    writer: &Arc<tokio::sync::Mutex<OwnedWriteHalf>>,
-    is_versioned: bool,
-    request_id: &serde_json::Value,
-    error: CanonicalSessionIdError,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let response = if is_versioned {
-        serde_json::json!({
-            "version": "1.0",
-            "type": "Error",
-            "id": request_id,
-            "status": "error",
-            "code": error.code(),
-            "body": error.message(),
-        })
-    } else {
-        serde_json::json!({
-            "type": "error",
-            "status": "error",
-            "code": error.code(),
-            "message": error.message(),
-        })
-    };
-    let mut response_json = serde_json::to_string(&response)?;
-    response_json.push('\n');
-    let mut output = writer.lock().await;
-    output.write_all(response_json.as_bytes()).await?;
-    output.flush().await?;
-    Ok(())
-}
-
 /// Handles an active UDS client connection, decoding, routing, and executing requests.
 pub async fn handle_connection(
     stream: UnixStream,
@@ -212,6 +209,7 @@ pub async fn handle_connection(
     let writer = Arc::new(tokio::sync::Mutex::new(writer));
     let mut buf_reader = BufReader::new(reader);
     let mut line = String::new();
+    let mut conn_registered_clients: Vec<String> = Vec::new();
 
     macro_rules! require_canonical_session_id {
         ($raw:expr, $is_versioned:expr, $request_id:expr) => {{
@@ -366,6 +364,619 @@ pub async fn handle_connection(
             continue;
         }
 
+        if action == "fleet/register" || action == "v1/fleet/register" {
+            let reg_req: brain_domain::ForegroundSession = match serde_json::from_str(payload) {
+                Ok(req) => req,
+                Err(e) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": format!("Invalid registration payload: {}", e)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": format!("Invalid registration payload: {}", e)
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                    continue;
+                }
+            };
+
+            let client_id = reg_req.client_id.clone();
+            if !conn_registered_clients.contains(&client_id) {
+                conn_registered_clients.push(client_id.clone());
+            }
+
+            let fleet = app.runtime().fleet_registry();
+            fleet.register_session(reg_req);
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "registered": true, "client_id": client_id })
+                })
+            } else {
+                serde_json::json!({
+                    "status": "ok",
+                    "registered": true,
+                    "client_id": client_id
+                })
+            };
+
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/unregister" || action == "v1/fleet/unregister" {
+            #[derive(serde::Deserialize)]
+            struct UnregReq {
+                client_id: String,
+            }
+            if let Ok(unreg) = serde_json::from_str::<UnregReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                fleet.unregister_session(&unreg.client_id);
+                conn_registered_clients.retain(|c| c != &unreg.client_id);
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "unregistered": true })
+                })
+            } else {
+                serde_json::json!({
+                    "status": "ok",
+                    "unregistered": true
+                })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/snapshot" || action == "v1/fleet/snapshot" {
+            #[derive(serde::Deserialize, Default)]
+            struct SnapReq {
+                client_id: Option<String>,
+            }
+            let snap_req: SnapReq = serde_json::from_str(payload).unwrap_or_default();
+            let fleet = app.runtime().fleet_registry();
+            let background_tasks = get_subagent_service().to_fleet_jobs();
+            let snapshot = fleet.get_snapshot(snap_req.client_id.as_deref(), background_tasks);
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": snapshot
+                })
+            } else {
+                serde_json::json!({
+                    "status": "ok",
+                    "snapshot": snapshot
+                })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/pin" || action == "v1/fleet/pin" {
+            #[derive(serde::Deserialize)]
+            struct PinReq {
+                id: String,
+                #[serde(default = "default_fleet_true")]
+                pinned: bool,
+            }
+            fn default_fleet_true() -> bool {
+                true
+            }
+
+            if let Ok(pin_req) = serde_json::from_str::<PinReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                if pin_req.pinned {
+                    fleet.pin(pin_req.id);
+                } else {
+                    fleet.unpin(&pin_req.id);
+                }
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "success": true })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "success": true })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/unpin" || action == "v1/fleet/unpin" {
+            #[derive(serde::Deserialize)]
+            struct UnpinReq {
+                id: String,
+            }
+            if let Ok(unpin_req) = serde_json::from_str::<UnpinReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                fleet.unpin(&unpin_req.id);
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "success": true })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "success": true })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/reorder_pinned" || action == "v1/fleet/reorder_pinned" {
+            #[derive(serde::Deserialize)]
+            struct ReorderReq {
+                order: Vec<String>,
+            }
+            if let Ok(reorder_req) = serde_json::from_str::<ReorderReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                fleet.reorder_pinned(reorder_req.order);
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "success": true })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "success": true })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/set_group" || action == "v1/fleet/set_group" {
+            #[derive(serde::Deserialize)]
+            struct GroupReq {
+                id: String,
+                group: String,
+            }
+            if let Ok(group_req) = serde_json::from_str::<GroupReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                fleet.set_group(group_req.id, group_req.group);
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "success": true })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "success": true })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/clear_group" || action == "v1/fleet/clear_group" {
+            #[derive(serde::Deserialize)]
+            struct ClearGroupReq {
+                id: String,
+            }
+            if let Ok(clear_req) = serde_json::from_str::<ClearGroupReq>(payload) {
+                let fleet = app.runtime().fleet_registry();
+                fleet.clear_group(&clear_req.id);
+            }
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "success": true })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "success": true })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "fleet/list_groups" || action == "v1/fleet/list_groups" {
+            let fleet = app.runtime().fleet_registry();
+            let groups = fleet.list_groups();
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": serde_json::json!({ "groups": groups })
+                })
+            } else {
+                serde_json::json!({ "status": "ok", "groups": groups })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "subagent/spawn" || action == "v1/subagent/spawn" {
+            #[derive(serde::Deserialize)]
+            struct SpawnReq {
+                parent_session_id: String,
+                role: String,
+                prompt: String,
+                #[serde(default)]
+                agent_type: Option<String>,
+                #[serde(default)]
+                depth: Option<u32>,
+                #[serde(default)]
+                system_prompt: Option<String>,
+                #[serde(default)]
+                timeout_ms: Option<u64>,
+                #[serde(default)]
+                use_worktree: Option<bool>,
+                #[serde(default)]
+                worktree_name: Option<String>,
+                #[serde(default)]
+                kind: Option<String>,
+                #[serde(default)]
+                execution_mode: Option<String>,
+            }
+
+            let req: SpawnReq = match serde_json::from_str(payload) {
+                Ok(r) => r,
+                Err(e) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": format!("Invalid spawn payload: {}", e)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": format!("Invalid spawn payload: {}", e)
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                    continue;
+                }
+            };
+
+            let parent_id = match req.parent_session_id.parse::<ulid::Ulid>() {
+                Ok(u) => brain_domain::SessionId(u),
+                Err(e) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": format!("Invalid parent_session_id: {}", e)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": format!("Invalid parent_session_id: {}", e)
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                    continue;
+                }
+            };
+
+            let spawn_req = brain_services::subagent::SubagentSpawnRequest {
+                parent_session_id: parent_id,
+                role: req.role,
+                agent_type: req.agent_type.unwrap_or_else(|| "task".to_string()),
+                prompt: req.prompt,
+                depth: req.depth.unwrap_or(1),
+                system_prompt: req.system_prompt,
+                timeout: req.timeout_ms.map(std::time::Duration::from_millis),
+                use_worktree: req.use_worktree.unwrap_or(false),
+                worktree_name: req.worktree_name,
+                kind: req.kind.map(|k| match k.to_lowercase().as_str() {
+                    "fork" => brain_domain::SubagentKind::Fork,
+                    _ => brain_domain::SubagentKind::Named,
+                }),
+                execution_mode: req.execution_mode.map(|m| match m.to_lowercase().as_str() {
+                    "background" => brain_domain::SubagentExecutionMode::Background,
+                    _ => brain_domain::SubagentExecutionMode::Foreground,
+                }),
+            };
+
+            let subagent_svc = get_subagent_service();
+            match subagent_svc.spawn(spawn_req, None) {
+                Ok(subagent_id) => {
+                    let _ = subagent_svc.start(&subagent_id);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": serde_json::json!({
+                                "subagent_id": subagent_id.to_string(),
+                                "status": "running"
+                            })
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "ok",
+                            "subagent_id": subagent_id.to_string(),
+                            "status_text": "running"
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+                Err(err) => {
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": format!("Failed to spawn subagent: {}", err)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to spawn subagent: {}", err)
+                        })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "subagent/status" || action == "v1/subagent/status" {
+            #[derive(serde::Deserialize)]
+            struct StatusReq {
+                subagent_id: String,
+            }
+            let req: Result<StatusReq, _> = serde_json::from_str(payload);
+            let subagent = match req {
+                Ok(r) => match r.subagent_id.parse::<ulid::Ulid>() {
+                    Ok(u) => get_subagent_service().get_subagent(&brain_domain::SubagentId(u)),
+                    Err(_) => None,
+                },
+                Err(_) => None,
+            };
+
+            let response = match subagent {
+                Some(s) => {
+                    if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": s
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "ok",
+                            "subagent": s
+                        })
+                    }
+                }
+                None => {
+                    if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": "Subagent not found"
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": "Subagent not found"
+                        })
+                    }
+                }
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "subagent/cancel" || action == "v1/subagent/cancel" {
+            #[derive(serde::Deserialize)]
+            struct CancelReq {
+                subagent_id: String,
+                #[serde(default)]
+                reason: Option<String>,
+            }
+            let req: Result<CancelReq, _> = serde_json::from_str(payload);
+            let cancel_res = match req {
+                Ok(r) => match r.subagent_id.parse::<ulid::Ulid>() {
+                    Ok(u) => get_subagent_service().cancel(
+                        &brain_domain::SubagentId(u),
+                        r.reason.as_deref().unwrap_or("Cancelled by user"),
+                    ),
+                    Err(e) => Err(brain_services::subagent::SubagentError::DomainError(
+                        brain_domain::DomainError::ValidationError {
+                            message: format!("Invalid subagent_id: {}", e),
+                            rule_id: None,
+                        },
+                    )),
+                },
+                Err(e) => Err(brain_services::subagent::SubagentError::DomainError(
+                    brain_domain::DomainError::ValidationError {
+                        message: format!("Invalid payload: {}", e),
+                        rule_id: None,
+                    },
+                )),
+            };
+
+            let response = match cancel_res {
+                Ok(_) => {
+                    if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "success",
+                            "body": serde_json::json!({ "cancelled": true })
+                        })
+                    } else {
+                        serde_json::json!({ "status": "ok", "cancelled": true })
+                    }
+                }
+                Err(e) => {
+                    if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Response",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": format!("Failed to cancel: {}", e)
+                        })
+                    } else {
+                        serde_json::json!({
+                            "status": "error",
+                            "message": format!("Failed to cancel: {}", e)
+                        })
+                    }
+                }
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
+        if action == "subagent/list" || action == "v1/subagent/list" {
+            #[derive(serde::Deserialize, Default)]
+            struct ListReq {
+                parent_session_id: Option<String>,
+            }
+            let req: ListReq = serde_json::from_str(payload).unwrap_or_default();
+            let subagents = if let Some(parent_str) = req.parent_session_id {
+                match parent_str.parse::<ulid::Ulid>() {
+                    Ok(u) => get_subagent_service().list_for_parent(&brain_domain::SessionId(u)),
+                    Err(_) => Vec::new(),
+                }
+            } else {
+                get_subagent_service().list_all()
+            };
+
+            let response = if is_versioned {
+                serde_json::json!({
+                    "version": "1.0",
+                    "type": "Response",
+                    "id": req_id_val,
+                    "status": "success",
+                    "body": subagents
+                })
+            } else {
+                serde_json::json!({
+                    "status": "ok",
+                    "subagents": subagents
+                })
+            };
+            let mut response_json = serde_json::to_string(&response)?;
+            response_json.push('\n');
+            let mut w = writer.lock().await;
+            w.write_all(response_json.as_bytes()).await?;
+            w.flush().await?;
+            continue;
+        }
+
         if action == "session/start" || action == "v1/session/start" {
             let start_req: crate::server::protocol::StartSessionPayload = serde_json::from_str(
                 payload,
@@ -377,37 +988,46 @@ pub async fn handle_connection(
                 system_prompt: None,
             });
 
-            let parsed_sid = start_req
-                .session_id
-                .as_deref()
-                .map(parse_session_id_flexible)
-                .unwrap_or_default();
-            let sid = parsed_sid.to_string();
-            let title = start_req.title.unwrap_or_else(|| "New Session".to_string());
+            let parsed_sid = match start_req.session_id.as_deref() {
+                Some(raw) => require_canonical_session_id!(raw, is_versioned, req_id_val),
+                None => brain_domain::SessionId::new(),
+            };
             let created_at_ms = chrono::Utc::now().timestamp_millis();
             let now_secs = (created_at_ms / 1000) as u64;
 
             let storage = app.runtime().sqlite_storage();
             use brain_core::repositories::SessionRepository;
-            let mut session = brain_domain::Session::new(
-                parsed_sid,
-                brain_domain::SessionTitle(title.clone()),
-                brain_domain::SessionTimestamp(now_secs),
-            );
-            if let Some(ref sp) = start_req.system_prompt {
-                let cleaned = sp.trim().to_string();
-                session.system_prompt = if cleaned.is_empty() {
-                    None
-                } else {
-                    Some(cleaned)
-                };
-            }
-            let _ = storage.save_session(&parsed_sid, &session);
+            let existing = storage.load_session(&parsed_sid)?;
+            let (sid, title, response_created_at_ms) = match existing {
+                Some(existing) => (
+                    existing.id.to_string(),
+                    existing.title.0,
+                    (existing.updated_at.0 * 1000) as i64,
+                ),
+                None => {
+                    let title = start_req.title.unwrap_or_else(|| "New Session".to_string());
+                    let mut session = brain_domain::Session::new(
+                        parsed_sid,
+                        brain_domain::SessionTitle(title.clone()),
+                        brain_domain::SessionTimestamp(now_secs),
+                    );
+                    if let Some(ref sp) = start_req.system_prompt {
+                        let cleaned = sp.trim().to_string();
+                        session.system_prompt = if cleaned.is_empty() {
+                            None
+                        } else {
+                            Some(cleaned)
+                        };
+                    }
+                    storage.save_session(&parsed_sid, &session)?;
+                    (parsed_sid.to_string(), title, created_at_ms)
+                }
+            };
 
             let resp_body = crate::server::protocol::StartSessionResponseBody {
                 session_id: sid,
                 title,
-                created_at_ms,
+                created_at_ms: response_created_at_ms,
             };
 
             let response = if is_versioned {
@@ -624,7 +1244,11 @@ pub async fn handle_connection(
             let fork_req: Result<ForkPayload, _> = serde_json::from_str(payload);
             match fork_req {
                 Ok(p) => {
-                    let parsed_src = parse_session_id_flexible(&p.source_session_id);
+                    let parsed_src = require_canonical_session_id!(
+                        &p.source_session_id,
+                        is_versioned,
+                        req_id_val
+                    );
                     let req = brain_integrations::dto::v1::ForkSessionRequest {
                         source_session_id: parsed_src.to_string(),
                         at_message_id: p.at_message_id,
@@ -714,7 +1338,8 @@ pub async fn handle_connection(
             let rename_req: Result<RenamePayload, _> = serde_json::from_str(payload);
             match rename_req {
                 Ok(p) => {
-                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&p.session_id, is_versioned, req_id_val);
                     match app
                         .rename_session(&parsed_sid.to_string(), &p.new_title)
                         .await
@@ -800,7 +1425,8 @@ pub async fn handle_connection(
                 Ok(p) => {
                     let storage = app.runtime().sqlite_storage();
                     use brain_core::repositories::SessionRepository;
-                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&p.session_id, is_versioned, req_id_val);
                     let maybe_session = storage.load_session(&parsed_sid).ok().flatten();
                     match maybe_session {
                         Some(mut session) => {
@@ -892,7 +1518,8 @@ pub async fn handle_connection(
             let pin_req: Result<PinPayload, _> = serde_json::from_str(payload);
             match pin_req {
                 Ok(p) => {
-                    let parsed_sid = parse_session_id_flexible(&p.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&p.session_id, is_versioned, req_id_val);
                     match app.pin_session(&parsed_sid.to_string(), p.pinned).await {
                         Ok(()) => {
                             let response = if is_versioned {
@@ -982,7 +1609,7 @@ pub async fn handle_connection(
                 payload.trim().to_string()
             };
 
-            let parsed_sid = parse_session_id_flexible(&sid_str);
+            let parsed_sid = require_canonical_session_id!(&sid_str, is_versioned, req_id_val);
             match app.archive_session(&parsed_sid.to_string()).await {
                 Ok(()) => {
                     let response = if is_versioned {
@@ -1048,7 +1675,7 @@ pub async fn handle_connection(
                 payload.trim().to_string()
             };
 
-            let parsed_sid = parse_session_id_flexible(&sid_str);
+            let parsed_sid = require_canonical_session_id!(&sid_str, is_versioned, req_id_val);
             match app.restore_session(&parsed_sid.to_string()).await {
                 Ok(()) => {
                     let response = if is_versioned {
@@ -1114,7 +1741,7 @@ pub async fn handle_connection(
                 payload.trim().to_string()
             };
 
-            let parsed_sid = parse_session_id_flexible(&sid_str);
+            let parsed_sid = require_canonical_session_id!(&sid_str, is_versioned, req_id_val);
             match app.delete_session(&parsed_sid.to_string()).await {
                 Ok(()) => {
                     let response = if is_versioned {
@@ -1157,6 +1784,182 @@ pub async fn handle_connection(
                             "status": "error",
                             "message": err_msg
                         })
+                    };
+                    let mut response_json = serde_json::to_string(&response)?;
+                    response_json.push('\n');
+                    let mut w = writer.lock().await;
+                    w.write_all(response_json.as_bytes()).await?;
+                    w.flush().await?;
+                }
+            }
+            continue;
+        }
+
+        if action == "session/compact" || action == "v1/session/compact" {
+            #[derive(serde::Deserialize)]
+            struct CompactPayload {
+                #[serde(rename = "session_id", alias = "sessionId")]
+                session_id: String,
+                #[serde(default)]
+                summary: Option<String>,
+                #[serde(
+                    rename = "keep_last_n",
+                    alias = "keepLastN",
+                    default = "default_keep_last"
+                )]
+                keep_last_n: usize,
+            }
+            fn default_keep_last() -> usize {
+                2
+            }
+
+            let compact_req: Result<CompactPayload, _> = serde_json::from_str(payload);
+            match compact_req {
+                Ok(req) => {
+                    let parsed_sid =
+                        require_canonical_session_id!(&req.session_id, is_versioned, req_id_val);
+                    let storage = app.runtime().sqlite_storage();
+                    use brain_core::repositories::SessionRepository;
+                    match storage.load_session(&parsed_sid) {
+                        Ok(Some(mut session)) => {
+                            let original_count = session.messages.len();
+                            let summary_text = req.summary.unwrap_or_else(|| {
+                                format!(
+                                    "Compacted conversation (pruned {} turns)",
+                                    original_count.saturating_sub(req.keep_last_n)
+                                )
+                            });
+                            let now_secs = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs();
+                            let compact_res = session.compact(
+                                summary_text.clone(),
+                                brain_domain::SessionTimestamp(now_secs),
+                                req.keep_last_n,
+                            );
+                            if let Err(e) = compact_res {
+                                let err_msg = format!("Failed to compact session: {}", e);
+                                let response = if is_versioned {
+                                    serde_json::json!({
+                                        "version": "1.0",
+                                        "type": "Error",
+                                        "id": req_id_val,
+                                        "status": "error",
+                                        "body": err_msg
+                                    })
+                                } else {
+                                    serde_json::json!({ "status": "error", "message": err_msg })
+                                };
+                                let mut response_json = serde_json::to_string(&response)?;
+                                response_json.push('\n');
+                                let mut w = writer.lock().await;
+                                w.write_all(response_json.as_bytes()).await?;
+                                w.flush().await?;
+                                continue;
+                            }
+                            let compacted_count = session.messages.len();
+                            let save_res = storage.save_session(&parsed_sid, &session);
+                            if let Err(e) = save_res {
+                                let err_msg = format!("Failed to save compacted session: {}", e);
+                                let response = if is_versioned {
+                                    serde_json::json!({
+                                        "version": "1.0",
+                                        "type": "Error",
+                                        "id": req_id_val,
+                                        "status": "error",
+                                        "body": err_msg
+                                    })
+                                } else {
+                                    serde_json::json!({ "status": "error", "message": err_msg })
+                                };
+                                let mut response_json = serde_json::to_string(&response)?;
+                                response_json.push('\n');
+                                let mut w = writer.lock().await;
+                                w.write_all(response_json.as_bytes()).await?;
+                                w.flush().await?;
+                                continue;
+                            }
+                            let response_body = serde_json::json!({
+                                "status": "ok",
+                                "session_id": parsed_sid.to_string(),
+                                "original_message_count": original_count,
+                                "compacted_message_count": compacted_count,
+                                "summary": summary_text
+                            });
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Response",
+                                    "id": req_id_val,
+                                    "status": "success",
+                                    "body": response_body
+                                })
+                            } else {
+                                serde_json::json!({
+                                    "status": "ok",
+                                    "data": response_body
+                                })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Ok(None) => {
+                            let err_msg = format!("Session '{}' not found", req.session_id);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "code": "session_not_found",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "code": "session_not_found", "message": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to load session: {}", e);
+                            let response = if is_versioned {
+                                serde_json::json!({
+                                    "version": "1.0",
+                                    "type": "Error",
+                                    "id": req_id_val,
+                                    "status": "error",
+                                    "body": err_msg
+                                })
+                            } else {
+                                serde_json::json!({ "status": "error", "message": err_msg })
+                            };
+                            let mut response_json = serde_json::to_string(&response)?;
+                            response_json.push('\n');
+                            let mut w = writer.lock().await;
+                            w.write_all(response_json.as_bytes()).await?;
+                            w.flush().await?;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Invalid compact payload: {}", e);
+                    let response = if is_versioned {
+                        serde_json::json!({
+                            "version": "1.0",
+                            "type": "Error",
+                            "id": req_id_val,
+                            "status": "error",
+                            "body": err_msg
+                        })
+                    } else {
+                        serde_json::json!({ "status": "error", "message": err_msg })
                     };
                     let mut response_json = serde_json::to_string(&response)?;
                     response_json.push('\n');
@@ -1411,7 +2214,8 @@ pub async fn handle_connection(
                 w.flush().await?;
                 continue;
             }
-            let parsed_session_id = parse_session_id_flexible(&sid_str);
+            let parsed_session_id =
+                require_canonical_session_id!(&sid_str, is_versioned, req_id_val);
 
             let storage = app.runtime().sqlite_storage();
             use brain_core::repositories::SessionRepository;
@@ -1481,14 +2285,9 @@ pub async fn handle_connection(
             }
 
             // Keystroke-as-grant (spec §2): the user typed and submitted this
-            // command, which IS the consent act. This grant replaces the
-            // dialog, not the gate — execution still flows through
-            // ToolExecutor::validate_tool_permissions. Verified inert for the
-            // agentic round-trip: this file has NO is_granted precheck, so
-            // agentic calls always prompt regardless of grant-set state.
-            crate::tools::tool_stack()
-                .permissions
-                .grant(brain_core::extensibility::Permission::Shell);
+            // Direct command execution (/shell or '!'): the interactive command itself
+            // IS the consent act. We scope the required Shell permission strictly to this
+            // execution so stack.permissions remains unpolluted and immutable.
 
             // Persist the attempted command upon acceptance (stream-arm
             // Invariant 4 twin): a crash mid-exec still leaves it recorded.
@@ -1515,11 +2314,14 @@ pub async fn handle_connection(
             };
             let tool_exec_started = std::time::Instant::now();
 
+            let shell_permissions = stack
+                .permissions
+                .scoped_with([brain_core::extensibility::Permission::Shell]);
             match stack.registry.get_tool("bash") {
                 Some(tool) => {
                     match stack
                         .executor
-                        .execute(tool, &tool_ctx, &stack.permissions, &args_map)
+                        .execute(tool, &tool_ctx, &shell_permissions, &args_map)
                         .await
                     {
                         Ok(result) => {
@@ -1748,7 +2550,8 @@ pub async fn handle_connection(
                     };
                     let msg_id = parsed_msg_id.to_string();
 
-                    let parsed_sid = parse_session_id_flexible(&req.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&req.session_id, is_versioned, req_id_val);
                     let mut session = storage
                         .load_session(&parsed_sid)
                         .ok()
@@ -1869,7 +2672,8 @@ pub async fn handle_connection(
                         brain_domain::MessageId::new()
                     };
 
-                    let parsed_sid = parse_session_id_flexible(&req.session_id);
+                    let parsed_sid =
+                        require_canonical_session_id!(&req.session_id, is_versioned, req_id_val);
                     let mut session = storage
                         .load_session(&parsed_sid)
                         .ok()
@@ -3385,21 +4189,20 @@ pub async fn handle_connection(
                 }
             };
 
-            let is_explicit_session = stream_req.session_id.is_some();
-
             let generation_id = stream_req
                 .generation_id
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-            let (session_id_str, parsed_session_id) = match stream_req.session_id {
-                Some(ref s) => {
-                    if s.trim().is_empty() {
+            let (session_id_str, parsed_session_id) = match stream_req.session_id.as_deref() {
+                Some(raw) => match parse_canonical_session_id(raw) {
+                    Ok(id) => (id.to_string(), id),
+                    Err(error) => {
                         let err_frame = serde_json::json!({
                             "type": "error",
                             "generation_id": generation_id,
-                            "session_id": s,
-                            "error": "Session ID cannot be empty",
-                            "code": "missing_session_id",
+                            "session_id": raw,
+                            "error": error.message(),
+                            "code": error.code(),
                             "sequence": 0,
                             "status": "failed"
                         });
@@ -3409,12 +4212,22 @@ pub async fn handle_connection(
                         writer.flush().await?;
                         continue;
                     }
-                    let id = parse_session_id_flexible(s);
-                    (s.clone(), id)
-                }
+                },
                 None => {
-                    let id = brain_domain::SessionId::new();
-                    (id.to_string(), id)
+                    let error = CanonicalSessionIdError::Missing;
+                    let err_frame = serde_json::json!({
+                        "type": "error",
+                        "generation_id": generation_id,
+                        "error": error.message(),
+                        "code": error.code(),
+                        "sequence": 0,
+                        "status": "failed"
+                    });
+                    let mut json = serde_json::to_string(&err_frame)?;
+                    json.push('\n');
+                    writer.write_all(json.as_bytes()).await?;
+                    writer.flush().await?;
+                    continue;
                 }
             };
 
@@ -3423,56 +4236,36 @@ pub async fn handle_connection(
             // the aggregate first, then streams turns into it), so a stream
             // naming a nonexistent id is rejected with session_not_found — it
             // must never fabricate an aggregate for a caller-supplied id.
-            // Only implicit streams (no sessionId in the request) mint one.
             let storage = app.runtime().sqlite_storage();
             use brain_core::repositories::SessionRepository;
-            let mut session_aggregate = if is_explicit_session {
-                match storage.load_session(&parsed_session_id) {
-                    Ok(Some(mut s)) => {
-                        if let Some(ref sp) = stream_req.system_prompt {
-                            let cleaned = sp.trim().to_string();
-                            s.system_prompt = if cleaned.is_empty() {
-                                None
-                            } else {
-                                Some(cleaned)
-                            };
-                        }
-                        s
+            let mut session_aggregate = match storage.load_session(&parsed_session_id) {
+                Ok(Some(mut s)) => {
+                    if let Some(ref sp) = stream_req.system_prompt {
+                        let cleaned = sp.trim().to_string();
+                        s.system_prompt = if cleaned.is_empty() {
+                            None
+                        } else {
+                            Some(cleaned)
+                        };
                     }
-                    _ => {
-                        let err_frame = serde_json::json!({
-                            "type": "error",
-                            "generation_id": generation_id,
-                            "session_id": session_id_str,
-                            "error": format!("Session '{}' not found", session_id_str),
-                            "code": "session_not_found",
-                            "sequence": 0,
-                            "status": "failed"
-                        });
-                        let mut json = serde_json::to_string(&err_frame)?;
-                        json.push('\n');
-                        writer.write_all(json.as_bytes()).await?;
-                        writer.flush().await?;
-                        continue;
-                    }
+                    s
                 }
-            } else {
-                let now_secs = (chrono::Utc::now().timestamp_millis() / 1000) as u64;
-                let mut new_sess = brain_domain::Session::new(
-                    parsed_session_id,
-                    brain_domain::SessionTitle("Interactive Session".to_string()),
-                    brain_domain::SessionTimestamp(now_secs),
-                );
-                if let Some(ref sp) = stream_req.system_prompt {
-                    let cleaned = sp.trim().to_string();
-                    new_sess.system_prompt = if cleaned.is_empty() {
-                        None
-                    } else {
-                        Some(cleaned)
-                    };
+                _ => {
+                    let err_frame = serde_json::json!({
+                        "type": "error",
+                        "generation_id": generation_id,
+                        "session_id": session_id_str,
+                        "error": format!("Session '{}' not found", session_id_str),
+                        "code": "session_not_found",
+                        "sequence": 0,
+                        "status": "failed"
+                    });
+                    let mut json = serde_json::to_string(&err_frame)?;
+                    json.push('\n');
+                    writer.write_all(json.as_bytes()).await?;
+                    writer.flush().await?;
+                    continue;
                 }
-                let _ = storage.save_session(&parsed_session_id, &new_sess);
-                new_sess
             };
 
             // Invariant 8: Concurrency Check (At most one generation per session)
@@ -3561,24 +4354,33 @@ pub async fn handle_connection(
             }
             let gen_guard = GenerationGuard::new(generation_id.clone(), registry);
 
-            // Convert request to ModelChatMessage and ToolDefinition
+            // The persisted session is the authoritative conversation history.
+            // The frontend supplies the current user turn solely so it can be
+            // atomically appended above; it cannot replace historical context
+            // with a divergent local transcript.
             let model_name = stream_req
                 .model
                 .unwrap_or_else(|| "brain-default".to_string());
-            let mut model_messages: Vec<brain_core::model::ModelChatMessage> = stream_req
+            let mut model_messages: Vec<brain_core::model::ModelChatMessage> = session_aggregate
                 .messages
                 .iter()
-                .filter_map(|m| {
-                    let role = match m.get("role").and_then(|r| r.as_str()) {
-                        Some("user") => brain_core::model::ChatRole::User,
-                        Some("assistant") => brain_core::model::ChatRole::Assistant,
-                        Some("system") => brain_core::model::ChatRole::System,
-                        _ => return None,
+                .filter_map(|message| {
+                    let role = match message.role {
+                        brain_domain::MessageRole::User => brain_core::model::ChatRole::User,
+                        brain_domain::MessageRole::Assistant => {
+                            brain_core::model::ChatRole::Assistant
+                        }
+                        brain_domain::MessageRole::System => brain_core::model::ChatRole::System,
+                        // Thinking and tool transcript records remain durable
+                        // history but are not model-chat messages in this
+                        // basic text/thinking increment.
+                        brain_domain::MessageRole::Thinking | brain_domain::MessageRole::Tool => {
+                            return None
+                        }
                     };
-                    let content_text = m.get("content").and_then(|c| c.as_str()).unwrap_or("");
                     Some(brain_core::model::ModelChatMessage::text(
                         role,
-                        content_text,
+                        &message.content,
                     ))
                 })
                 .collect();
@@ -3725,6 +4527,7 @@ pub async fn handle_connection(
             let mut total_usage = brain_core::model::TokenUsage {
                 input_tokens: 0,
                 output_tokens: 0,
+                ..Default::default()
             };
             let mut accumulated_response = String::new();
             let mut thinking_text = String::new();
@@ -3926,6 +4729,18 @@ pub async fn handle_connection(
                                                             decision: tx,
                                                         },
                                                     );
+                                                let working_dir = std::env::current_dir()
+                                                    .unwrap_or_else(|_| std::path::PathBuf::from("."));
+                                                let security_eval = crate::tools::PathGuard::evaluate_tool_input(
+                                                    &tool_name,
+                                                    &packet["toolUse"]["input"],
+                                                    &working_dir,
+                                                );
+                                                let reason = if let Some(ref warn) = security_eval.warning_message {
+                                                    format!("Security warning: {warn}")
+                                                } else {
+                                                    "tool execution requires approval".to_string()
+                                                };
                                                 let perm_packet = serde_json::json!({
                                                     "type": "tool_permission_requested",
                                                     "generation_id": generation_id,
@@ -3935,7 +4750,12 @@ pub async fn handle_connection(
                                                     "call_id": call_id,
                                                     "tool_name": tool_name,
                                                     "input": packet["toolUse"]["input"],
-                                                    "reason": "tool execution requires approval",
+                                                    "reason": reason,
+                                                    "security_context": {
+                                                        "is_outside_workspace": security_eval.is_outside_workspace,
+                                                        "is_sensitive_credential": security_eval.is_sensitive_credential,
+                                                        "warning_message": security_eval.warning_message,
+                                                    },
                                                     "status": "in_progress"
                                                 });
                                                 let mut pj = serde_json::to_string(&perm_packet)?;
@@ -4011,10 +4831,14 @@ pub async fn handle_connection(
                                                             Some(tool) => {
                                                                 // Scope permission authorization strictly to this approved invocation.
                                                                 // The shared stack.permissions remains pristine and unmodified.
-                                                                let invocation_permissions = brain_tools::PermissionManager::new();
-                                                                for permission in &tool.metadata().required_permissions {
-                                                                    invocation_permissions.grant(*permission);
-                                                                }
+                                                                let invocation_permissions = stack
+                                                                    .permissions
+                                                                    .scoped_with(
+                                                                        tool.metadata()
+                                                                            .required_permissions
+                                                                            .iter()
+                                                                            .copied(),
+                                                                    );
                                                                 stack
                                                                     .executor
                                                                     .execute(
@@ -4244,6 +5068,7 @@ pub async fn handle_connection(
                     }
                 }
 
+                is_cancelled |= cancellation_token.is_cancelled();
                 if is_cancelled || round_completed.is_none() {
                     break 'rounds;
                 }
@@ -4251,6 +5076,12 @@ pub async fn handle_connection(
                 let (finish_reason, usage) = round_completed.take().unwrap();
                 total_usage.input_tokens += usage.input_tokens;
                 total_usage.output_tokens += usage.output_tokens;
+                if let Some(r) = usage.cache_read_input_tokens {
+                    *total_usage.cache_read_input_tokens.get_or_insert(0) += r;
+                }
+                if let Some(c) = usage.cache_creation_input_tokens {
+                    *total_usage.cache_creation_input_tokens.get_or_insert(0) += c;
+                }
 
                 // Continuation rule (spec §3): keep going only when this pass
                 // resolved at least one tool call AND rounds remain; otherwise
@@ -4270,15 +5101,23 @@ pub async fn handle_connection(
                     // strict-monotonic contract); mid-loop Completions restored
                     // theirs above.
                     seq += 1;
+                    let mut metadata = serde_json::json!({
+                        "inputTokens": total_usage.input_tokens,
+                        "outputTokens": total_usage.output_tokens,
+                    });
+                    if let Some(tokens) = total_usage.cache_read_input_tokens {
+                        metadata["cache_read_input_tokens"] = serde_json::json!(tokens);
+                        metadata["cacheReadInputTokens"] = serde_json::json!(tokens);
+                    }
+                    if let Some(tokens) = total_usage.cache_creation_input_tokens {
+                        metadata["cache_creation_input_tokens"] = serde_json::json!(tokens);
+                        metadata["cacheCreationInputTokens"] = serde_json::json!(tokens);
+                    }
                     let mut telemetry = serde_json::json!({
                         "generation_id": generation_id,
                         "session_id": session_id_str,
                         "total_duration_ms": gen_start_time.elapsed().as_millis() as u64,
                         "finish_reason": reason,
-                    });
-                    let mut metadata = serde_json::json!({
-                        "inputTokens": total_usage.input_tokens,
-                        "outputTokens": total_usage.output_tokens,
                     });
                     if let Some(snapshot) = &context_snapshot {
                         telemetry["retrieval_epoch_id"] = serde_json::json!(snapshot.epoch_id);
@@ -4807,6 +5646,12 @@ pub async fn handle_connection(
         metrics
             .sum_ipc_latency_us
             .fetch_add(ipc_elapsed, Ordering::Relaxed);
+    }
+
+    // Cleanup any registered clients for this connection on disconnect
+    let fleet = app.runtime().fleet_registry();
+    for client_id in conn_registered_clients {
+        fleet.unregister_session(&client_id);
     }
 
     conn_token.cancel();

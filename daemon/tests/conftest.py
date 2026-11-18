@@ -115,7 +115,7 @@ def uds_runtime(tmp_path_factory: pytest.TempPathFactory) -> Iterator[UdsRuntime
             if socket_path.exists():
                 try:
                     response = runtime.call("v1/status", "")
-                except (AssertionError, OSError, TimeoutError):
+                except AssertionError, OSError, TimeoutError:
                     time.sleep(0.05)
                 else:
                     if (

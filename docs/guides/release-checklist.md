@@ -53,7 +53,7 @@ This document lists the canonical quality checks and acceptance criteria require
 ---
 
 ## 5. Automated Packaging & Cross-Platform Release Gates
-- [ ] **Workspace & Docs Gate**: `cargo xtask verify` and `cargo xtask docs all` pass with zero errors and zero broken links or orphan docs.
+- [ ] **Workspace & Docs Gate**: `cargo xtask verify` and `cargo xtask docs all` pass with zero active documentation violations.
 - [ ] **First-Party Frontend Suite**: `bun run typecheck`, `bun run test`, and `./scripts/verify-frontend-e2e.sh` pass with zero skipped or todo tests.
 - [ ] **Closed Product Archive Verification (`./package.sh` & `.github/workflows/release.yml`)**:
   - `scripts/package-brain-product.sh` and `scripts/verify-daemon-runtime.sh` verify the acyclic hash graph (`product-manifest.json`, `runtime-manifest.json`, `frontend/brain-frontend/manifest.json`, `runtime/python-files.json`, and `licenses/notice-inventory.json`).

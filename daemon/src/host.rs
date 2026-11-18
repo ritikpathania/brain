@@ -67,6 +67,7 @@ pub struct DaemonHost;
 impl DaemonHost {
     pub fn start() -> Result<(), Box<dyn std::error::Error>> {
         let paths = config::resolve_paths();
+        brain_config::ensure_runtime_directories(&paths)?;
         if paths.pid_path.exists() {
             if let Ok(pid_str) = fs::read_to_string(&paths.pid_path) {
                 if let Ok(pid) = pid_str.trim().parse::<i32>() {
@@ -163,6 +164,7 @@ impl DaemonHost {
     }
 
     pub async fn run_server(paths: BrainPaths) -> Result<(), Box<dyn std::error::Error>> {
+        brain_config::ensure_runtime_directories(&paths)?;
         let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
         let use_json = std::env::var("LOG_FORMAT").as_deref() == Ok("json");
 
@@ -181,7 +183,7 @@ impl DaemonHost {
             panic!("Simulating panic during startup");
         }
 
-        let brain_runtime_db_path = paths.config_dir.join("brain_runtime.db");
+        let brain_runtime_db_path = paths.database_path.clone();
         let brain_runtime = match BrainRuntime::new(brain_runtime_db_path.to_str().unwrap()) {
             Ok(rt) => {
                 info!(
@@ -203,47 +205,40 @@ impl DaemonHost {
         let defaults_src = brain_config::loader::DefaultsSource;
         let env_src = brain_config::loader::EnvironmentSource;
         let config = brain_config::loader::resolve(&[Box::new(defaults_src), Box::new(env_src)])?;
-        let query_embeddings = brain_services::providers::embeddings::configured_provider(
-            config.models(),
-        )
-        .map(|provider| {
-            Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
-                provider,
-            )) as Arc<dyn brain_core::retrieval::QueryEmbeddingService>
-        });
         let working_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
 
-        let mut runtime_builder = ApplicationRuntime::builder()
-            .with_config(config)
-            .with_working_dir(working_dir)
-            .with_brain_runtime(Arc::clone(&brain_runtime));
-        if let Some(query_embeddings) = &query_embeddings {
-            runtime_builder =
-                runtime_builder.with_query_embedding_service(Arc::clone(query_embeddings));
-        }
-        let app_runtime = Arc::new(runtime_builder.build()?);
+        let app_runtime = Arc::new(
+            ApplicationRuntime::builder()
+                .with_config(config)
+                .with_working_dir(working_dir)
+                .with_brain_runtime(Arc::clone(&brain_runtime))
+                .build()?,
+        );
 
         app_runtime.start()?;
 
         info!(
             component = "runtime",
-            db_path = %paths.config_dir.join("brain_runtime.db").display(),
+            db_path = %paths.database_path.display(),
             "ApplicationRuntime and BrainRuntime initialized via RuntimeBuilder"
         );
 
-        let brain_app = Arc::new(
-            brain_application::BrainApplication::with_context_query_embeddings(
-                Arc::clone(&brain_runtime),
-                query_embeddings,
-            ),
-        );
+        let configured_chat_agent = app_runtime.chat_agent().ok();
+        let configured_embedding_provider = app_runtime.embedding_provider()?;
+        let brain_app = Arc::new(brain_application::BrainApplication::with_model_providers(
+            Arc::clone(&brain_runtime),
+            configured_chat_agent,
+            Some(configured_embedding_provider),
+        ));
         let request_dispatcher = Arc::new(brain_application::dispatcher::RequestDispatcher::new(
             Arc::clone(&brain_app),
         ));
 
         let dispatcher_ref = Arc::clone(&request_dispatcher);
-        tokio::spawn(async move {
-            start_health_server(health_metrics, dispatcher_ref).await;
+        let health_port = paths.health_port.clone();
+        let socket_path = paths.socket_path.display().to_string();
+        let health_handle = tokio::spawn(async move {
+            start_health_server(health_metrics, dispatcher_ref, health_port, socket_path).await;
         });
 
         let mut state = DaemonState::Starting;
@@ -257,6 +252,8 @@ impl DaemonHost {
                         "UDS socket at '{}' is active. Another daemon is running. Aborting startup.",
                         paths.socket_path.display()
                     );
+                    health_handle.abort();
+                    let _ = app_runtime.shutdown();
                     return Err("Daemon already running".into());
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
@@ -266,6 +263,8 @@ impl DaemonHost {
                         paths.socket_path.display(),
                         e
                     );
+                    health_handle.abort();
+                    let _ = app_runtime.shutdown();
                     return Err(e.into());
                 }
                 Err(e) => {
@@ -368,21 +367,36 @@ impl DaemonHost {
             info!(component = "shutdown", "Workers drained");
         }
 
+        // Stop the health server task and release its Arc<RequestDispatcher> reference
+        health_handle.abort();
+        let _ = health_handle.await;
+
+        // Shut down and drop ApplicationRuntime so its Arc<BrainRuntime> reference is released
+        if let Err(e) = app_runtime.shutdown() {
+            warn!(
+                component = "runtime",
+                error = %e,
+                "ApplicationRuntime shutdown reported error"
+            );
+        }
+        drop(app_runtime);
         drop(request_dispatcher);
         drop(brain_app);
 
-        if let Ok(runtime) = Arc::try_unwrap(brain_runtime) {
-            match runtime.shutdown() {
-                Ok(summary) => {
-                    info!(
-                        component = "runtime",
-                        shutdown_ms = summary.duration.as_millis(),
-                        "BrainRuntime shutdown complete"
-                    );
-                }
-                Err(e) => {
-                    error!(component = "runtime", error = %e, "BrainRuntime shutdown error");
-                }
+        let shutdown_result = match Arc::try_unwrap(brain_runtime) {
+            Ok(runtime) => runtime.shutdown(),
+            Err(shared_runtime) => shared_runtime.shutdown_ref(),
+        };
+        match shutdown_result {
+            Ok(summary) => {
+                info!(
+                    component = "runtime",
+                    shutdown_ms = summary.duration.as_millis(),
+                    "BrainRuntime shutdown complete"
+                );
+            }
+            Err(e) => {
+                error!(component = "runtime", error = %e, "BrainRuntime shutdown error");
             }
         }
 

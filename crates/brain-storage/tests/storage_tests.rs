@@ -398,6 +398,52 @@ fn test_run_transaction_rollback() {
 }
 
 #[test]
+fn test_storage_transactions_are_safe_across_threads() {
+    let test_store = TestStorage::new();
+    let store = test_store.store();
+    let start = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let node_ids = [NodeId::new(), NodeId::new()];
+
+    let workers: Vec<_> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(index, node_id)| {
+            let store = store.clone();
+            let start = start.clone();
+            let node_id = *node_id;
+
+            std::thread::spawn(move || {
+                start.wait();
+                store.run_transaction(|tx| {
+                    tx.repositories().nodes().save(&Node::new(
+                        node_id,
+                        format!("concurrent-node-{index}"),
+                        NodeType::Concept,
+                    ))
+                })
+            })
+        })
+        .collect();
+
+    start.wait();
+
+    for worker in workers {
+        worker
+            .join()
+            .expect("storage worker should not panic")
+            .expect("transaction should commit");
+    }
+
+    for node_id in node_ids {
+        assert!(NodeRepository::find_by_id(store.as_ref(), &node_id)
+            .unwrap()
+            .is_some());
+    }
+
+    test_store.assert_clean();
+}
+
+#[test]
 fn test_nested_transaction_prevention() {
     let test_store = TestStorage::new();
     let store = test_store.storage();

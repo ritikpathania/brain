@@ -1,12 +1,15 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use brain_core::errors::BrainError;
 use brain_core::extensibility::{
     CancellationToken as CoreCancellationToken, ExecutionContext, ExecutionResult, Permission,
     Tool, ToolRegistry, ToolRunner,
 };
+
+pub mod sandbox;
 
 /// Concrete Tokio-backed implementation of the core CancellationToken trait.
 #[derive(Clone)]
@@ -56,6 +59,15 @@ pub struct PermissionManager {
     granted: RwLock<HashSet<Permission>>,
 }
 
+impl Clone for PermissionManager {
+    fn clone(&self) -> Self {
+        let granted = self.granted.read().unwrap().clone();
+        Self {
+            granted: RwLock::new(granted),
+        }
+    }
+}
+
 impl Default for PermissionManager {
     fn default() -> Self {
         Self::new()
@@ -67,6 +79,16 @@ impl PermissionManager {
     pub fn new() -> Self {
         Self {
             granted: RwLock::new(HashSet::new()),
+        }
+    }
+
+    /// Creates an independent scoped permission manager containing the union of
+    /// this manager's permissions and any newly granted permissions.
+    pub fn scoped_with(&self, additional: impl IntoIterator<Item = Permission>) -> Self {
+        let mut set = self.granted.read().unwrap().clone();
+        set.extend(additional);
+        Self {
+            granted: RwLock::new(set),
         }
     }
 
@@ -123,7 +145,7 @@ impl ToolRegistry for ToolRegistryImpl {
         let mut tools = self.tools.write().unwrap();
         if tools.contains_key(&name) {
             return Err(BrainError::InvalidTransition {
-                message: format!("Tool '{}' is already registered", name),
+                message: format!("Tool '{name}' is already registered"),
             });
         }
         tools.insert(name, tool);
@@ -185,10 +207,42 @@ impl ToolExecutor {
             });
         }
 
-        // 3. Coordinate execution using tokio's spawn_blocking for the runner,
-        // selecting over timeouts and cancellation.
+        // 3. Put the policy deadline in the execution context before starting
+        // the runner. A tool must observe this deadline and the cancellation
+        // token before it returns a terminal outcome. We deliberately do not
+        // abandon a `spawn_blocking` runner with `select!`: doing so would let
+        // a reported cancellation or timeout outlive the underlying work.
+        let started_at = Instant::now();
+        let policy_timeout = Duration::from_millis(tool.metadata().execution_policy.timeout_ms);
+        let policy_deadline =
+            started_at
+                .checked_add(policy_timeout)
+                .ok_or_else(|| BrainError::Internal {
+                    message: format!(
+                        "Tool '{}' timeout cannot be represented as an Instant",
+                        tool.metadata().name
+                    ),
+                })?;
+        let deadline = context
+            .deadline
+            .map(|existing| existing.min(policy_deadline))
+            .unwrap_or(policy_deadline);
+
+        if deadline <= started_at {
+            return Err(BrainError::Timeout {
+                elapsed_ms: 0,
+                message: format!(
+                    "Tool '{}' deadline elapsed before execution",
+                    tool.metadata().name
+                ),
+            });
+        }
+
         let tool_clone = tool.clone();
-        let context_clone = context.clone();
+        let context_clone = ExecutionContext {
+            deadline: Some(deadline),
+            ..context.clone()
+        };
         let args_clone = arguments.clone();
         let runner = self.runner.clone();
 
@@ -196,42 +250,11 @@ impl ToolExecutor {
             runner.run(tool_clone, &context_clone, &args_clone)
         });
 
-        let cancellation_future = async {
-            loop {
-                if context.cancellation.is_cancelled() {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-            }
-        };
-
-        let timeout_duration =
-            std::time::Duration::from_millis(tool.metadata().execution_policy.timeout_ms);
-
-        tokio::select! {
-            res = handle => {
-                match res {
-                    Ok(execution_res) => execution_res,
-                    Err(join_err) => Err(BrainError::Internal {
-                        message: format!("Tool runner panicked: {}", join_err),
-                    }),
-                }
-            }
-            _ = tokio::time::sleep(timeout_duration) => {
-                Err(BrainError::Timeout {
-                    elapsed_ms: tool.metadata().execution_policy.timeout_ms,
-                    message: format!(
-                        "Tool '{}' timed out after {}ms",
-                        tool.metadata().name,
-                        tool.metadata().execution_policy.timeout_ms
-                    ),
-                })
-            }
-            _ = cancellation_future => {
-                Err(BrainError::Cancelled {
-                    message: format!("Execution of tool '{}' was cancelled", tool.metadata().name),
-                })
-            }
+        match handle.await {
+            Ok(execution_res) => execution_res,
+            Err(join_err) => Err(BrainError::Internal {
+                message: format!("Tool runner panicked: {join_err}"),
+            }),
         }
     }
 }

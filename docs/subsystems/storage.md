@@ -39,7 +39,8 @@ The Storage subsystem manages persistent disk storage, SQLite database migration
 ## 3. Out of Scope
 - Knowledge reconciliation passes, entity deduplication, or contradiction resolution (owned by **Compiler**).
 - Hybrid BM25/Vector RRF candidate scoring and ranking algorithms (owned by **Retrieval**).
-- Terminal visual rendering or UI state management (owned by **TUI**).
+- Frontend rendering or presentation state management (owned by the first-party
+  frontend, outside the storage subsystem).
 
 ## 4. Architecture Overview
 ```text
@@ -99,5 +100,5 @@ Storage Subsystem
 ├── Used by: Knowledge Compiler (brain-services)
 ├── Queried by: Retrieval Engine (brain-services)
 ├── Exposed through: IPC Protocol (daemon)
-└── Visualized by: TUI (brain-tui)
+└── Consumed through: protocol clients and first-party frontend adapters
 ```

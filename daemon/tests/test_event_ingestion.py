@@ -1,44 +1,40 @@
+"""Versioned ingestion coverage against the hermetic daemon fixture."""
+
 import json
 import uuid
+from typing import cast
 
-from tests.test_uds_ipc import run_uds_query
 
-
-def generate_envelope(event_id, content="Hello Brain"):
+def generate_envelope(event_id: str, content: str = "Hello Brain") -> dict[str, object]:
     return {
         "event_model_version": "1.0",
         "identity": {
             "event_id": event_id,
-            "parent_event_id": "b3b7541f-8239-44d4-95e2-b91c0683072b",
-            "workspace_id": "proj-123",
-            "client_id": "cursor-1.0",
-            "adapter_id": "vscode-ext",
+            "parent_event_id": None,
+            "workspace_id": "python-uds-ci",
+            "client_id": "python-uds-ci",
+            "adapter_id": "python-uds-ci",
             "session_id": "01H7X1F8Z9Y000000000000000",
-            "conversation_id": "01H7X1F8Z9Y000000000000001",
+            "conversation_id": None,
             "timestamp": "2026-06-29T15:30:00Z",
         },
         "event": {
-            "event_type": "message",
-            "role": "user",
+            "event_type": "text",
             "content": content,
-            "metadata": {"provider.model": "claude-3-5"},
+            "metadata": {},
         },
     }
 
 
-def test_end_to_end_event_ingestion_and_deduplication():
-    # 1. Generate unique event ID
-    event_id = str(uuid.uuid4())
-    envelope = generate_envelope(event_id, "Hello Brain from End-to-End Test")
-    payload = json.dumps(envelope)
+def test_versioned_ingest_is_processed_by_the_isolated_daemon(uds_runtime):
+    envelope = generate_envelope(str(uuid.uuid4()), "Python UDS versioned ingestion")
 
-    # 2. Ingest event
-    responses = run_uds_query("ingest_event", payload)
-    assert len(responses) > 0
-    assert responses[0]["status"] == "ok"
+    response = uds_runtime.call("v1/ingest", json.dumps(envelope))
 
-    ack_data = json.loads(responses[0]["message"])
-    assert "sequence" in ack_data
-    assert ack_data["event_id"] == event_id
-    seq1 = ack_data["sequence"]
-    assert seq1 > 0
+    assert response["version"] == "1.0"
+    assert response["type"] == "Response"
+    assert response["status"] == "success"
+    body = json.loads(response["body"])
+    identity = cast(dict[str, object], envelope["identity"])
+    assert body["processed"] is True
+    assert body["event_id"] == identity["event_id"]

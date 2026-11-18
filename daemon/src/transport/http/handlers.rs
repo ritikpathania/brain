@@ -8,8 +8,12 @@ use brain_application::context::ExecutionContext;
 use brain_application::dispatcher::{ApplicationRequest, ApplicationResponse, RequestDispatcher};
 
 /// Starts the HTTP health, readiness, and metrics server.
-pub async fn start_health_server(metrics: Arc<DaemonMetrics>, dispatcher: Arc<RequestDispatcher>) {
-    let port = std::env::var("BRAIN_HEALTH_PORT").unwrap_or_else(|_| "8080".to_string());
+pub async fn start_health_server(
+    metrics: Arc<DaemonMetrics>,
+    dispatcher: Arc<RequestDispatcher>,
+    port: String,
+    socket_path: String,
+) {
     let addr = format!("127.0.0.1:{}", port);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
@@ -33,6 +37,7 @@ pub async fn start_health_server(metrics: Arc<DaemonMetrics>, dispatcher: Arc<Re
         if let Ok((mut stream, _)) = listener.accept().await {
             let metrics_ref = Arc::clone(&metrics);
             let dispatcher_ref = Arc::clone(&dispatcher);
+            let socket_path_ref = socket_path.clone();
             tokio::spawn(async move {
                 let context_ref = ExecutionContext::default();
                 let mut buffer = [0; 1024];
@@ -124,8 +129,17 @@ pub async fn start_health_server(metrics: Arc<DaemonMetrics>, dispatcher: Arc<Re
                                     active,
                                     uptime: status_dto.uptime_secs,
                                 };
-                                let config_provider =
-                                    brain_services::diagnostics::DefaultConfigProvider;
+                                struct DaemonConfigProvider {
+                                    socket_path: String,
+                                }
+                                impl brain_services::diagnostics::ConfigProvider for DaemonConfigProvider {
+                                    fn socket_path(&self) -> String {
+                                        self.socket_path.clone()
+                                    }
+                                }
+                                let config_provider = DaemonConfigProvider {
+                                    socket_path: socket_path_ref,
+                                };
 
                                 let service = brain_services::diagnostics::DiagnosticsService::new(
                                     storage_provider,

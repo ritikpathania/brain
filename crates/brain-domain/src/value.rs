@@ -59,16 +59,16 @@ impl fmt::Display for StructuredValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Null => write!(f, "null"),
-            Self::Bool(b) => write!(f, "{}", b),
-            Self::Integer(i) => write!(f, "{}", i),
-            Self::String(s) => write!(f, "\"{}\"", s),
+            Self::Bool(b) => write!(f, "{b}"),
+            Self::Integer(i) => write!(f, "{i}"),
+            Self::String(s) => write!(f, "\"{s}\""),
             Self::List(items) => {
                 write!(f, "[")?;
                 for (idx, item) in items.iter().enumerate() {
                     if idx > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", item)?;
+                    write!(f, "{item}")?;
                 }
                 write!(f, "]")
             }
@@ -78,7 +78,7 @@ impl fmt::Display for StructuredValue {
                     if idx > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "\"{}\": {}", k, v)?;
+                    write!(f, "\"{k}\": {v}")?;
                 }
                 write!(f, "}}")
             }

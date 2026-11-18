@@ -28,10 +28,7 @@ impl DuplicateProbability {
     pub fn new(val: f32) -> Result<Self, DomainError> {
         if !(0.0..=1.0).contains(&val) {
             return Err(DomainError::ValidationError {
-                message: format!(
-                    "Duplicate probability must be between 0.0 and 1.0, got {}",
-                    val
-                ),
+                message: format!("Duplicate probability must be between 0.0 and 1.0, got {val}"),
                 rule_id: Some("VAL-PROB-001".to_string()),
             });
         }
@@ -88,8 +85,7 @@ impl ContradictionProbability {
         if !(0.0..=1.0).contains(&val) {
             return Err(DomainError::ValidationError {
                 message: format!(
-                    "Contradiction probability must be between 0.0 and 1.0, got {}",
-                    val
+                    "Contradiction probability must be between 0.0 and 1.0, got {val}"
                 ),
                 rule_id: Some("VAL-PROB-002".to_string()),
             });

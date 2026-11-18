@@ -1,7 +1,11 @@
 //! Daemon-owned concrete tools and their brain-tools wiring (Inc 5).
 pub mod bash_tool;
+pub mod path_guard;
+pub mod subagent_tool;
 
 pub use bash_tool::BashTool;
+pub use path_guard::{PathGuard, SecurityEvaluation};
+pub use subagent_tool::{SubagentTool, TaskTool};
 
 use std::sync::{Arc, OnceLock};
 

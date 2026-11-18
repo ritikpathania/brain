@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+static REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 pub struct CLIHost;
 
@@ -186,100 +189,173 @@ impl CLIHost {
 
     /// Direct non-interactive query over Unix Domain Socket.
     pub async fn run_query(text: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
-            PathBuf::from(path)
-        } else {
-            dirs::home_dir()
-                .map(|h| h.join(".brain").join("daemon.sock"))
-                .unwrap_or_else(|| PathBuf::from("daemon.sock"))
-        };
+        let body = Self::call_versioned(
+            "v1/search",
+            serde_json::json!({
+                "text": text,
+                "kinds": null,
+                "pagination": null,
+            }),
+        )
+        .await?;
+        let results: Vec<serde_json::Value> = serde_json::from_str(&body).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("daemon returned an invalid v1/search response: {error}"),
+            )
+        })?;
 
-        let mut stream = tokio::net::UnixStream::connect(socket_path).await?;
-        let payload = serde_json::json!({
-            "action": "query",
-            "payload": text,
-        })
-        .to_string()
-            + "\n";
-
-        stream.write_all(payload.as_bytes()).await?;
-        stream.flush().await?;
-
-        let mut reader = BufReader::new(stream);
-        let mut line = String::new();
-        let mut output = String::new();
-
-        while reader.read_line(&mut line).await? > 0 {
-            let trimmed = line.trim();
-            if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                if let Some(event_type) = value.get("type").and_then(|t| t.as_str()) {
-                    match event_type {
-                        "stream_chunk" => {
-                            if let Some(content) = value.get("content").and_then(|c| c.as_str()) {
-                                output.push_str(content);
-                            }
-                        }
-                        "stream_end" => {
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            line.clear();
+        if results.is_empty() {
+            return Ok("No matching context found in your memory graph.".to_string());
         }
 
-        Ok(output)
+        let mut output = format!(
+            "Found {} result(s) from your memory graph:\n",
+            results.len()
+        );
+        for result in results {
+            let title = result
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("(untitled)");
+            output.push_str(&format!("  • {title}\n"));
+        }
+        Ok(output.trim_end().to_string())
     }
 
     /// Direct memory ingestion over Unix Domain Socket.
     pub async fn run_ingest(content: &str) -> Result<String, Box<dyn std::error::Error>> {
-        let socket_path = if let Ok(path) = std::env::var("BRAIN_SOCKET_PATH") {
-            PathBuf::from(path)
-        } else {
-            dirs::home_dir()
-                .map(|h| h.join(".brain").join("daemon.sock"))
-                .unwrap_or_else(|| PathBuf::from("daemon.sock"))
+        let envelope = brain_integrations::IngestionEnvelope {
+            event: brain_integrations::IngestionEvent::Text {
+                content: content.to_string(),
+                metadata: std::collections::BTreeMap::new(),
+            },
+            event_model_version: "1.0".to_string(),
+            identity: brain_integrations::EventIdentity {
+                event_id: brain_domain::EventId::new(),
+                parent_event_id: None,
+                workspace_id: brain_domain::WorkspaceId::new("brain-cli"),
+                client_id: brain_domain::ClientId::new("brain-cli"),
+                adapter_id: brain_domain::AdapterId::new("brain-cli"),
+                session_id: brain_domain::SessionId::new(),
+                conversation_id: None,
+                timestamp: chrono::Utc::now(),
+            },
         };
+        let body = Self::call_versioned("v1/ingest", serde_json::to_value(envelope)?).await?;
+        let response: serde_json::Value = serde_json::from_str(&body).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("daemon returned an invalid v1/ingest response: {error}"),
+            )
+        })?;
+        if response
+            .get("processed")
+            .and_then(serde_json::Value::as_bool)
+            != Some(true)
+        {
+            return Err(std::io::Error::other("daemon did not process v1/ingest request").into());
+        }
 
-        let mut stream = tokio::net::UnixStream::connect(socket_path).await?;
-        let payload = serde_json::json!({
-            "action": "ingest",
-            "payload": content,
+        let event_id = response
+            .get("event_id")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        Ok(format!(
+            "✔ Ingested memory successfully (Event ID: {event_id})"
+        ))
+    }
+
+    /// Retrieves the daemon's typed operational status through the current UDS protocol.
+    pub async fn run_status() -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let body = Self::call_versioned("v1/status", serde_json::Value::Null).await?;
+        serde_json::from_str(&body).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("daemon returned an invalid v1/status response: {error}"),
+            )
+            .into()
         })
-        .to_string()
-            + "\n";
+    }
 
+    async fn call_versioned(
+        action: &str,
+        body: serde_json::Value,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let mut stream = tokio::net::UnixStream::connect(Self::resolve_socket_path()).await?;
+        let request_id = REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+        let request = serde_json::json!({
+            "version": "1.0",
+            "type": "Request",
+            "id": request_id,
+            "action": action,
+            "body": if body.is_null() { String::new() } else { serde_json::to_string(&body)? },
+        });
+        let payload = format!("{}\n", serde_json::to_string(&request)?);
         stream.write_all(payload.as_bytes()).await?;
         stream.flush().await?;
 
         let mut reader = BufReader::new(stream);
         let mut line = String::new();
-        reader.read_line(&mut line).await?;
-        let trimmed = line.trim();
-
-        // Parse response JSON for clean CLI output
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            if value.get("status").and_then(|s| s.as_str()) == Some("ok") {
-                if let Some(msg_str) = value.get("message").and_then(|m| m.as_str()) {
-                    if let Ok(inner) = serde_json::from_str::<serde_json::Value>(msg_str) {
-                        let event_id = inner
-                            .get("event_id")
-                            .and_then(|id| id.as_str())
-                            .unwrap_or("unknown");
-                        return Ok(format!(
-                            "✔ Ingested memory successfully (Event ID: {})",
-                            event_id
-                        ));
-                    }
-                }
-                return Ok("✔ Ingested memory successfully".to_string());
-            } else if let Some(msg) = value.get("message").and_then(|m| m.as_str()) {
-                return Ok(format!("✖ Ingest failed: {}", msg));
-            }
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            reader.read_line(&mut line),
+        )
+        .await
+        .map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::TimedOut, "daemon response timed out")
+        })??;
+        if line.trim().is_empty() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "daemon closed the UDS connection without a response",
+            )
+            .into());
         }
 
-        Ok(trimmed.to_string())
+        let response: serde_json::Value = serde_json::from_str(line.trim()).map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("daemon returned invalid UDS JSON: {error}"),
+            )
+        })?;
+        if response.get("id") != Some(&serde_json::json!(request_id)) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "daemon response did not correlate to the CLI request",
+            )
+            .into());
+        }
+        match response.get("type").and_then(serde_json::Value::as_str) {
+            Some("Response")
+                if response.get("status").and_then(serde_json::Value::as_str)
+                    == Some("success") =>
+            {
+                response
+                    .get("body")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "successful daemon response omitted its body",
+                        )
+                    })
+                    .map_err(Into::into)
+            }
+            Some("Error") => Err(std::io::Error::other(
+                response
+                    .get("body")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("daemon rejected the request"),
+            )
+            .into()),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "daemon returned an unexpected versioned response",
+            )
+            .into()),
+        }
     }
 
     fn resolve_frontend_runtime() -> Result<PathBuf, Box<dyn std::error::Error>> {

@@ -7,7 +7,7 @@ fn get_schema_validator() -> jsonschema::JSONSchema {
     let schema_path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../protocol/brain_events.schema.json");
     let schema_content = std::fs::read_to_string(&schema_path)
-        .unwrap_or_else(|e| panic!("Failed to read schema file at {:?}: {}", schema_path, e));
+        .unwrap_or_else(|e| panic!("Failed to read schema file at {schema_path:?}: {e}"));
     let schema_json: serde_json::Value =
         serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
     jsonschema::JSONSchema::compile(&schema_json).expect("Failed to compile schema")
@@ -325,24 +325,21 @@ fn test_golden_files_compatibility() {
     for (filename, envelope) in test_cases {
         let filepath = golden_dir.join(filename);
         let raw_json = std::fs::read_to_string(&filepath)
-            .unwrap_or_else(|e| panic!("Failed to read golden file {:?}: {}", filepath, e));
+            .unwrap_or_else(|e| panic!("Failed to read golden file {filepath:?}: {e}"));
 
         // Deserialization check
         let roundtrip_envelope: IngestionEnvelope = serde_json::from_str(&raw_json)
-            .unwrap_or_else(|e| panic!("Failed to deserialize golden file {}: {}", filename, e));
+            .unwrap_or_else(|e| panic!("Failed to deserialize golden file {filename}: {e}"));
         assert_eq!(envelope, roundtrip_envelope);
 
         // Serialization check (must produce byte-for-byte identical output)
         let serialized = brain_integrations::to_canonical_json(&envelope)
-            .unwrap_or_else(|e| panic!("Failed to serialize envelope for {}: {}", filename, e));
+            .unwrap_or_else(|e| panic!("Failed to serialize envelope for {filename}: {e}"));
 
         assert_eq!(
             raw_json.trim(),
             serialized.trim(),
-            "Golden file mismatch for {}.\nExpected:\n{}\nActual:\n{}",
-            filename,
-            raw_json,
-            serialized
+            "Golden file mismatch for {filename}.\nExpected:\n{raw_json}\nActual:\n{serialized}"
         );
     }
 }

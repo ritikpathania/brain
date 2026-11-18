@@ -10,8 +10,9 @@
 
 use crate::correlation::CorrelationIndex;
 use brain_core::events::{RuntimeEvent, TaskProgress};
+use parking_lot::Mutex;
 use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
 /// Background subscriber that feeds `TaskProgress` events into a `CorrelationIndex`.
@@ -37,9 +38,7 @@ impl ObservabilitySubscriber {
                 while let Ok(event) = rx.recv() {
                     // Downcast to TaskProgress; silently ignore other event types
                     if let Some(progress) = event.as_any().downcast_ref::<TaskProgress>() {
-                        if let Ok(mut idx) = index_clone.lock() {
-                            idx.ingest(progress);
-                        }
+                        index_clone.lock().ingest(progress);
                     }
                 }
             })

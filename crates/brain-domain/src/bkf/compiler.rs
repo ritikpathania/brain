@@ -243,8 +243,7 @@ impl CompilerPass<crate::bkf::ir::KnowledgeIR> for KppInferencePass {
                         if !already_exists && edge_ab.source != edge_bc.target {
                             let source_id = edge_ab.source.clone();
                             let target_id = edge_bc.target.clone();
-                            let edge_id =
-                                format!("{}-{}-depends_on-inferred", source_id, target_id);
+                            let edge_id = format!("{source_id}-{target_id}-depends_on-inferred");
 
                             inferred_edges.push(IREdge {
                                 id: edge_id.clone(),

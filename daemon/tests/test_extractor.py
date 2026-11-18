@@ -79,7 +79,7 @@ def test_extractor_robustness_random_strings(input_str):
         res_str = extract_semantic_nodes(input_str)
         res = json.loads(res_str)
         assert "status" in res
-    except (json.JSONDecodeError, ValueError, TypeError):
+    except json.JSONDecodeError, ValueError, TypeError:
         pass
 
 

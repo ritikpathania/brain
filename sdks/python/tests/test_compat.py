@@ -3,7 +3,8 @@ import os
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft7Validator, RefResolver, ValidationError
+from jsonschema import Draft7Validator, ValidationError
+from referencing import Registry, Resource
 
 from brain_sdk.models import IngestionEnvelope
 
@@ -16,9 +17,14 @@ def schema_validator():
     with open(envelope_schema_path) as f:
         envelope_schema = json.load(f)
 
-    base_uri = envelope_schema_path.as_uri()
-    resolver = RefResolver(base_uri=base_uri, referrer=envelope_schema)
-    return Draft7Validator(envelope_schema, resolver=resolver)
+    registry = Registry()
+    for p in schema_dir.glob("*.json"):
+        with open(p) as f:
+            s = json.load(f)
+        r = Resource.from_contents(s)
+        registry = registry.with_resource(p.as_uri(), r).with_resource(p.name, r)
+
+    return Draft7Validator(envelope_schema, registry=registry)
 
 def test_compat_positive_fixtures(schema_validator):
     root_dir = Path(__file__).resolve().parents[3]

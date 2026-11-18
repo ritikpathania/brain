@@ -11,7 +11,7 @@ use std::path::PathBuf;
 #[command(
     name = "brain",
     author,
-    version = "1.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "brain: AI Coding Companion Relational Memory Engine CLI",
     long_about = None
 )]
@@ -88,12 +88,15 @@ pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String
                 }
             }
 
-            // 2. Installed bundle directory
-            if let Some(home) = dirs::home_dir() {
-                let user_bundle = home.join(".brain").join("bin").join("brain-daemon");
-                if user_bundle.exists() && user_bundle.is_file() {
-                    return Ok((user_bundle, ResolutionOrigin::InstallBundle));
-                }
+            // 2. Installed bundle directory. This deliberately uses the same
+            // effective configuration root as the daemon rather than a
+            // second, hard-coded ~/.brain interpretation.
+            let user_bundle = brain_config::resolve_runtime_paths()
+                .config_dir
+                .join("bin")
+                .join("brain-daemon");
+            if user_bundle.exists() && user_bundle.is_file() {
+                return Ok((user_bundle, ResolutionOrigin::InstallBundle));
             }
             let sys_bundle = PathBuf::from("/usr/local/bin/brain-daemon");
             if sys_bundle.exists() && sys_bundle.is_file() {
@@ -110,7 +113,7 @@ pub fn resolve_daemon_executable() -> Result<(PathBuf, ResolutionOrigin), String
                 }
             }
 
-            Err("brain-daemon executable could not be found. Make sure brain-daemon is built and located alongside 'brain', in ~/.brain/bin, or in your PATH.".to_string())
+            Err("brain-daemon executable could not be found. Make sure brain-daemon is built and located alongside 'brain', in the effective Brain configuration directory's bin/, or in your PATH.".to_string())
         })
         .clone()
 }
@@ -303,12 +306,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             if let Some(content_str) = content {
                 match CLIHost::run_ingest(&content_str).await {
-                    Ok(response) => {
-                        println!("{}", response);
-                        if response.contains("Ingest failed") {
-                            std::process::exit(1);
-                        }
-                    }
+                    Ok(response) => println!("{}", response),
                     Err(e) => {
                         eprintln!("Ingest failed: {}", e);
                         std::process::exit(1);
@@ -319,33 +317,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(2);
             }
         }
-        Some(Commands::Health) => {
-            if socket_is_alive() {
+        Some(Commands::Health) => match CLIHost::run_status().await {
+            Ok(status)
+                if status.get("health").and_then(serde_json::Value::as_str) == Some("healthy") =>
+            {
                 println!("Daemon health status: OK");
-            } else {
-                eprintln!("Daemon health status: UNREACHABLE");
+            }
+            Ok(status) => {
+                eprintln!("Daemon health status: UNHEALTHY ({status})");
+                std::process::exit(1);
+            }
+            Err(error) => {
+                eprintln!("Daemon health status: UNREACHABLE ({error})");
                 eprintln!("\nHint: Background daemon is not running.");
                 eprintln!("Start it with:\n    brain-daemon daemon start\nor\n    make dev");
                 std::process::exit(1);
             }
-        }
+        },
         Some(Commands::Config) => {
+            let paths = brain_config::resolve_runtime_paths();
             println!("=== brain Configurations ===");
-            let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("~"));
-            let socket_path = std::env::var("BRAIN_SOCKET_PATH")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| home.join(".brain").join("daemon.sock"));
-            println!("data_dir = \"{}\"", home.join(".brain").display());
-            println!(
-                "sqlite_runtime_db = \"{}\"",
-                home.join(".brain").join("brain_runtime.db").display()
-            );
-            println!("socket_path = \"{}\"", socket_path.display());
-            println!("http_port = 8080");
+            println!("data_dir = \"{}\"", paths.config_dir.display());
+            println!("sqlite_runtime_db = \"{}\"", paths.database_path.display());
+            println!("socket_path = \"{}\"", paths.socket_path.display());
+            println!("pid_path = \"{}\"", paths.pid_path.display());
+            println!("log_path = \"{}\"", paths.log_path.display());
+            println!("http_port = {}", paths.health_port);
             println!("uds_timeout_ms = 30000");
         }
         Some(Commands::Version) => {
-            println!("brain version 0.1.0");
+            println!("brain version {}", env!("CARGO_PKG_VERSION"));
         }
     }
 

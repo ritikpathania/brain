@@ -6,11 +6,16 @@ use tokio::net::UnixStream;
 
 fn get_temp_dir() -> PathBuf {
     let uuid_str = uuid::Uuid::new_v4().to_string();
-    // Keep socket path under /tmp and extremely short to avoid SUN_LEN (104 bytes) limits on macOS/Unix
-    let path = PathBuf::from(format!("/tmp/bd-{}", &uuid_str[0..8]));
-    let _ = fs::remove_dir_all(&path);
-    fs::create_dir_all(&path).unwrap();
-    path
+    let sub = format!("bd-{}", &uuid_str[0..8]);
+    let tmp_path = std::env::temp_dir().join(&sub);
+    if let Ok(()) = fs::create_dir_all(&tmp_path) {
+        return tmp_path;
+    }
+    let alt_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../target/tmp")
+        .join(&sub);
+    fs::create_dir_all(&alt_path).unwrap();
+    alt_path
 }
 
 fn get_free_port() -> u16 {
@@ -306,6 +311,7 @@ async fn test_daemon_lifecycle_interrupted_startup_cleanup() {
         .env("BRAIN_DB_PATH", &db_path)
         .env("BRAIN_ANALYTICS_DB_PATH", &analytics_db_path)
         .env("BRAIN_CONFIG_DIR", "/nonexistent/directory")
+        .env("BRAIN_DATABASE_TIMEOUT_MS", "50")
         .env("BRAIN_HEALTH_PORT", get_free_port().to_string())
         .spawn()
         .unwrap();

@@ -42,6 +42,7 @@ def test_protocol_malformed_outer_json(temp_socket_path):
 
     def handler(conn):
         conn.settimeout(1.0)
+        conn.recv(1024 * 10)
         conn.sendall(b"this is not json\n")
         conn.close()
 
@@ -60,6 +61,7 @@ def test_protocol_malformed_inner_json(temp_socket_path):
 
     def handler(conn):
         conn.settimeout(1.0)
+        conn.recv(1024 * 10)
         resp = {"status": "ok", "message": "not inner json"}
         conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
         conn.close()
@@ -79,6 +81,7 @@ def test_protocol_unknown_response_fields(temp_socket_path):
 
     def handler(conn):
         conn.settimeout(1.0)
+        conn.recv(1024 * 10)
         ack = {"sequence": 5, "event_id": "uuid-123", "ignored_field": "val"}
         resp = {"status": "ok", "message": json.dumps(ack), "another_ignored_field": 42}
         conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
@@ -99,6 +102,7 @@ def test_protocol_missing_required_fields(temp_socket_path):
 
     def handler(conn):
         conn.settimeout(1.0)
+        conn.recv(1024 * 10)
         ack = {"sequence": 5}
         resp = {"status": "ok", "message": json.dumps(ack)}
         conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
@@ -119,6 +123,7 @@ def test_protocol_daemon_error_response(temp_socket_path):
 
     def handler(conn):
         conn.settimeout(1.0)
+        conn.recv(1024 * 10)
         resp = {"status": "error", "message": "Deduplication conflict"}
         conn.sendall((json.dumps(resp) + "\n").encode("utf-8"))
         conn.close()

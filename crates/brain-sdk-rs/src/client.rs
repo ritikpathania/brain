@@ -746,7 +746,7 @@ impl ClientRuntime {
                                         if let Ok(mut wire_str) = serde_json::to_string(&request) {
                                             wire_str.push('\n');
                                             if let Err(e) = w_ref.write_all(wire_str.as_bytes()).await {
-                                                println!("[SDK UDS] Replay write failed: {}", e);
+                                                println!("[SDK UDS] Replay write failed: {e}");
                                                 replay_failed = true;
                                                 break;
                                             }
@@ -785,7 +785,7 @@ impl ClientRuntime {
                             }
                         }
                         Err(e) => {
-                            println!("[SDK UDS] Failed to connect: {}. Will retry...", e);
+                            println!("[SDK UDS] Failed to connect: {e}. Will retry...");
                             is_connecting = false;
                             let jitter = (rand::random::<f64>() - 0.5) * 0.2;
                             reconnect_delay = Duration::from_millis(((reconnect_delay.as_millis() as f64 * 2.0) * (1.0 + jitter)) as u64);
@@ -835,7 +835,7 @@ impl ClientRuntime {
                                             if let Ok(mut wire_str) = serde_json::to_string(&request) {
                                                 wire_str.push('\n');
                                                 if let Err(e) = w_ref.write_all(wire_str.as_bytes()).await {
-                                                    println!("[SDK UDS] Batch write failed: {}", e);
+                                                    println!("[SDK UDS] Batch write failed: {e}");
                                                     write_failed = true;
                                                     break;
                                                 }
@@ -958,7 +958,7 @@ impl ClientRuntime {
                         if let Ok(mut wire_str) = serde_json::to_string(&heartbeat_wire) {
                             wire_str.push('\n');
                             if let Err(e) = w_ref.write_all(wire_str.as_bytes()).await {
-                                println!("[SDK UDS] Heartbeat write failed: {}", e);
+                                println!("[SDK UDS] Heartbeat write failed: {e}");
                                 write_half = None;
                                 buf_reader = None;
                                 self.handle_disconnect();
@@ -984,7 +984,7 @@ impl ClientRuntime {
                                     if let Ok(mut wire_str) = serde_json::to_string(&request) {
                                         wire_str.push('\n');
                                         if let Err(e) = w_ref.write_all(wire_str.as_bytes()).await {
-                                            println!("[SDK UDS] Flush write failed: {}", e);
+                                            println!("[SDK UDS] Flush write failed: {e}");
                                             write_failed = true;
                                             break;
                                         }
@@ -1012,10 +1012,10 @@ impl ClientRuntime {
                         }
                         Ok(_) => {
                             let resp_str = line.trim();
-                            println!("[SDK UDS] Read line: {}", resp_str);
+                            println!("[SDK UDS] Read line: {resp_str}");
                             if !resp_str.is_empty() {
                                 if let Ok(resp_json) = serde_json::from_str::<serde_json::Value>(resp_str) {
-                                    println!("[SDK UDS] Parsed JSON: {:?}", resp_json);
+                                    println!("[SDK UDS] Parsed JSON: {resp_json:?}");
 
                                     if resp_json.get("type").and_then(|t| t.as_str()).is_some_and(|t| t == "Event") {
                                         let payload = resp_json.get("payload").cloned().unwrap_or(serde_json::Value::Null);
@@ -1053,10 +1053,10 @@ impl ClientRuntime {
                                         .and_then(|b| b.as_str())
                                         .or_else(|| resp_json.get("message").and_then(|m| m.as_str()));
 
-                                    println!("[SDK UDS] Extracted body/message: {:?}", body_str);
+                                    println!("[SDK UDS] Extracted body/message: {body_str:?}");
                                     if let Some(body) = body_str {
                                         if let Ok(ack) = serde_json::from_str::<IngestAck>(body) {
-                                            println!("[SDK UDS] Successfully parsed IngestAck: {:?}", ack);
+                                            println!("[SDK UDS] Successfully parsed IngestAck: {ack:?}");
                                             self.last_sequence.store(ack.sequence, std::sync::atomic::Ordering::Relaxed);
                                             let _ = self.replay_strategy.acknowledge(&ack.event_id).await;
                                             if let Some(tx) = self.pending_acks.remove(&ack.event_id) {
@@ -1068,7 +1068,7 @@ impl ClientRuntime {
                                                 let _ = tx.send(Ok(events));
                                             }
                                         } else {
-                                            println!("[SDK UDS] Failed to parse body as IngestAck or Vec<IngestionEnvelope>: {}", body);
+                                            println!("[SDK UDS] Failed to parse body as IngestAck or Vec<IngestionEnvelope>: {body}");
                                         }
                                     }
                                 }
@@ -1076,7 +1076,7 @@ impl ClientRuntime {
                             line.clear();
                         }
                         Err(e) => {
-                            println!("[SDK UDS] Read error: {}", e);
+                            println!("[SDK UDS] Read error: {e}");
                             write_half = None;
                             buf_reader = None;
                             self.handle_disconnect();

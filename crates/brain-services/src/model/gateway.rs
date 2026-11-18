@@ -1,16 +1,135 @@
-//! Default routing ModelGateway implementation for Brain services.
+//! Default routing ModelGateway implementation and native ChatAgent adapter for Brain services.
 
 use async_trait::async_trait;
-use futures::stream::BoxStream;
+use futures::stream::{self, BoxStream};
+use futures::StreamExt;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
+use brain_core::agents::ChatAgent;
 use brain_core::errors::BrainError;
 use brain_core::model::{
-    GenerationChunk, GenerationRequest, ModelDescriptor, ModelGateway, ModelProvider,
+    ChatRole, GenerationChunk, GenerationRequest, MessageContentBlock, ModelDescriptor,
+    ModelGateway, ModelProvider, TokenUsage,
 };
+use brain_domain::SessionId;
+
+/// Adapter bridging a synchronous/native `ChatAgent` (`OllamaLlmProvider`, `OpenAiLlmProvider`,
+/// `AnthropicLlmProvider`) into an async streaming `ModelProvider` for `ModelGateway`.
+pub struct ChatAgentModelProvider {
+    agent: Arc<dyn ChatAgent>,
+    provider_label: String,
+    descriptors: Vec<ModelDescriptor>,
+}
+
+impl ChatAgentModelProvider {
+    /// Wraps a `ChatAgent` as a `ModelProvider` advertising its primary model ID.
+    pub fn new(
+        agent: Arc<dyn ChatAgent>,
+        provider_label: impl Into<String>,
+        is_default: bool,
+    ) -> Self {
+        let provider_label = provider_label.into();
+        let agent_name = agent.name().to_string();
+        let descriptor = ModelDescriptor {
+            id: agent_name.clone(),
+            name: format!("{} ({})", agent_name, provider_label),
+            provider: provider_label.clone(),
+            context_window: 128000,
+            max_output_tokens: 8192,
+            supports_thinking: false,
+            supports_tools: false,
+            is_default,
+        };
+        Self {
+            agent,
+            provider_label,
+            descriptors: vec![descriptor],
+        }
+    }
+
+    /// Returns a reference to the underlying `ChatAgent`.
+    pub fn agent(&self) -> &Arc<dyn ChatAgent> {
+        &self.agent
+    }
+}
+
+#[async_trait]
+impl ModelProvider for ChatAgentModelProvider {
+    fn provider_name(&self) -> &str {
+        &self.provider_label
+    }
+
+    fn supported_models(&self) -> Vec<ModelDescriptor> {
+        self.descriptors.clone()
+    }
+
+    async fn stream_generation(
+        &self,
+        request: GenerationRequest,
+        cancellation_token: CancellationToken,
+    ) -> Result<BoxStream<'static, Result<GenerationChunk, BrainError>>, BrainError> {
+        if cancellation_token.is_cancelled() {
+            return Err(BrainError::Cancelled {
+                message: "Generation cancelled before dispatch".to_string(),
+            });
+        }
+
+        let mut prompt_parts = Vec::new();
+        if let Some(sys) = &request.system_prompt {
+            if !sys.trim().is_empty() {
+                prompt_parts.push(format!("System: {}", sys.trim()));
+            }
+        }
+        for msg in &request.messages {
+            let role_label = match msg.role {
+                ChatRole::System => "System",
+                ChatRole::User => "User",
+                ChatRole::Assistant => "Assistant",
+            };
+            for block in &msg.content {
+                if let MessageContentBlock::Text { text } = block {
+                    prompt_parts.push(format!("{}: {}", role_label, text));
+                }
+            }
+        }
+        let formatted_prompt = prompt_parts.join("\n");
+        let input_tokens = formatted_prompt.split_whitespace().count().max(1);
+        let agent = Arc::clone(&self.agent);
+
+        let response_text =
+            tokio::task::spawn_blocking(move || agent.chat(SessionId::new(), &formatted_prompt))
+                .await
+                .map_err(|e| BrainError::Internal {
+                    message: format!("ChatAgent task join error: {}", e),
+                })??;
+
+        if cancellation_token.is_cancelled() {
+            return Err(BrainError::Cancelled {
+                message: "Generation cancelled after provider completion".to_string(),
+            });
+        }
+
+        let output_tokens = response_text.split_whitespace().count().max(1);
+        let chunks = vec![
+            Ok(GenerationChunk::TextDelta {
+                text: response_text,
+            }),
+            Ok(GenerationChunk::Completed {
+                finish_reason: "end_turn".to_string(),
+                usage: TokenUsage {
+                    input_tokens,
+                    output_tokens,
+                    ..Default::default()
+                },
+            }),
+        ];
+
+        Ok(stream::iter(chunks).boxed())
+    }
+}
 
 /// Production implementation of `ModelGateway`.
 pub struct DefaultModelGateway {

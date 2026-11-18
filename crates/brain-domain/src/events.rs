@@ -87,6 +87,17 @@ pub enum DomainEvent {
         /// Message snapshot details.
         message: MessageSnapshot,
     },
+    /// A session's conversation context was compacted.
+    SessionCompacted {
+        /// Parent session ID.
+        session_id: SessionId,
+        /// Number of messages summarized into the compaction boundary.
+        messages_summarized: usize,
+        /// Number of retained messages post-compaction.
+        retained_messages: usize,
+        /// Timestamp when compaction occurred.
+        compacted_at: SessionTimestamp,
+    },
     /// A relationship edge has been reinforced/strengthened.
     RelationshipStrengthened {
         /// The source node ID.
@@ -225,5 +236,54 @@ pub enum DomainEvent {
     KppProjectionApplied {
         /// Observation ID.
         id: String,
+    },
+    /// A subagent has started execution.
+    SubagentStarted {
+        /// Subagent identity.
+        subagent_id: crate::subagent::SubagentId,
+        /// Parent session identity.
+        parent_session_id: SessionId,
+        /// Child session identity.
+        subagent_session_id: SessionId,
+        /// Role or specialty.
+        role: String,
+        /// Timestamp in milliseconds.
+        started_at: u64,
+    },
+    /// A subagent reported execution progress.
+    SubagentProgressed {
+        /// Subagent identity.
+        subagent_id: crate::subagent::SubagentId,
+        /// Progress update message.
+        progress_message: String,
+        /// Timestamp in milliseconds.
+        timestamp: u64,
+    },
+    /// A subagent completed successfully.
+    SubagentCompleted {
+        /// Subagent identity.
+        subagent_id: crate::subagent::SubagentId,
+        /// Completion result.
+        result: String,
+        /// Timestamp in milliseconds.
+        completed_at: u64,
+    },
+    /// A subagent execution failed.
+    SubagentFailed {
+        /// Subagent identity.
+        subagent_id: crate::subagent::SubagentId,
+        /// Failure error description.
+        error: String,
+        /// Timestamp in milliseconds.
+        failed_at: u64,
+    },
+    /// A subagent execution was cancelled.
+    SubagentCancelled {
+        /// Subagent identity.
+        subagent_id: crate::subagent::SubagentId,
+        /// Cancellation reason.
+        reason: String,
+        /// Timestamp in milliseconds.
+        cancelled_at: u64,
     },
 }

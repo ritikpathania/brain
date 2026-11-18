@@ -3,8 +3,8 @@ status: active
 owner: architecture
 canonical: true
 review_cycle: quarterly
-last_reviewed: 2026-07-30
-applies_to: v0.8+
+last_reviewed: 2026-09-30
+applies_to: v1.1+
 ---
 
 # Data Flow and Sequences
@@ -20,7 +20,7 @@ The system is designed around a clean Domain-Driven Design (DDD) model, separati
 ```mermaid
 graph TD
     subgraph Layer1 [Adapters & UI Layer]
-        TUI[Ratatui Console]
+        TUI[First-party Brain frontend]
         MCP[MCP Server]
         UDS[UDS JSON-IPC Listener]
     end
@@ -46,7 +46,7 @@ graph TD
     end
 
     %% Flow Directions
-    TUI --> App
+    TUI --> UDS
     MCP --> App
     UDS --> App
     

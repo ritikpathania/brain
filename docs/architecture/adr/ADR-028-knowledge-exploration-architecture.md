@@ -1,5 +1,12 @@
 # ADR-028: Knowledge Exploration UI Architecture
 
+> **Historical native-TUI decision — not a current frontend architecture.**
+> This record preserves the former `brain-tui` exploration surface. Current
+> Brain behavior is exposed through typed protocol and adapter/projection
+> contracts; the first-party frontend owns exploration presentation and
+> interaction. See [`ARCHITECTURE_INVARIANTS.md`](../ARCHITECTURE_INVARIANTS.md)
+> and [the frontend integration handbook](../../subsystems/tui.md).
+
 ## Status
 
 Accepted

@@ -100,7 +100,7 @@ impl std::fmt::Display for NodeKind {
             Self::Service => "service",
             Self::Unknown => "unknown",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -533,8 +533,7 @@ impl Edge {
         }
         if !(0.0..=1.0).contains(&new_evidence_weight) {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
-                "new_evidence_weight={}",
-                new_evidence_weight
+                "new_evidence_weight={new_evidence_weight}"
             )));
         }
         self.weight = strategy.combine(self.weight, new_evidence_weight).min(1.0);
@@ -555,14 +554,12 @@ impl Edge {
     ) -> Result<(), crate::errors::DomainError> {
         if half_life_secs <= 0.0 {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
-                "half_life_secs={}",
-                half_life_secs
+                "half_life_secs={half_life_secs}"
             )));
         }
         if delta_t_secs < 0.0 {
             return Err(crate::errors::DomainError::InvalidEdgeWeight(format!(
-                "delta_t_secs={}",
-                delta_t_secs
+                "delta_t_secs={delta_t_secs}"
             )));
         }
         let lambda = 2.0f64.ln() / half_life_secs;
@@ -1003,6 +1000,47 @@ impl Session {
         Ok(())
     }
 
+    /// Compacts earlier messages in the session, replacing them with a single summary message.
+    /// Preserves the last `keep_last_n` messages for prompt continuity.
+    /// Emits and stages `DomainEvent::SessionCompacted`.
+    pub fn compact(
+        &mut self,
+        summary: String,
+        timestamp: SessionTimestamp,
+        keep_last_n: usize,
+    ) -> Result<usize, crate::errors::DomainError> {
+        if self.archived {
+            return Err(crate::errors::DomainError::SessionArchived(
+                self.id.to_string(),
+            ));
+        }
+        if self.messages.len() <= keep_last_n {
+            return Ok(0);
+        }
+        let split_at = self.messages.len() - keep_last_n;
+        let messages_to_summarize = split_at;
+        let retained = self.messages.split_off(split_at);
+
+        let summary_msg = Message::new(
+            MessageId::new(),
+            MessageRole::System,
+            format!("[Conversation Compacted: {summary}]"),
+        );
+        self.messages = vec![summary_msg];
+        self.messages.extend(retained);
+        self.updated_at = timestamp;
+
+        self.staged_events
+            .push(crate::events::DomainEvent::SessionCompacted {
+                session_id: self.id,
+                messages_summarized: messages_to_summarize,
+                retained_messages: self.messages.len(),
+                compacted_at: timestamp,
+            });
+
+        Ok(messages_to_summarize)
+    }
+
     /// Adds a goal to the session.
     pub fn add_goal(&mut self, goal: Goal) -> Result<(), crate::errors::DomainError> {
         let trimmed = goal.text.trim();
@@ -1160,8 +1198,7 @@ impl<'a> GraphBuilder<'a> {
         // Validate that relation exists in the registry (excluding Unknown)
         if relation == RelationKind::Unknown || !self.registry.contains_kind(relation) {
             return Err(crate::errors::DomainError::UnregisteredRelation(format!(
-                "RelationKind {:?} is not registered in the RelationRegistry",
-                relation
+                "RelationKind {relation:?} is not registered in the RelationRegistry"
             )));
         }
 

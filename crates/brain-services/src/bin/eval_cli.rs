@@ -202,7 +202,7 @@ fn main() {
     let mut graph_eval = std::collections::HashMap::new();
     let mut graph_table_rows = Vec::new();
 
-    let repos = corpus.storage.clone() as Arc<dyn RepositorySet>;
+    let repos = corpus.storage.clone() as Arc<dyn RepositorySet + Send + Sync>;
     let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
 
     for &depth in &graph_depths {

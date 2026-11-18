@@ -25,4 +25,4 @@ No drift detected after checking session create/list/load contracts, Ctrl+O rout
 
 ## Original checkout integration
 
-The verified candidate is committed separately. Original `main` still contains unrelated uncommitted work and staged retirement deletions. This increment preserves that state and does not claim that the original checkout is clean or that its broader working tree has native release acceptance.
+At the time of this audit, the verified candidate was committed separately. The original `main` still had uncommitted work and staged retirement deletions. The native release evidence above applies to the audited source.

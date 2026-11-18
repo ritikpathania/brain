@@ -745,8 +745,6 @@ fn regenerate_retrieval_baselines() -> Result<(), Box<dyn std::error::Error>> {
             "test_fts_benchmark_cold_and_warm_cache",
         ])
         .env("REGENERATE_BASELINES", "1")
-        .env("DYLD_FRAMEWORK_PATH", "/Library/Developer/CommandLineTools/Library/Frameworks")
-        .env("LIBRARY_PATH", "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib")
         .status()?;
 
     if !status.success() {

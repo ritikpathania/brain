@@ -1,5 +1,6 @@
 import { BrainClient, IngestionEnvelope } from '../src';
 import { MockTransport, JsonLineCodec } from '../src/internal/transport';
+import process from 'process';
 
 async function main() {
     console.log('Starting SDK and mock transport validation...');

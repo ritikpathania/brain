@@ -1,6 +1,6 @@
 # Brain macOS Automated QA Production Validation Report
 
-> Historical QA run. Screenshot paths record the original filenames. The image files are absent from this checkout.
+> Historical QA run. Screenshot paths record the original filenames. The captures themselves are unavailable in this checkout.
 
 **Date**: 2026-08-13 18:41:58
 **Duration**: 153.7 seconds

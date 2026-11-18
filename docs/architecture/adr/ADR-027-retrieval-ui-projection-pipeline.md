@@ -1,5 +1,12 @@
 # ADR-027: Retrieval UI Projection Pipeline
 
+> **Historical native-TUI decision — not a current frontend architecture.** The
+> pipeline below records the former `brain-tui` projection and rendering model.
+> Current Brain responsibilities end at typed UDS and adapter/projection
+> contracts; the first-party frontend owns rendering and interaction.
+> See [`ARCHITECTURE_INVARIANTS.md`](../ARCHITECTURE_INVARIANTS.md) and
+> [the frontend integration handbook](../../subsystems/tui.md).
+
 ## Status
 
 Accepted

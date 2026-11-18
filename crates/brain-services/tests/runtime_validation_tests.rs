@@ -10,7 +10,8 @@ mod tests {
         SqliteProjectionManager, SqliteProjector,
     };
     use brain_storage::test_utils::TestStorage;
-    use std::sync::{Arc, Mutex};
+    use parking_lot::Mutex;
+    use std::sync::Arc;
     use std::time::SystemTime;
 
     // --- RUNTIME VALIDATION 1: SQLite In-Memory Database Persistence ---

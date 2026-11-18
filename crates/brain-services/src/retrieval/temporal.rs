@@ -17,13 +17,16 @@ use std::sync::Arc;
 
 /// A read-only repository decorator that filters edges based on a temporal visibility snapshot.
 pub struct ProjectedRepositoryView {
-    underlying: Arc<dyn RepositorySet>,
+    underlying: Arc<dyn RepositorySet + Send + Sync>,
     edge_repo: ProjectedEdgeRepository,
 }
 
 impl ProjectedRepositoryView {
     /// Creates a new `ProjectedRepositoryView` wrapping the underlying repositories and filtering edges.
-    pub fn new(underlying: Arc<dyn RepositorySet>, snapshot: TemporalSnapshot) -> Self {
+    pub fn new(
+        underlying: Arc<dyn RepositorySet + Send + Sync>,
+        snapshot: TemporalSnapshot,
+    ) -> Self {
         let edge_repo = ProjectedEdgeRepository {
             underlying: underlying.clone(),
             active_edge_ids: snapshot.active_edge_ids,
@@ -59,7 +62,7 @@ impl RepositorySet for ProjectedRepositoryView {
 
 /// A read-only edge repository decorator filtering out inactive edges.
 pub struct ProjectedEdgeRepository {
-    underlying: Arc<dyn RepositorySet>,
+    underlying: Arc<dyn RepositorySet + Send + Sync>,
     active_edge_ids: HashSet<EdgeId>,
 }
 
@@ -257,13 +260,13 @@ impl TemporalRetrievalService {
 
         // 3. Wrap storage in ProjectedRepositoryView decorator
         let projected_repos = Arc::new(ProjectedRepositoryView::new(
-            self.storage.clone() as Arc<dyn RepositorySet>,
+            self.storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
             snapshot.clone(),
         ));
 
         // 4. Instantiate memory sources referencing the projected repository
         let ltm_source = Arc::new(crate::retrieval::source::LtmMemorySource::new(
-            projected_repos.clone() as Arc<dyn RepositorySet>,
+            projected_repos.clone() as Arc<dyn RepositorySet + Send + Sync>,
             self.registry.clone(),
         ));
 
@@ -275,7 +278,7 @@ impl TemporalRetrievalService {
                 .with_cache_manager(cache_manager.clone())
                 .register_source(Arc::new(crate::retrieval::source::StmMemorySource::new(
                     cache_manager.clone(),
-                    projected_repos.clone() as Arc<dyn RepositorySet>,
+                    projected_repos.clone() as Arc<dyn RepositorySet + Send + Sync>,
                     self.registry.clone(),
                 )));
         }
@@ -436,8 +439,10 @@ impl RankingStrategy for LearnedTemporalScorer {
                 recency_policy: self.recency_policy,
             },
         );
-        let projected_repos =
-            ProjectedRepositoryView::new(self.storage.clone() as Arc<dyn RepositorySet>, snapshot);
+        let projected_repos = ProjectedRepositoryView::new(
+            self.storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
+            snapshot,
+        );
 
         // 2. Extract raw features using FeatureExtractor
         let extractor = DefaultFeatureExtractor::new(self.reference_time, self.recency_policy);

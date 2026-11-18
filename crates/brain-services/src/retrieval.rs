@@ -60,7 +60,7 @@ use brain_session::SessionCacheManager;
 use std::sync::Arc;
 
 struct RepositoryEmbeddingLookup {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
 }
 
 impl brain_core::retrieval::EmbeddingLookup for RepositoryEmbeddingLookup {
@@ -74,14 +74,14 @@ impl brain_core::retrieval::EmbeddingLookup for RepositoryEmbeddingLookup {
 
 /// Concrete implementation of RetrievalService routing query searches across cache and storage.
 pub struct RetrievalServiceImpl {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     pipeline: pipeline::RetrievalPipeline,
 }
 
 impl RetrievalServiceImpl {
     /// Creates a new RetrievalServiceImpl.
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         cache_manager: Arc<SessionCacheManager>,
         registry: Arc<brain_domain::RelationRegistry>,
         query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
@@ -142,15 +142,15 @@ impl RetrievalServiceImpl {
     ) -> Self {
         let src_stm = Arc::new(source::StmMemorySource::new(
             cache_manager.clone(),
-            storage.clone() as Arc<dyn RepositorySet>,
+            storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
             registry.clone(),
         ));
         let src_ltm = Arc::new(source::LtmMemorySource::new(
-            storage.clone() as Arc<dyn RepositorySet>,
+            storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
             registry.clone(),
         ));
         let src_vector = Arc::new(source::SemanticMemorySource::new(
-            storage.clone() as Arc<dyn RepositorySet>,
+            storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
             query_embedding_service.clone(),
         ));
 
@@ -185,7 +185,7 @@ impl RetrievalServiceImpl {
                                 storage.pool().clone(),
                             ));
                         let embedding_lookup = Arc::new(RepositoryEmbeddingLookup {
-                            repos: storage.clone() as Arc<dyn RepositorySet>,
+                            repos: storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
                         });
                         Arc::new(ranking::model_strategy::ModelRankingStrategy::new(
                             score_ranker,
@@ -206,7 +206,7 @@ impl RetrievalServiceImpl {
                         let strategy_vector = Arc::new(ranking::EmbeddingRanking::new(
                             query_embedding_service.clone(),
                             Arc::new(RepositoryEmbeddingLookup {
-                                repos: storage.clone() as Arc<dyn RepositorySet>,
+                                repos: storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
                             }),
                         ));
                         Arc::new(ranking::RrfRanking::new(
@@ -221,7 +221,7 @@ impl RetrievalServiceImpl {
                 let strategy_vector = Arc::new(ranking::EmbeddingRanking::new(
                     query_embedding_service.clone(),
                     Arc::new(RepositoryEmbeddingLookup {
-                        repos: storage.clone() as Arc<dyn RepositorySet>,
+                        repos: storage.clone() as Arc<dyn RepositorySet + Send + Sync>,
                     }),
                 ));
                 Arc::new(ranking::RrfRanking::new(
@@ -244,7 +244,7 @@ impl RetrievalServiceImpl {
             .build();
 
         Self {
-            repos: storage as Arc<dyn RepositorySet>,
+            repos: storage as Arc<dyn RepositorySet + Send + Sync>,
             pipeline,
         }
     }

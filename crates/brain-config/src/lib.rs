@@ -20,12 +20,12 @@ pub mod migration;
 /// Immutable Copy-on-Write Versioned Configuration Engine (Phase G.5).
 pub mod immutable_config;
 
+/// Operational path resolution shared by Brain executables.
+pub mod runtime_paths;
+
 pub use immutable_config::*;
 pub use loader::*;
 pub use migration::*;
+pub use runtime_paths::*;
 pub use schema::*;
 pub use validation::*;
-
-/// Shared CLI and daemon runtime paths.
-pub mod runtime_paths;
-pub use runtime_paths::*;

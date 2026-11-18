@@ -6,16 +6,16 @@ Welcome! Thank you for contributing to the Standalone Relational Memory Engine (
 
 ## 🛠️ Coding Standards
 
-To maintain code quality, consistency, and performance across both the Rust engine and Python daemon:
+To maintain code quality, consistency, and performance across the Rust daemon, TypeScript frontend and Python SDK.
 
-### Rust Codebase (Core, Services, & TUI Client)
+### Rust and TypeScript
 - **Formatting**: Always format code using `cargo fmt` prior to committing.
 - **Diagnostics & Warnings**: All code must compile with zero warnings under `cargo clippy --all-targets -- -D warnings`.
-- **CLI TUI Components**: 
-  - When editing terminal components in `crates/brain-tui/`, use the design token primitives and layout contracts detailed in **[CLAUDE_VISUAL_CONTRACT.md](docs/design/CLAUDE_VISUAL_CONTRACT.md)** and **[CLAUDE_COMPONENT_MODEL.md](docs/design/CLAUDE_COMPONENT_MODEL.md)**.
-  - Never hardcode hexadecimal, RGB, or ANSI escape colors; always reference theme-based tokens.
+- **Terminal frontend components**
+  - When editing terminal components, follow the design token primitives and layout contracts detailed in **[GUIDELINES.md](GUIDELINES.md)** and **[AGENTS.md](AGENTS.md)**.
+  - Never hardcode hexadecimal, RGB, or ANSI escape colors in Brain-authored frontend components; always reference theme-based tokens.
 
-### Python Codebase (Semantic Daemon)
+### Python tooling and SDK
 - **Dependency Management**: Powered by **[uv](https://github.com/astral-sh/uv)**. All dependencies must be tracked in `uv.lock`. Run `uv sync` to set up environments.
 - **Linting & Formatting**: Enforced via **[Ruff](https://github.com/astral-sh/ruff)**. Run `uv run ruff format .` and `uv run ruff check . --fix`.
 - **Type Safety**: Enforced via **[ty](https://github.com/astral-sh/ty)**. All scripts/modules must pass static type checking via `uv run ty check`.
@@ -29,13 +29,16 @@ We follow a structured Git and review workflow to ensure code health and prevent
 
 1. **Isolation**: Always branch off the latest `main`.
 2. **Local Verification**:
-   - Run core unit and integration tests:
+   - Run the workspace verification gate.
      ```bash
-     cargo test
+     cargo xtask verify
      ```
-   - Run TUI rendering parity and state tests:
+   - Build the development binaries using the installation guide, then run the maintained frontend typecheck, owned tests and real-daemon tests. [Installation](docs/guides/installation.md#2-build-and-run-from-a-checkout)
      ```bash
-     PYO3_PYTHON=$(pwd)/daemon/.venv/bin/python cargo test -p brain-tui
+     (cd packages/brain-frontend && bun run typecheck && bun run test)
+     BRAIN_CLI_BIN="$PWD/target/debug/brain" \
+       BRAIN_DAEMON_BIN="$PWD/target/debug/brain-daemon" \
+       ./scripts/verify-frontend-e2e.sh
      ```
    - Ensure the python environment is clean:
      ```bash
@@ -111,7 +114,7 @@ For proposing new major features, APIs, protocol changes, or core designs:
 - Share the RFC with the team/maintainers for collaborative feedback.
 
 ### 2. Architectural Decision Records (ADR)
-Once a design is finalized, or when recording foundational architectural decisions (e.g., opting for Ratatui over Ink, adopting SQLite BLOB storage for vectors):
+Once a design is finalized, or when recording foundational architectural decisions (e.g., adopting SQLite BLOB storage for vectors):
 - Author an ADR under **[adr/](docs/architecture/adr)**.
 - Name the file sequentially using the pattern `ADR-XXX.md` (e.g., `ADR-009.md`).
 - Document the context, choices, alternatives considered, and consequences.

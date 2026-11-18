@@ -262,7 +262,13 @@ async fn test_orchestrator_prioritizes_only_visible_context_constraints() {
         NodeRepository::save(storage.as_ref(), &node).unwrap();
         id
     };
-    let visible = save("Gluten restriction", "pinned", true.into(), "global", 1);
+    let visible = save(
+        &"Gluten restriction ".repeat(80),
+        "pinned",
+        true.into(),
+        "global",
+        1,
+    );
     save(
         "Private account",
         "pinned",
@@ -284,7 +290,7 @@ async fn test_orchestrator_prioritizes_only_visible_context_constraints() {
         "global",
         reference_time,
     );
-    save(
+    let lexical = save(
         "Compiler options",
         "pinned",
         false.into(),
@@ -305,13 +311,26 @@ async fn test_orchestrator_prioritizes_only_visible_context_constraints() {
         prompt: "Compiler options".to_string(),
         session_id,
         workspace_id: None,
-        max_tokens: 500,
+        max_tokens: 2048,
         max_items: 1,
         reference_time: Some(reference_time),
     };
-    let snapshot = orchestrator.assemble_context(request).await.unwrap();
+    let snapshot = orchestrator
+        .assemble_context(request.clone())
+        .await
+        .unwrap();
     assert_eq!(snapshot.items.len(), 1);
     assert_eq!(snapshot.items[0].node_id, visible);
+
+    let compact = orchestrator
+        .assemble_context(ContextAssemblyRequest {
+            max_tokens: 256,
+            ..request
+        })
+        .await
+        .unwrap();
+    assert_eq!(compact.items.len(), 1);
+    assert_eq!(compact.items[0].node_id, lexical);
 }
 
 #[tokio::test]
@@ -483,6 +502,7 @@ async fn test_orchestrator_storage_backed_retrieval_and_neighbor_expansion() {
         "content".to_string(),
         serde_json::json!("The rustc compiler uses query-based demand evaluation."),
     );
+    parent_props.insert("scope".to_string(), serde_json::json!("compiler"));
     let parent_node = Node::new(
         parent_id,
         "Rust Compiler Architecture".to_string(),
@@ -526,8 +546,8 @@ async fn test_orchestrator_storage_backed_retrieval_and_neighbor_expansion() {
 
     // Create storage-backed orchestrator
     let orchestrator = DefaultContextOrchestrator::with_storage(
-        Arc::clone(&storage) as Arc<dyn NodeRepository>,
-        Arc::clone(&storage) as Arc<dyn EdgeRepository>,
+        Arc::clone(&storage) as Arc<dyn NodeRepository + Send + Sync>,
+        Arc::clone(&storage) as Arc<dyn EdgeRepository + Send + Sync>,
     );
 
     // 5. Query matching parent topic

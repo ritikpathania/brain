@@ -102,10 +102,7 @@ impl StepExecutorRegistry {
             .get(&disc)
             .cloned()
             .ok_or_else(|| DomainError::ValidationError {
-                message: format!(
-                    "No StepExecutor registered for plan step kind {:?}",
-                    step_kind
-                ),
+                message: format!("No StepExecutor registered for plan step kind {step_kind:?}"),
                 rule_id: Some("VAL-EXEC-004".to_string()),
             })
     }

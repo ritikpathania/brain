@@ -282,8 +282,7 @@ impl ExecutionState {
         if !valid {
             return Err(DomainError::ValidationError {
                 message: format!(
-                    "Illegal state machine transition for step {}: {:?} -> {:?}",
-                    step_id, current, next_status
+                    "Illegal state machine transition for step {step_id}: {current:?} -> {next_status:?}"
                 ),
                 rule_id: Some("VAL-EXEC-001".to_string()),
             });

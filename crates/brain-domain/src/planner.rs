@@ -28,7 +28,7 @@ impl ReasoningPlannerService {
                 ReasoningPlanStepKind::InspectEntity {
                     entity_id: entity_id.clone(),
                 },
-                format!("Inspect domain entity '{}'", entity_id),
+                format!("Inspect domain entity '{entity_id}'"),
                 vec![],
                 Some(PlanStepComplexity::Low),
             );
@@ -38,7 +38,7 @@ impl ReasoningPlannerService {
                 ReasoningPlanStepKind::TraverseRelationships {
                     entity_id: entity_id.clone(),
                 },
-                format!("Traverse relationship connections for '{}'", entity_id),
+                format!("Traverse relationship connections for '{entity_id}'"),
                 vec![PlanStepId::new(1)],
                 Some(PlanStepComplexity::Medium),
             );
@@ -72,7 +72,7 @@ impl ReasoningPlannerService {
                 ReasoningPlanStepKind::Search {
                     query: trimmed.to_string(),
                 },
-                format!("Search knowledge base for '{}'", trimmed),
+                format!("Search knowledge base for '{trimmed}'"),
                 vec![],
                 Some(PlanStepComplexity::Low),
             );

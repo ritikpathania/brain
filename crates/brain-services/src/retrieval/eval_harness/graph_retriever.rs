@@ -16,7 +16,7 @@ pub struct GraphAwareRetriever {
 impl GraphAwareRetriever {
     /// Creates a new `GraphAwareRetriever` from storage and relation registry.
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         registry: Arc<brain_domain::RelationRegistry>,
         graph_depth: usize,
     ) -> Self {

@@ -475,3 +475,49 @@ fn test_bkf_schema_evolution() {
     assert_eq!(doc.schema_version(), "0.1.0");
     assert_eq!(doc.metadata().title.as_deref(), Some("Old Doc"));
 }
+
+#[test]
+fn test_session_fork_immutability_and_prefix() {
+    let source_id = SessionId::new();
+    let title = SessionTitle("Source Session".to_string());
+    let now = SessionTimestamp(1724000000);
+    let mut source = Session::new(source_id, title, now);
+
+    let msg1_id = MessageId::new();
+    let msg1 = Message::new(msg1_id, MessageRole::User, "Message 1".to_string());
+    let msg2_id = MessageId::new();
+    let msg2 = Message::new(msg2_id, MessageRole::Assistant, "Message 2".to_string());
+    let msg3_id = MessageId::new();
+    let msg3 = Message::new(msg3_id, MessageRole::User, "Message 3".to_string());
+
+    source.add_message(msg1).unwrap();
+    source.add_message(msg2).unwrap();
+    source.add_message(msg3).unwrap();
+    assert_eq!(source.messages.len(), 3);
+
+    // Fork up to msg2
+    let forked_id = SessionId::new();
+    let forked_title = SessionTitle("Forked Branch".to_string());
+    let forked_time = SessionTimestamp(1724000010);
+    let forked = source.fork(forked_id, forked_title.clone(), Some(&msg2_id), forked_time);
+
+    // Assert source session is unchanged
+    assert_eq!(source.id, source_id);
+    assert_eq!(source.messages.len(), 3);
+
+    // Assert forked session has correct properties and prefix
+    assert_eq!(forked.id, forked_id);
+    assert_eq!(forked.title, forked_title);
+    assert_eq!(forked.messages.len(), 2);
+    assert_eq!(forked.messages[0].id, msg1_id);
+    assert_eq!(forked.messages[1].id, msg2_id);
+    assert!(!forked.archived);
+    assert!(!forked.pinned);
+
+    // Verify staged domain events on forked aggregate
+    assert_eq!(forked.staged_events.len(), 1);
+    assert!(matches!(
+        forked.staged_events[0],
+        brain_domain::events::DomainEvent::SessionCreated { .. }
+    ));
+}

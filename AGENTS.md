@@ -41,17 +41,17 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 Run `bun run typecheck` and `bun run test` in `packages/brain-frontend` for changes to the first-party TUI. Run `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries to verify the real-daemon workflow, including keyboard interaction and native launch. Measure frame draw latency and memory footprint when changing terminal presentation. The [historical shell verification guide](docs/development/BRAIN_SHELL_VERIFICATION_GATES.md) identifies the retired oracle and reproduction inputs.
 
+## Frontend and backend boundaries
+
+Keep first-party presentation above the versioned TypeScript adapter and view models. Preserve authorized presentation contracts, focus, key handling, layout, and resize and stream timing. Use existing theme tokens and verify changes with focused render, state, and PTY tests. The retired shell and its private oracle are historical references. Keep preservation archives, vendor trees and research inputs outside the product source and distribution.
+
+Fleet registration, liveness and preferences belong to the daemon. Identify registrations and preferences with stable IDs. Derive the requesting client's identity from the snapshot request. Keep foreground registrations, background jobs, durable conversations and historical transcripts distinct. Fleet uses requested snapshots. The current first-party launcher and UI acceptance follow the documented session and interaction paths. See the [frontend handbook](docs/subsystems/tui.md) and [protocol subsystem](docs/subsystems/protocol.md).
+
 ## UDS Streaming Protocol & Reactive State Projection
 
 When working with queries or communication between the Rust Daemon and the TUI Client:
 
-1. **Monotonic Tagged Stream Events**:
-   - Communication uses tagged chunk types (`token`, `thinking`, `tool_use`, `tool_result`, `permission_request`, `error`, `finished`).
-   - Sequence numbers must increment monotonically within a stream.
-
-2. **Reactive State Projection**:
-   - The TUI receives incoming stream chunks via `SessionController.handleChunk`, updating immutable reactive snapshots and transcript rows with atomic freeze on turn settlement.
-
+Keep frame sequences monotonic within a stream. Correlate events to the active generation and settle its transcript state once. Reconnect through the versioned handshake and authoritative session state. Preserve the adapter's no-replay contract for turns, tools and permission decisions. Publish only allowlisted context metadata from successful assembly.
 
 ## Domain-Driven Design (DDD) Invariants
 
@@ -110,3 +110,9 @@ Before proposing or introducing any new foundational framework abstraction, enfo
 3. **Generalizability**: Will the new abstraction simplify multiple future capabilities, rather than just the immediate task at hand?
 
 Unless the answer to all three is a clear "yes", implement the capability strictly on top of the existing architecture instead of extending it.
+
+## Regression prevention and mandatory verification
+
+Read the [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md) before modifying a Rust crate, SQLite query, UDS handler or TypeScript adapter. Record each fixed regression with its symptom, root cause, enforced invariant and test.
+
+Run `cargo xtask verify` before concluding implementation or refactoring. It runs formatting, strict Clippy, offline Rust tests, contract checks, architecture checks and documentation validation. Follow the [engineering guidelines](GUIDELINES.md) for first-party frontend verification and exact-source native archive acceptance.

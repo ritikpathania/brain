@@ -120,7 +120,7 @@ impl ConfigurationManager {
     ) -> Result<RuntimeConfiguration, String> {
         let parent = self
             .get_version(parent_version)
-            .ok_or_else(|| format!("Parent version {:?} not found", parent_version))?;
+            .ok_or_else(|| format!("Parent version {parent_version:?} not found"))?;
 
         let versions = self.versions.read().unwrap();
         let next_ver = ConfigVersion(versions.keys().map(|v| v.0).max().unwrap_or(0) + 1);
@@ -155,8 +155,7 @@ impl ConfigurationManager {
         let mut versions = self.versions.write().unwrap();
         if versions.contains_key(&ver) {
             return Err(format!(
-                "Version {:?} already exists and cannot be overwritten",
-                ver
+                "Version {ver:?} already exists and cannot be overwritten"
             ));
         }
 
@@ -171,7 +170,7 @@ impl ConfigurationManager {
     pub fn rollback(&self, target_version: ConfigVersion) -> Result<ConfigVersion, String> {
         let target = self
             .get_version(target_version)
-            .ok_or_else(|| format!("Target rollback version {:?} not found", target_version))?;
+            .ok_or_else(|| format!("Target rollback version {target_version:?} not found"))?;
 
         let active_ver = *self.active_version.read().unwrap();
         let mut draft = self.create_draft(active_ver)?;
@@ -194,10 +193,10 @@ impl ConfigurationManager {
     ) -> Result<ConfigurationDiff, String> {
         let from = self
             .get_version(from_ver)
-            .ok_or_else(|| format!("Version {:?} not found", from_ver))?;
+            .ok_or_else(|| format!("Version {from_ver:?} not found"))?;
         let to = self
             .get_version(to_ver)
-            .ok_or_else(|| format!("Version {:?} not found", to_ver))?;
+            .ok_or_else(|| format!("Version {to_ver:?} not found"))?;
 
         let mut changes = Vec::new();
 

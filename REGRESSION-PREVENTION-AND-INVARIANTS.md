@@ -1,5 +1,25 @@
 # Regression Prevention and Invariants
 
+## Core System & Runtime Invariants
+
+1. **Zero External Dependencies in `brain-domain`**:
+   - `crates/brain-domain` must stay at the bottom of the dependency DAG with zero async runtime (`tokio`), database (`rusqlite`), logging (`tracing`), or FFI (`pyo3`) dependencies.
+   - Domain mutations (`Edge::strengthen`, `Session::archive`, etc.) must validate their own business invariants and emit pure, side-effect-free `DomainEvent` values.
+2. **Strict Event Layer Separation**:
+   - `DomainEvent` (immutable business fact), `EventEnvelope` (persistence/transport metadata), and `StreamEvent` (TUI/UDS streaming chunk) must remain distinct types. `crates/brain-services` and `crates/brain-application` act as the sole translation boundary.
+3. **18-Step / 6-Phase Knowledge Compiler Purity**:
+   - No background worker or transport handler may directly mutate canonical knowledge graph topology in SQLite outside the deterministic compilation and reflection command boundaries (`PassManager::default_pipeline()` in `crates/brain-services/src/compiler/`).
+   - Compilation must remain 100% idempotent ($P(P(G)) = P(G)$) with deterministic tie-breaking (highest confidence -> most recent provenance timestamp -> lexicographically smallest ID).
+4. **Reflection Analysis vs. Approved Mutation Separation**:
+   - Reflection passes evaluate bounded, read-only snapshots and emit `ReflectionFinding` records. Only `ReflectionPlanner` / `ReflectionCommandHandler` (or explicitly approved `KnowledgeEvolutionPlan` executions) may apply mutations inside a storage transaction.
+5. **Single Authoritative Runtime Topology**:
+   - `apps/brain` (`brain daemon ...`) delegates daemon lifecycle operations to `brain-daemon`. `DaemonHost::run_server` constructs a single `BrainRuntime` instance shared with `ApplicationRuntime` and `BrainApplication`.
+6. **First-party frontend and Fleet ownership**
+   - Keep typed protocol and state adaptation below the maintained first-party presentation layer. Preserve retired visual files and oracle receipts as historical inputs.
+   - The daemon owns Fleet identity, liveness and durable preferences. Snapshots derive requester identity and expose foreground registrations and background jobs. First-party UI acceptance follows the maintained frontend contract.
+
+## Numbered bug and regression log
+
 ### 1. Clean Checkout Could Not Start the First-Party Frontend
 
 - **Symptom** — The frontend entry point was missing from a Git export, and the native launcher still selected the legacy shell.
@@ -104,3 +124,136 @@
 - **Root cause** — The local orchestrator supplied a macOS framework path only. The native release workflow already supplied Python library search paths for its pre-package E2E stage, and Linux rpath relocation happens later during assembly.
 - **Invariant** — Only the pre-package E2E command receives the managed interpreter library directory in `LD_LIBRARY_PATH` and `DYLD_FALLBACK_LIBRARY_PATH`, retaining inherited entries. Product assembly and extraction verification receive no newly injected library search override.
 - **Regression test** — Execute the package orchestrator with controlled build stages and verify child environments at the E2E, runtime-verification and product-extraction boundaries.
+
+### 16. Borrowed SQLite Transaction Thread-Safety (`Send`/`Sync` Soundness)
+- **Symptom**: Potential undefined behavior and concurrent connection corruption if a borrowed SQLite transaction facade was shared across threads.
+- **Exact Root Cause**: Borrowed `rusqlite` transaction wrappers previously had `unsafe impl Send` / `unsafe impl Sync` assertions even though the underlying SQLite connection/transaction is not thread-safe.
+- **Code Invariant Enforced**: Removed `unsafe impl Send/Sync` from borrowed transaction facades in `crates/brain-storage`; only the owned `r2d2` connection pool (`SqliteStorage`) is `Send + Sync`.
+- **Regression Test**: `cargo test -p brain-storage` and `cargo xtask architecture-check`.
+
+### 17. Python HostContext Use-After-Free Across FFI Boundary
+- **Symptom**: Retained Python plugin objects could dereference a dangling `HostContext` pointer after the Rust call scope exited.
+- **Exact Root Cause**: The PyO3 bridge previously transmuted a borrowed `&dyn HostContext` lifetime to `'static` inside a Python wrapper object.
+- **Code Invariant Enforced**: Replaced raw pointer transmutation with an `Arc`-backed runtime bridge inside `crates/brain-python` that explicitly closes after hook execution; subsequent Python calls on retained references fail deterministically with `"RuntimeContext is closed"`.
+- **Regression Test**: `cargo test -p brain-python --test python_tests`.
+
+### 18. Orphaned Child Processes on Bash Tool Timeout or Cancellation
+- **Symptom**: Cancelling or timing out a shell tool invocation returned an error to the caller while the spawned OS shell process and its child processes continued running in the background.
+- **Exact Root Cause**: `spawn_blocking(Command::output())` could not interrupt or reap an in-flight child process group when the awaiting Tokio future was dropped or timed out.
+- **Code Invariant Enforced**: `daemon/src/tools/bash_tool.rs` spawns an owned child process group on Unix, drains stdout/stderr pipes, sends `SIGTERM` to the process group on cancellation/timeout, escalates to `SIGKILL` after a bounded grace window, and reaps the child before settling the tool result.
+- **Regression Test**: `cargo test -p brain-daemon --test uds_tool_execution_tests`.
+
+### 19. Incomplete Session Hydration Missing `system_prompt` (SQLite v17 Seam)
+- **Symptom**: Reloading a persisted session dropped its custom `system_prompt`, causing resumed conversations to revert to default instructions.
+- **Exact Root Cause**: `load_session_conn` in `crates/brain-storage/src/store.rs` selected session metadata without hydrating both `history` and `system_prompt` from their authoritative SQLite v17 columns.
+- **Code Invariant Enforced**: `load_session_conn` explicitly selects `SELECT history, system_prompt FROM sessions` and hydrates the `Session` aggregate from authoritative columns.
+- **Regression Test**: `cargo test -p brain-storage --test storage_tests` and `daemon/tests/uds_product_integration_tests.rs`.
+
+### 20. Pre-Registration Generation Cancellation Race (No-Op Cancel)
+- **Symptom**: Pressing cancel immediately after submitting a prompt was acknowledged by the daemon as a no-op, allowing the generation stream to run to completion anyway.
+- **Exact Root Cause**: `v1/generation/cancel` arrived at the daemon/adapter before the generation stream registration completed, so the cancel handler found no active stream and dropped the request.
+- **Code Invariant Enforced**: The generation controller retains a pending cancellation intent until a validated `stream_start` frame is observed, then immediately dispatches cancellation (or abandons the intent if stream startup fails).
+- **Regression Test**: `daemon/tests/uds_generation_lifecycle_tests.rs` and `packages/brain-frontend/tests/state/interactions.test.ts`.
+
+### 21. Unbounded Context Metadata Growth & Raw Score Leakage Over UDS
+- **Symptom**: Long-running frontend sessions accumulated unbounded `(session_id, generation_id)` context entries in memory, and internal ranking scores/telemetry leaked into UDS stream frames.
+- **Exact Root Cause**: The UDS generation stream serialized internal retrieval diagnostics directly and stored every completed generation's context metadata indefinitely.
+- **Code Invariant Enforced**: Restricted external stream metadata to the allowlisted `metadata.brain_context` schema (`version`, `retrieval_epoch_id`, `retrieval_count`, `retrieval_channels`, `context_token_count`, `source_refs`) and bounded adapter retention to the single active generation plus the latest completed summary per session.
+- **Regression Test**: `daemon/tests/uds_retrieval_augmentation_tests.rs`.
+
+### 22. Permissive Session ID Hashing Masking Invalid ULIDs
+- **Symptom**: Malformed or arbitrary string session IDs were silently hashed into synthetic IDs instead of returning validation errors, hiding client bugs and risking cross-session collisions.
+- **Exact Root Cause**: Legacy UDS session handlers normalized arbitrary strings into fallback hashes when ULID parsing failed.
+- **Code Invariant Enforced**: Canonical session endpoints require exact Brain-issued ULID strings (`SessionId::from_str`), returning distinct typed errors for missing, malformed, and not-found session IDs.
+- **Regression Test**: `daemon/tests/uds_session_mutation_tests.rs`.
+
+### 23. Reconnect Auto-Replay Duplicating Non-Idempotent Turns & Tool Calls
+- **Symptom**: Transient UDS disconnects during an active generation or permission prompt could re-send the user turn or re-execute a tool upon reconnect.
+- **Exact Root Cause**: Early shell reconnect logic queued outbound requests in a FIFO buffer and replayed them automatically after socket reconnection.
+- **Code Invariant Enforced**: Reconnect performs a fresh `v1/frontend/handshake`, revalidates the `SessionId`, settles any interrupted generation once, and never replays non-idempotent turns, tool executions, or permission decisions. Protocol incompatibility and `SessionNotFoundError` stop recovery immediately without retry.
+- **Regression Test**: `packages/brain-frontend/src/brain/recovery.ts` unit tests and `daemon/tests/uds_generation_adversarial_tests.rs`.
+
+### 24. Production `test-utils` Feature Leakage in `brain-services`
+- **Symptom**: Production builds of `brain-services` compiled test-only storage helpers from `brain-storage`.
+- **Exact Root Cause**: `crates/brain-services/Cargo.toml` listed `brain-storage = { ..., features = ["test-utils"] }` under normal `[dependencies]` instead of restricting it to `[dev-dependencies]`, and `ProductionCorpusBuilder::build()` called a test-only constructor.
+- **Code Invariant Enforced**: Removed `features = ["test-utils"]` from `[dependencies]` in `crates/brain-services/Cargo.toml` (keeping it strictly in `[dev-dependencies]`) and refactored `ProductionCorpusBuilder::build()` in `crates/brain-services/src/retrieval/eval_harness/production_corpus.rs` to use `SqliteStorage::new`.
+- **Regression Test**: `crates/brain-services/tests/e2e_tier1_features.rs` and `cargo tree -p brain-services --edges no-dev`.
+
+### 25. Double `ReflectionEngine` Initialization & Ignored Scheduler Startup Errors
+- **Symptom**: `BrainRuntime::new` instantiated two separate reflection engines and silently ignored startup failures from background schedulers.
+- **Exact Root Cause**: `crates/brain-services/src/brain_runtime.rs` shadowed `reflection_engine` with a second instance and used `let _ = reflection_scheduler.start();` and `let _ = runtime_orchestrator.start();`.
+- **Code Invariant Enforced**: Disambiguated `sqlite_reflection_engine` (used by `SqliteCanonicalizer`) from `reflection_engine` (used by the background scheduler) and propagated `.start()?` errors via `Result`.
+- **Regression Test**: `crates/brain-services/tests/adversarial_m1_audit_tests.rs`.
+
+### 26. `std::sync::Mutex` Thread-Poisoning Panics in Runtime Diagnostics & State
+- **Symptom**: A panic inside any thread holding a runtime diagnostics or correlation mutex permanently poisoned the lock, causing cascading `.lock().unwrap()` panics across the daemon.
+- **Exact Root Cause**: `BrainRuntime` and `brain-observability` used `std::sync::Mutex` with `.lock().unwrap()`.
+- **Code Invariant Enforced**: Replaced `std::sync::Mutex` with `parking_lot::Mutex` across `BrainRuntime` (`diagnostics`, `epoch`) and `brain-observability` (`correlation_index`), eliminating poison panics.
+- **Regression Test**: `crates/brain-services/tests/adversarial_tier5_runtime.rs`.
+
+### 27. Cross-Thread Deadlock in `HostContext::execute_tool`
+- **Symptom**: Concurrent tool executions calling `HostContext::execute_tool` could deadlock or panic when bridging synchronous trait methods to async tool futures.
+- **Exact Root Cause**: `HostContext::execute_tool` in `crates/brain-services/src/runtime/mod.rs` held a `service_locator.read()` lock guard across `tokio::task::block_in_place(|| handle.block_on(...))` and did not branch on `RuntimeFlavor::CurrentThread`.
+- **Code Invariant Enforced**: Cloned the target `Arc` and explicitly dropped the `service_locator.read()` guard before blocking; branched on `handle.runtime_flavor()` to use `tokio::task::block_in_place` on multi-thread runtimes and `std::thread::scope` on current-thread runtimes.
+- **Regression Test**: `crates/brain-services/tests/adversarial_tier5_runtime.rs`.
+
+### 28. Silent Fallback Vectors (`[0.0; 384]`) & GIL Blocking in Python Providers
+- **Symptom**: Network, timeout, or HTTP 401/500 errors during embedding or LLM calls returned silent `[0.0; 384]` dummy vectors or raw error strings while holding the Python GIL, polluting vector search rankings and blocking concurrent daemon workers.
+- **Exact Root Cause**: Legacy providers in `daemon/brain/providers/` used synchronous Python `urllib.request` over PyO3 and caught exceptions by returning zeroed vectors.
+- **Code Invariant Enforced**: Migrated `HeuristicExtractor`, `LlmMemoryExtractor`, `OllamaLlmProvider`, `OpenAiLlmProvider`, `AnthropicLlmProvider`, `OllamaEmbeddingProvider`, `OpenAiEmbeddingProvider`, and `OpenAiCompatibleEmbeddingProvider` to native Rust (`crates/brain-services/src/extraction/` and `crates/brain-services/src/providers/`) returning typed `Result<_, BrainError>` with zero dummy vector fallbacks, and wired them into `ServicesReadyPhase`.
+- **Regression Test**: `crates/brain-services/tests/provider_tests.rs` (offline provider tests) and `crates/brain-services/tests/heuristics_tests.rs` (heuristic extraction and property tests).
+
+### 29. Dangling Graph Edges After Heuristic Entity Cap Truncation
+- **Symptom**: When `HeuristicExtractor` truncated extracted entities to the maximum node cap, edges referencing pruned entity IDs remained in the returned edge list, violating graph referential integrity.
+- **Exact Root Cause**: Edge extraction ran before checking whether both `source` and `target` node IDs survived node-cap truncation.
+- **Code Invariant Enforced**: Added a referential-integrity pruning pass at the end of `HeuristicExtractor::extract_raw` (`crates/brain-services/src/extraction/heuristics.rs`) that retains only edges whose `source` and `target` exist in the final node set and prevents self-loops (`source != target`).
+- **Regression Test**: `crates/brain-services/tests/heuristics_tests.rs` and `crates/brain-services/tests/adversarial_tier5_extraction_provider.rs`.
+
+### 30. Missing `LC_RPATH` When Testing `brain-services` with `--features python-plugins`
+- **Symptom**: Running `cargo test -p brain-services --features python-plugins` on macOS failed at process launch with `dyld: Library not loaded: @rpath/Python3.framework/... (Reason: no LC_RPATH's found)`.
+- **Exact Root Cause**: Cargo does not propagate `cargo:rustc-link-arg=-Wl,-rpath,...` from a dependency's build script (`crates/brain-python/build.rs`) to downstream test binaries in `crates/brain-services`.
+- **Code Invariant Enforced**: Added `crates/brain-services/build.rs` gated strictly on `CARGO_FEATURE_PYTHON_PLUGINS` to emit macOS Python framework `@rpath` linker flags when `python-plugins` is enabled.
+- **Regression Test**: `cargo test -p brain-services --features python-plugins --test runtime_tests` and `otool -L target/debug/brain-daemon` when inspecting the packaged daemon linkage.
+
+### 31. Environment Variable Leakage Across `services_ready_phase_tests`
+- **Symptom**: If `test_services_ready_phase_llm_extractor_env` panicked before finishing (such as when `MockServer::start().await` failed to bind `127.0.0.1:0` in a restricted sandbox), `BRAIN_MEMORY_EXTRACTOR="llm"` leaked into subsequent tests and broke `test_services_ready_phase_defaults_fallback`.
+- **Exact Root Cause**: `std::env::set_var("BRAIN_MEMORY_EXTRACTOR", "llm")` was called without an RAII drop guard, and `MockServer::start().await` panicked on `PermissionDenied` before reaching the test's in-process mock fallback.
+- **Code Invariant Enforced**: Added an RAII `EnvVarGuard` (`Drop` removes the env var even on unwind) and a non-panicking `try_start_mock_server()` helper in `crates/brain-services/tests/services_ready_phase_tests.rs`.
+- **Regression Test**: `cargo test -p brain-services --test services_ready_phase_tests`.
+
+### 32. `DaemonHost` Shutdown `Arc` Unwrap Leak & Unwired `BrainApplication` Compiler/Providers
+- **Symptom**: On daemon exit, `Arc::try_unwrap(brain_runtime)` in `DaemonHost::run_server` always failed and skipped `brain_runtime.shutdown()`, while `BrainApplication` only registered `DeterministicMockProvider` in `ModelGateway` and ran `compile_knowledge` against a throwaway empty `KnowledgeIR::new()`.
+- **Exact Root Cause**: `DaemonHost::run_server` kept `app_runtime` and the spawned `start_health_server` task alive across `Arc::try_unwrap(brain_runtime)`, and `BrainApplication` created new ephemeral `KnowledgeCompiler::new()` / `KnowledgeIR::new()` instances per call instead of hydrating from `SqliteStorage` and sharing compiler state.
+- **Code Invariant Enforced**: Aborted `health_handle`, shut down and dropped `app_runtime` before `Arc::try_unwrap(brain_runtime)` (with a non-consuming `BrainRuntime::shutdown_ref(&self)` fallback), bridged native `ChatAgent` providers into `ModelGateway` via `ChatAgentModelProvider`, connected `list_reflection_proposals` to live `ReflectionEngine` findings, and hydrated `KnowledgeIR` from `SqliteStorage` into a shared `Arc<KnowledgeCompiler>`.
+- **Regression Test**: `cargo test -p brain-application --test application_tests`.
+
+### 33. Fractional Recall@K Masking Multi-Fact Personalization Failures (`PersonalizationV4`)
+- **Symptom**: Standard fractional `compute_recall_at_k` reported `0.50` recall on 2-fact personalization queries where only 1 of 2 required implicit constraints was retrieved, masking complete downstream answer failures on zero-lexical-overlap scenarios.
+- **Exact Root Cause**: `crates/brain-services/src/retrieval/eval_harness/metrics/recall.rs` only computed fractional hit rate ($|\text{retrieved}_K \cap \text{expected}| / |\text{expected}|$) and lacked a joint conjunction metric ($F_1 \land F_2 \land \dots \land F_m$) or an Always-On Constraint Subgraph decorator.
+- **Code Invariant Enforced**: Added `compute_all_facts_recall_at_k`, `ConstraintAugmentedRetriever`, `Pv4HarnessAdapter`, and `compute_complementarity` in `crates/brain-services/src/retrieval/eval_harness/personalization_v4.rs` to evaluate joint All-Facts Recall@K and Oracle Hybrid Union rates alongside standard `run_benchmark` metrics.
+- **Regression Test**: `cargo test -p brain-services retrieval::eval_harness::personalization_v4::tests`.
+
+### 34. Native Build Failure in Personalization and Provider Wiring
+- **Symptom**: The services and daemon targets failed to compile from the working source.
+- **Exact Root Cause**: The personalization evaluator called `Uuid::new_v5` without enabling UUIDv5. The application used its dev-only config dependency, a private model settings field, and an incomplete provider match.
+- **Code Invariant Enforced**: UUIDv5 is enabled for `brain-services`. The application declares its runtime config dependency, reads the provider through its accessor, and handles every configured provider variant.
+- **Regression Test**: `cargo build --locked -p brain -p brain-daemon` and `cargo test --locked -p brain-services retrieval::eval_harness::personalization_v4::tests`.
+
+### 35. Parallel Portable Runtime Fixtures Shared a Directory
+- **Symptom**: The incomplete-runtime test intermittently found a complete Python runtime while running beside the other cases.
+- **Exact Root Cause**: The temporary directory name combined the process ID and wall-clock nanoseconds, which could collide across test threads.
+- **Code Invariant Enforced**: Each fixture uses a UUID directory and removes its own tree on drop.
+- **Regression Test**: `cargo test --locked -p brain-daemon --test portable_runtime_tests` with parallel tests.
+
+### 36. Personalization Benchmark Mixed Constraints from Different Collections
+- **Symptom**: Other collections occupied slots in a scenario’s top five, and one fixture shared incidental lexical terms with all of its expected facts.
+- **Exact Root Cause**: The benchmark materialized several collections into one database and appended every collection’s constraints without rank priority. The infrastructure question repeated terms from its fact documents.
+- **Code Invariant Enforced**: The benchmark binds each scenario to its own documents, ranks its constraints above query-dependent candidates, and preserves the zero-overlap condition in the synthetic fixture.
+- **Regression Test**: `cargo test --locked -p brain-services --lib retrieval::eval_harness::personalization_v4::tests`.
+
+### 37. Session Routing and Context Types Collided During Main Integration
+
+- **Symptom**: The combined sources failed to compile due to duplicate session-routing declarations and a context service that no longer satisfied its thread-safety contract.
+- **Root cause**: Both lines of work introduced the same runtime-path and strict session-ID helpers. The newer repository traits also permit transaction-borrowed views without thread-safety supertraits.
+- **Invariant**: Each runtime and session-routing helper has one definition. The asynchronously shared context service requires `Send + Sync` on the repository objects it owns while the repository traits still support transaction-borrowed views. The packaged daemon initializes its selected Python runtime before starting Tokio.
+- **Regression test**: `cargo check --locked --workspace --all-targets`, the context and frontend session contract suites, and portable runtime tests in `cargo xtask verify`.

@@ -16,7 +16,8 @@ mod tests {
     use brain_observability::{CorrelationIndex, ObservabilitySubscriber};
     use brain_services::{InMemoryEventDispatcher, InMemoryReflectionEngine, SqliteCanonicalizer};
     use brain_storage::test_utils::TestStorage;
-    use std::sync::{Arc, Mutex};
+    use parking_lot::Mutex;
+    use std::sync::Arc;
     use std::time::{Duration, SystemTime};
 
     fn make_obs(payload: &str, corr_id: CorrelationId) -> Observation {
@@ -169,7 +170,7 @@ mod tests {
             let deadline = std::time::Instant::now() + Duration::from_secs(1);
             loop {
                 {
-                    let idx = index.lock().unwrap();
+                    let idx = index.lock();
                     if idx.is_complete(corr_id) {
                         break;
                     }
@@ -182,7 +183,7 @@ mod tests {
             }
         }
 
-        let idx = index.lock().unwrap();
+        let idx = index.lock();
         let spans = idx
             .spans_for(corr_id)
             .expect("No spans recorded for correlation ID");

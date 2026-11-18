@@ -105,7 +105,7 @@ Both platform jobs passed on 2026-11-17 for source commit `f706d8eda57164661a8db
 
 ### 4.2 Phase 6 Retirement Verification (`c81ece66`)
 
-The Phase 6 legacy frontend retirement candidate (`c81ece666bd63a8345ddedad19ef004ec162b27c`) passed its local macOS arm64 `./package.sh` verification (1,196 Rust nextest cases, frontend typecheck, 120 frontend tests, 12 real-daemon E2E tests with zero skips, and 3/3 clean-extraction PTY smokes) with archive SHA-256 `b3677f24952b98aaf6f8d6d7d3828f6e20ea3cb405ae006d65898c58b1c48c89`. Native Linux (`x86_64-unknown-linux-gnu`) verification for the Phase 6 commit remains a required release gate via `.github/workflows/release.yml` before tag publication; see the [Phase 6 acceptance record](../designs/phase-6-legacy-frontend-retirement.md#acceptance-record).
+The Phase 6 legacy frontend retirement candidate (`c81ece666bd63a8345ddedad19ef004ec162b27c`) passed its local macOS arm64 `./package.sh` verification (1,196 Rust nextest cases, frontend typecheck, 120 frontend tests, 12 real-daemon E2E tests with zero skips, and 3/3 clean-extraction PTY smokes) with archive SHA-256 `b3677f24952b98aaf6f8d6d7d3828f6e20ea3cb405ae006d65898c58b1c48c89`. This local run covers macOS. The native follow-through below records the Linux and macOS results for its successor commit.
 
 ## Phase 6 native archive acceptance — 2026-11-18
 
@@ -121,3 +121,5 @@ Both archives were downloaded and independently checked against their uploaded Z
 The local workspace gate also passed all 1,196 nextest cases with zero skips, strict Clippy, formatting, contracts, architecture checks and zero active documentation violations. The local frontend suite passed 125 cases, real-daemon E2E passed 12, and the SDK passed 13 with two existing deprecation warnings. The hosted Python quality suite passed 58 cases with three pre-existing daemon-dependent skips and eight warnings.
 
 This receipt documents the tested product source above. A subsequent documentation-only receipt commit does not claim a separately rebuilt archive. Each future product release candidate still requires its own native verification.
+
+The combined `main` source includes changes beyond this receipt. Its native archive acceptance requires a run for its own source commit.

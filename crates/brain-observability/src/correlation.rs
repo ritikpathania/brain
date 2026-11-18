@@ -54,4 +54,48 @@ impl CorrelationIndex {
             .map(|t| t.is_complete())
             .unwrap_or(false)
     }
+
+    /// Returns the number of distinct correlation timelines tracked.
+    pub fn len(&self) -> usize {
+        self.timelines.len()
+    }
+
+    /// Returns `true` if the index contains no timelines.
+    pub fn is_empty(&self) -> bool {
+        self.timelines.is_empty()
+    }
+
+    /// Returns total count of spans recorded across all timelines.
+    pub fn total_spans(&self) -> usize {
+        self.timelines.values().map(|t| t.spans().len()).sum()
+    }
+
+    /// Prunes all timelines that have reached a terminal state (Completed, Failed, Cancelled).
+    pub fn prune_completed(&mut self) -> usize {
+        let initial_count = self.timelines.len();
+        self.timelines.retain(|_, timeline| !timeline.is_complete());
+        initial_count - self.timelines.len()
+    }
+
+    /// Enforces a maximum capacity of timelines by first pruning completed timelines,
+    /// and then trimming excess entries if still above the limit.
+    pub fn enforce_retention(&mut self, max_timelines: usize) -> usize {
+        if self.timelines.len() <= max_timelines {
+            return 0;
+        }
+
+        let mut pruned = self.prune_completed();
+
+        if self.timelines.len() > max_timelines {
+            let excess = self.timelines.len() - max_timelines;
+            let keys_to_remove: Vec<CorrelationId> =
+                self.timelines.keys().take(excess).cloned().collect();
+            for k in keys_to_remove {
+                self.timelines.remove(&k);
+                pruned += 1;
+            }
+        }
+
+        pruned
+    }
 }

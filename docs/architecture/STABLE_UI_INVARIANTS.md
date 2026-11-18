@@ -1,16 +1,15 @@
 ---
-status: active
+status: historical
 owner: tui
-canonical: true
-review_cycle: quarterly
-last_reviewed: 2026-08-14
-applies_to: v1.1+
+canonical: false
+review_cycle: static
+last_reviewed: 2026-09-21
+applies_to: removed native-TUI architecture
 ---
 
-# TUI Architecture & Stable UI Invariants
+# Historical Native-TUI Architecture and Stable UI Invariants
 
-> **CANONICAL VISUAL CONTRACT**: Visual layout, typography, theme palettes, and component presentation are strictly governed by [`docs/design/CLAUDE_VISUAL_CONTRACT.md`](../design/CLAUDE_VISUAL_CONTRACT.md) and [`docs/design/CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md).
-> This specification defines the **underlying Rust state reducer invariants, transport boundaries, and rendering loop purity**.
+> **Historical record — not a canonical frontend contract.** This document describes the removed Rust native-TUI reducer and render loop. The current development product boundary is the first-party frontend described in [`docs/subsystems/tui.md`](../subsystems/tui.md).
 
 ---
 
@@ -54,7 +53,7 @@ The conversation history and scrolling behavior are governed by strict relationa
 - **Session Boundary Sync**: When switching sessions or creating a new conversation, the current `active_messages` are archived into the `session_histories` map keying the active `SessionId`. When loaded, the history is restored fully into `active_messages`.
 
 ### Presentation Timeline (`TimelineBlock`)
-- **Invariant**: `TimelineBlock` is a pure render-time model conforming to [`CLAUDE_COMPONENT_MODEL.md`](../design/CLAUDE_COMPONENT_MODEL.md). It does not carry domain rules or business facts.
+- **Invariant**: `TimelineBlock` is a pure render-time model conforming to [`GUIDELINES.md`](../../GUIDELINES.md). It does not carry domain rules or business facts.
 - It is rebuilt dynamically on every event loop tick inside `state.rs::build_timeline_blocks` based on the wrapping width of the chat viewport.
 
 ### Viewport Scroll Semantics & Auto-Follow Behavior

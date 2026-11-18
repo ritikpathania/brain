@@ -115,6 +115,12 @@ pub struct TokenUsage {
     pub input_tokens: usize,
     /// Number of output / completion tokens.
     pub output_tokens: usize,
+    /// Optional number of tokens read from prompt cache (provider-confirmed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<usize>,
+    /// Optional number of tokens written into prompt cache (provider-confirmed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_creation_input_tokens: Option<usize>,
 }
 
 /// Atomic generation chunk streamed from a model provider.

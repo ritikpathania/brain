@@ -68,7 +68,7 @@ async fn test_live_subscription_stream_and_fan_out() {
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
     runner.register(Arc::new(reducer)).unwrap();
 
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
     let execution_counter = Arc::new(AtomicUsize::new(0));
     let counting_service = Arc::new(CountingSessionQueryService::new(
@@ -149,7 +149,7 @@ async fn test_deregistration_on_drop_cancellation() {
     let reducer = SessionProjectionReducer::new(session_proj_repo.clone());
     runner.register(Arc::new(reducer)).unwrap();
 
-    let session_repo: Arc<dyn SessionRepository> = test_storage.store();
+    let session_repo: Arc<dyn SessionRepository + Send + Sync> = test_storage.store();
     let inner_service = SqliteSessionQueryService::new(session_proj_repo, session_repo);
     let execution_counter = Arc::new(AtomicUsize::new(0));
     let counting_service = Arc::new(CountingSessionQueryService::new(

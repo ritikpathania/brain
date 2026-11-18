@@ -13,9 +13,9 @@ brain-domain = { path = "../brain-domain" }
 brain-core = { path = "../brain-core" }
 brain-session = { path = "../brain-session" }
 brain-config = { path = "../brain-config" }
-brain-storage = { path = "../brain-storage", features = ["test-utils"] }
+brain-storage = { path = "../brain-storage" }
 brain-plugins = { path = "../brain-plugins" }
-brain-python = { path = "../brain-python" }
+brain-python = { path = "../brain-python", optional = true }
 brain-tools = { path = "../brain-tools" }
 brain-events = { path = "../brain-events" }
 brain-observability = { path = "../brain-observability" }
@@ -24,7 +24,7 @@ parking_lot = "0.12"
 fuzzy-matcher = "0.3.7"
 tokio = { workspace = true }
 tracing = { workspace = true }
-uuid = { workspace = true }
+uuid = { workspace = true, features = ["v5"] }
 ulid = { workspace = true }
 thiserror = { workspace = true }
 chrono = { version = "0.4", features = ["serde", "clock"] }
@@ -34,12 +34,19 @@ sha2 = "0.11.0"
 arc-swap = "1.7"
 futures = "0.3"
 reqwest = { workspace = true }
+regex = "1.12"
+
+[features]
+default = []
+python-plugins = ["dep:brain-python"]
 
 [dev-dependencies]
 brain-storage = { path = "../brain-storage", features = ["test-utils"] }
 rusqlite.workspace = true
 criterion = "0.5"
 tempfile = "3.8"
+wiremock = "0.6"
+proptest = "1.5"
 
 [[bench]]
 name = "policy_benchmarks"

@@ -7,11 +7,11 @@ This directory contains Requests for Comments (RFCs) proposing structural additi
 * **[RFC-001.md](RFC-001.md)**: SQLite transactional memory schema & BLOB vector store.
 * **[RFC-002.md](RFC-002.md)**: PyO3 FFI boundary & dynamic Python extraction plugins.
 * **[RFC-003.md](RFC-003.md)**: IPC UDS frame codecs & streaming events protocol.
-* **[RFC-004.md](RFC-004.md)**: Brain Terminal UX Specification.
+* **[RFC-004.md](RFC-004.md)**: Historical native-TUI terminal UX proposal.
 * **[RFC-005.md](RFC-005.md)**: Hybrid BM25 + Vector Search + Reciprocal Rank Fusion (RRF).
-* **[RFC-006.md](RFC-006.md)**: Multi-agent subagent arena & peek panel TUI layout.
+* **[RFC-006.md](RFC-006.md)**: Historical native-TUI multi-agent arena and peek-panel layout.
 * **[RFC-007.md](RFC-007.md)**: Versioned request frames & workspace context tracking.
-* **[RFC-008.md](RFC-008.md)**: Immediate-mode Ratatui differential rendering & typewriter queue.
+* **[RFC-008.md](RFC-008.md)**: Historical immediate-mode Ratatui rendering and typewriter-queue proposal.
 * **[RFC-009.md](RFC-009.md)**: Plan Mode & interactive terminal permission review modals.
 * **[RFC-010.md](RFC-010.md)**: Mathematical decay & edge weight dampening functions.
 * **[RFC-011-temporal-ranking.md](RFC-011-temporal-ranking.md)**: Learned temporal ranking model & decay features.

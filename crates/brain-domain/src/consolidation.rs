@@ -376,7 +376,7 @@ impl Consolidator {
                     action: ConsolidationActionType::MergeNodes {
                         canonical_node_id: canonical,
                         redundant_node_ids: redundant,
-                        merged_label: format!("Merged node {}", canonical),
+                        merged_label: format!("Merged node {canonical}"),
                     },
                     rationale: format!(
                         "Consolidating duplicate nodes based on label similarity (score: {:.2})",

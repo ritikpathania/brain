@@ -74,6 +74,7 @@ cli/bin/brain_tui
 *.db-wal
 
 # AI / Dev Agent Directories
+.agents/
 .code-review-graph/
 .junie/
 .superpowers/

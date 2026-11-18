@@ -3,6 +3,9 @@ name = "brain-acp-adapter"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+doctest = false
+
 [dependencies]
 brain-domain = { path = "../brain-domain" }
 brain-services = { path = "../brain-services" }

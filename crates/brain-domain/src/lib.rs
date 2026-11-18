@@ -195,3 +195,11 @@ pub use provenance::*;
 /// Domain-neutral regression dataset models.
 pub mod dataset;
 pub use dataset::*;
+
+/// Multi-process foreground session registry and durable Fleet preferences.
+pub mod fleet;
+pub use fleet::*;
+
+/// Subagent execution domain models, status transitions, and lifecycle invariants.
+pub mod subagent;
+pub use subagent::*;

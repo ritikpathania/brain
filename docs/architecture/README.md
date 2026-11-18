@@ -38,7 +38,7 @@ Start here to understand the structural design and guidelines:
 * **[SPECIFICATION.md](SPECIFICATION.md)** — Versioned system reference specification.
 * **[GLOSSARY.md](GLOSSARY.md)** — System glossary and domain vocabulary definitions.
 * **[FITNESS_TESTS.md](FITNESS_TESTS.md)** — Automated fitness test specification.
-* **[STABLE_UI_INVARIANTS.md](STABLE_UI_INVARIANTS.md)** — TUI structural invariants.
+* **[STABLE_UI_INVARIANTS.md](STABLE_UI_INVARIANTS.md)** — Historical native TUI structural invariants.
 * **[compatibility_policy.md](compatibility_policy.md)** — Versioning and compatibility matrix.
 * **[execution_platform_governance.md](execution_platform_governance.md)** — Execution platform governance rules.
 * **[runtime_api_stability.md](runtime_api_stability.md)** — API stability contract classification.
@@ -54,7 +54,7 @@ Start here to understand the structural design and guidelines:
 
 ## Architectural Decision Records (ADRs)
 
-The core architectural decisions are recorded chronologically in the **[adr/](adr)** directory.
+The core architectural decisions are recorded chronologically in the [ADR directory](adr).
 
 - [ADR-007 memory architecture proposal](ADR_MEMORY.md)
 - [ADR-027 retrieval UI projection pipeline](adr/ADR-027-retrieval-ui-projection-pipeline.md)

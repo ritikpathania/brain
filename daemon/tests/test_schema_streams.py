@@ -2,7 +2,8 @@ import json
 import os
 
 import pytest
-from jsonschema import Draft7Validator, RefResolver, ValidationError
+from jsonschema import Draft7Validator, ValidationError
+from referencing import Registry, Resource
 
 SCHEMA_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../protocol/uds_ipc.schema.json")
@@ -13,9 +14,12 @@ SCHEMA_PATH = os.path.abspath(
 def stream_validator():
     with open(SCHEMA_PATH) as f:
         schema = json.load(f)
-    resolver = RefResolver.from_schema(schema)
+    resource = Resource.from_contents(schema)
+    registry = Registry().with_resource("schema://uds_ipc", resource)
     # Draft7Validator compiled against the specific StreamEvent definition
-    validator = Draft7Validator(schema["$defs"]["StreamEvent"], resolver=resolver)
+    validator = Draft7Validator(
+        {"$ref": "schema://uds_ipc#/$defs/StreamEvent"}, registry=registry
+    )
     return validator
 
 

@@ -367,3 +367,216 @@ async fn test_resumable_subscription_replay_and_continuation() {
         other => panic!("Expected Event, got: {:?}", other),
     }
 }
+
+#[tokio::test]
+async fn test_active_foreground_session_cannot_be_deleted() {
+    let (app, _dir) = setup_app();
+    let session_id = brain_domain::SessionId::new();
+    let session = brain_domain::Session::new(
+        session_id,
+        brain_domain::SessionTitle("Test Session".to_string()),
+        brain_domain::SessionTimestamp(1000),
+    );
+
+    // 1. Save session to storage
+    {
+        use brain_core::repositories::SessionRepository;
+        app.runtime()
+            .sqlite_storage()
+            .save_session(&session_id, &session)
+            .expect("Session saved");
+    }
+
+    // 2. Register session in FleetRegistry as active foreground
+    app.runtime()
+        .fleet_registry()
+        .register_session(brain_domain::ForegroundSession::new(
+            "test-client-1",
+            1234,
+            session_id.to_string(),
+            "/test/workspace",
+            "test-repo",
+            1000,
+        ));
+
+    // 3. Attempt to delete active session -> must fail with Validation error
+    let result = app.delete_session(&session_id.to_string()).await;
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("currently active in a foreground terminal"));
+
+    // 4. Verify session state is completely unchanged in storage
+    {
+        use brain_core::repositories::SessionRepository;
+        let loaded = app
+            .runtime()
+            .sqlite_storage()
+            .load_session(&session_id)
+            .expect("Session query succeeds");
+        assert!(loaded.is_some(), "Session must not be deleted from storage");
+    }
+
+    // 5. Unregister session from Fleet (simulating terminal exit)
+    app.runtime()
+        .fleet_registry()
+        .unregister_session("test-client-1");
+
+    // 6. Delete inactive session -> now succeeds
+    let delete_result = app.delete_session(&session_id.to_string()).await;
+    assert!(
+        delete_result.is_ok(),
+        "Inactive session should be deleted successfully"
+    );
+
+    // 7. Verify session is now gone from storage
+    {
+        use brain_core::repositories::SessionRepository;
+        let loaded = app
+            .runtime()
+            .sqlite_storage()
+            .load_session(&session_id)
+            .expect("Session query succeeds");
+        assert!(loaded.is_none(), "Session must be removed from storage");
+    }
+}
+
+#[tokio::test]
+async fn test_active_session_deletion_protection_under_concurrent_lifecycle_changes() {
+    let (app, _dir) = setup_app();
+    let app = Arc::new(app);
+    let session_id = brain_domain::SessionId::new();
+    let session = brain_domain::Session::new(
+        session_id,
+        brain_domain::SessionTitle("Concurrent Lifecycle Session".to_string()),
+        brain_domain::SessionTimestamp(2000),
+    );
+
+    // Save session to storage
+    {
+        use brain_core::repositories::SessionRepository;
+        app.runtime()
+            .sqlite_storage()
+            .save_session(&session_id, &session)
+            .expect("Session saved");
+    }
+
+    // Register as active foreground session
+    app.runtime()
+        .fleet_registry()
+        .register_session(brain_domain::ForegroundSession::new(
+            "client-concurrent-1",
+            4567,
+            session_id.to_string(),
+            "/test/workspace",
+            "test-repo",
+            2000,
+        ));
+
+    // Phase 1: Concurrently update lifecycle status while 10 tasks attempt deletion
+    let mut tasks = Vec::new();
+
+    // Background task mutating lifecycle state
+    let app_status = app.clone();
+    let sid_str = session_id.to_string();
+    let status_updater = tokio::spawn(async move {
+        for _ in 0..20 {
+            app_status.runtime().fleet_registry().update_status(
+                "client-concurrent-1",
+                "working".to_string(),
+                "processing query".to_string(),
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+            app_status.runtime().fleet_registry().update_status(
+                "client-concurrent-1",
+                "needs_input".to_string(),
+                "awaiting user input".to_string(),
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    });
+
+    // 10 concurrent delete attempts while session is active
+    for _ in 0..10 {
+        let app_del = app.clone();
+        let sid = sid_str.clone();
+        tasks.push(tokio::spawn(
+            async move { app_del.delete_session(&sid).await },
+        ));
+    }
+
+    for task in tasks {
+        let res = task.await.unwrap();
+        assert!(
+            res.is_err(),
+            "Active session deletion must be rejected under concurrent lifecycle updates"
+        );
+        let msg = res.unwrap_err().to_string();
+        assert!(
+            msg.contains("currently active in a foreground terminal"),
+            "Error must be active session guard: {msg}"
+        );
+    }
+
+    status_updater.await.unwrap();
+
+    // Verify session remains completely preserved in storage
+    {
+        use brain_core::repositories::SessionRepository;
+        let loaded = app
+            .runtime()
+            .sqlite_storage()
+            .load_session(&session_id)
+            .expect("Session query succeeds");
+        assert!(loaded.is_some(), "Session must not be deleted while active");
+    }
+
+    // Phase 2: Terminal disconnects (unregister) and concurrent deletion runs
+    app.runtime()
+        .fleet_registry()
+        .unregister_session("client-concurrent-1");
+
+    let mut racing_deletes = Vec::new();
+    for _ in 0..10 {
+        let app_del = app.clone();
+        let sid = sid_str.clone();
+        racing_deletes.push(tokio::spawn(
+            async move { app_del.delete_session(&sid).await },
+        ));
+    }
+
+    let mut success_count = 0;
+    let mut not_found_count = 0;
+    for task in racing_deletes {
+        match task.await.unwrap() {
+            Ok(()) => success_count += 1,
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("not found") {
+                    not_found_count += 1;
+                } else {
+                    panic!("Unexpected error during concurrent deletion race: {msg}");
+                }
+            }
+        }
+    }
+
+    assert_eq!(
+        success_count, 1,
+        "Exactly one concurrent delete must succeed"
+    );
+    assert_eq!(
+        not_found_count, 9,
+        "Remaining racing deletes must cleanly report not found"
+    );
+
+    // Verify session is completely purged from storage
+    {
+        use brain_core::repositories::SessionRepository;
+        let loaded = app
+            .runtime()
+            .sqlite_storage()
+            .load_session(&session_id)
+            .expect("Session query succeeds");
+        assert!(loaded.is_none(), "Session must be removed after deletion");
+    }
+}

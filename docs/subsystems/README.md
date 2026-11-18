@@ -29,5 +29,5 @@ Each hub connects the subsystem's **Architecture** ("Why?"), **Reference** ("Exa
   * **Crates**: [`crates/brain-integrations`](../../crates/brain-integrations/README.md), [`daemon`](../../daemon/README.md)
 
 * **[Plugin Architecture Hub](plugins.md)**
-  * **Domain**: Maturin / PyO3 FFI boundaries, dynamic Python extractors, custom LLM provider traits.
+  * **Domain**: Native plugin contracts, PyO3 FFI boundaries, and custom extractor and model providers.
   * **Crates**: [`crates/brain-plugins`](../../crates/brain-plugins/README.md), [`crates/brain-python`](../../crates/brain-python/README.md), [`sdks/python`](../../sdks/python/README.md)

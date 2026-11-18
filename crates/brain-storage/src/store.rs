@@ -880,9 +880,6 @@ pub(crate) struct ActiveConnection<'a> {
     conn: &'a rusqlite::Connection,
 }
 
-unsafe impl<'a> Send for ActiveConnection<'a> {}
-unsafe impl<'a> Sync for ActiveConnection<'a> {}
-
 impl<'a> ActiveConnection<'a> {
     pub fn new(conn: &'a rusqlite::Connection) -> Self {
         Self { conn }
@@ -922,9 +919,6 @@ pub struct SqliteTransactionRef<'a, 'b> {
     repos: ActiveConnection<'a>,
     _marker: std::marker::PhantomData<&'b rusqlite::Transaction<'b>>,
 }
-
-unsafe impl<'a, 'b> Send for SqliteTransactionRef<'a, 'b> {}
-unsafe impl<'a, 'b> Sync for SqliteTransactionRef<'a, 'b> {}
 
 impl<'a, 'b> StorageTransaction for SqliteTransactionRef<'a, 'b> {
     fn repositories(&self) -> &dyn RepositorySet {
@@ -2822,4 +2816,14 @@ impl EventLogRepository for SqliteStorage {
 
         Ok(envelopes)
     }
+}
+
+#[cfg(test)]
+mod transaction_threading_tests {
+    use super::{ActiveConnection, SqliteStorage, SqliteTransactionRef};
+    use static_assertions::{assert_impl_all, assert_not_impl_any};
+
+    assert_not_impl_any!(ActiveConnection<'static>: Send, Sync);
+    assert_not_impl_any!(SqliteTransactionRef<'static, 'static>: Send, Sync);
+    assert_impl_all!(SqliteStorage: Send, Sync);
 }

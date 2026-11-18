@@ -70,6 +70,7 @@ fn create_valid_test_config(db_path: &str, plugins_path: &str) -> BrainSettings 
 
 #[tokio::test]
 async fn test_runtime_builder_defaults() {
+    #[cfg(feature = "python-plugins")]
     brain_python::initialize_python_runtime();
     let runtime = ApplicationRuntime::builder().build().unwrap();
     assert_eq!(runtime.state(), RuntimeState::Created);
@@ -78,6 +79,7 @@ async fn test_runtime_builder_defaults() {
 
 #[tokio::test]
 async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
+    #[cfg(feature = "python-plugins")]
     brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();
@@ -109,7 +111,12 @@ async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
     assert_eq!(runtime.state(), RuntimeState::Running);
     assert!(runtime.is_ready());
     assert_eq!(started.load(Ordering::SeqCst), 1);
-    assert_eq!(report.completed_phases().len(), 6);
+    let expected_phases = if cfg!(feature = "python-plugins") {
+        6
+    } else {
+        5
+    };
+    assert_eq!(report.completed_phases().len(), expected_phases);
     assert!(report.failed_phase().is_none());
 
     // Verify getters and locator integration
@@ -158,6 +165,7 @@ async fn test_runtime_successful_startup_lifecycle_and_shutdown() {
 
 #[tokio::test]
 async fn test_runtime_startup_phase_failure_rollback() {
+    #[cfg(feature = "python-plugins")]
     brain_python::initialize_python_runtime();
     std::env::set_var("BRAIN_DATABASE_TIMEOUT_MS", "500");
 
@@ -184,6 +192,7 @@ async fn test_runtime_startup_phase_failure_rollback() {
 
 #[tokio::test]
 async fn test_runtime_non_blocking_observers() {
+    #[cfg(feature = "python-plugins")]
     brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();
@@ -206,7 +215,12 @@ async fn test_runtime_non_blocking_observers() {
     // Startup must complete successfully despite panicking observer
     let report = runtime.start().unwrap();
     assert_eq!(runtime.state(), RuntimeState::Running);
-    assert_eq!(report.completed_phases().len(), 6);
+    let expected_phases = if cfg!(feature = "python-plugins") {
+        6
+    } else {
+        5
+    };
+    assert_eq!(report.completed_phases().len(), expected_phases);
 
     // Shutdown must also complete successfully despite panicking observer
     runtime.shutdown().unwrap();
@@ -219,6 +233,7 @@ async fn test_runtime_non_blocking_observers() {
 
 #[tokio::test]
 async fn test_runtime_query_rejection_when_not_running() {
+    #[cfg(feature = "python-plugins")]
     brain_python::initialize_python_runtime();
 
     let db_path = get_temp_db_path();

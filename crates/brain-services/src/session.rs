@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 /// Concrete implementation of SessionService orchestrating persistence and volatile cache.
 pub struct SessionServiceImpl {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     cache_manager: Arc<SessionCacheManager>,
     publisher: Arc<dyn DomainEventPublisher>,
 }
@@ -16,7 +16,7 @@ pub struct SessionServiceImpl {
 impl SessionServiceImpl {
     /// Creates a new SessionServiceImpl.
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         cache_manager: Arc<SessionCacheManager>,
         publisher: Arc<dyn DomainEventPublisher>,
     ) -> Self {

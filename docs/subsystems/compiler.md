@@ -41,7 +41,7 @@ The Knowledge Compiler is the central state-mutation authority for Brain. It enf
 ## 3. Out of Scope
 - Direct SQLite disk I/O or connection handling (delegated to **Storage**).
 - User query execution or candidate score fusion (owned by **Retrieval**).
-- UI terminal widget rendering (owned by **TUI**).
+- Frontend rendering and presentation state (owned by the first-party frontend).
 
 ## 4. Architecture Overview
 ```text

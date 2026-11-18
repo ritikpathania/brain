@@ -41,7 +41,7 @@ impl ArtifactStore {
 
         if self.artifacts.contains_key(&id) {
             return Err(DomainError::ValidationError {
-                message: format!("Artifact ID {} already exists in store", id),
+                message: format!("Artifact ID {id} already exists in store"),
                 rule_id: Some("VAL-ART-001".to_string()),
             });
         }

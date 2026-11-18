@@ -22,10 +22,11 @@ use brain_events::EventLog;
 use brain_integrations::IngestionEnvelope;
 use brain_observability::{timeline::OperationSpan, CorrelationIndex, ObservabilitySubscriber};
 use brain_storage::{EventLogRepository, SqliteSearchRepository, SqliteStorage};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 
 // Compile-time proof that BrainRuntime is safe to share across threads.
@@ -293,7 +294,7 @@ pub struct BrainRuntime {
     canonicalizer: Arc<dyn Canonicalizer<Error = BrainError>>,
     projection_manager: SqliteProjectionManager,
     correlation_index: Arc<Mutex<CorrelationIndex>>,
-    subscriber: Option<ObservabilitySubscriber>,
+    subscriber: Mutex<Option<ObservabilitySubscriber>>,
     reflection_engine: Arc<crate::reflection::ReflectionEngine>,
     reflection_scheduler: Arc<crate::reflection::BackgroundReflectionScheduler>,
     runtime_orchestrator: Arc<crate::orchestrator::RuntimeOrchestrator>,
@@ -305,35 +306,14 @@ pub struct BrainRuntime {
     metrics: Arc<InternalMetrics>,
     diagnostics: Arc<Mutex<InternalDiagnostics>>,
     capabilities: CapabilityRegistry,
-    // Concrete type used intentionally. A `Arc<dyn SearchRepository>` trait abstraction
-    // is the correct direction if a second implementation appears (hybrid BM25+vector,
-    // remote search, test double). Until then, the concrete type avoids a premature
-    // abstraction with no second case to justify it. See: governing principle, Sprint 6.
-    //
-    // When introducing the trait: update this comment first, then revise Sprint 8 plan
-    // "Future Consideration" section (or reference the ADR if one exists). This comment
-    // is the authoritative description of the current design; the sprint doc is the
-    // historical record of why this decision was made.
     search_repository: Arc<SqliteSearchRepository>,
     projection_scheduler: Arc<dyn ProjectionScheduler>,
     scheduler_runtime: Arc<scheduler::SchedulerRuntime>,
+    fleet_registry: Arc<crate::fleet::FleetRegistry>,
 }
 
 impl BrainRuntime {
     /// Constructs the complete runtime from a database path.
-    ///
-    /// Components are initialized in dependency order:
-    /// 1. Storage (connection pool — must exist before any service touches the database)
-    /// 2. Event dispatcher (must exist before subscribers or services that emit events)
-    /// 3. Observability subscriber (wired before any events are dispatched)
-    /// 4. Reflection engine (depends on storage + dispatcher)
-    /// 5. Canonicalizer with reflection (depends on storage + dispatcher + engine)
-    /// 6. Projection manager (depends on storage + dispatcher)
-    ///
-    /// Uses sane defaults: pool_size=4, WAL enabled.
-    ///
-    /// **Exception safety**: Rust's ownership model ensures partially initialized resources
-    /// drop in reverse initialization order if construction fails.
     pub fn new(db_path: &str) -> Result<Self, BrainError> {
         let created_at = Instant::now();
         let health = Arc::new(AtomicU8::new(RuntimeHealth::Initializing as u8));
@@ -426,7 +406,7 @@ impl BrainRuntime {
         let subscriber = ObservabilitySubscriber::new(sync_rx, Arc::clone(&correlation_index));
 
         // 4. Reflection engine
-        let reflection_engine = Arc::new(
+        let sqlite_reflection_engine = Arc::new(
             SqliteReflectionEngine::new(Arc::clone(&storage), Arc::clone(&dispatcher_trait))
                 .with_metrics(Arc::clone(&metrics)),
         );
@@ -434,7 +414,7 @@ impl BrainRuntime {
         // 5. Canonicalizer with reflection
         let canonicalizer: Arc<dyn Canonicalizer<Error = BrainError>> = Arc::new(
             SqliteCanonicalizer::new(Arc::clone(&storage), Arc::clone(&dispatcher_trait))
-                .with_reflection(reflection_engine),
+                .with_reflection(sqlite_reflection_engine),
         );
 
         // 6. Projection manager
@@ -530,10 +510,22 @@ impl BrainRuntime {
 
         // Start background sequential processing & orchestrator
         scheduler_runtime.start()?;
-        let _ = reflection_scheduler.start();
-        let _ = runtime_orchestrator.start();
+        reflection_scheduler.start()?;
+        runtime_orchestrator.start()?;
 
         health.store(RuntimeHealth::Healthy as u8, Ordering::Release);
+
+        let fleet_storage_path = std::path::Path::new(brain_settings.database().path())
+            .parent()
+            .map(|p| p.join("fleet_preferences.json"))
+            .or_else(|| {
+                std::env::var("HOME").ok().map(|h| {
+                    std::path::PathBuf::from(h)
+                        .join(".brain")
+                        .join("fleet_preferences.json")
+                })
+            });
+        let fleet_registry = Arc::new(crate::fleet::FleetRegistry::new(fleet_storage_path));
 
         Ok(Self {
             storage,
@@ -542,7 +534,7 @@ impl BrainRuntime {
             canonicalizer,
             projection_manager,
             correlation_index,
-            subscriber: Some(subscriber),
+            subscriber: Mutex::new(Some(subscriber)),
             reflection_engine,
             reflection_scheduler,
             runtime_orchestrator,
@@ -556,12 +548,18 @@ impl BrainRuntime {
             search_repository,
             projection_scheduler,
             scheduler_runtime,
+            fleet_registry,
         })
     }
 
     /// Returns a reference to the loaded configuration.
     pub fn config(&self) -> &brain_config::schema::BrainSettings {
         &self.config
+    }
+
+    /// Returns a reference to the Fleet registry service.
+    pub fn fleet_registry(&self) -> &Arc<crate::fleet::FleetRegistry> {
+        &self.fleet_registry
     }
 
     /// Returns a reference to the v1.0 Reflection Engine.
@@ -641,7 +639,7 @@ impl BrainRuntime {
                     error: err.to_string(),
                     timestamp: SystemTime::now(),
                 };
-                let mut diag = self.diagnostics.lock().unwrap();
+                let mut diag = self.diagnostics.lock();
                 diag.recent_failures.push_back(failure);
                 if diag.recent_failures.len() > 50 {
                     diag.recent_failures.pop_front();
@@ -813,13 +811,13 @@ impl BrainRuntime {
 
     /// Exposes read-only facade query for correlation index spans.
     pub fn spans_for(&self, corr_id: CorrelationId) -> Option<Vec<OperationSpan>> {
-        let index = self.correlation_index.lock().unwrap();
+        let index = self.correlation_index.lock();
         index.spans_for(corr_id).map(|spans| spans.to_vec())
     }
 
     /// Exposes read-only facade query for checking correlation completeness.
     pub fn is_complete(&self, corr_id: CorrelationId) -> bool {
-        let index = self.correlation_index.lock().unwrap();
+        let index = self.correlation_index.lock();
         index.is_complete(corr_id)
     }
 
@@ -948,7 +946,7 @@ impl BrainRuntime {
 
     /// Query the current diagnostics failure log snapshot. Non-blocking with short lock acquisition.
     pub fn diagnostics(&self) -> RuntimeDiagnostics {
-        let diag = self.diagnostics.lock().unwrap();
+        let diag = self.diagnostics.lock();
         RuntimeDiagnostics {
             recent_failures: diag.recent_failures.iter().cloned().collect(),
             last_shutdown: diag.last_shutdown.clone(),
@@ -1064,15 +1062,9 @@ impl BrainRuntime {
         })
     }
 
-    /// Lifecycle boundary: stops workers, flushes event queues, and closes storage connections.
-    /// Consumes `self` to statically guarantee no further actions can be invoked after shutdown.
-    ///
-    /// **Teardown Invariants**:
-    /// 1. Close event dispatcher channels first (rejects new work, drops all SyncSenders/Senders).
-    ///    This sends the explicit termination signal to the observability subscriber thread by closing the channel.
-    /// 2. Drop/take the subscriber. The dropped subscriber triggers join on the observability background thread.
-    /// 3. Release/drop the SQLite storage connection pool.
-    pub fn shutdown(mut self) -> Result<ShutdownSummary, BrainError> {
+    /// Non-consuming lifecycle teardown that stops background schedulers, closes event channels,
+    /// and joins the observability thread even when shared behind an `Arc<BrainRuntime>`.
+    pub fn shutdown_ref(&self) -> Result<ShutdownSummary, BrainError> {
         let start = Instant::now();
         self.health
             .store(RuntimeHealth::ShuttingDown as u8, Ordering::Release);
@@ -1092,22 +1084,26 @@ impl BrainRuntime {
         self.dispatcher.shutdown();
 
         // 2. Join the observability thread
-        if let Some(sub) = self.subscriber.take() {
+        if let Some(sub) = self.subscriber.lock().take() {
             drop(sub);
         }
-
-        // 3. Release SQLite connection pool
-        drop(self.storage);
 
         let duration = start.elapsed();
         self.health
             .store(RuntimeHealth::Stopped as u8, Ordering::Release);
 
         let summary = ShutdownSummary { duration };
-        if let Ok(mut diag) = self.diagnostics.lock() {
-            diag.last_shutdown = Some(summary.clone());
-        }
+        let mut diag = self.diagnostics.lock();
+        diag.last_shutdown = Some(summary.clone());
 
+        Ok(summary)
+    }
+
+    /// Lifecycle boundary: stops workers, flushes event queues, and closes storage connections.
+    /// Consumes `self` to statically guarantee no further actions can be invoked after shutdown.
+    pub fn shutdown(self) -> Result<ShutdownSummary, BrainError> {
+        let summary = self.shutdown_ref()?;
+        drop(self.storage);
         Ok(summary)
     }
 }

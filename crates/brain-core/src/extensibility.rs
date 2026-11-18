@@ -44,8 +44,7 @@ impl<'de> serde::Deserialize<'de> for ApiVersion {
         match s.to_lowercase().as_str() {
             "v1" => Ok(ApiVersion::V1),
             other => Err(serde::de::Error::custom(format!(
-                "Unsupported plugin API version '{}'. Only 'v1' is supported.",
-                other
+                "Unsupported plugin API version '{other}'. Only 'v1' is supported."
             ))),
         }
     }
@@ -93,11 +92,11 @@ impl PluginManifest {
     /// Loads and parses a plugin manifest from the given filesystem path.
     pub fn from_path(path: &Path) -> Result<Self, BrainError> {
         let content = std::fs::read_to_string(path).map_err(|e| BrainError::Storage {
-            message: format!("Failed to read plugin manifest: {}", e),
+            message: format!("Failed to read plugin manifest: {e}"),
             source: Some(Box::new(e)),
         })?;
         toml::from_str(&content).map_err(|e| BrainError::Validation {
-            message: format!("Failed to parse plugin manifest: {}", e),
+            message: format!("Failed to parse plugin manifest: {e}"),
         })
     }
 
@@ -263,9 +262,12 @@ pub struct ExecutionContext {
     pub session_id: brain_domain::SessionId,
     /// The working directory for the tool.
     pub working_dir: PathBuf,
-    /// Token used to signal cancellation request.
+    /// Token used to signal cancellation request. Tools that own subprocesses
+    /// must terminate and reap them before returning `BrainError::Cancelled`.
     pub cancellation: Arc<dyn CancellationToken>,
-    /// Maximum execution deadline.
+    /// Maximum execution deadline. The executor supplies the effective policy
+    /// deadline; tools that own subprocesses must terminate and reap them
+    /// before returning `BrainError::Timeout`.
     pub deadline: Option<std::time::Instant>,
 }
 

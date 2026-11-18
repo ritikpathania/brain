@@ -13,9 +13,9 @@ depends_on:
   - domain
 used_by:
   - daemon
-  - tui
+  - frontend
 canonical_specs:
-  - docs/product/search-architecture.md
+  - docs/architecture/overview.md
   - docs/architecture/adr/ADR-025-hybrid-retrieval-architecture.md
 adrs:
   - ADR-015
@@ -27,7 +27,7 @@ rfcs:
 
 # Retrieval Engine Subsystem Mini-Handbook
 
-> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical product search requirements live in [`docs/product/search-architecture.md`](../product/search-architecture.md) and algorithm details live in [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md).
+> **Governance Role**: This document is a **Navigation Handbook & Subsystem Summary** (`canonical: false`). Canonical retrieval architecture details live in [`docs/architecture/overview.md`](../architecture/overview.md) and [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md).
 
 ---
 
@@ -38,12 +38,12 @@ The Retrieval Engine executes multi-channel candidate retrieval (BM25 lexical se
 - Generates candidate entity and fact sets for user queries.
 - Combines sparse FTS5 lexical scores and dense BLOB vector embeddings via Reciprocal Rank Fusion (RRF).
 - Applies mathematical temporal decay scoring based on edge creation and decay parameters.
-- Emits ranked candidate lists to downstream API callers and TUI panels.
+- Emits ranked candidate lists to downstream API callers and frontend adapters.
 
 ## 3. Out of Scope
 - Mutating graph topology, facts, or observations (owned by **Compiler**).
 - Low-level SQLite FTS5 virtual table indexing or disk WAL writes (owned by **Storage**).
-- Terminal viewport rendering (owned by **TUI**).
+- Terminal rendering and presentation state (owned by the first-party frontend).
 
 ## 4. Architecture Overview
 ```text
@@ -86,7 +86,7 @@ The Retrieval Engine executes multi-channel candidate retrieval (BM25 lexical se
 - Uses SIMD-accelerated dot-product calculations for BLOB vector embedding distance computation.
 
 ## 9. Canonical References
-- [`docs/product/search-architecture.md`](../product/search-architecture.md): Search UX and functional requirements.
+- [`docs/architecture/overview.md`](../architecture/overview.md): Search and retrieval architecture overview.
 - [`ADR-025`](../architecture/adr/ADR-025-hybrid-retrieval-architecture.md): Canonical hybrid retrieval architecture specification.
 - [`docs/reference/benchmarking.md`](../reference/benchmarking.md): Retrieval performance harness.
 
@@ -113,5 +113,5 @@ Retrieval Subsystem
 ├── Depends on: Storage (brain-storage) & Domain (brain-domain)
 ├── Reads from: Knowledge Graph (brain-storage)
 ├── Exposed through: IPC Protocol (daemon)
-└── Visualized by: TUI (brain-tui)
+└── Consumed by: protocol clients and first-party frontend adapters
 ```

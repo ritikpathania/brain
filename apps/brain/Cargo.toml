@@ -9,11 +9,12 @@ brain-domain = { path = "../../crates/brain-domain" }
 brain-core = { path = "../../crates/brain-core" }
 brain-services = { path = "../../crates/brain-services" }
 brain-config = { path = "../../crates/brain-config" }
+brain-integrations = { path = "../../crates/brain-integrations" }
 clap = { version = "4", features = ["derive"] }
-dirs = "5.0"
 tokio-util = "0.7"
 async-trait = "0.1"
 serde_json = { workspace = true }
 serde = { workspace = true }
 semver = { workspace = true }
 sha2 = "=0.11.0"
+chrono = "0.4"

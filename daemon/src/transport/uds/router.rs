@@ -315,6 +315,39 @@ mod tests {
     }
 
     #[test]
+    fn test_route_versioned_ingest() {
+        let envelope = brain_integrations::IngestionEnvelope {
+            event: brain_integrations::IngestionEvent::Text {
+                content: "versioned ingestion".to_string(),
+                metadata: std::collections::BTreeMap::new(),
+            },
+            event_model_version: "1.0".to_string(),
+            identity: brain_integrations::EventIdentity {
+                event_id: brain_domain::EventId::new(),
+                parent_event_id: None,
+                workspace_id: brain_domain::WorkspaceId::new("router-test"),
+                client_id: brain_domain::ClientId::new("router-test"),
+                adapter_id: brain_domain::AdapterId::new("router-test"),
+                session_id: brain_domain::SessionId::new(),
+                conversation_id: None,
+                timestamp: chrono::Utc::now(),
+            },
+        };
+        let body = serde_json::to_string(&envelope).expect("serialize v1 ingestion envelope");
+        let req = make_versioned("v1/ingest", &body);
+        let res = ProtocolRouter::route(&req).unwrap().unwrap();
+        match res {
+            ApplicationRequest::Ingest(envelope) => match envelope.event {
+                brain_integrations::IngestionEvent::Text { content, .. } => {
+                    assert_eq!(content, "versioned ingestion");
+                }
+                _ => panic!("expected text ingestion event"),
+            },
+            _ => panic!("Expected ApplicationRequest::Ingest"),
+        }
+    }
+
+    #[test]
     fn test_route_versioned_replay() {
         let req = make_versioned("v1/replay", "42");
         let res = ProtocolRouter::route(&req).unwrap().unwrap();

@@ -17,12 +17,11 @@ impl EvidenceSelector {
 
     /// Evaluates an `EvidenceQuery` against an `ArtifactStore` in pure functional manner.
     pub fn select(&self, store: &ArtifactStore, query: &EvidenceQuery) -> EvidenceSet {
-        let set_ids = self.evaluate_strategy(store, &query.strategy);
+        let set_ids = Self::evaluate_strategy(store, &query.strategy);
         EvidenceSet::new(set_ids, query.strategy.clone())
     }
 
     fn evaluate_strategy(
-        &self,
         store: &ArtifactStore,
         strategy: &SelectionStrategy,
     ) -> BTreeSet<EvidenceArtifactId> {
@@ -41,19 +40,19 @@ impl EvidenceSelector {
                 store.ancestors(*target_id).into_iter().collect()
             }
             SelectionStrategy::Union(left, right) => {
-                let mut set_a = self.evaluate_strategy(store, left);
-                let set_b = self.evaluate_strategy(store, right);
+                let mut set_a = Self::evaluate_strategy(store, left);
+                let set_b = Self::evaluate_strategy(store, right);
                 set_a.extend(set_b);
                 set_a
             }
             SelectionStrategy::Intersection(left, right) => {
-                let set_a = self.evaluate_strategy(store, left);
-                let set_b = self.evaluate_strategy(store, right);
+                let set_a = Self::evaluate_strategy(store, left);
+                let set_b = Self::evaluate_strategy(store, right);
                 set_a.intersection(&set_b).copied().collect()
             }
             SelectionStrategy::Difference(left, right) => {
-                let set_a = self.evaluate_strategy(store, left);
-                let set_b = self.evaluate_strategy(store, right);
+                let set_a = Self::evaluate_strategy(store, left);
+                let set_b = Self::evaluate_strategy(store, right);
                 set_a.difference(&set_b).copied().collect()
             }
         }

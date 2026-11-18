@@ -4,7 +4,7 @@ This document outlines the high-level roadmap and architectural direction for th
 
 ---
 
-## 🎯 Version 1.0 (Current Release - Stable Core)
+## 🎯 Version 1.0 (Stable Core)
 
 - [x] **Composition Root**: `BrainRuntime` single authoritative composition root.
 - [x] **Storage Engine**: SQLite FTS5 lexical + vector BLOB hybrid search engine.
@@ -16,18 +16,22 @@ This document outlines the high-level roadmap and architectural direction for th
 
 ---
 
-## 🚀 Version 1.1 (Current Release - Retrieval & Knowledge Exploration)
+## 🚀 Version 1.1 (Retrieval, Runtime and First-Party Frontend)
 
-- [x] **Retrieval UI Projection Pipeline**: Sub-150ms debounce, localized cancellation ownership, stable selection invariant.
-- [x] **Knowledge Exploration Architecture**: synchronized graph/list projections, navigation session stack, explainability & provenance.
+- [x] **Scoped generation context**. Stored constraints take priority over query-dependent lexical, vector and graph candidates within per-turn budgets. The first-party adapter consumes allowlisted context metadata.
+- [x] **Native extraction and providers**. Runtime startup configures native heuristic and LLM extraction, chat providers and embeddings. Embedded Python remains a separate plugin integration.
+- [x] **Runtime composition**. Share engine and compiler state through the application facade, hydrate the compiler from storage, and coordinate application and engine shutdown.
+- [x] **Personalization evaluation**. Measure joint All-Facts Recall@K and hybrid complementarity on scoped fixture collections. The live generation context recognizes the same persisted constraint flags.
+- [x] **Fleet backend**. The daemon supports a foreground registration and requested snapshot API with durable pin ordering and groups.
+- Historical retrieval UI and knowledge exploration proposals are retained in the [architectural decision records](docs/architecture/README.md#architectural-decision-records-adrs).
 - [x] **Reasoning Reflection Pipeline**: Phase 6 reflection, candidate extraction, graph matching, and memory stewardship facade.
-- [ ] **Expanded Vector Indexing**: Support HNSW vector indexing for sub-millisecond similarity queries over >1M embeddings.
+- [ ] **Expanded Vector Indexing**: Support HNSW vector indexing and evaluate write-time projection caching for sub-millisecond similarity queries over more than one million embeddings.
 - [ ] **Multi-Session Isolation**: Fine-grained session namespace partitioning for concurrent workspace agents.
 - [ ] **SDK Package Distribution**:
   - Publish `@brain-engine/sdk` to npm.
   - Publish `brain-engine` to PyPI.
   - Publish `brain-sdk-rs` to crates.io.
-- [ ] **MCP Adapter Enhancement**: Full support for Model Context Protocol (MCP) tool call streaming & resource subscriptions.
+- [ ] **MCP adapter enhancement**. Add tool-call streaming and resource subscriptions, and verify deployed-peer interoperability.
 
 ---
 
@@ -45,7 +49,8 @@ This document outlines the high-level roadmap and architectural direction for th
 
 - [ ] **Distributed Consensus (Raft)**: Active-active multi-node replication across remote daemon instances.
 - [ ] **Dynamic Plugin Sandbox**: WASM-based plugin runtime for safe, sandboxed custom graph reflection passes.
-- [ ] **Self-Optimizing Indexing**: Machine-learning driven automated pruning and re-ranking based on retrieval telemetry.
+- [ ] **Self-optimizing indexing**. Evaluate learned pruning and re-ranking from retrieval telemetry.
+- [ ] **Retrieval of failed actions**. Evaluate using failed tool outcomes and reverted edits to reduce repeated actions across turns.
 
 ## Phase 6 release follow-through
 
@@ -55,4 +60,4 @@ This document outlines the high-level roadmap and architectural direction for th
 
 The maintainer's local Rust 1.99.1 toolchain path currently resolves through a symlink to stable Rust 1.100.0. The [distribution guide](docs/guides/product-distribution.md) distinguishes this local provenance from the CI pin.
 
-Native follow-through product source `8a6d020d` passed both platforms on 2026-11-18. [Exact acceptance evidence](docs/guides/product-distribution.md#phase-6-native-archive-acceptance--2026-11-18). Future roadmap features remain separate from this completed release-verification increment.
+Native follow-through product source `8a6d020d` passed both platforms on 2026-11-18. [Exact acceptance evidence](docs/guides/product-distribution.md#phase-6-native-archive-acceptance--2026-11-18). Every subsequent product candidate requires native verification of its own source and archives.

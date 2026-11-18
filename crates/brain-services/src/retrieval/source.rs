@@ -32,7 +32,7 @@ pub(crate) fn calculate_token_overlap_score(node: &brain_domain::Node, query: &s
 /// Short-term memory (STM) source querying the active session cache.
 pub struct StmMemorySource {
     cache_manager: Arc<SessionCacheManager>,
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     registry: Arc<brain_domain::RelationRegistry>,
 }
 
@@ -40,7 +40,7 @@ impl StmMemorySource {
     /// Creates a new StmMemorySource.
     pub fn new(
         cache_manager: Arc<SessionCacheManager>,
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         registry: Arc<brain_domain::RelationRegistry>,
     ) -> Self {
         Self {
@@ -161,14 +161,14 @@ impl MemorySource for StmMemorySource {
 
 /// Long-term memory (LTM) source querying the database.
 pub struct LtmMemorySource {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     registry: Arc<brain_domain::RelationRegistry>,
 }
 
 impl LtmMemorySource {
     /// Creates a new LtmMemorySource.
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         registry: Arc<brain_domain::RelationRegistry>,
     ) -> Self {
         Self { repos, registry }
@@ -345,7 +345,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
 /// Semantic memory source implementing high-dimensional vector similarity retrieval.
 pub struct SemanticMemorySource {
-    repos: Arc<dyn RepositorySet>,
+    repos: Arc<dyn RepositorySet + Send + Sync>,
     query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
     /// Metric tracking IVF activations.
     pub activation_count: std::sync::atomic::AtomicUsize,
@@ -358,7 +358,7 @@ pub struct SemanticMemorySource {
 impl SemanticMemorySource {
     /// Creates a new `SemanticMemorySource`.
     pub fn new(
-        repos: Arc<dyn RepositorySet>,
+        repos: Arc<dyn RepositorySet + Send + Sync>,
         query_embedding_service: Arc<dyn brain_core::retrieval::QueryEmbeddingService>,
     ) -> Self {
         Self {

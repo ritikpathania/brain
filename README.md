@@ -8,11 +8,11 @@
 
 **Brain** is a high-performance, stateful Relational Memory Engine designed to store, canonicalize, and query structured knowledge for autonomous coding agents and interactive console interfaces.
 
-Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domain Socket (UDS) IPC interface powering a native Terminal User Interface (TUI), Python SDK, and external agent adapters (MCP, ACP, A2A).
+Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domain Socket (UDS) IPC interface powering the first-party terminal frontend, Python, TypeScript and Rust SDKs, and the MCP, ACP and A2A adapters.
 
 ---
 
-## 🖥️ Terminal UI Preview
+## 🖥️ Historical Terminal UI Preview
 
 ![Brain Terminal UI Console](docs/assets/brain_tui_preview.png)
 
@@ -73,13 +73,15 @@ graph TD
     Launcher[brain ui] --> Frontend[First-party Brain terminal frontend]
     Frontend -->|Versioned UDS JSON| Daemon[brain-daemon]
     Client[CLI / SDKs / adapters] -->|UDS JSON| Daemon
-    Daemon -->|Direct Memory Calls| Runtime[BrainRuntime Composition Root]
+    Daemon --> App[BrainApplication]
+    App --> Runtime[BrainRuntime and ApplicationRuntime]
     
     subgraph Engine Core
         Runtime --> Storage[SqliteStorage Transaction Engine]
         Runtime --> Compiler[18-pass Knowledge Compiler across six phases]
         Runtime --> Projections[Search & Session Projections]
         Runtime --> Reflection[Background Reflection Engine]
+        Runtime --> Extraction[Native Rust extraction and model providers]
     end
     
     Storage --> SQLite[(SQLite FTS5 + Vector DB)]
@@ -87,28 +89,30 @@ graph TD
 
 ### System Layers
 1. **Presentation Layer (`packages/brain-frontend/`)**: First-party TypeScript terminal frontend. `brain ui` launches the standalone executable from a product bundle or the Bun source entry point from a development checkout.
-2. **IPC Daemon (`daemon/`)**: Non-blocking Unix Domain Socket daemon handling connection pools and schema validation.
-3. **Core Engine (`crates/brain-services/`)**: Authoritative runtime (`BrainRuntime`) backing SQLite persistence (`crates/brain-storage/`) and event dispatching (`crates/brain-events/`).
+2. **IPC Daemon (`daemon/`)**: Non-blocking Unix Domain Socket daemon handling capability negotiation, request validation, and streamed results.
+3. **Core Engine (`crates/brain-services/`)**: `BrainRuntime` owns SQLite persistence and event dispatch. `ApplicationRuntime` initializes configured extraction and model providers. `BrainApplication` exposes the capability facade.
 
 ---
 
 ## 💻 Code Usage Example
 
 ```bash
-PYO3_PYTHON=daemon/.venv/bin/python cargo run --example basic_usage -p brain-services
+cargo run --example basic_usage -p brain-services
 ```
 
 ```rust
 use brain_services::BrainRuntime;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize runtime with local SQLite database file
-    let runtime = BrainRuntime::new("~/.brain/brain.db")?;
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize the runtime with a SQLite database in the working directory.
+    let runtime = BrainRuntime::new("brain.db")?;
 
     // Capture point-in-time runtime diagnostics snapshot
     let snapshot = runtime.diagnostics_snapshot();
     println!("Runtime Status: {:?}", snapshot.health);
 
+    runtime.shutdown()?;
     Ok(())
 }
 ```
@@ -117,7 +121,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 📊 Benchmark Summary
 
-CI continuously benchmarks query latencies, ingestion throughput, and typewriter drain performance.
+The benchmark report records query, ingestion and terminal performance targets.
 
 > **Test Hardware Baseline**: Apple M-Series (ARM64) / x86_64 Linux (Ubuntu 24.04), Rust 1.99.1+.
 
@@ -133,7 +137,9 @@ CI continuously benchmarks query latencies, ingestion throughput, and typewriter
 
 * **[Documentation Index](docs/README.md)**: Main sitemap outlining all specifications and guides.
 * **[Installation Guide](docs/guides/installation.md)**: Extended setup and build options.
-* **[Architecture Specification](docs/architecture/overview.md)**: Deep dive into runtime lifecycle and components.
+* [System architecture](ARCHITECTURE.md) and [runtime overview](docs/architecture/overview.md) cover workspace topology and request lifecycles.
+* [Engineering guidelines](GUIDELINES.md) and [agent instructions](AGENTS.md) record development and verification practices.
+* The [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md) records regression guards and their tests.
 * **[IPC Wire Protocol Specification](docs/reference/protocol.md)**: UDS socket frames and JSON RPC protocol.
 * **[Release Checklist & Guide](docs/guides/release-checklist.md)**: Comprehensive release checklist and repository settings.
 
@@ -142,7 +148,7 @@ CI continuously benchmarks query latencies, ingestion throughput, and typewriter
 ## 🗺️ Roadmap
 
 - [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, and UDS IPC daemon. Historical TUI milestones and the current frontend transition are tracked separately in the roadmap.
-- [x] **v1.1.0**: Phase 2 Retrieval UI, Knowledge Exploration Experience & Reasoning Reflection Pipeline.
+- [x] **v1.1.0**: First-party terminal frontend, retrieval-backed context and the reflection pipeline.
 - [ ] **v2.0.0**: Active-active Raft distributed consensus & WASM plugin sandbox.
 
 See **[ROADMAP.md](ROADMAP.md)** for full milestone details.

@@ -129,6 +129,9 @@ pub(crate) struct RuntimeServiceLocator {
     pub plugin_manager: Option<Arc<PluginManager>>,
     pub streaming_runtime: Option<Arc<crate::agent::streaming::StreamingRuntime>>,
     pub brain_runtime: Option<Arc<crate::brain_runtime::BrainRuntime>>,
+    pub embedding_provider: Option<Arc<dyn brain_core::retrieval::EmbeddingProvider>>,
+    pub chat_agent: Option<Arc<dyn brain_core::agents::ChatAgent>>,
+    pub memory_extractor: Option<Arc<dyn brain_core::services::MemoryExtractor>>,
 }
 
 /// Unified composition root and lifecycle owner of the Brain Relational Engine.
@@ -197,27 +200,30 @@ impl HostContext for ApplicationRuntime {
                 message: "HostContext tool execution is invalid because ApplicationRuntime is not Running".to_string(),
             });
         }
-        let locator = self.service_locator.read();
-        let tool_executor =
-            locator
-                .tool_executor
-                .clone()
-                .ok_or_else(|| BrainError::Validation {
-                    message: "Tool executor not initialized".to_string(),
-                })?;
-        let tool_registry =
-            locator
-                .tool_registry
-                .clone()
-                .ok_or_else(|| BrainError::Validation {
-                    message: "Tool registry not initialized".to_string(),
-                })?;
+        let (tool_executor, tool) = {
+            let locator = self.service_locator.read();
+            let tool_executor =
+                locator
+                    .tool_executor
+                    .clone()
+                    .ok_or_else(|| BrainError::Validation {
+                        message: "Tool executor not initialized".to_string(),
+                    })?;
+            let tool_registry =
+                locator
+                    .tool_registry
+                    .clone()
+                    .ok_or_else(|| BrainError::Validation {
+                        message: "Tool registry not initialized".to_string(),
+                    })?;
 
-        let tool = tool_registry
-            .get_tool(tool_name)
-            .ok_or_else(|| BrainError::Validation {
-                message: format!("Tool '{}' not found", tool_name),
-            })?;
+            let tool = tool_registry
+                .get_tool(tool_name)
+                .ok_or_else(|| BrainError::Validation {
+                    message: format!("Tool '{}' not found", tool_name),
+                })?;
+            (tool_executor, tool)
+        };
 
         let context = ExecutionContext {
             session_id: *session_id,
@@ -237,13 +243,29 @@ impl HostContext for ApplicationRuntime {
             message: format!("Failed to get tokio handle: {}", e),
         })?;
 
-        tokio::task::block_in_place(|| {
-            handle.block_on(async {
-                tool_executor
-                    .execute(tool, &context, &permission_manager, arguments)
-                    .await
-            })
-        })
+        match handle.runtime_flavor() {
+            tokio::runtime::RuntimeFlavor::MultiThread => tokio::task::block_in_place(|| {
+                handle.block_on(async {
+                    tool_executor
+                        .execute(tool, &context, &permission_manager, arguments)
+                        .await
+                })
+            }),
+            _ => std::thread::scope(|s| {
+                s.spawn(|| {
+                    handle.block_on(async {
+                        tool_executor
+                            .execute(tool, &context, &permission_manager, arguments)
+                            .await
+                    })
+                })
+                .join()
+                .map_err(|e| BrainError::Tool {
+                    tool_name: tool_name.to_string(),
+                    message: format!("Tool execution thread panicked: {:?}", e),
+                })?
+            }),
+        }
     }
 }
 
@@ -349,6 +371,76 @@ impl ApplicationRuntime {
             })
     }
 
+    /// Exposes the active EmbeddingProvider.
+    pub fn embedding_provider(
+        &self,
+    ) -> Result<Arc<dyn brain_core::retrieval::EmbeddingProvider>, BrainError> {
+        if self.state() != RuntimeState::Running {
+            return Err(BrainError::InvalidTransition {
+                message: "Runtime is not in Running state".to_string(),
+            });
+        }
+        let locator = self.service_locator.read();
+        locator
+            .embedding_provider
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: "Embedding provider not initialized".to_string(),
+            })
+    }
+
+    /// Exposes the active ChatAgent.
+    pub fn chat_agent(&self) -> Result<Arc<dyn brain_core::agents::ChatAgent>, BrainError> {
+        if self.state() != RuntimeState::Running {
+            return Err(BrainError::InvalidTransition {
+                message: "Runtime is not in Running state".to_string(),
+            });
+        }
+        let locator = self.service_locator.read();
+        locator
+            .chat_agent
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: "Chat agent not initialized".to_string(),
+            })
+    }
+
+    /// Exposes the active MemoryExtractor.
+    pub fn memory_extractor(
+        &self,
+    ) -> Result<Arc<dyn brain_core::services::MemoryExtractor>, BrainError> {
+        if self.state() != RuntimeState::Running {
+            return Err(BrainError::InvalidTransition {
+                message: "Runtime is not in Running state".to_string(),
+            });
+        }
+        let locator = self.service_locator.read();
+        locator
+            .memory_extractor
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: "Memory extractor not initialized".to_string(),
+            })
+    }
+
+    /// Exposes the active ConversationManager.
+    pub fn conversation(
+        &self,
+    ) -> Result<Arc<dyn crate::conversation::ConversationManager>, BrainError> {
+        if self.state() != RuntimeState::Running {
+            return Err(BrainError::InvalidTransition {
+                message: "Runtime is not in Running state".to_string(),
+            });
+        }
+        let locator = self.service_locator.read();
+        locator
+            .conversation_manager
+            .clone()
+            .ok_or_else(|| BrainError::Validation {
+                message: "Conversation manager not initialized".to_string(),
+            })
+    }
+
     /// Aggregates active status across components and returns a diagnostic health report.
     pub fn health(&self) -> HealthReport {
         let mut components = BTreeMap::new();
@@ -373,11 +465,14 @@ impl ApplicationRuntime {
         components.insert("Storage".to_string(), storage_status);
 
         // 2. Python Health
+        #[cfg(feature = "python-plugins")]
         let python_status = if brain_python::check_python_health() {
             HealthStatus::Healthy
         } else {
             HealthStatus::Unhealthy
         };
+        #[cfg(not(feature = "python-plugins"))]
+        let python_status = HealthStatus::Healthy;
         components.insert("Python".to_string(), python_status);
 
         // 3. Plugins Health
@@ -426,6 +521,7 @@ impl ApplicationRuntime {
         let phases: Vec<Box<dyn StartupPhase>> = vec![
             Box::new(ConfigValidationPhase),
             Box::new(StorageMigrationPhase),
+            #[cfg(feature = "python-plugins")]
             Box::new(PythonInvariantPhase),
             Box::new(ToolRegistryPhase),
             Box::new(PluginScanningPhase),
@@ -507,9 +603,15 @@ impl ApplicationRuntime {
         locator.storage = None;
         locator.session_manager = None;
         locator.retrieval_service = None;
+        locator.conversation_manager = None;
         locator.tool_registry = None;
         locator.tool_executor = None;
         locator.plugin_manager = None;
+        locator.streaming_runtime = None;
+        locator.brain_runtime = None;
+        locator.embedding_provider = None;
+        locator.chat_agent = None;
+        locator.memory_extractor = None;
 
         *self.state.write() = RuntimeState::Stopped;
 
@@ -571,6 +673,9 @@ pub struct RuntimeBuilder {
     tool_executor: Option<Arc<ToolExecutor>>,
     plugin_manager: Option<Arc<PluginManager>>,
     brain_runtime: Option<Arc<crate::brain_runtime::BrainRuntime>>,
+    embedding_provider: Option<Arc<dyn brain_core::retrieval::EmbeddingProvider>>,
+    chat_agent: Option<Arc<dyn brain_core::agents::ChatAgent>>,
+    memory_extractor: Option<Arc<dyn brain_core::services::MemoryExtractor>>,
     observers: Vec<Arc<dyn RuntimeObserver>>,
 }
 
@@ -593,6 +698,9 @@ impl RuntimeBuilder {
             tool_executor: None,
             plugin_manager: None,
             brain_runtime: None,
+            embedding_provider: None,
+            chat_agent: None,
+            memory_extractor: None,
             observers: Vec::new(),
         }
     }
@@ -654,6 +762,30 @@ impl RuntimeBuilder {
         self
     }
 
+    /// Pre-injects a custom embedding provider.
+    pub fn with_embedding_provider(
+        mut self,
+        provider: Arc<dyn brain_core::retrieval::EmbeddingProvider>,
+    ) -> Self {
+        self.embedding_provider = Some(provider);
+        self
+    }
+
+    /// Pre-injects a custom chat agent.
+    pub fn with_chat_agent(mut self, agent: Arc<dyn brain_core::agents::ChatAgent>) -> Self {
+        self.chat_agent = Some(agent);
+        self
+    }
+
+    /// Pre-injects a custom memory extractor.
+    pub fn with_memory_extractor(
+        mut self,
+        extractor: Arc<dyn brain_core::services::MemoryExtractor>,
+    ) -> Self {
+        self.memory_extractor = Some(extractor);
+        self
+    }
+
     /// Registers a custom lifecycle callback observer.
     pub fn register_observer(mut self, observer: Arc<dyn RuntimeObserver>) -> Self {
         self.observers.push(observer);
@@ -690,6 +822,9 @@ impl RuntimeBuilder {
             plugin_manager: self.plugin_manager,
             streaming_runtime: None,
             brain_runtime: self.brain_runtime,
+            embedding_provider: self.embedding_provider,
+            chat_agent: self.chat_agent,
+            memory_extractor: self.memory_extractor,
         };
 
         let working_dir = self.working_dir.unwrap_or_else(|| PathBuf::from("."));
@@ -755,7 +890,9 @@ impl StartupPhase for StorageMigrationPhase {
     }
 }
 
+#[cfg(feature = "python-plugins")]
 struct PythonInvariantPhase;
+#[cfg(feature = "python-plugins")]
 impl StartupPhase for PythonInvariantPhase {
     fn name(&self) -> &'static str {
         "Python Invariant"
@@ -803,15 +940,29 @@ impl StartupPhase for PluginScanningPhase {
         if locator.plugin_manager.is_some() {
             return Ok(());
         }
-        let mut loaders: HashMap<LoaderKind, Box<dyn brain_plugins::PluginLoader>> = HashMap::new();
-        loaders.insert(
-            LoaderKind::Python,
-            Box::new(brain_python::loader::PythonPluginLoader)
-                as Box<dyn brain_plugins::PluginLoader>,
-        );
+        #[cfg(feature = "python-plugins")]
+        let loaders: HashMap<LoaderKind, Box<dyn brain_plugins::PluginLoader>> = {
+            let mut map = HashMap::new();
+            map.insert(
+                LoaderKind::Python,
+                Box::new(brain_python::loader::PythonPluginLoader)
+                    as Box<dyn brain_plugins::PluginLoader>,
+            );
+            map
+        };
+        #[cfg(not(feature = "python-plugins"))]
+        let loaders: HashMap<LoaderKind, Box<dyn brain_plugins::PluginLoader>> = HashMap::new();
+
         let manager = PluginManager::new(loaders);
-        let scanner = PluginScanner::new(vec![Box::new(brain_python::loader::PythonPluginLoader)
-            as Box<dyn brain_plugins::PluginLoader>]);
+
+        #[cfg(feature = "python-plugins")]
+        let scanner_loaders: Vec<Box<dyn brain_plugins::PluginLoader>> =
+            vec![Box::new(brain_python::loader::PythonPluginLoader)
+                as Box<dyn brain_plugins::PluginLoader>];
+        #[cfg(not(feature = "python-plugins"))]
+        let scanner_loaders: Vec<Box<dyn brain_plugins::PluginLoader>> = Vec::new();
+
+        let scanner = PluginScanner::new(scanner_loaders);
         let path = Path::new(runtime.config.plugins_directory());
         let installed = if path.exists() {
             scanner.scan_directory(path)?
@@ -841,6 +992,9 @@ impl StartupPhase for ServicesReadyPhase {
             && locator.retrieval_service.is_some()
             && locator.conversation_manager.is_some()
             && locator.streaming_runtime.is_some()
+            && locator.embedding_provider.is_some()
+            && locator.chat_agent.is_some()
+            && locator.memory_extractor.is_some()
         {
             return Ok(());
         }
@@ -850,48 +1004,152 @@ impl StartupPhase for ServicesReadyPhase {
             .ok_or_else(|| BrainError::Validation {
                 message: "Storage dependency missing for ServicesReadyPhase".to_string(),
             })?;
-        let session_manager = Arc::new(SessionCacheManager::new());
+        let session_manager = locator
+            .session_manager
+            .clone()
+            .unwrap_or_else(|| Arc::new(SessionCacheManager::new()));
         let registry = Arc::new(brain_domain::RelationRegistry::default_embedded());
+
+        let model_settings = runtime.config.models();
+
+        let embedding_provider = locator
+            .embedding_provider
+            .clone()
+            .or_else(|| crate::providers::embeddings::configured_provider(model_settings))
+            .unwrap_or_else(|| {
+                tracing::warn!(
+                    provider = ?model_settings.active_embedding_provider(),
+                    "Configured provider does not support embeddings"
+                );
+                Arc::new(brain_core::retrieval::NoopEmbeddingProvider)
+            });
+
+        let chat_agent: Arc<dyn brain_core::agents::ChatAgent> = match locator.chat_agent.clone() {
+            Some(agent) => agent,
+            None => {
+                use brain_config::schema::LlmProvider as ConfigLlm;
+                match model_settings.active_llm_provider() {
+                    ConfigLlm::Anthropic => {
+                        Arc::new(crate::providers::llm::AnthropicLlmProvider::new(
+                            "claude-3-5-sonnet-20240620",
+                        ))
+                    }
+                    ConfigLlm::Openai => {
+                        Arc::new(crate::providers::llm::OpenAiLlmProvider::new("gpt-4o-mini"))
+                    }
+                    ConfigLlm::Ollama => Arc::new(crate::providers::llm::OllamaLlmProvider::new(
+                        "llama3",
+                        "http://localhost:11434",
+                    )),
+                    ConfigLlm::Custom(name) if name.eq_ignore_ascii_case("anthropic") => {
+                        Arc::new(crate::providers::llm::AnthropicLlmProvider::new(
+                            "claude-3-5-sonnet-20240620",
+                        ))
+                    }
+                    ConfigLlm::Custom(name) if name.eq_ignore_ascii_case("openai") => {
+                        Arc::new(crate::providers::llm::OpenAiLlmProvider::new("gpt-4o-mini"))
+                    }
+                    ConfigLlm::Custom(name) if name.eq_ignore_ascii_case("ollama") => {
+                        Arc::new(crate::providers::llm::OllamaLlmProvider::new(
+                            "llama3",
+                            "http://localhost:11434",
+                        ))
+                    }
+                    ConfigLlm::Custom(name)
+                        if name.eq_ignore_ascii_case("dummy")
+                            || name.eq_ignore_ascii_case("noop") =>
+                    {
+                        tracing::warn!(
+                            "Custom dummy/noop LLM provider configured, using DummyChatAgent"
+                        );
+                        Arc::new(crate::conversation::DummyChatAgent)
+                    }
+                    ConfigLlm::Gemini => {
+                        tracing::warn!(
+                            "Unsupported Gemini LLM provider, falling back to DummyChatAgent"
+                        );
+                        Arc::new(crate::conversation::DummyChatAgent)
+                    }
+                    ConfigLlm::Custom(_) => {
+                        tracing::warn!(
+                            "Unsupported or unknown LLM provider, falling back to DummyChatAgent"
+                        );
+                        Arc::new(crate::conversation::DummyChatAgent)
+                    }
+                }
+            }
+        };
+
+        let memory_extractor: Arc<dyn brain_core::services::MemoryExtractor> =
+            match locator.memory_extractor.clone() {
+                Some(extractor) => extractor,
+                None => {
+                    let extractor_env = std::env::var("BRAIN_MEMORY_EXTRACTOR")
+                        .ok()
+                        .map(|v| v.to_ascii_lowercase());
+                    match extractor_env.as_deref() {
+                        Some("llm") => Arc::new(crate::extraction::LlmMemoryExtractor::new(
+                            chat_agent.clone(),
+                            format!("{}-extractor", chat_agent.name()),
+                        )),
+                        Some("dummy") | Some("noop") => {
+                            Arc::new(crate::conversation::DummyMemoryExtractor)
+                        }
+                        _ => Arc::new(crate::extraction::HeuristicExtractor::new()),
+                    }
+                }
+            };
+
         let query_embedding_service =
             locator.query_embedding_service.clone().unwrap_or_else(|| {
-                let default_provider = Arc::new(brain_core::retrieval::NoopEmbeddingProvider);
                 Arc::new(brain_core::retrieval::DefaultQueryEmbeddingService::new(
-                    default_provider,
+                    embedding_provider.clone(),
                 ))
             });
-        let retrieval_service = Arc::new(crate::retrieval::RetrievalServiceImpl::new_with_config(
-            storage.clone(),
-            &runtime.config,
-            session_manager.clone(),
-            registry.clone(),
-            query_embedding_service,
-        ));
-        let conversation_manager: Arc<dyn crate::conversation::ConversationManager> =
-            Arc::new(crate::conversation::ConversationManagerImpl::new(
+        let retrieval_service = locator.retrieval_service.clone().unwrap_or_else(|| {
+            Arc::new(crate::retrieval::RetrievalServiceImpl::new_with_config(
                 storage.clone(),
-                storage.clone(),
+                &runtime.config,
                 session_manager.clone(),
-                Arc::new(crate::conversation::WordSpaceTokenCounter),
-                Arc::new(crate::conversation::DummyMemoryExtractor),
-                Arc::new(crate::conversation::PromotionEngineImpl::new(
-                    crate::conversation::CountThresholdPromotionPolicy::new(5),
-                )),
-                Arc::new(crate::conversation::CountThresholdSummaryPolicy::new(10)),
-                Arc::new(crate::conversation::SqliteCheckpointStore::new(
+                registry.clone(),
+                query_embedding_service.clone(),
+            ))
+        });
+        let conversation_manager: Arc<dyn crate::conversation::ConversationManager> =
+            match locator.conversation_manager.clone() {
+                Some(cm) => cm,
+                None => Arc::new(crate::conversation::ConversationManagerImpl::new(
                     storage.clone(),
+                    storage.clone(),
+                    session_manager.clone(),
+                    Arc::new(crate::conversation::WordSpaceTokenCounter),
+                    memory_extractor.clone(),
+                    Arc::new(crate::conversation::PromotionEngineImpl::new(
+                        crate::conversation::CountThresholdPromotionPolicy::new(5),
+                    )),
+                    Arc::new(crate::conversation::CountThresholdSummaryPolicy::new(10)),
+                    Arc::new(crate::conversation::SqliteCheckpointStore::new(
+                        storage.clone(),
+                    )),
+                    retrieval_service.clone(),
+                    chat_agent.clone(),
+                    None,
+                    registry,
                 )),
-                retrieval_service.clone(),
-                Arc::new(crate::conversation::DummyChatAgent),
-                None,
-                registry,
-            ));
-        let streaming_runtime = Arc::new(crate::agent::streaming::StreamingRuntime::new(Arc::new(
-            crate::agent::streaming::DefaultStreamEventMapper,
-        )));
+            };
+        let streaming_runtime = locator.streaming_runtime.clone().unwrap_or_else(|| {
+            Arc::new(crate::agent::streaming::StreamingRuntime::new(Arc::new(
+                crate::agent::streaming::DefaultStreamEventMapper,
+            )))
+        });
         locator.session_manager = Some(session_manager);
+        locator.query_embedding_service = Some(query_embedding_service);
         locator.retrieval_service = Some(retrieval_service);
         locator.conversation_manager = Some(conversation_manager);
         locator.streaming_runtime = Some(streaming_runtime);
+        locator.embedding_provider = Some(embedding_provider);
+        locator.chat_agent = Some(chat_agent);
+        locator.memory_extractor = Some(memory_extractor);
         Ok(())
     }
     fn rollback(&self, runtime: &ApplicationRuntime) -> Result<(), BrainError> {
@@ -900,6 +1158,9 @@ impl StartupPhase for ServicesReadyPhase {
         locator.retrieval_service = None;
         locator.conversation_manager = None;
         locator.streaming_runtime = None;
+        locator.embedding_provider = None;
+        locator.chat_agent = None;
+        locator.memory_extractor = None;
         Ok(())
     }
 }

@@ -13,8 +13,8 @@ fn main() {
         for framework_dir in candidate_framework_dirs {
             let p = Path::new(framework_dir);
             if p.exists() {
-                println!("cargo:rustc-link-search=framework={}", framework_dir);
-                println!("cargo:rustc-link-arg=-Wl,-rpath,{}", framework_dir);
+                println!("cargo:rustc-link-search=framework={framework_dir}");
+                println!("cargo:rustc-link-arg=-Wl,-rpath,{framework_dir}");
 
                 let versions_dir = p.join("Python3.framework").join("Versions");
                 if versions_dir.exists() {

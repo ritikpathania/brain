@@ -1,0 +1,83 @@
+# Nextest configuration for the brain workspace.
+#
+# Test classification tiers:
+#   - Normal integration tests:  default 60s slow-timeout warning, run in parallel
+#   - Operational / soak tests:  "brain-soak" test group — full 1,020-turn UDS/SQLite pipeline.
+#                                Optimized pipeline runs in ~2.1s (debug), ~0.32s (release).
+#   - ML evaluation tests:       "brain-eval" test group — full 5-fold LambdaMART + calibration.
+#                                Expected ~6s (debug), ~1s (release).
+#
+# Timing reference (measured post-optimization 2026-08-22):
+#   test_operational_1000_turn_soak_with_rss_stability   debug=2.05s   release=0.32s
+#   test_5_fold_cross_validation_evaluation              debug=6.06s   release=1.08s
+
+# ---------------------------------------------------------------------------
+# Test group definitions (global — must appear exactly once)
+# ---------------------------------------------------------------------------
+# brain-soak: serialised because the soak test holds a UDS socket and the
+# SQLite connection pool for the entire duration. Parallelism would cause
+# port/lock contention.
+[test-groups.brain-soak]
+max-threads = 1
+
+# brain-eval: ML eval is CPU-bound; cap at 1 concurrent for predictable
+# resource consumption during evaluation runs.
+[test-groups.brain-eval]
+max-threads = 1
+
+# ---------------------------------------------------------------------------
+# Default profile
+# ---------------------------------------------------------------------------
+[profile.default]
+# Standard slow-test warning for ordinary tests (nextest default = 60s).
+slow-timeout = { period = "60s" }
+
+# Operational / soak test override:
+# Raises the slow-test threshold so a ~90s soak run is NOT flagged as stalled.
+# Assigns the test to the brain-soak group for serialised execution.
+[[profile.default.overrides]]
+filter = 'test(test_operational_1000_turn_soak_with_rss_stability)'
+slow-timeout = { period = "180s", terminate-after = 2 }
+test-group = "brain-soak"
+
+# ML evaluation test override:
+# Raises the slow-test threshold to accommodate debug-build runtimes.
+[[profile.default.overrides]]
+filter = 'test(test_5_fold_cross_validation_evaluation)'
+slow-timeout = { period = "120s", terminate-after = 2 }
+test-group = "brain-eval"
+
+# ---------------------------------------------------------------------------
+# CI profile -- fast gate for normal developer iteration
+# ---------------------------------------------------------------------------
+# Usage:  cargo nextest run --profile ci
+#
+# Excludes soak and ML evaluation tests entirely.
+# Run them explicitly with:
+#   cargo nextest run --profile soak
+#   cargo nextest run --profile eval
+[profile.ci]
+slow-timeout = { period = "60s" }
+default-filter = 'not (test(test_operational_1000_turn_soak_with_rss_stability) | test(test_5_fold_cross_validation_evaluation))'
+
+# ---------------------------------------------------------------------------
+# Soak profile -- explicit operational qualification run
+# ---------------------------------------------------------------------------
+[profile.soak]
+slow-timeout = { period = "180s", terminate-after = 2 }
+default-filter = 'test(test_operational_1000_turn_soak_with_rss_stability)'
+
+[[profile.soak.overrides]]
+filter = 'test(test_operational_1000_turn_soak_with_rss_stability)'
+test-group = "brain-soak"
+
+# ---------------------------------------------------------------------------
+# Eval profile -- explicit ML evaluation run
+# ---------------------------------------------------------------------------
+[profile.eval]
+slow-timeout = { period = "120s", terminate-after = 2 }
+default-filter = 'test(test_5_fold_cross_validation_evaluation)'
+
+[[profile.eval.overrides]]
+filter = 'test(test_5_fold_cross_validation_evaluation)'
+test-group = "brain-eval"

@@ -10,14 +10,14 @@ use std::sync::Arc;
 /// Concrete implementation of `SessionQueryService` backing by Sqlite projection read models and core session store.
 pub struct SqliteSessionQueryService {
     projection_repo: Arc<SqliteSessionReadModelRepository>,
-    session_repo: Arc<dyn SessionRepository>,
+    session_repo: Arc<dyn SessionRepository + Send + Sync>,
 }
 
 impl SqliteSessionQueryService {
     /// Creates a new `SqliteSessionQueryService` instance.
     pub fn new(
         projection_repo: Arc<SqliteSessionReadModelRepository>,
-        session_repo: Arc<dyn SessionRepository>,
+        session_repo: Arc<dyn SessionRepository + Send + Sync>,
     ) -> Self {
         Self {
             projection_repo,

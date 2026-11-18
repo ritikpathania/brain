@@ -23,8 +23,8 @@ pub enum MemoryScope {
 impl std::fmt::Display for MemoryScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Session(id) => write!(f, "session:{}", id),
-            Self::Workspace(w) => write!(f, "workspace:{}", w),
+            Self::Session(id) => write!(f, "session:{id}"),
+            Self::Workspace(w) => write!(f, "workspace:{w}"),
             Self::Global => write!(f, "global"),
         }
     }

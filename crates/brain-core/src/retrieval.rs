@@ -185,7 +185,7 @@ pub trait EmbeddingLookup: Send + Sync {
     fn lookup(&self, node_id: &brain_domain::NodeId) -> Result<Option<Vec<f32>>, BrainError>;
 }
 
-impl<T: crate::repositories::RepositorySet + ?Sized> EmbeddingLookup for T {
+impl<T: crate::repositories::RepositorySet + Send + Sync + ?Sized> EmbeddingLookup for T {
     fn lookup(&self, node_id: &brain_domain::NodeId) -> Result<Option<Vec<f32>>, BrainError> {
         self.embeddings()
             .find_by_node_id(node_id)

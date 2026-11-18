@@ -8,6 +8,9 @@
 
 ## Directory Index
 
+* [Root architecture](../ARCHITECTURE.md), [engineering guidelines](../GUIDELINES.md), [roadmap](../ROADMAP.md), and [invariant ledger](../REGRESSION-PREVENTION-AND-INVARIANTS.md) provide entry points for maintainers.
+* [Phase designs and verification records](designs/README.md) record product transitions and release acceptance.
+
 *   **[subsystems/](subsystems/README.md)**: **Workflow-Oriented Subsystem Navigation Hubs** (Storage, Compiler, Retrieval, TUI, Protocol, Plugins).
 *   **[architecture/](architecture/README.md)**: Enduring core architectural overview, invariants, capability concepts, and runtime designs.
     *   **[overview.md](architecture/overview.md)**: The canonical system layout and request life cycle walkthrough.

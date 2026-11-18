@@ -38,7 +38,7 @@ impl EventStore for InMemoryEventStore {
         let mut envs = self
             .envelopes
             .lock()
-            .map_err(|e| format!("Lock error: {}", e))?;
+            .map_err(|e| format!("Lock error: {e}"))?;
         envs.push(envelope);
         Ok(())
     }

@@ -33,7 +33,8 @@ rfcs:
 The Plugin subsystem allows developers to extend Brain's memory engine with custom Python or Rust semantic extractors, LLM providers, and storage exporters.
 
 ## 2. Responsibilities
-- Manages the embedded Python runtime via PyO3 / Maturin FFI boundaries.
+- Provides native Rust trait contracts (`crates/brain-plugins`) for custom extractors, tools, LLM providers, and storage backends.
+- The `brain-services` crate integrates the PyO3 plugin bridge through its `python-plugins` feature. Built-in heuristic extraction and chat and embedding providers run in Rust. The daemon enables that feature. The [distribution guide](../guides/product-distribution.md) describes the supported packaged CPython runtime.
 - Loads dynamic plugin modules from `~/.brain/plugins/`.
 - Executes custom `LlmProvider` and `StorageBackend` trait implementations.
 
@@ -47,7 +48,7 @@ The Plugin subsystem allows developers to extend Brain's memory engine with cust
  ┌────────────────────────────────────────────────────────┐
  │                   Brain Runtime (Rust)                  │
  └───────────────────────────┬────────────────────────────┘
-                             │ PyO3 / Maturin FFI Boundary
+                             │ PyO3 FFI Boundary
                              ▼
  ┌────────────────────────────────────────────────────────┐
  │                Embedded Python Subsystem               │
@@ -71,7 +72,7 @@ The Plugin subsystem allows developers to extend Brain's memory engine with cust
 - [`sdks/python`](../../sdks/python/README.md): Python client SDK and plugin authoring tools.
 
 ## 8. Implementation Notes
-- Plugins are built using Maturin and PyO3 version `>= 0.21`.
+- The embedded bridge is built through the Rust workspace using PyO3; the daemon's Python dependencies are synchronized with `uv sync --frozen`.
 
 ## 9. Canonical References
 - [`docs/reference/plugin-api.md`](../reference/plugin-api.md): Canonical Python plugin API specification.

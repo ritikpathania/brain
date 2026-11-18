@@ -68,7 +68,7 @@ impl PluginRegistry {
         let id = installed.manifest.id();
         if self.plugins.contains_key(&id) {
             return Err(BrainError::InvalidTransition {
-                message: format!("Plugin ID {} is already registered", id),
+                message: format!("Plugin ID {id} is already registered"),
             });
         }
         self.plugins.insert(
@@ -123,7 +123,7 @@ impl PluginScanner {
     pub fn scan_directory(&self, plugins_dir: &Path) -> Result<Vec<InstalledPlugin>, BrainError> {
         let mut discovered = Vec::new();
         let read_dir = std::fs::read_dir(plugins_dir).map_err(|e| BrainError::Storage {
-            message: format!("Failed to read plugins directory: {}", e),
+            message: format!("Failed to read plugins directory: {e}"),
             source: Some(Box::new(e)),
         })?;
 
@@ -187,7 +187,7 @@ impl PluginManager {
         let inst = {
             let mut reg = self.registry.write();
             let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found in registry", id),
+                message: format!("Plugin {id} not found in registry"),
             })?;
             if managed.active_instance.is_none() {
                 let loader = self
@@ -214,13 +214,13 @@ impl PluginManager {
         let inst = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             managed
                 .active_instance
                 .clone()
                 .ok_or_else(|| BrainError::InvalidTransition {
-                    message: format!("Plugin {} is not loaded", id),
+                    message: format!("Plugin {id} is not loaded"),
                 })?
         };
         let res = inst.inner.write().initialize();
@@ -231,13 +231,13 @@ impl PluginManager {
         let inst = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             managed
                 .active_instance
                 .clone()
                 .ok_or_else(|| BrainError::InvalidTransition {
-                    message: format!("Plugin {} is not loaded", id),
+                    message: format!("Plugin {id} is not loaded"),
                 })?
         };
         let res = inst.inner.write().activate();
@@ -248,13 +248,13 @@ impl PluginManager {
         let inst = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             managed
                 .active_instance
                 .clone()
                 .ok_or_else(|| BrainError::InvalidTransition {
-                    message: format!("Plugin {} is not loaded", id),
+                    message: format!("Plugin {id} is not loaded"),
                 })?
         };
         let res = inst.inner.write().suspend();
@@ -265,13 +265,13 @@ impl PluginManager {
         let inst = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             managed
                 .active_instance
                 .clone()
                 .ok_or_else(|| BrainError::InvalidTransition {
-                    message: format!("Plugin {} is not loaded", id),
+                    message: format!("Plugin {id} is not loaded"),
                 })?
         };
         let res = inst.inner.write().resume();
@@ -282,13 +282,13 @@ impl PluginManager {
         let inst = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             managed
                 .active_instance
                 .clone()
                 .ok_or_else(|| BrainError::InvalidTransition {
-                    message: format!("Plugin {} is not loaded", id),
+                    message: format!("Plugin {id} is not loaded"),
                 })?
         };
         let res = inst.inner.write().unload();
@@ -299,7 +299,7 @@ impl PluginManager {
         let (descriptor, maybe_handle) = {
             let reg = self.registry.read();
             let managed = reg.get(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found", id),
+                message: format!("Plugin {id} not found"),
             })?;
             (managed.installed.clone(), managed.active_instance.clone())
         };
@@ -363,7 +363,7 @@ impl PluginManager {
         let mut old_plugin = {
             let mut reg = self.registry.write();
             let managed = reg.get_mut(id).ok_or_else(|| BrainError::Validation {
-                message: format!("Plugin {} not found during swap", id),
+                message: format!("Plugin {id} not found during swap"),
             })?;
             let is_unloaded = managed
                 .active_instance

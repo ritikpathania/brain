@@ -422,8 +422,12 @@ pub struct ProductionCorpusBuilder;
 impl ProductionCorpusBuilder {
     /// Builds and returns the complete deterministic production evaluation corpus.
     pub fn build() -> Result<ProductionCorpus, BrainError> {
-        let test_storage = brain_storage::TestStorage::new();
-        let storage = Arc::new(test_storage.storage().clone());
+        let temp_db =
+            std::env::temp_dir().join(format!("brain_prod_corpus_{}.db", uuid::Uuid::new_v4()));
+        let db_path = temp_db.to_str().ok_or_else(|| BrainError::Internal {
+            message: "Invalid temp dir path".to_string(),
+        })?;
+        let storage = Arc::new(SqliteStorage::new(db_path, 5, true)?);
 
         let mut corpus_nodes = Vec::new();
         let mut expected_map = HashMap::new();

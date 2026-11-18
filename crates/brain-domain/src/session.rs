@@ -182,7 +182,7 @@ impl ReasoningSession {
                 Ok(self)
             }
             (curr, trans) => Err(DomainError::ValidationError {
-                message: format!("Invalid stage transition {:?} from stage {}", trans, curr),
+                message: format!("Invalid stage transition {trans:?} from stage {curr}"),
                 rule_id: Some("VAL-SESS-004".to_string()),
             }),
         }

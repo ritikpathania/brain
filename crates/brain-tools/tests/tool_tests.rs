@@ -44,11 +44,27 @@ impl Tool for MockTool {
 
     fn execute(
         &self,
-        _context: &ExecutionContext,
+        context: &ExecutionContext,
         _arguments: &HashMap<String, serde_json::Value>,
     ) -> Result<ExecutionResult, BrainError> {
-        if self.delay_ms > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(self.delay_ms));
+        let started_at = std::time::Instant::now();
+        let delay = std::time::Duration::from_millis(self.delay_ms);
+        while started_at.elapsed() < delay {
+            if context.cancellation.is_cancelled() {
+                return Err(BrainError::Cancelled {
+                    message: format!("Execution of tool '{}' was cancelled", self.metadata.name),
+                });
+            }
+            if context
+                .deadline
+                .is_some_and(|deadline| std::time::Instant::now() >= deadline)
+            {
+                return Err(BrainError::Timeout {
+                    elapsed_ms: started_at.elapsed().as_millis() as u64,
+                    message: format!("Tool '{}' exceeded its deadline", self.metadata.name),
+                });
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
         }
         Ok(ExecutionResult::new(serde_json::Value::String(
             "success".to_string(),
@@ -209,4 +225,32 @@ async fn test_tool_cancellation() {
 
     assert!(res.is_err());
     assert!(matches!(res.err().unwrap(), BrainError::Cancelled { .. }));
+}
+
+#[test]
+fn test_permission_manager_clone_creates_independent_state() {
+    let base = PermissionManager::new();
+    assert!(!base.is_granted(Permission::Shell));
+
+    let clone = base.clone();
+    clone.grant(Permission::Shell);
+
+    // Clone has Shell permission, but base does NOT
+    assert!(clone.is_granted(Permission::Shell));
+    assert!(!base.is_granted(Permission::Shell));
+}
+
+#[test]
+fn test_permission_manager_scoped_with_isolates_grant() {
+    let base = PermissionManager::new();
+    assert!(!base.is_granted(Permission::Shell));
+    assert!(!base.is_granted(Permission::FilesystemRead));
+
+    let scoped = base.scoped_with([Permission::Shell]);
+    assert!(scoped.is_granted(Permission::Shell));
+    assert!(!scoped.is_granted(Permission::FilesystemRead));
+
+    // Base manager remains completely pristine
+    assert!(!base.is_granted(Permission::Shell));
+    assert!(!base.is_granted(Permission::FilesystemRead));
 }

@@ -323,6 +323,7 @@ impl ModelProvider for DeterministicMockProvider {
                 usage: TokenUsage {
                     input_tokens: 15,
                     output_tokens: total_output_tokens,
+                    ..Default::default()
                 },
             }));
         }
