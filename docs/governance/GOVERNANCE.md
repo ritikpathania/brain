@@ -35,10 +35,8 @@ applies_to: v0.8+ # version range constraint
 ### Frontmatter Exemption Matrix:
 The following document types are explicitly **exempt** from mandatory frontmatter:
 - Directory index pages (`README.md`)
-- Release notes (`release_notes_v1.md`)
-- Sprint reports and retrospectives
+- Release notes
 - Performance benchmark outputs and telemetry
-- Historical archives under `docs/archive/`
 - Authoring templates (`*_TEMPLATE.md`)
 - Generated API contract files
 
@@ -93,7 +91,7 @@ When relocating or replacing high-traffic root documents (such as `DESIGN.md` or
 
 ### Architectural Decision Records (ADRs)
 - Active ADRs reside under `docs/architecture/adr/`.
-- Historical or superseded ADRs reside under `docs/archive/historical/adrs/`.
+- Remove superseded ADRs from the current handbook after updating inbound links and preserving any rules still enforced in the code or tests. The previous text is available in Git history.
 - ADRs use strict sequential numbering: `ADR-010-domain-boundaries.md`.
 
 ### Requests for Comments (RFCs)
@@ -117,13 +115,10 @@ All active documentation in the repository must meet these automated quality tar
 
 | Metric | Target | Enforced Scope |
 | :--- | :---: | :--- |
-| **Active Broken Links** | **0** | All files outside `docs/archive/` |
+| **Active Broken Links** | **0** | Current handbook |
 | **Frontmatter Violations** | **0** | Normative specs under `architecture/`, `reference/`, `guides/`, `governance/` |
 | **Subsystem Violations** | **0** | Required mini-handbooks under `docs/subsystems/` |
 | **Invalid Code Snippets** | **0** | JSON code blocks in reference specifications |
 | **Duplicate Canonical Ownership** | **0** | Unique `canonical: true` claims across normative docs |
 | **Missing Crate READMEs** | **0** | All 25 Cargo workspace member crates & Python SDK |
-| **Active Orphan Documents** | **0** | Active documents outside `docs/archive/` |
-
-> *Note: Archive metrics under `docs/archive/` are informational to preserve historical context without blocking CI.*
-
+| **Active Orphan Documents** | **0** | Current handbook |

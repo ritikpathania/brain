@@ -96,7 +96,6 @@ The daemon also exposes Fleet registration, requested snapshots and preferences 
 
 ## 11. Related RFCs
 - [`RFC-003: IPC UDS Frame Codecs & Streaming Events Protocol`](../architecture/rfc/RFC-003.md)
-- [`RFC-007: Versioned Request Frames`](../architecture/rfc/RFC-007.md)
 
 ## 12. Operations
 - Prometheus metrics are served at `http://127.0.0.1:8080/metrics` by default. `BRAIN_HEALTH_PORT` overrides the port.

@@ -16,7 +16,7 @@ CI and `rust-toolchain.toml` select Rust 1.99.1. The maintainer host currently m
 
 ## Frontend boundaries
 
-The maintained frontend is `packages/brain-frontend`. Adapt protocol and state under the existing first-party presentation contracts. Frozen visual components, keybindings and oracle fixtures require explicit authorization to change. The retired shell and manual increment PTY scripts remain outside the tracked product tree. See the [Phase 6 acceptance plan](docs/designs/phase-6-legacy-frontend-retirement.md).
+The maintained frontend is `packages/brain-frontend`. Adapt protocol and state under the existing first-party presentation contracts. Frozen visual components, keybindings and oracle fixtures require explicit authorization to change. See the [frontend integration handbook](docs/subsystems/tui.md).
 
 Use the typed adapter and state layers for handshake, session hydration, stream correlation and reconnect. Preserve the allowlisted `metadata.brain_context` wire shape and the count-only context view. Fleet preferences and requester-relative snapshots belong to the backend contract.
 

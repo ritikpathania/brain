@@ -271,3 +271,17 @@
 - **Root cause**: The fixtures read `/dev/zero`, which the default policy does not grant. The commands reached an access error before producing oversized or sustained output.
 - **Invariant**: The truncation fixtures generate bounded and sustained output with Bash built-ins, so they cover both streams without granting new filesystem permissions.
 - **Regression test**: Run the `truncated` daemon unit tests inside the existing Linux sandbox and retain the full offline workspace gate.
+
+### 40. Packaging Tests Could Not Load the Managed CPython Library on Linux
+
+- **Symptom**: Ubuntu packaging failed before assembly. The daemon lifecycle tests could not load `libpython3.15.so.1.0` or open their test socket.
+- **Root cause**: The package script selected the uv-managed interpreter for compilation, but only the later frontend E2E step received the interpreter's shared library directory.
+- **Invariant**: The workspace gate and frontend E2E tests receive the managed CPython loader paths. The clean-extraction and relocation steps continue to exercise the archive's own runtime.
+- **Regression test**: The executable `package.sh` fixture in `packages/brain-frontend/tests/integration/releaseWorkflow.test.ts` checks both source-binary test stages and the assembly and relocation boundaries. CI runs the script on Linux and macOS.
+
+### 41. Retired Oracle Tests Broke Python Test Collection
+
+- **Symptom**: Pytest stopped during collection with `ModuleNotFoundError: oracle_parity_engine`.
+- **Root cause**: Two root test files depended on a helper removed with the legacy frontend. The files exercised only the retired shell comparator.
+- **Invariant**: Active frontend regressions live with the maintained frontend and its real-daemon gate. Clean checkouts collect active Python tests without restoring retired tools.
+- **Verification**: Run pytest collection on the maintained Python suites and run the frontend suite and real-daemon E2E gate.

@@ -1,8 +1,5 @@
-# Performance Benchmarks & Telemetry Reports
+# Performance benchmarks
 
-This directory contains execution latency reports, Criterion micro-benchmark data, and graph scaling telemetry for `brain`.
-
-## Benchmarks Index
-
-* **[benchmark_report.md](benchmark_report.md)**: Executive latency summary for short-term memory lookups, vector searches, hybrid retrieval, IPC parsing, and indexing throughput.
-* **[v0.8_graph_benchmarks.md](v0.8_graph_benchmarks.md)**: v0.8 Graph retrieval and consolidation benchmark report template.
+- Use the [graph benchmark template](graph_benchmarks.md) to measure retrieval, relationship expansion and projections.
+- Run `scripts/perf_runner.sh` to capture daemon startup latency, memory and idle CPU. Use `scripts/check_perf.py` to compare two reports collected under the same conditions.
+- Run `scripts/retrieval-check.sh` for the maintained retrieval regression baselines.

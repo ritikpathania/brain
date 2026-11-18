@@ -38,7 +38,6 @@ Start here to understand the structural design and guidelines:
 * **[SPECIFICATION.md](SPECIFICATION.md)** — Versioned system reference specification.
 * **[GLOSSARY.md](GLOSSARY.md)** — System glossary and domain vocabulary definitions.
 * **[FITNESS_TESTS.md](FITNESS_TESTS.md)** — Automated fitness test specification.
-* **[STABLE_UI_INVARIANTS.md](STABLE_UI_INVARIANTS.md)** — Historical native TUI structural invariants.
 * **[compatibility_policy.md](compatibility_policy.md)** — Versioning and compatibility matrix.
 * **[execution_platform_governance.md](execution_platform_governance.md)** — Execution platform governance rules.
 * **[runtime_api_stability.md](runtime_api_stability.md)** — API stability contract classification.
@@ -48,7 +47,7 @@ Start here to understand the structural design and guidelines:
 * **[contract-lifecycle.md](contract-lifecycle.md)** — Explanation of the DTO contract lifecycle.
 * **[GRAPH_SPEC.md](GRAPH_SPEC.md)** — Specification governing the Knowledge Graph schema and constraints.
 * **[relations.md](relations.md)** — Canonical design specification for relationship semantics and the declarative taxonomy.
-* **[rfc/](rfc/README.md)** — Requests for Comments (RFC-001 to RFC-012).
+* **[rfc/](rfc/README.md)** — Requests for Comments.
 
 ---
 
@@ -57,8 +56,6 @@ Start here to understand the structural design and guidelines:
 The core architectural decisions are recorded chronologically in the [ADR directory](adr).
 
 - [ADR-007 memory architecture proposal](ADR_MEMORY.md)
-- [ADR-027 retrieval UI projection pipeline](adr/ADR-027-retrieval-ui-projection-pipeline.md)
-- [ADR-028 knowledge exploration UI architecture](adr/ADR-028-knowledge-exploration-architecture.md)
 
 ### ADR Dependency Graph
 ```mermaid

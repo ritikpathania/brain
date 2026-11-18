@@ -11,8 +11,6 @@ applies_to: v1.1+
 
 This document lists the canonical quality checks and acceptance criteria required for releasing the Brain CLI, background UDS daemon, and first-party terminal frontend ([`packages/brain-frontend`](../../packages/brain-frontend)). Every release candidate must pass these automated and interactive verification gates before tag publication.
 
-> **Scope Note**: The legacy `packages/brain-shell` prototype and its 36 manual `scripts/ptySmokeInc*.py` scripts were retired in Phase 6 ([Phase 6 retirement record](../designs/phase-6-legacy-frontend-retirement.md)). All UI acceptance checks below apply strictly to the maintained first-party frontend (`packages/brain-frontend`) launched via `brain ui`.
-
 ---
 
 ## 1. Daemon Lifecycle, Handshake & Connection Recovery

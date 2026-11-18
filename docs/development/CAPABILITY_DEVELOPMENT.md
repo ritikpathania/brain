@@ -3,9 +3,8 @@
 > **One-line rule**: Every roadmap item is a user capability, not a framework addition.
 
 This document is the practical governance guide for the capability phase of the project.
-It lives alongside [ADR 0001](../adr/0001-tui-search-and-presentation-pipeline.md), which
-defines the architectural boundaries.  This document defines how new work is scoped,
-reviewed, and shipped within those boundaries.
+Use the [architecture invariants](../architecture/ARCHITECTURE_INVARIANTS.md) and
+[frontend integration handbook](../subsystems/tui.md) to scope and review work across current boundaries.
 
 ---
 
@@ -37,9 +36,8 @@ Framework work requires a stronger justification (see Rule 3).
 
 ### Rule 2 — Every capability identifies its primary pipeline stage
 
-The [five-stage pipeline](../adr/0001-tui-search-and-presentation-pipeline.md) already
-covers every foreseeable capability.  Each new capability must declare one **primary
-stage** — the stage whose contract it extends most directly.
+Identify which stage of the capability owns the new behavior. The daemon supplies
+retrieval and projection results. The first-party frontend owns presentation.
 
 ```
 Retrieval → Aggregation → Projection → Grouping → Rendering
@@ -83,8 +81,7 @@ An ADR is **not required** when a change:
 - Adds or updates behavioral tests
 - Refactors internals within a single stage without changing its public contract
 
-When in doubt: if the change would make the existing ADR 0001 diagram inaccurate,
-an ADR is required.  If the diagram remains accurate, it is not.
+Use the current architecture and interface contracts to decide whether an ADR is needed.
 
 ---
 
@@ -253,25 +250,3 @@ documents or passing tests alone.
 
 These metrics do not replace the E2E behavioral suite.  They complement it:
 the suite proves the contracts hold; the metrics prove the contracts matter.
-
----
-
-## 5. Relationship to ADR 0001
-
-This document governs **how** work is done within the boundaries that
-[ADR 0001](../adr/0001-tui-search-and-presentation-pipeline.md) defines.
-
-ADR 0001 defines:
-- What the stages are
-- What each stage owns
-- What each stage must not do
-- The governance trigger for changing those boundaries
-
-This document defines:
-- How capabilities are scoped and expressed
-- How capabilities are mapped to stages
-- What "done" looks like for a capability
-- When architectural review is and is not needed
-
-Neither document supersedes the other.  ADR 0001 is the architectural contract;
-this document is the development practice that preserves it.

@@ -39,7 +39,7 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 ## First-party terminal frontend verification
 
-Run `bun run typecheck` and `bun run test` in `packages/brain-frontend` for changes to the first-party TUI. Run `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries to verify the real-daemon workflow, including keyboard interaction and native launch. Measure frame draw latency and memory footprint when changing terminal presentation. The [historical shell verification guide](docs/development/BRAIN_SHELL_VERIFICATION_GATES.md) identifies the retired oracle and reproduction inputs.
+Run `bun run typecheck` and `bun run test` in `packages/brain-frontend` for changes to the first-party TUI. Run `scripts/verify-frontend-e2e.sh` with explicit CLI and daemon binaries to verify the real-daemon workflow, including keyboard interaction and native launch. Measure frame draw latency and memory footprint when changing terminal presentation. See the [frontend integration handbook](docs/subsystems/tui.md).
 
 ## Frontend and backend boundaries
 

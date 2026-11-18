@@ -1,4 +1,4 @@
-# v0.8 Graph Capability Benchmark Report
+# Graph Capability Benchmark Template
 
 > **Status**: Template — run `cargo bench -p brain-services --bench graph_benchmarks` to
 > populate the tables below.
@@ -7,7 +7,7 @@
 
 ## Overview
 
-v0.8 introduced four graph-related capabilities to the brain retrieval pipeline:
+This suite measures four graph capabilities in the retrieval pipeline:
 
 | Capability | Code path |
 |---|---|
@@ -36,8 +36,8 @@ cargo bench -p brain-services --bench graph_benchmarks -- cluster_projector
 cargo bench -p brain-services --bench graph_benchmarks -- temporal_projection
 
 # Save and compare baselines
-cargo bench -p brain-services --bench graph_benchmarks -- --save-baseline v0.8
-cargo bench -p brain-services --bench graph_benchmarks -- --baseline v0.8
+cargo bench -p brain-services --bench graph_benchmarks -- --save-baseline reference
+cargo bench -p brain-services --bench graph_benchmarks -- --baseline reference
 ```
 
 Criterion HTML reports: `target/criterion/`
@@ -244,6 +244,6 @@ Expected: O(E_temporal) linear; Historical slightly slower due to larger active 
 A **>20% regression** in p99 latency should be investigated before merging:
 
 ```bash
-cargo bench -p brain-services --bench graph_benchmarks -- --save-baseline v0.8
-cargo bench -p brain-services --bench graph_benchmarks -- --baseline v0.8
+cargo bench -p brain-services --bench graph_benchmarks -- --save-baseline reference
+cargo bench -p brain-services --bench graph_benchmarks -- --baseline reference
 ```

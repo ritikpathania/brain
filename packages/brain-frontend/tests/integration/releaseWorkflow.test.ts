@@ -198,7 +198,7 @@ exit 83
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('local packaging supplies standalone Python loader paths only to pre-package frontend E2E', () => {
+test('local packaging supplies standalone Python loader paths only to source-binary tests', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'bfp loader paths ')));
   try {
     for (const prior of [
@@ -216,7 +216,11 @@ test('local packaging supplies standalone Python loader paths only to pre-packag
       writeFileSync(join(runRoot, 'daemon/.venv/bin/python'), '#!/bin/bash\nprintf "%s\\n" "$RELEASE_LIBRARY"\n', { mode: 0o755 });
       writeFileSync(bashEnv, `
 rustc() { printf 'host: x86_64-unknown-linux-gnu\\n'; }
-cargo() { :; }
+cargo() {
+  if [[ "$*" == 'xtask verify' ]]; then
+    printf '%s\\n' "\${LD_LIBRARY_PATH-}" "\${DYLD_FALLBACK_LIBRARY_PATH-}" > "$RELEASE_GATE_PATHS"
+  fi
+}
 bun() { :; }
 mktemp() { command mktemp -d "$RELEASE_ROOT/staging.XXXXXX"; }
 if [[ -n "$RELEASE_PRIOR_LD" ]]; then
@@ -259,15 +263,17 @@ if (stage === 'verify-brain-product.sh') {
       }
       const run = Bun.spawnSync(['bash', join(runRoot, 'package.sh')], {
         env: { ...process.env, BASH_ENV: bashEnv, RELEASE_ROOT: runRoot,
-          RELEASE_TRACE: trace, RELEASE_LIBRARY: libraryDir,
+          RELEASE_TRACE: trace, RELEASE_LIBRARY: libraryDir, RELEASE_GATE_PATHS: join(runRoot, 'gate paths'),
           RELEASE_PRIOR_LD: prior.ld, RELEASE_PRIOR_DYLD: prior.dyld,
           CARGO_ENCODED_RUSTFLAGS: '', RUSTFLAGS: '' },
       });
       expect({ exit: run.exitCode, stderr: run.stderr.toString() }).toEqual({ exit: 0, stderr: '' });
+      const ld = prior.ld ? `${libraryDir}:${prior.ld}` : libraryDir;
+      const dyld = prior.dyld ? `${libraryDir}:${prior.dyld}` : libraryDir;
+      expect(readFileSync(join(runRoot, 'gate paths'), 'utf8')).toBe(`${ld}\n${dyld}\n`);
       const stages = readFileSync(trace, 'utf8').trim().split('\n').map(line => JSON.parse(line));
       expect(stages).toEqual([
-        { stage: 'verify-frontend-e2e.sh', ld: prior.ld ? `${libraryDir}:${prior.ld}` : libraryDir,
-          dyld: prior.dyld ? `${libraryDir}:${prior.dyld}` : libraryDir },
+        { stage: 'verify-frontend-e2e.sh', ld, dyld },
         ...['verify-frontend-artifact.sh', 'package-brain-product.sh', 'verify-daemon-runtime.sh',
           'verify-brain-product.sh'].map(stage => ({ stage, ld: prior.ld || null, dyld: prior.dyld || null })),
       ]);

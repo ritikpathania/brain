@@ -12,6 +12,7 @@ Thumbs.db
 
 # Large precompiled binaries or tarballs
 brain-darwin-arm64.tar.gz
+/brain-*.tar.gz.sha256
 *.tar.gz
 *.zip
 *.tar
@@ -84,6 +85,10 @@ cli/bin/brain_tui
 # Test Outputs & Run Captures
 cli/tests/captures/
 cli/tests/rigorous_test_results.json
+/qa/reports/soak_report.md
+/qa/reports/telemetry.json
+/qa/reports/usability_report.md
+/qa/reports/validation_report.md
 
 # Generated contract artifacts
 docs-*.json

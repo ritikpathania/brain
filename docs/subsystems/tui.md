@@ -36,7 +36,7 @@ Brain CLI and services
   → first-party Brain terminal presentation
 ```
 
-The CLI first honors an explicit development override in `BRAIN_FRONTEND_ROOT`. Otherwise it checks for a validated product bundle next to the canonical CLI binary and then resolves `packages/brain-frontend` from the repository containing the executable. The selected frontend directory becomes the child working directory. Phase 6 retired the legacy shell from the product checkout. [Legacy preservation and recovery](../development/BRAIN_SHELL_VERIFICATION_GATES.md)
+The CLI first honors an explicit development override in `BRAIN_FRONTEND_ROOT`. Otherwise it checks for a validated product bundle next to the canonical CLI binary and then resolves `packages/brain-frontend` from the repository containing the executable. The selected frontend directory becomes the child working directory.
 
 ## Responsibilities
 

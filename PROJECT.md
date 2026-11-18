@@ -1,31 +1,12 @@
 # Brain project execution
 
-## Phase 6 legacy frontend retirement
+Use the [architecture overview](docs/architecture/overview.md) for workspace boundaries and the [roadmap](ROADMAP.md) for planned work.
 
-The first-party CLI and release contract is recorded in the [architecture overview](docs/architecture/overview.md) and the [Phase 6 design and acceptance plan](docs/designs/phase-6-legacy-frontend-retirement.md).
-
-| Work | Owner | Scope |
+| Area | Maintained contract | Verification |
 | --- | --- | --- |
-| Preservation and retirement | Phase 6 implementer | Private preservation receipt, `packages/brain-shell`, and `scripts/ptySmokeInc*.py` |
-| Current frontend verification and handbook | Phase 6 implementer | `packages/brain-frontend/tests/integration/frontendCi.test.ts`, roadmap, and active frontend documentation |
-| Independent verification | Phase 6 reviewer | Read-only candidate diff, historical recovery paths, and acceptance evidence |
+| Runtime, storage and retrieval | `BrainRuntime` owns engine composition. `ApplicationRuntime` wires startup and `BrainApplication` exposes the application interface. The daemon serves versioned UDS contracts. Retrieval prioritizes stored constraints within scoped context budgets. | `cargo xtask verify`, plus the [retrieval baseline suite](docs/subsystems/retrieval.md) for ranking changes. |
+| Terminal frontend | The first-party frontend owns presentation and consumes typed daemon contracts through its adapter. | Frontend typecheck and tests, then the [real-daemon E2E gate](docs/subsystems/tui.md). |
+| SDKs and protocol adapters | SDKs consume the versioned contracts. Transport adapters use the shared application interface. | SDK tests and workspace contract verification. |
+| Product delivery | Native packages verify their own CLI, daemon, standalone frontend and relocated Python runtime. | The [release checklist](docs/guides/release-checklist.md) requires exact-source archive verification. |
 
-## Phase 6 native release follow-through
-
-| Work | Owner | Exclusive files |
-| --- | --- | --- |
-| Ordinary CI consumer, invalid parent bridge command and executable regression | CI implementer | `.github/workflows/ci.yml`, `package.sh`, `packages/brain-frontend/tests/integration/frontendCi.test.ts`, `packages/brain-frontend/tests/integration/releaseWorkflow.test.ts` |
-| Scope, handbook and evidence | Root implementer | Phase 6 design, release and distribution guides, `GUIDELINES.md`, roadmap, invariant ledger and dead ends |
-| Independent acceptance review | Read-only reviewer | Candidate diff, existing frontend contracts and verification evidence |
-
-The native follow-through ran the workspace and frontend gates on the preserved Phase 6 baseline. GitHub verified the exact candidate on Linux and macOS, and the [acceptance record](docs/guides/product-distribution.md#phase-6-native-archive-acceptance--2026-11-18) preserves the job URLs, source SHA, and archive digests. That run preceded the integration of the local provider and retrieval work.
-
-## Main branch consolidation
-
-| Work | Owner | Exclusive files |
-| --- | --- | --- |
-| Backend integration | Backend implementer | `apps/`, `crates/`, `daemon/`, `Cargo.lock`, `xtask/` |
-| Handbook reconciliation | Documentation implementer | Root handbook files other than `PROJECT.md`, `docs/`, and `qa/reports/` |
-| CI, verification and Git | Coordinator | `.github/`, `package.sh`, `packages/brain-frontend/tests/integration/`, `PROJECT.md`, snapshot and ref operations |
-
-The integrated tree keeps Phase 6's verified retirement and package fixes and incorporates the current Brain source and tests from the local checkout. Existing historical documents and QA captures remain available. The private oracle, research tree and generated files remain local. The combined tree must pass the offline workspace and frontend gates before `main` is pushed. Branch tips must be reachable from the published `main` before their refs are retired.
+Record fixes and their maintained checks in the [invariant ledger](REGRESSION-PREVENTION-AND-INVARIANTS.md).

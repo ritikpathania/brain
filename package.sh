@@ -49,7 +49,9 @@ echo "=== Brain Product Orchestrator ==="
 echo "Target: $target_triple"
 
 echo "Step 1: Running quality gates..."
-cargo xtask verify
+LD_LIBRARY_PATH="$python_library_directory${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    DYLD_FALLBACK_LIBRARY_PATH="$python_library_directory${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" \
+    cargo xtask verify
 cargo xtask docs all
 
 echo "Step 2: Checking first-party frontend..."

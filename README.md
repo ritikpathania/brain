@@ -12,12 +12,6 @@ Operating as a local background daemon (`brain-daemon`), it exposes a Unix Domai
 
 ---
 
-## 🖥️ Historical Terminal UI Preview
-
-![Brain Terminal UI Console](docs/assets/brain_tui_preview.png)
-
----
-
 ## ⚡ Quick Start
 
 From a checkout, complete the source setup below before running these commands.
@@ -45,7 +39,7 @@ Use the [development installation guide](docs/guides/installation.md#3-install-c
 
 ### Option B: Build from Source
 
-Install the repository Rust toolchain, uv, CPython 3.15.2, and Bun 1.4.4.
+Install the repository toolchain (Rust 1.99.1+), uv, CPython 3.15.2, and Bun 1.4.4.
 
 ```bash
 # Clone the repository
@@ -119,17 +113,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ---
 
-## 📊 Benchmark Summary
+## Performance benchmarks
 
-The benchmark report records query, ingestion and terminal performance targets.
-
-> **Test Hardware Baseline**: Apple M-Series (ARM64) / x86_64 Linux (Ubuntu 24.04), Rust 1.99.1+.
-
-* **Search Projection Latency**: Sub-millisecond read-model execution (`< 0.5 ms`).
-* **Ingestion Throughput**: High-rate transactional observation writes (`> 10,000 obs/sec`).
-* **Typewriter Frame Drain**: Smooth UI queue rendering (`< 0.05 ms`).
-
-*For full methodology, benchmark suites, and live telemetry reports, see **[docs/benchmarks/benchmark_report.md](docs/benchmarks/benchmark_report.md)**.*
+The [benchmark guide](docs/benchmarks/README.md) lists the suites for measuring graph retrieval, daemon startup and resource usage.
 
 ---
 
@@ -147,7 +133,7 @@ The benchmark report records query, ingestion and terminal performance targets.
 
 ## 🗺️ Roadmap
 
-- [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, and UDS IPC daemon. Historical TUI milestones and the current frontend transition are tracked separately in the roadmap.
+- [x] **v1.0.0**: Stable `BrainRuntime` core, SQLite FTS5 hybrid search, and UDS IPC daemon.
 - [x] **v1.1.0**: First-party terminal frontend, retrieval-backed context and the reflection pipeline.
 - [ ] **v2.0.0**: Active-active Raft distributed consensus & WASM plugin sandbox.
 
