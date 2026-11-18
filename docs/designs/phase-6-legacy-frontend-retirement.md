@@ -37,3 +37,9 @@ The private preservation archive verified 2,229 entries against the working file
 The current increment carries the synchronized CI consumer, release checklist and toolchain provenance onto the preserved Phase 6 baseline. The CI consumer must execute the extracted `brain-dist/bin` layout under `bash -e -o pipefail`, accept a complete large inventory, reject missing required files, and propagate package or binary failures. Packaging uses the pinned managed standalone CPython on both native hosts. No product runtime or frozen presentation changes are planned.
 
 Acceptance requires focused consumer regression tests, frontend typecheck and owned tests, `cargo xtask verify`, and successful native Linux/macOS archive jobs for the exact committed source. Branch verification uploads artifacts without tag publication. The original checkout's working files and index are checked against a pre-execution snapshot.
+
+## Completed native gate — 2026-11-18
+
+The final release follow-through product source `8a6d020df833e267e08c251dc3b3cd77a67ebbdc` passed both native archive jobs in [run 44255402374](https://github.com/ritikpathania/brain/actions/runs/44255402374). Linux completed one clean-extraction PTY smoke and macOS completed three. Both manifests report the exact clean source and actual CI-pinned tool versions. The [distribution acceptance record](../guides/product-distribution.md#phase-6-native-archive-acceptance--2026-11-18) records archive digests, test counts and verification scope. This closes the native Linux gate for that product source.
+
+The original checkout's 1,827 recorded paths and Git index matched the pre-execution snapshot. Its unrelated local provider/retrieval work remains outside this release candidate. Frozen presentation and runtime source were unchanged by the follow-through fixes.

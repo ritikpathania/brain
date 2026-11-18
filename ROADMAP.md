@@ -50,7 +50,9 @@ This document outlines the high-level roadmap and architectural direction for th
 ## Phase 6 release follow-through
 
 - [x] Verify the synchronized ordinary CI consumer with executable archive fixtures.
-- [ ] Complete the native Linux and macOS archive matrix for the final Phase 6 release candidate, with exact source and artifact evidence.
-- [ ] Synchronize the accepted verification branch while preserving unrelated original working files.
+- [x] Complete the native Linux and macOS archive matrix for the final Phase 6 release candidate, with exact source and artifact evidence.
+- [x] Synchronize the accepted verification branch while preserving unrelated original working files.
 
 The maintainer's local Rust 1.99.1 toolchain path currently resolves through a symlink to stable Rust 1.100.0. The [distribution guide](docs/guides/product-distribution.md) distinguishes this local provenance from the CI pin.
+
+Native follow-through product source `8a6d020d` passed both platforms on 2026-11-18. [Exact acceptance evidence](docs/guides/product-distribution.md#phase-6-native-archive-acceptance--2026-11-18). Future roadmap features remain separate from this completed release-verification increment.
